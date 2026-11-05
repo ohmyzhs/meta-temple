@@ -2,11 +2,12 @@
 //   browser_run_code_unsafe { filename: '<repo>/tools/qa/night.mjs' }
 // 열린 탭이 localhost 면 그 주소(포트)를 쓰고, 아니면 http://localhost:8080 (python3 .claude/devserver.py 8080).
 // 스크린샷은 MCP 작업 폴더 기준 OUT 에 남는다.
-// 기준 (1280×800, 맑음): 세 구도 × 0·2·22시
+// 기준 (1280×800, 맑음): 네 구도(산문·마당·법당 안·마당에서 올려다본 대웅전 지붕) × 0·2·22시
 //   (a) 화면 평균 루마 ≥ 같은 구도 13시 평균의 18%
-//   (b) 지붕선 국소 대비(지붕 윗선 바로 위 띠 vs 바로 아래 지붕 띠, 루마 차) ≥ 0.06     — 바깥 두 구도
-//   (c) 하늘 영역에서 루마 0.6 이상 별 픽셀 ≥ 300 (달 둘레 6°·넓게 번진 블룸 제외)      — 바깥 두 구도
-//   (d) 은하수 띠(대원 ±5°) 평균 루마 > 주변 하늘(띠에서 12~25°), 은하수만 끈 화면과의 차도 띠 > 주변 — 바깥 두 구도
+//   (b) 지붕선 국소 대비(지붕 윗선 바로 위 띠 vs 바로 아래 지붕 띠, 루마 차) ≥ 0.06
+//       — 산문·마당은 지붕 위가 숲·산이라 그 대비로, 대웅전 지붕 구도는 위 띠가 모두 하늘인 지붕선만으로
+//   (c) 하늘 영역에서 루마 0.6 이상 별 픽셀 ≥ 300 (달 둘레 6°·넓게 번진 블룸 제외)      — 바깥 구도
+//   (d) 은하수 띠(대원 ±5°) 평균 루마 > 주변 하늘(띠에서 12~25°), 은하수만 끈 화면과의 차도 띠 > 주변 — 바깥 구도
 async (page) => {
   const OUT = '.playwright-mcp/qa/night';
   const HOURS = [0, 2, 22];
@@ -67,6 +68,8 @@ async (page) => {
       },
       shot(s) {
         t.avatars.teleport(s.player[0], s.player[1], Math.PI);
+        t._walkZone = null; // 순간이동을 걸어서 문턱 넘은 것으로 보지 않게
+        t.avatars.solo = true; // 지나가는 도반(NPC)이 카메라 앞을 가려 값이 흔들리지 않게
         W.setShot({ pos: new THREE.Vector3(...s.pos), look: new THREE.Vector3(...s.look), dur: 1e9 }, true);
         document.querySelector('#hud').style.opacity = 0;
         document.querySelector('.toast-stack')?.style.setProperty('opacity', '0');
@@ -164,7 +167,9 @@ async (page) => {
   const SHOTS = [
     { name: 'gate', outdoor: true, player: [gx + 0.6, 40.5], pos: [gx + 0.6, 2.3, 38.5], look: [gx, 6.0, 26] },
     { name: 'courtyard', outdoor: true, player: [5.2, 4.4], pos: [5.0, 2.1, 2.6], look: [1, 6.5, -16] },
-    { name: 'hall', outdoor: false, player: [1.5, -20.8], pos: [1.2, 4.7, -21.0], look: [0, 4.2, -28.4] }
+    { name: 'hall', outdoor: false, player: [1.5, -20.8], pos: [1.2, 4.7, -21.0], look: [0, 4.2, -28.4] },
+    // 마당에서 올려다본 대웅전 지붕: 용마루가 뒷산보다 높이 보여 지붕선이 하늘 앞에 선다 → (b) 를 하늘 앞 지붕선으로 잰다 (x 3.5 연등 줄 기둥을 비켜 x 0.8)
+    { name: 'hallroof', outdoor: true, skyRoof: true, player: [1.2, -8.2], pos: [0.8, 1.9, -10.5], look: [0, 9.5, -25] }
   ];
   const run = async (h, s, tag) => {
     await page.evaluate(([h, s]) => { window.__qa.setHour(h); window.__qa.shot(s); }, [h, s]);
@@ -183,7 +188,7 @@ async (page) => {
       const ratio = +(r.mean / day[s.name].mean).toFixed(3);
       const ok = {
         a: ratio >= 0.18,
-        b: !s.outdoor || (r.roofContrast ?? 0) >= 0.06,
+        b: !s.outdoor || ((s.skyRoof ? r.roofSkyContrast : r.roofContrast) ?? 0) >= 0.06,
         c: !s.outdoor || r.stars >= 300,
         d: !s.outdoor || (!!r.milky?.px[0] && !!r.milky.px[1] && r.milky.band > r.milky.ref && r.milky.bandAdd > r.milky.refAdd)
       };

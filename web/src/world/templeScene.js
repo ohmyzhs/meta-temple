@@ -41,6 +41,57 @@ export const PRESET_HOURS = { dawn: 5.0, day: 13, sunset: 18.0, night: 22 };
 /* 맑은 낮 색 보정(finalPass) — 1 에 더하는 양. tools/qa/day.mjs 로 재서 맞춘 값 */
 const DAY_GRADE = { sat: 0.18, contrast: 0.06 };
 
+/* 카메라 가림 (Task C4) — tools/qa/occlusion.mjs 로 확인 */
+const OCC = {
+  minDist: 1.2, // 당겨도 머리에서 이만큼은 떨어진다
+  margin: 0.3, // 막힌 면 앞 여유
+  slab: 1.0, // 지붕 판 속인지 볼 때 위·아래로 쏘는 거리
+  fade: 10, // 디더 비춤 양이 따라가는 빠르기 (1/s)
+  r0: 0.07, // 디더 구멍: 머리 둘레 이 반지름(화면 높이 비율)까지 다 비추고
+  r1: 0.15 // 여기까지 옅어진다
+};
+// 실내 규칙: 카메라 높이는 천장·처마 밑에서 0.4m 아래까지만.
+// 법당 우물천장 밑면 7.38m(마루 3.0 + 기둥 4.4 − 0.02), 처마 밑 최저 7.54m / 심검당 처마 밑 최저 4.77m (layout.js ROOF_COVERS, 위로 쏜 광선으로 잰 값)
+// 다실 가는 길은 머리(약 2.45m)에서 처마 밑 4.37m 까지 1.92m 이므로 거리 5m 면 기울기 0.39rad 까지
+const HALL_CAM = { dist: 5.2, pitch: 0.42, maxY: 7.38 - 0.4 };
+const PASSAGE_CAM = { dist: 5.0, pitch: 0.39, maxY: 4.77 - 0.4 };
+
+/* 가림체 디더: 머리보다 카메라 쪽에 있는 조각을, 머리 둘레 원 안에서 화면 공간 4×4 Bayer 로 비운다 */
+const seeU = {
+  uSeePx: { value: new THREE.Vector2() },
+  uSeeR: { value: new THREE.Vector2(OCC.r0, OCC.r1) },
+  uSeeRes: { value: 1 },
+  uSeeDepth: { value: 0 },
+  uSeeAmt: { value: 0 }
+};
+function seeThrough(mat) {
+  if (mat.userData.seeThrough) return;
+  mat.userData.seeThrough = true;
+  const prev = mat.onBeforeCompile;
+  const key = mat.customProgramCacheKey(); // weatherable·nightGlow 의 키를 지금 값으로 붙잡아 둔다
+  mat.onBeforeCompile = (shader, r) => {
+    prev.call(mat, shader, r);
+    Object.assign(shader.uniforms, seeU);
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+        uniform vec2 uSeePx, uSeeR; uniform float uSeeRes, uSeeDepth, uSeeAmt;
+        const int SEE_BAYER[16] = int[16](0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5);`
+      )
+      .replace(
+        '#include <clipping_planes_fragment>',
+        `#include <clipping_planes_fragment>
+        if (uSeeAmt > 0.001 && vViewPosition.z < uSeeDepth) {
+          float see = (1.0 - smoothstep(uSeeR.x, uSeeR.y, length(gl_FragCoord.xy - uSeePx) / uSeeRes)) * uSeeAmt;
+          ivec2 bq = ivec2(mod(gl_FragCoord.xy, 4.0));
+          if (see > (float(SEE_BAYER[bq.x + bq.y * 4]) + 0.5) / 16.0) discard;
+        }`
+      );
+  };
+  mat.customProgramCacheKey = () => key + '|see';
+}
+
 /* 밤하늘 세기 — tools/qa/night.mjs 로 재서 맞춘 값 */
 const NIGHT_SKY = { MW_CORE: 0.006, MW_WIDE: 0.03, MW_GAIN: 0.07, STAR_FAINT: 0.7, STAR_MID: 3.0, STAR_BRIGHT: 5.0, MOON_DISK: 3.0 };
 // 은하수 대원의 극 — 띠는 북북동(방위 15°) 지평선에서 가파르게 솟아 서북서 하늘 79° 를 지나 남남서로 진다
@@ -53,6 +104,7 @@ const MILKY_POLE = new THREE.Vector3(0.966, 0.2, 0.259).normalize();
 export const NIGHT_EXPOSURE_FLOOR = 1.3;
 
 const _ca = new THREE.Color(), _cb = new THREE.Color();
+const _UP = new THREE.Vector3(0, 1, 0), _DOWN = new THREE.Vector3(0, -1, 0);
 function sampleKeys(hour) {
   hour = ((hour % 24) + 24) % 24;
   let i = 0;
@@ -317,6 +369,7 @@ export class TempleScene {
     this.veg = await step(0.45, '숲길에 나무를 심는 중…', () => buildVegetation(this.scene, this.quality));
     this.temple = await step(0.7, '전각을 세우는 중…', () => new Temple(this.scene, this.quality));
     this._buildCrownGrid(this.veg.crowns);
+    this.occluders = this._collectOccluders(); // 정적 병합 전에: 합친 뒤에는 지붕·벽과 나머지가 한 메쉬가 된다
     this.batchStats = batchStatic(this.scene, this.temple.dynamicRoots());
     await step(0.85, '등불을 켜는 중…', () => {
       this._placeLights();
@@ -390,6 +443,93 @@ export class TempleScene {
       } else if (q.x > c.x0 - 0.25 && q.x < c.x1 + 0.25 && q.z > c.z0 - 0.25 && q.z < c.z1 + 0.25) return true;
     }
     return false;
+  }
+
+  /**
+   * 카메라 가림체: 지붕·담·벽·천장(architecture.js·temple.js 가 userData.occluder 로 표시).
+   * 광선 검사용 양면 대리 메쉬(장면에 넣지 않음)를 만들고, 그 재질에 디더 투명을 붙인다.
+   */
+  _collectOccluders() {
+    this.scene.updateMatrixWorld(true);
+    const proxyMat = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
+    const out = [];
+    this.scene.traverse((o) => {
+      const kind = o.userData.occluder;
+      if (!kind || !o.isMesh || o.isInstancedMesh) return;
+      const p = new THREE.Mesh(o.geometry, proxyMat);
+      p.matrixAutoUpdate = false;
+      p.matrix.copy(o.matrixWorld);
+      p.matrixWorld.copy(o.matrixWorld);
+      p.userData.kind = kind;
+      out.push(p);
+      (Array.isArray(o.material) ? o.material : [o.material]).forEach(seeThrough);
+    });
+    this.occRay = new THREE.Raycaster();
+    this.see = { amt: 0, target: 0 };
+    return out;
+  }
+
+  /** p 에서 dir 로 쏜 광선이 처음 닿은 면을 뒤에서 맞았나 (가림체 속에 있나) */
+  _backHit(p, dir, far) {
+    const ray = this.occRay;
+    ray.set(p, dir);
+    ray.near = 0;
+    ray.far = far;
+    const h = ray.intersectObjects(this.occluders, false)[0];
+    return !!h && h.face.normal.clone().transformDirection(h.object.matrixWorld).dot(dir) > 0;
+  }
+
+  /**
+   * 머리 → 카메라 선분을 가림체로 검사해 pos 를 고친다.
+   * 담·벽·천장은 그 앞 0.3m 로 당기고(머리에서 1.2m 안으로는 안 당김), 처마·지붕·담 기와처럼 얇은 것은 당기지 않고 디더로 비춘다.
+   * 카메라가 지붕 판 속에 들면(위·아래 광선이 모두 판 뒷면) 그 앞으로 당긴다.
+   */
+  _occlude(pos, head) {
+    const t0 = performance.now();
+    const dir = pos.clone().sub(head);
+    let len = dir.length();
+    if (len < 1e-3) return;
+    dir.divideScalar(len);
+    const ray = this.occRay;
+    ray.set(head, dir);
+    ray.near = 0.05;
+    ray.far = len;
+    const hits = ray.intersectObjects(this.occluders, false);
+    for (const h of hits) {
+      const k = h.object.userData.kind;
+      if ((k === 'wall' || k === 'ceiling') && h.distance - OCC.margin >= OCC.minDist) {
+        len = h.distance - OCC.margin;
+        break;
+      }
+    }
+    pos.copy(head).addScaledVector(dir, len);
+    if (hits.length && this._backHit(pos, _UP, OCC.slab) && this._backHit(pos, _DOWN, OCC.slab)) {
+      const entry = [...hits].reverse().find((h) => h.distance < len);
+      if (entry && entry.distance - OCC.margin >= OCC.minDist) {
+        len = entry.distance - OCC.margin;
+        pos.copy(head).addScaledVector(dir, len);
+      }
+    }
+    this.see.target = hits.some((h) => h.distance < len - 0.05) ? 1 : 0;
+    this.occlusionMs = (this.occlusionMs ?? 0) * 0.9 + (performance.now() - t0) * 0.1;
+  }
+
+  /** 디더 구멍 위치: 화면에서 머리가 있는 픽셀과 머리까지의 깊이 */
+  _seeUpdate(head, on, dt) {
+    const s = this.see;
+    if (!s) return;
+    if (!on) s.amt = 0; // 1인칭·예불 장면: 바로 끈다
+    else s.amt += (s.target - s.amt) * (1 - Math.exp(-dt * OCC.fade));
+    seeU.uSeeAmt.value = s.amt;
+    if (s.amt < 0.001) return;
+    const cam = this.camera;
+    cam.updateMatrixWorld();
+    const v = head.clone().applyMatrix4(cam.matrixWorldInverse);
+    seeU.uSeeDepth.value = -v.z - 0.35; // 머리보다 0.35m 넘게 카메라 쪽에 있는 조각만
+    v.applyMatrix4(cam.projectionMatrix);
+    const el = this.renderer.domElement;
+    seeU.uSeePx.value.set((v.x * 0.5 + 0.5) * el.width, (v.y * 0.5 + 0.5) * el.height);
+    seeU.uSeeRes.value = el.height;
   }
 
   _enablePickLayer() {
@@ -636,10 +776,16 @@ export class TempleScene {
     }
   }
 
+  /** 가림막 뒤에서 카메라를 정한 구도로 바로 놓는다 — 다음 프레임에 초점·거리·위치를 보간 없이 */
+  snapCameraTo(yaw, pitch, dist) {
+    Object.assign(this.cam, { yaw, pitch, targetDist: dist, dist, snap: true });
+  }
+
   _updateCamera(dt, player) {
     const c = this.cam;
     const p = player.position;
     player.visible = true;
+    if (c.shot || c.mode === 'first') this._seeUpdate(null, false, dt);
     if (c.shot) {
       const s = c.shot;
       s.t += dt;
@@ -667,20 +813,26 @@ export class TempleScene {
     }
     const focusY = (player.userData.focusHeight ?? 1.25);
     const focus = new THREE.Vector3(p.x, p.y + focusY, p.z);
-    c.focus.lerp(focus, 1 - Math.exp(-dt * 8));
+    if (c.snap) c.focus.copy(focus);
+    else c.focus.lerp(focus, 1 - Math.exp(-dt * 8));
+    // 실내 규칙: 법당 안, 다실 가는 담 사이 길에서는 낮고 가깝게
+    const lk = L.teaLink;
+    const inPassage = !inHall && p.x > lk.x0 - 0.5 && p.x < lk.x1 + 1.5 && p.z > lk.z0 && p.z < lk.z1;
+    const room = inHall ? HALL_CAM : inPassage ? PASSAGE_CAM : null;
     let dist = c.dist;
     let pitch = c.pitch;
-    if (inHall) {
-      dist = Math.min(dist, 5.2);
-      pitch = Math.min(pitch, 0.42);
+    if (room) {
+      dist = Math.min(dist, room.dist);
+      pitch = Math.min(pitch, room.pitch);
     }
     const off = new THREE.Vector3(Math.sin(c.yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(c.yaw) * Math.cos(pitch)).multiplyScalar(dist);
     const want = c.focus.clone().add(off);
     if (inHall) {
+      // 법당 벽 안쪽, 앞은 처마 밖(z −15)까지 — 처마 밑 최저 7.54m 가 maxY 보다 높아 처마 판에 들지 않는다
       want.x = clamp(want.x, L.hall.x0 + 0.5, L.hall.x1 - 0.5);
       want.z = clamp(want.z, L.hall.z0 + 0.5, -15);
-      want.y = Math.min(want.y, L.hall.floorY + 4.0);
     }
+    if (room) want.y = Math.min(want.y, room.maxY);
     if (!inHall && this.crownGrid) {
       // 초점에서 카메라 쪽으로 걸어가며 처음 막히는 곳 앞에서 멈춘다
       const dir = want.clone().sub(c.focus);
@@ -698,8 +850,18 @@ export class TempleScene {
     }
     const ground = terrainHeight(want.x, want.z) + 0.5;
     if (want.y < ground) want.y = ground;
-    this.camera.position.lerp(want, 1 - Math.exp(-dt * 9));
+    // 보간한 실제 자리를 검사한다 (멀어지며 지붕 판을 지나가는 프레임도 잡히게)
+    const pos = c.snap ? want : this.camera.position.clone().lerp(want, 1 - Math.exp(-dt * 9));
+    const av = player.userData.avatar;
+    const head = av ? av.eyeWorld(new THREE.Vector3()) : c.focus.clone();
+    if (this.occluders) this._occlude(pos, head);
+    this.camera.position.copy(pos);
     this.camera.lookAt(c.focus);
+    if (c.snap) {
+      c.snap = false;
+      if (this.see) this.see.amt = this.see.target;
+    }
+    this._seeUpdate(head, true, dt);
   }
 
   /* ───── 프레임 ───── */

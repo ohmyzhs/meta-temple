@@ -52,6 +52,8 @@ async (page) => {
       },
       shot(s) {
         t.avatars.teleport(s.player[0], s.player[1], Math.PI);
+        t._walkZone = null; // 순간이동을 걸어서 문턱 넘은 것으로 보지 않게
+        t.avatars.solo = true; // 지나가는 도반(NPC)이 카메라 앞을 가려 값이 흔들리지 않게
         W.setShot({ pos: new THREE.Vector3(...s.pos), look: new THREE.Vector3(...s.look), dur: 1e9 }, true);
         document.querySelector('#hud').style.opacity = 0;
         document.querySelector('.toast-stack')?.style.setProperty('opacity', '0');
@@ -75,6 +77,9 @@ async (page) => {
           }
           out.skySat = sn ? +(ss / sn).toFixed(4) : null;
           out.skyPx = sn;
+          let gs = 0, gn = 0;
+          for (let p = 0; p < n; p++) if (!sky[p]) { gs += luma(img, p * 4); gn++; }
+          out.groundMean = gn ? +(gs / gn).toFixed(4) : null; // 하늘을 뺀 땅·건물·나무의 평균 루마 (참고)
           // 먼 산 능선: 산 픽셀인데 바로 위가 하늘
           let cs = 0, cn = 0;
           for (let x = 0; x < Wd; x += 2) {
@@ -119,7 +124,7 @@ async (page) => {
       const all = Object.values(ok).every(Boolean);
       if (h === 13) pass &&= all;
       rows.push(`${String(h).padStart(4)}h ${s.name.padEnd(9)} ${h === 13 ? (all ? 'PASS' : 'FAIL') : '(참고)'} mean ${r.mean} | 과포화 ${r.clip}%${ok.c ? '' : '✗'}` +
-        (s.outdoor ? ` | 하늘 채도 ${r.skySat}${ok.a ? '' : '✗'} (${r.skyPx}px) | 먼 산 대비 ${r.ridge}${ok.b ? '' : '✗'} (기준 ${BASE[s.name]}, ${r.ridgePx}px)` : ''));
+        (s.outdoor ? ` | 하늘 뺀 평균 ${r.groundMean} | 하늘 채도 ${r.skySat}${ok.a ? '' : '✗'} (${r.skyPx}px) | 먼 산 대비 ${r.ridge}${ok.b ? '' : '✗'} (기준 ${BASE[s.name]}, ${r.ridgePx}px)` : ''));
     }
   }
   return `day.mjs ${pass ? 'PASS' : 'FAIL'}\n` + rows.join('\n');

@@ -245,6 +245,8 @@ export function buildRoof(opts) {
   group.userData.profileAt = (s) => profile(s);
   group.userData.thickAt = (s) => thick(s);
   group.userData.point = point;
+  // 카메라 가림체 (templeScene 이 합치기 전에 모아 광선 검사·디더 투명에 쓴다)
+  group.traverse((o) => o.isMesh && (o.userData.occluder = 'roof'));
   return group;
 }
 
@@ -433,6 +435,7 @@ export function buildHanok(opts) {
       }
       mesh.castShadow = shadows;
       mesh.receiveShadow = true;
+      mesh.userData.occluder = 'wall';
       g.add(mesh);
       if (isDoor) {
         const sill = new THREE.Mesh(new THREE.BoxGeometry(w, 0.25, 0.2), m.woodDark);
@@ -773,6 +776,8 @@ export function buildWall(len, h = 1.55) {
   const cap = buildRoof({ halfW: len / 2 + 0.2, halfD: 0.55, height: 0.32, type: 'gable', lift: 0.05, segs: Math.max(8, Math.round(len * 1.5)), thickness: 0.12, tile: 0.45 });
   cap.position.y = h;
   g.add(cap);
+  stone.userData.occluder = plaster.userData.occluder = 'wall';
+  cap.traverse((o) => o.isMesh && (o.userData.occluder = 'cap'));
   return g;
 }
 
