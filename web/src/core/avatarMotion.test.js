@@ -86,9 +86,14 @@ test('넓힌 동작: 상태마다 제 클립, 다실 선사는 앉은 채 찻잔
     [{ seq: 'offer_stone' }, 'offer_stone'], [{ seq: 'write_tile' }, 'write_tile'], [{ seq: 'hang_lantern' }, 'hang_lantern']]) {
     assert.equal(pickMotion({ ...o, has }), want, JSON.stringify(o));
   }
-  // 서버 허용 목록과 같은 이름들 (server.js ACTIONS)
+  // 서버 허용 목록과 같은 이름들 (server.js ACTIONS), 사경은 'sit' 으로 보낸다
   const server = await readFile(new URL('../../../server/server.js', import.meta.url), 'utf8');
-  for (const a of ACTION_STATES) assert.ok(server.includes(`'${a}'`), `server ACTIONS 에 ${a}`);
+  const actions = server.match(/const ACTIONS = new Set\(\[([^\]]*)\]/)[1];
+  for (const a of ACTION_STATES) assert.ok(actions.includes(`'${a}'`), `server ACTIONS 에 ${a}`);
+  assert.ok(!actions.includes("'sutra'"));
+  const { wireState } = await import('./avatarMotion.js');
+  assert.equal(wireState('sutra'), 'sit');
+  assert.equal(wireState('meditate'), 'meditate');
 });
 
 test('연꽃 등불 정령: 없는 동작은 가까운 것으로', async () => {

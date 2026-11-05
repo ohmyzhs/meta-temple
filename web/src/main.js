@@ -9,6 +9,7 @@ import { TempleSoundEngine } from './audio/soundEngine.js';
 import { TempleScene } from './world/templeScene.js';
 import { AvatarManager } from './world/avatarManager.js';
 import { loadRig } from './world/avatarRig.js';
+import { wireState } from './core/avatarMotion.js';
 import { L, isWalkable, zoneAt, streamZ, walkHeight } from './world/layout.js';
 import { ModalManager } from './ui/modalManager.js';
 import { LiveLink, sharedApi } from './core/live.js';
@@ -1309,7 +1310,7 @@ class MetaTempleApp {
           this._actSeq = (this._actSeq || 0) + 1;
         }
         const p = pl.root.position;
-        this.live.update({ x: p.x, y: p.y, z: p.z, ry: wrapAngle(pl.root.rotation.y), a: pl.seq?.name || pl.state || 'idle', n: this._actSeq || 0 });
+        this.live.update({ x: p.x, y: p.y, z: p.z, ry: wrapAngle(pl.root.rotation.y), a: pl.seq?.name || wireState(pl.state) || 'idle', n: this._actSeq || 0 });
       }
     }
     this.world.render();

@@ -28,7 +28,9 @@ async (page) => {
       { id: 'p3', dharmaName: '좌선 도반', avatarStyle: 'monk', x: -1, y: 3.13, z: -24.7, ry: Math.PI, actionState: 'meditate', actionSeq: 0 },
       { id: 'p4', dharmaName: '새 동작 도반', avatarStyle: 'monk', x: 3, y: 0.1, z: 30, ry: 0, actionState: 'mala_future', actionSeq: 0 },
       { id: 'p5', dharmaName: '삿갓 도반', avatarStyle: 'ink_wanderer', x: 2, y: 0.1, z: 1, ry: 0, actionState: 'circumambulate', actionSeq: 0 },
-      { id: 'p6', dharmaName: '정령 도반', avatarStyle: 'lantern_spirit', x: -2, y: 0.1, z: 1, ry: 0, actionState: 'tea', actionSeq: 0 }
+      { id: 'p6', dharmaName: '정령 도반', avatarStyle: 'lantern_spirit', x: -2, y: 0.1, z: 1, ry: 0, actionState: 'tea', actionSeq: 0 },
+      // 사경: 'sit' 으로 오지만 서안 자리라 붓으로 쓰는 모습
+      { id: 'p7', dharmaName: '사경 도반', avatarStyle: 'monk', x: t.temple.sutraSeat.x, y: t.temple.sutraSeat.y, z: t.temple.sutraSeat.z, ry: Math.PI / 2, actionState: 'sit', actionSeq: 0 }
     ];
     const out = [];
     let x = 4;
@@ -42,7 +44,7 @@ async (page) => {
     for (const [id, r] of A.remote) out.push(`${r.av.name}: ${r.av.rig ? '블렌더 ' + r.av.rig.name : '절차식 ' + r.av.style + '/' + r.av.state} 빠르기 ${r.av.speed.toFixed(2)}`);
     const walker = A.remote.get('p2').av;
     const ok = A.remote.get('p1').av.rig?.name === 'prostrate' && walker.rig?.name?.startsWith('walk') && walker.speed > 0.6 && A.remote.get('p4').av.rig?.name === 'idle' && A.remote.get('p3').av.rig?.name === 'meditate' &&
-      A.remote.get('p5').av.rig?.name === 'gassho' && !!A.remote.get('p6').av.rig;
+      A.remote.get('p5').av.rig?.name === 'gassho' && !!A.remote.get('p6').av.rig && A.remote.get('p7').av.rig?.name === 'sutra';
     // 같은 큰절을 다시 (순번만 바뀜) → 처음부터 다시
     const p1 = A.remote.get('p1').av;
     step(40);

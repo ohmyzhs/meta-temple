@@ -963,13 +963,16 @@ export class AvatarManager {
       r.target.set(peer.x, peer.y, peer.z);
       r.ry = peer.ry ?? 0;
       // 같은 동작을 거듭해도(큰절 연속) 순번(actionSeq)이 바뀌면 다시 재생
-      if (peer.actionState && (peer.actionState !== r.action || peer.actionSeq !== r.seq)) {
-        r.action = peer.actionState;
+      // 사경 서안 자리에 앉은 도반은 사경 중 ('sit' 으로 오지만 붓으로 쓰는 모습으로 — avatarMotion.wireState)
+      const ss = this.temple.sutraSeat;
+      const state = peer.actionState === 'sit' && ss && Math.hypot(peer.x - ss.x, peer.z - ss.z) < 0.35 ? 'sutra' : peer.actionState;
+      if (state && (state !== r.action || peer.actionSeq !== r.seq)) {
+        r.action = state;
         r.seq = peer.actionSeq;
-        r.av.sitting = ['sit', 'meditate', 'tea', 'sutra'].includes(peer.actionState);
-        r.av.restState = r.av.sitting ? peer.actionState : null;
-        if (SEQ[peer.actionState]) r.av.play(peer.actionState);
-        else r.av.setState(peer.actionState);
+        r.av.sitting = ['sit', 'meditate', 'tea', 'sutra'].includes(state);
+        r.av.restState = r.av.sitting ? state : null;
+        if (SEQ[state]) r.av.play(state);
+        else r.av.setState(state);
       }
     }
     for (const [id, r] of this.remote) {

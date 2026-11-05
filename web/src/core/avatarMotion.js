@@ -16,11 +16,17 @@ const ONCE = {
 };
 /**
  * 동작 상태 이름 — 다른 도반에게 보내는 이름이자 server/server.js ACTIONS 허용 목록.
- * 넓히며 새로 생긴 것: offer_stone · write_tile · hang_lantern (한 번짜리), sutra (사경 상태).
- * 서버가 아직 모르면 idle 로 바뀌어 전해지고, 옛 클라이언트는 모르는 상태를 선 자세로 둔다 — 어느 쪽도 깨지지 않는다.
+ * 넓히며 새로 생긴 것: offer_stone · write_tile · hang_lantern (서서 하는 한 번짜리).
+ * 서버가 아직 모르면 idle 로 바뀌어 전해지고, 옛 클라이언트는 모르는 상태를 선 자세로 둔다 — 서서 하는 몸짓이라 어느 쪽도 깨지지 않는다.
  */
 export const ACTION_STATES = ['idle', 'walk', 'bow_half', 'prostrate', 'meditate', 'incense', 'circumambulate', 'tea', 'sit', 'lookUp',
-  'offer_stone', 'write_tile', 'hang_lantern', 'sutra'];
+  'offer_stone', 'write_tile', 'hang_lantern'];
+
+/**
+ * 보낼 때의 이름. 사경(sutra)은 'sit' 으로 보낸다 — 옛 클라이언트·옛 서버에서도 앉아 보이게.
+ * 받는 쪽은 사경 서안 자리에 앉은 도반을 사경 클립으로 보인다 (avatarManager.syncRemotePeers, 차수 걷기와 같은 방식).
+ */
+export const wireState = (s) => (s === 'sutra' ? 'sit' : s);
 
 /** 클립이 아직 없을 때 대신 쓸 것 (앞에서부터 있는 것) */
 const FALLBACK = {

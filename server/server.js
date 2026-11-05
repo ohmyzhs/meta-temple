@@ -18,9 +18,9 @@ const TICK_MS = 200;
 const BOW_RANGE = 10; // 합장 인사가 닿는 거리(m)
 const DAILY = { lanterns: 6, tiles: 6, stones: 12 };
 const STYLES = new Set(['monk', 'ink_wanderer', 'lantern_spirit']);
-// 동작 상태 (web/src/core/avatarMotion.js ACTION_STATES 와 같게) — 돌탑·기와·연등·사경 몸짓은 2026-11 블렌더 아바타에서 더함
+// 동작 상태 (web/src/core/avatarMotion.js ACTION_STATES 와 같게) — 돌탑·기와·연등 몸짓은 2026-11 블렌더 아바타에서 더함
 const ACTIONS = new Set(['idle', 'walk', 'bow_half', 'prostrate', 'meditate', 'incense', 'circumambulate', 'tea', 'sit', 'lookUp',
-  'offer_stone', 'write_tile', 'hang_lantern', 'sutra']);
+  'offer_stone', 'write_tile', 'hang_lantern']);
 const COLOR_RE = /^#[0-9a-f]{6}$/i;
 const ID_RE = /^[a-z]_[0-9a-f-]{36}$/;
 const KINDS = { '/api/lanterns': 'lanterns', '/api/tiles': 'tiles', '/api/stones': 'stones' };
