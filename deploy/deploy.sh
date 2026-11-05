@@ -31,6 +31,8 @@ REV="$(git -C "$ROOT" rev-parse --short=10 HEAD)"
 git -C "$ROOT" diff --quiet HEAD -- web || REV="$REV-dirty$(date +%s)"
 STAGE="$(mktemp -d)"
 trap 'rm -rf "$STAGE"' EXIT
+# mktemp -d 는 700 으로 만든다 — 그대로 올리면 rsync 가 서버 사이트 루트도 700 으로 바꿔 nginx 가 403 을 낸다
+chmod 755 "$STAGE"
 mkdir -p "$STAGE/v"
 rsync -a --exclude .DS_Store "$ROOT/web/src/" "$STAGE/v/$REV/"
 sed "s#\./src/#./v/$REV/#g" "$ROOT/web/index.html" > "$STAGE/index.html"
@@ -42,9 +44,9 @@ grep -q "v/$REV/main.js" "$STAGE/index.html"
 DEST="${TEMPLE_DEPLOY_KEY:+./}"
 DEST="${DEST:-/srv/temple/dist/}"
 DRY="${DEPLOY_DRY_RUN:+-n}"
-rsync -az $DRY -e "${SSH[*]}" "$STAGE/v/" "$VM:${DEST}v/"
-[ -d "$STAGE/assets" ] && rsync -az $DRY -e "${SSH[*]}" "$STAGE/assets/" "$VM:${DEST}assets/"
-rsync -az $DRY --delete --exclude 'v/' -e "${SSH[*]}" "$STAGE/" "$VM:$DEST"
+rsync -az --chmod=D755,F644 $DRY -e "${SSH[*]}" "$STAGE/v/" "$VM:${DEST}v/"
+[ -d "$STAGE/assets" ] && rsync -az --chmod=D755,F644 $DRY -e "${SSH[*]}" "$STAGE/assets/" "$VM:${DEST}assets/"
+rsync -az --chmod=D755,F644 $DRY --delete --exclude 'v/' -e "${SSH[*]}" "$STAGE/" "$VM:$DEST"
 [ -n "$DRY" ] && { echo "dry run: staged $STAGE"; exit 0; }
 curl -fsS -o /dev/null -w "temple.lotiony.com %{http_code}\n" https://temple.lotiony.com/
 curl -fsS -o /dev/null -w "v/$REV/main.js %{http_code}\n" "https://temple.lotiony.com/v/$REV/main.js"
