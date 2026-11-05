@@ -394,6 +394,7 @@ export class Temple {
     const ceil = new THREE.Mesh(new THREE.PlaneGeometry(h.x1 - h.x0, h.z1 - h.z0), new THREE.MeshStandardMaterial({ map: ct, roughness: 0.9 }));
     ceil.rotation.x = Math.PI / 2;
     ceil.position.set(0, fy + colH - 0.02, (h.z0 + h.z1) / 2);
+    ceil.userData.occluder = 'ceiling'; // 카메라가 천장 위(다락)로 올라가지 않게
     this.scene.add(ceil);
     // 내부 고주
     const inner = new THREE.InstancedMesh(columnGeometry(0.25, colH), m.column, 2);
@@ -1068,7 +1069,7 @@ class LanternSystem {
   }
 
   update(dt, t, night) {
-    this.uGlow.value = 0.35 + night * 3.2;
+    this.uGlow.value = 0.35 + night * 1.6;
     const o = this._o;
     for (let i = 0; i < this.list.length; i++) {
       const l = this.list[i];

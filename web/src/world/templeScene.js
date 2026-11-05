@@ -24,21 +24,87 @@ import { kstHour } from '../core/state.js';
 
 /* ───── 시간대 키프레임 (KST 시각) ───── */
 const KEYS = [
-  { h: 0, elev: 38, az: 150, light: '#8ea4d6', li: 0.55, top: '#060a14', hor: '#1a2234', fog: '#121827', fd: 0.014, hemiS: '#3a4a6a', hemiG: '#12100c', hi: 0.6, exp: 1.12, night: 1, stars: 1, cloud: '#1a1f2c' },
-  { h: 4.4, elev: 30, az: 120, light: '#8ea4d6', li: 0.5, top: '#080c18', hor: '#1e2638', fog: '#141a2a', fd: 0.016, hemiS: '#3a4a6a', hemiG: '#12100c', hi: 0.58, exp: 1.12, night: 1, stars: 0.9, cloud: '#1a1f2c' },
+  { h: 0, elev: 38, az: 150, light: '#a9bde6', li: 1.35, top: '#101b2f', hor: '#2a3a5a', fog: '#1f2a42', fd: 0.01, hemiS: '#5d7099', hemiG: '#1c1a18', hi: 1.05, exp: 1.3, night: 1, stars: 1, cloud: '#2a3348' },
+  { h: 4.4, elev: 30, az: 120, light: '#a9bde6', li: 1.25, top: '#121e34', hor: '#2c3c5c', fog: '#212c44', fd: 0.011, hemiS: '#5d7099', hemiG: '#1c1a18', hi: 1.0, exp: 1.3, night: 1, stars: 0.9, cloud: '#2a3348' },
   { h: 5.0, elev: -6, az: 80, light: '#7c8fb8', li: 0.18, top: '#141e30', hor: '#55627a', fog: '#47526a', fd: 0.034, hemiS: '#4b5a7a', hemiG: '#1a1814', hi: 0.55, exp: 1.05, night: 0.75, stars: 0.35, cloud: '#56617a' },
   { h: 6.4, elev: 4, az: 82, light: '#ffb07a', li: 1.6, top: '#5b7aa6', hor: '#eab38e', fog: '#b9a596', fd: 0.02, hemiS: '#9fb2cc', hemiG: '#3a3026', hi: 0.6, exp: 1.0, night: 0.2, stars: 0, cloud: '#e8b9a0' },
-  { h: 9, elev: 32, az: 120, light: '#fff1dc', li: 2.7, top: '#5d8fc2', hor: '#c8d7e2', fog: '#bccbd6', fd: 0.0095, hemiS: '#b9cde2', hemiG: '#4a4232', hi: 0.75, exp: 1.0, night: 0, stars: 0, cloud: '#f4f4f2' },
-  { h: 13, elev: 56, az: 180, light: '#fff6e6', li: 3.0, top: '#5a8ec4', hor: '#cfdde6', fog: '#c6d4de', fd: 0.0078, hemiS: '#c4d6e8', hemiG: '#4e4634', hi: 0.8, exp: 0.98, night: 0, stars: 0, cloud: '#ffffff' },
-  { h: 16.4, elev: 24, az: 240, light: '#ffe2b8', li: 2.6, top: '#5c84b4', hor: '#e2d2bc', fog: '#cfc5b6', fd: 0.0095, hemiS: '#c9c6c0', hemiG: '#4e4030', hi: 0.7, exp: 1.0, night: 0, stars: 0, cloud: '#f6e6d2' },
+  { h: 9, elev: 32, az: 120, light: '#fff1dc', li: 3.0, top: '#3270c4', hor: '#a4c6e6', fog: '#b0c7dc', fd: 0.006, hemiS: '#b4cdea', hemiG: '#4a4232', hi: 0.8, exp: 1.08, night: 0, stars: 0, cloud: '#f8f8f6' },
+  { h: 13, elev: 56, az: 180, light: '#fff6e6', li: 3.3, top: '#2c6cc8', hor: '#9ec4e8', fog: '#acc6de', fd: 0.005, hemiS: '#b8d2ee', hemiG: '#4e4634', hi: 0.85, exp: 1.08, night: 0, stars: 0, cloud: '#ffffff' },
+  { h: 16.4, elev: 24, az: 240, light: '#ffe2b8', li: 2.9, top: '#3468b4', hor: '#b2c8e0', fog: '#b8c4ce', fd: 0.006, hemiS: '#c2cad6', hemiG: '#4e4030', hi: 0.75, exp: 1.06, night: 0, stars: 0, cloud: '#f8eadc' },
   { h: 18.0, elev: 3, az: 268, light: '#ff8a4c', li: 2.2, top: '#3a4675', hor: '#e08458', fog: '#a7765f', fd: 0.012, hemiS: '#8a7a8c', hemiG: '#3a2a20', hi: 0.55, exp: 1.06, night: 0.5, stars: 0, cloud: '#f0a070' },
   { h: 19.1, elev: -7, az: 285, light: '#6a6a9a', li: 0.4, top: '#161b36', hor: '#5e4256', fog: '#2e2a3a', fd: 0.014, hemiS: '#4a4c6a', hemiG: '#14100c', hi: 0.55, exp: 1.0, night: 0.9, stars: 0.4, cloud: '#4a3a4c' },
-  { h: 22, elev: 40, az: 160, light: '#8ea4d6', li: 0.58, top: '#070b15', hor: '#1a2234', fog: '#121827', fd: 0.013, hemiS: '#3a4a6a', hemiG: '#12100c', hi: 0.62, exp: 1.12, night: 1, stars: 1, cloud: '#1a1f2c' },
-  { h: 24, elev: 38, az: 150, light: '#8ea4d6', li: 0.55, top: '#060a14', hor: '#1a2234', fog: '#121827', fd: 0.014, hemiS: '#3a4a6a', hemiG: '#12100c', hi: 0.6, exp: 1.12, night: 1, stars: 1, cloud: '#1a1f2c' }
+  { h: 22, elev: 40, az: 160, light: '#a9bde6', li: 1.35, top: '#101b2f', hor: '#2a3a5a', fog: '#1f2a42', fd: 0.01, hemiS: '#5d7099', hemiG: '#1c1a18', hi: 1.05, exp: 1.3, night: 1, stars: 1, cloud: '#2a3348' },
+  { h: 24, elev: 38, az: 150, light: '#a9bde6', li: 1.35, top: '#101b2f', hor: '#2a3a5a', fog: '#1f2a42', fd: 0.01, hemiS: '#5d7099', hemiG: '#1c1a18', hi: 1.05, exp: 1.3, night: 1, stars: 1, cloud: '#2a3348' }
 ];
 export const PRESET_HOURS = { dawn: 5.0, day: 13, sunset: 18.0, night: 22 };
 
+/* 맑은 낮 색 보정(finalPass) — 1 에 더하는 양. tools/qa/day.mjs 로 재서 맞춘 값 */
+const DAY_GRADE = { sat: 0.18, contrast: 0.06 };
+
+/* 카메라 가림 (Task C4) — tools/qa/occlusion.mjs 로 확인 */
+const OCC = {
+  minDist: 1.2, // 당겨도 머리에서 이만큼은 떨어진다
+  margin: 0.3, // 막힌 면 앞 여유
+  slab: 1.0, // 지붕 판 속인지 볼 때 위·아래로 쏘는 거리
+  fade: 10, // 디더 비춤 양이 따라가는 빠르기 (1/s)
+  r0: 0.07, // 디더 구멍: 머리 둘레 이 반지름(화면 높이 비율)까지 다 비추고
+  r1: 0.15 // 여기까지 옅어진다
+};
+// 실내 규칙: 카메라 높이는 천장·처마 밑에서 0.4m 아래까지만.
+// 법당 우물천장 밑면 7.38m(마루 3.0 + 기둥 4.4 − 0.02), 처마 밑 최저 7.54m / 심검당 처마 밑 최저 4.77m (layout.js ROOF_COVERS, 위로 쏜 광선으로 잰 값)
+// 다실 가는 길은 머리(약 2.45m)에서 처마 밑 4.37m 까지 1.92m 이므로 거리 5m 면 기울기 0.39rad 까지
+const HALL_CAM = { dist: 5.2, pitch: 0.42, maxY: 7.38 - 0.4 };
+const PASSAGE_CAM = { dist: 5.0, pitch: 0.39, maxY: 4.77 - 0.4 };
+
+/* 가림체 디더: 머리보다 카메라 쪽에 있는 조각을, 머리 둘레 원 안에서 화면 공간 4×4 Bayer 로 비운다 */
+const seeU = {
+  uSeePx: { value: new THREE.Vector2() },
+  uSeeR: { value: new THREE.Vector2(OCC.r0, OCC.r1) },
+  uSeeRes: { value: 1 },
+  uSeeDepth: { value: 0 },
+  uSeeAmt: { value: 0 }
+};
+function seeThrough(mat) {
+  if (mat.userData.seeThrough) return;
+  mat.userData.seeThrough = true;
+  const prev = mat.onBeforeCompile;
+  const key = mat.customProgramCacheKey(); // weatherable·nightGlow 의 키를 지금 값으로 붙잡아 둔다
+  mat.onBeforeCompile = (shader, r) => {
+    prev.call(mat, shader, r);
+    Object.assign(shader.uniforms, seeU);
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+        uniform vec2 uSeePx, uSeeR; uniform float uSeeRes, uSeeDepth, uSeeAmt;
+        const int SEE_BAYER[16] = int[16](0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5);`
+      )
+      .replace(
+        '#include <clipping_planes_fragment>',
+        `#include <clipping_planes_fragment>
+        if (uSeeAmt > 0.001 && vViewPosition.z < uSeeDepth) {
+          float see = (1.0 - smoothstep(uSeeR.x, uSeeR.y, length(gl_FragCoord.xy - uSeePx) / uSeeRes)) * uSeeAmt;
+          ivec2 bq = ivec2(mod(gl_FragCoord.xy, 4.0));
+          if (see > (float(SEE_BAYER[bq.x + bq.y * 4]) + 0.5) / 16.0) discard;
+        }`
+      );
+  };
+  mat.customProgramCacheKey = () => key + '|see';
+}
+
+/* 밤하늘 세기 — tools/qa/night.mjs 로 재서 맞춘 값 */
+const NIGHT_SKY = { MW_CORE: 0.006, MW_WIDE: 0.03, MW_GAIN: 0.07, STAR_FAINT: 0.7, STAR_MID: 3.0, STAR_BRIGHT: 5.0, MOON_DISK: 3.0 };
+// 은하수 대원의 극 — 띠는 북북동(방위 15°) 지평선에서 가파르게 솟아 서북서 하늘 79° 를 지나 남남서로 진다
+// (산문·마당에서 북쪽을 보면 오른쪽 하늘에 비스듬히 선 띠)
+const MILKY_POLE = new THREE.Vector3(0.966, 0.2, 0.259).normalize();
+/**
+ * 밤 노출 하한 (밤 정도 e.night 에 비례). 해 진 뒤 달빛이 오르기 전(19~20시)이 가장 어둡다:
+ * 숲길 산문 구도 평균 루마가 낮(13시)의 18.3%(키값만) → 20.6%(하한 1.3)로, 밤 내내 20% 아래로 내려가지 않는다.
+ */
+export const NIGHT_EXPOSURE_FLOOR = 1.3;
+
 const _ca = new THREE.Color(), _cb = new THREE.Color();
+const _UP = new THREE.Vector3(0, 1, 0), _DOWN = new THREE.Vector3(0, -1, 0);
 function sampleKeys(hour) {
   hour = ((hour % 24) + 24) % 24;
   let i = 0;
@@ -60,6 +126,7 @@ function skyMaterial() {
     side: THREE.BackSide,
     depthWrite: false,
     fog: false,
+    defines: Object.fromEntries(Object.entries(NIGHT_SKY).map(([k, v]) => [k, v.toFixed(4)])),
     uniforms: {
       uTop: { value: new THREE.Color() },
       uHorizon: { value: new THREE.Color() },
@@ -69,6 +136,8 @@ function skyMaterial() {
       uSunVis: { value: 1 },
       uMoonDir: { value: new THREE.Vector3(0.3, 0.6, -0.7).normalize() },
       uStars: { value: 0 },
+      uMilkyPole: { value: MILKY_POLE },
+      uMilky: { value: 1 },
       uCloud: { value: new THREE.Color() },
       uCloudAmt: { value: 0.5 },
       uTime: envUniforms.uTime
@@ -82,14 +151,27 @@ function skyMaterial() {
       }`,
     fragmentShader: `
       uniform vec3 uTop, uHorizon, uBottom, uSunColor, uCloud;
-      uniform vec3 uSunDir, uMoonDir;
-      uniform float uSunVis, uStars, uCloudAmt, uTime;
+      uniform vec3 uSunDir, uMoonDir, uMilkyPole;
+      uniform float uSunVis, uStars, uCloudAmt, uTime, uMilky;
       varying vec3 vDir;
       float hash(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
       float n2(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
         float a = hash(vec3(i, 1.0)), b = hash(vec3(i + vec2(1, 0), 1.0)), c = hash(vec3(i + vec2(0, 1), 1.0)), d = hash(vec3(i + vec2(1, 1), 1.0));
         return mix(mix(a, b, f.x), mix(c, d, f.x), f.y); }
       float fbm(vec2 p) { float s = 0.0, a = 0.5; for (int i = 0; i < 5; i++) { s += a * n2(p); p *= 2.03; a *= 0.5; } return s; }
+      float n3(vec3 p) { vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+        return mix(mix(mix(hash(i), hash(i + vec3(1, 0, 0)), f.x), mix(hash(i + vec3(0, 1, 0)), hash(i + vec3(1, 1, 0)), f.x), f.y),
+                   mix(mix(hash(i + vec3(0, 0, 1)), hash(i + vec3(1, 0, 1)), f.x), mix(hash(i + vec3(0, 1, 1)), hash(i + vec3(1, 1, 1)), f.x), f.y), f.z); }
+      float fbm3(vec3 p) { float s = 0.0, a = 0.5; for (int i = 0; i < 3; i++) { s += a * n3(p); p *= 2.07; a *= 0.5; } return s / 0.875; }
+      // 별 한 겹: 방향을 N 격자로 나눠 칸마다 문턱을 넘으면 칸 안 임의 위치에 둥근 별 하나
+      float stars(vec3 d, float N, float thr) {
+        vec3 q = d * N, g = floor(q);
+        float s = hash(g);
+        if (s < thr) return 0.0;
+        vec3 c = g + 0.5 + (vec3(hash(g + 3.1), hash(g + 7.7), hash(g + 1.3)) - 0.5) * 0.5;
+        float b = (s - thr) / (1.0 - thr);
+        return smoothstep(0.6, 0.0, length(q - c)) * (0.3 + 0.7 * b * b);
+      }
       void main() {
         vec3 d = normalize(vDir);
         float h = d.y;
@@ -99,16 +181,29 @@ function skyMaterial() {
         float sd = max(dot(d, normalize(uSunDir)), 0.0);
         col += uSunColor * (pow(sd, 6.0) * 0.28 + pow(sd, 64.0) * 0.6) * uSunVis;
         col += uSunColor * smoothstep(0.9993, 0.9997, sd) * 6.0 * uSunVis * step(0.0, uSunDir.y + 0.02);
-        // 별
-        if (uStars > 0.01 && h > 0.0) {
-          vec3 g = floor(d * 380.0);
-          float s = hash(g);
-          float tw = 0.6 + 0.4 * sin(uTime * (1.0 + s * 3.0) + s * 40.0);
-          col += vec3(0.9, 0.93, 1.0) * step(0.9965, s) * tw * uStars * smoothstep(0.0, 0.25, h) * 1.4;
+        // 밤하늘: 은하수 띠 + 세 겹의 별 + 달·달무리
+        if (uStars > 0.01 && h > -0.05) {
+          float hz = smoothstep(-0.02, 0.2, h) * uStars; // 지평선 쪽은 옅은 남빛에 묻힌다
+          float lat = dot(d, uMilkyPole); // 띠 중심선에서 벗어난 정도 (sin 위도)
+          float nb = fbm3(d * 5.0), nf = fbm3(d * 14.0 + 7.0);
+          float core = exp(-lat * lat / MW_CORE), wide = exp(-lat * lat / MW_WIDE);
+          float mw = (core * (0.45 + 1.1 * nb) + wide * 0.3) * (0.7 + 0.6 * nf);
+          // 가운데를 가르는 검은 먼지 띠
+          float rift = exp(-pow((lat - 0.012 + 0.05 * (nb - 0.5)) / 0.032, 2.0)) * smoothstep(0.4, 0.65, n3(d * 7.0 + 3.0));
+          mw *= 1.0 - 0.7 * rift;
+          col += vec3(0.6, 0.66, 0.84) * mw * MW_GAIN * uMilky * hz;
+          float tw = 0.75 + 0.25 * sin(uTime * (1.3 + nf * 3.0) + nf * 60.0);
+          float dens = core * 0.025; // 띠 안은 별이 더 촘촘하다
+          float st = stars(d, 600.0, 0.972 - dens) * STAR_FAINT + stars(d, 320.0, 0.982 - dens * 0.4) * STAR_MID + stars(d, 150.0, 0.995) * STAR_BRIGHT;
+          col += vec3(0.92, 0.95, 1.0) * st * tw * hz;
         }
-        // 달
-        float md = max(dot(d, normalize(uMoonDir)), 0.0);
-        col += vec3(0.85, 0.88, 1.0) * (smoothstep(0.99955, 0.9997, md) * 2.4 + pow(md, 300.0) * 0.35) * uStars;
+        // 달 원반(바다 무늬) + 달빛 번짐 + 22° 달무리
+        float md = dot(d, normalize(uMoonDir));
+        float disk = smoothstep(0.99962, 0.99972, md);
+        if (disk > 0.0) disk *= 0.82 + 0.18 * n3(d * 900.0);
+        float glow = pow(max(md, 0.0), 900.0) * 0.6 + pow(max(md, 0.0), 40.0) * 0.12;
+        float ring = exp(-pow((acos(clamp(md, -1.0, 1.0)) - 0.384) / 0.018, 2.0)) * 0.035;
+        col += vec3(0.88, 0.91, 1.0) * (disk * MOON_DISK + glow + ring) * uStars * step(-0.02, uMoonDir.y);
         // 구름 (낮게 깔린 층운)
         if (h > -0.02) {
           vec2 cp = d.xz / (h + 0.12) * 0.9 + vec2(uTime * 0.004, 0.0);
@@ -126,13 +221,17 @@ function skyMaterial() {
 
 /* ───── 최종 패스: 비네팅 + 미세 그레인 + 따뜻한 색감 ───── */
 const FinalShader = {
-  uniforms: { tDiffuse: { value: null }, uTime: { value: 0 }, uVignette: { value: 0.32 }, uFocus: { value: 0 } },
+  uniforms: { tDiffuse: { value: null }, uTime: { value: 0 }, uVignette: { value: 0.32 }, uFocus: { value: 0 }, uSat: { value: 1 }, uContrast: { value: 1 } },
   vertexShader: `varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
   fragmentShader: `
-    uniform sampler2D tDiffuse; uniform float uTime, uVignette, uFocus; varying vec2 vUv;
+    uniform sampler2D tDiffuse; uniform float uTime, uVignette, uFocus, uSat, uContrast; varying vec2 vUv;
     float rnd(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233)) + uTime) * 43758.5453); }
     void main() {
       vec4 c = texture2D(tDiffuse, vUv);
+      // 맑은 낮 색 보정: 채도·대비 (밤에는 1)
+      float y = dot(c.rgb, vec3(0.2126, 0.7152, 0.0722));
+      c.rgb = clamp(mix(vec3(y), c.rgb, uSat), 0.0, 1.0);
+      c.rgb = clamp((c.rgb - 0.5) * uContrast + 0.5, 0.0, 1.0);
       vec2 q = vUv - 0.5;
       float v = 1.0 - dot(q, q) * (uVignette + uFocus * 1.4) * 2.2;
       c.rgb *= clamp(v, 0.0, 1.0);
@@ -270,6 +369,7 @@ export class TempleScene {
     this.veg = await step(0.45, '숲길에 나무를 심는 중…', () => buildVegetation(this.scene, this.quality));
     this.temple = await step(0.7, '전각을 세우는 중…', () => new Temple(this.scene, this.quality));
     this._buildCrownGrid(this.veg.crowns);
+    this.occluders = this._collectOccluders(); // 정적 병합 전에: 합친 뒤에는 지붕·벽과 나머지가 한 메쉬가 된다
     this.batchStats = batchStatic(this.scene, this.temple.dynamicRoots());
     await step(0.85, '등불을 켜는 중…', () => {
       this._placeLights();
@@ -343,6 +443,93 @@ export class TempleScene {
       } else if (q.x > c.x0 - 0.25 && q.x < c.x1 + 0.25 && q.z > c.z0 - 0.25 && q.z < c.z1 + 0.25) return true;
     }
     return false;
+  }
+
+  /**
+   * 카메라 가림체: 지붕·담·벽·천장(architecture.js·temple.js 가 userData.occluder 로 표시).
+   * 광선 검사용 양면 대리 메쉬(장면에 넣지 않음)를 만들고, 그 재질에 디더 투명을 붙인다.
+   */
+  _collectOccluders() {
+    this.scene.updateMatrixWorld(true);
+    const proxyMat = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
+    const out = [];
+    this.scene.traverse((o) => {
+      const kind = o.userData.occluder;
+      if (!kind || !o.isMesh || o.isInstancedMesh) return;
+      const p = new THREE.Mesh(o.geometry, proxyMat);
+      p.matrixAutoUpdate = false;
+      p.matrix.copy(o.matrixWorld);
+      p.matrixWorld.copy(o.matrixWorld);
+      p.userData.kind = kind;
+      out.push(p);
+      (Array.isArray(o.material) ? o.material : [o.material]).forEach(seeThrough);
+    });
+    this.occRay = new THREE.Raycaster();
+    this.see = { amt: 0, target: 0 };
+    return out;
+  }
+
+  /** p 에서 dir 로 쏜 광선이 처음 닿은 면을 뒤에서 맞았나 (가림체 속에 있나) */
+  _backHit(p, dir, far) {
+    const ray = this.occRay;
+    ray.set(p, dir);
+    ray.near = 0;
+    ray.far = far;
+    const h = ray.intersectObjects(this.occluders, false)[0];
+    return !!h && h.face.normal.clone().transformDirection(h.object.matrixWorld).dot(dir) > 0;
+  }
+
+  /**
+   * 머리 → 카메라 선분을 가림체로 검사해 pos 를 고친다.
+   * 담·벽·천장은 그 앞 0.3m 로 당기고(머리에서 1.2m 안으로는 안 당김), 처마·지붕·담 기와처럼 얇은 것은 당기지 않고 디더로 비춘다.
+   * 카메라가 지붕 판 속에 들면(위·아래 광선이 모두 판 뒷면) 그 앞으로 당긴다.
+   */
+  _occlude(pos, head) {
+    const t0 = performance.now();
+    const dir = pos.clone().sub(head);
+    let len = dir.length();
+    if (len < 1e-3) return;
+    dir.divideScalar(len);
+    const ray = this.occRay;
+    ray.set(head, dir);
+    ray.near = 0.05;
+    ray.far = len;
+    const hits = ray.intersectObjects(this.occluders, false);
+    for (const h of hits) {
+      const k = h.object.userData.kind;
+      if ((k === 'wall' || k === 'ceiling') && h.distance - OCC.margin >= OCC.minDist) {
+        len = h.distance - OCC.margin;
+        break;
+      }
+    }
+    pos.copy(head).addScaledVector(dir, len);
+    if (hits.length && this._backHit(pos, _UP, OCC.slab) && this._backHit(pos, _DOWN, OCC.slab)) {
+      const entry = [...hits].reverse().find((h) => h.distance < len);
+      if (entry && entry.distance - OCC.margin >= OCC.minDist) {
+        len = entry.distance - OCC.margin;
+        pos.copy(head).addScaledVector(dir, len);
+      }
+    }
+    this.see.target = hits.some((h) => h.distance < len - 0.05) ? 1 : 0;
+    this.occlusionMs = (this.occlusionMs ?? 0) * 0.9 + (performance.now() - t0) * 0.1;
+  }
+
+  /** 디더 구멍 위치: 화면에서 머리가 있는 픽셀과 머리까지의 깊이 */
+  _seeUpdate(head, on, dt) {
+    const s = this.see;
+    if (!s) return;
+    if (!on) s.amt = 0; // 1인칭·예불 장면: 바로 끈다
+    else s.amt += (s.target - s.amt) * (1 - Math.exp(-dt * OCC.fade));
+    seeU.uSeeAmt.value = s.amt;
+    if (s.amt < 0.001) return;
+    const cam = this.camera;
+    cam.updateMatrixWorld();
+    const v = head.clone().applyMatrix4(cam.matrixWorldInverse);
+    seeU.uSeeDepth.value = -v.z - 0.35; // 머리보다 0.35m 넘게 카메라 쪽에 있는 조각만
+    v.applyMatrix4(cam.projectionMatrix);
+    const el = this.renderer.domElement;
+    seeU.uSeePx.value.set((v.x * 0.5 + 0.5) * el.width, (v.y * 0.5 + 0.5) * el.height);
+    seeU.uSeeRes.value = el.height;
   }
 
   _enablePickLayer() {
@@ -480,7 +667,7 @@ export class TempleScene {
     sky.uHorizon.value.copy(hor);
     sky.uBottom.value.copy(fog);
     sky.uCloud.value.set('#' + e.cloud).lerp(grey, overcast * 0.6);
-    sky.uCloudAmt.value = 0.45 + overcast * 0.55;
+    sky.uCloudAmt.value = 0.35 + overcast * 0.65;
     sky.uStars.value = e.stars * (1 - overcast);
     sky.uSunVis.value = 1 - overcast * 0.9;
     // 태양/달 방향 (+x 동쪽, -z 북쪽, +z 남쪽)
@@ -498,8 +685,11 @@ export class TempleScene {
     this.hemi.intensity = e.hi * (1 + overcast * 0.25);
     this.scene.fog.color.copy(fog);
     this.scene.fog.density = e.fd * (1 + overcast * 0.9) * (this.weatherName === 'snow' ? 1.25 : 1);
-    this.renderer.toneMappingExposure = e.exp;
+    this.renderer.toneMappingExposure = Math.max(e.exp, NIGHT_EXPOSURE_FLOOR * e.night);
     envUniforms.uNight.value = e.night;
+    const clearDay = (1 - e.night) * (1 - overcast);
+    this.finalPass.uniforms.uSat.value = 1 + DAY_GRADE.sat * clearDay;
+    this.finalPass.uniforms.uContrast.value = 1 + DAY_GRADE.contrast * clearDay;
     envUniforms.uWind.value = 0.5 + rain * 0.6 + (this.weatherName === 'snow' ? 0.2 : 0);
     // 물·원경
     waterUniforms.uSkyTop.value.copy(top);
@@ -511,7 +701,7 @@ export class TempleScene {
     ridgeUniforms.forEach(({ u, base, li }) => {
       u.uHorizon.value.copy(fog.clone().lerp(hor, 0.5));
       u.uColor.value.copy(base).lerp(new THREE.Color('#0a0e14'), e.night * 0.85).lerp(hor, overcast * 0.35);
-      u.uFade.value = 0.18 + li * 0.24 + overcast * 0.25;
+      u.uFade.value = 0.12 + li * 0.18 + overcast * 0.3;
     });
     this._regenEnv(force);
   }
@@ -586,10 +776,16 @@ export class TempleScene {
     }
   }
 
+  /** 가림막 뒤에서 카메라를 정한 구도로 바로 놓는다 — 다음 프레임에 초점·거리·위치를 보간 없이 */
+  snapCameraTo(yaw, pitch, dist) {
+    Object.assign(this.cam, { yaw, pitch, targetDist: dist, dist, snap: true });
+  }
+
   _updateCamera(dt, player) {
     const c = this.cam;
     const p = player.position;
     player.visible = true;
+    if (c.shot || c.mode === 'first') this._seeUpdate(null, false, dt);
     if (c.shot) {
       const s = c.shot;
       s.t += dt;
@@ -617,20 +813,26 @@ export class TempleScene {
     }
     const focusY = (player.userData.focusHeight ?? 1.25);
     const focus = new THREE.Vector3(p.x, p.y + focusY, p.z);
-    c.focus.lerp(focus, 1 - Math.exp(-dt * 8));
+    if (c.snap) c.focus.copy(focus);
+    else c.focus.lerp(focus, 1 - Math.exp(-dt * 8));
+    // 실내 규칙: 법당 안, 다실 가는 담 사이 길에서는 낮고 가깝게
+    const lk = L.teaLink;
+    const inPassage = !inHall && p.x > lk.x0 - 0.5 && p.x < lk.x1 + 1.5 && p.z > lk.z0 && p.z < lk.z1;
+    const room = inHall ? HALL_CAM : inPassage ? PASSAGE_CAM : null;
     let dist = c.dist;
     let pitch = c.pitch;
-    if (inHall) {
-      dist = Math.min(dist, 5.2);
-      pitch = Math.min(pitch, 0.42);
+    if (room) {
+      dist = Math.min(dist, room.dist);
+      pitch = Math.min(pitch, room.pitch);
     }
     const off = new THREE.Vector3(Math.sin(c.yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(c.yaw) * Math.cos(pitch)).multiplyScalar(dist);
     const want = c.focus.clone().add(off);
     if (inHall) {
+      // 법당 벽 안쪽, 앞은 처마 밖(z −15)까지 — 처마 밑 최저 7.54m 가 maxY 보다 높아 처마 판에 들지 않는다
       want.x = clamp(want.x, L.hall.x0 + 0.5, L.hall.x1 - 0.5);
       want.z = clamp(want.z, L.hall.z0 + 0.5, -15);
-      want.y = Math.min(want.y, L.hall.floorY + 4.0);
     }
+    if (room) want.y = Math.min(want.y, room.maxY);
     if (!inHall && this.crownGrid) {
       // 초점에서 카메라 쪽으로 걸어가며 처음 막히는 곳 앞에서 멈춘다
       const dir = want.clone().sub(c.focus);
@@ -648,8 +850,18 @@ export class TempleScene {
     }
     const ground = terrainHeight(want.x, want.z) + 0.5;
     if (want.y < ground) want.y = ground;
-    this.camera.position.lerp(want, 1 - Math.exp(-dt * 9));
+    // 보간한 실제 자리를 검사한다 (멀어지며 지붕 판을 지나가는 프레임도 잡히게)
+    const pos = c.snap ? want : this.camera.position.clone().lerp(want, 1 - Math.exp(-dt * 9));
+    const av = player.userData.avatar;
+    const head = av ? av.eyeWorld(new THREE.Vector3()) : c.focus.clone();
+    if (this.occluders) this._occlude(pos, head);
+    this.camera.position.copy(pos);
     this.camera.lookAt(c.focus);
+    if (c.snap) {
+      c.snap = false;
+      if (this.see) this.see.amt = this.see.target;
+    }
+    this._seeUpdate(head, true, dt);
   }
 
   /* ───── 프레임 ───── */
