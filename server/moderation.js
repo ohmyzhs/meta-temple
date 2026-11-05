@@ -8,7 +8,7 @@
  * 금지어 목록은 직접 작성했다 (외부 목록 미사용).
  */
 export const NAME_MIN = 2;
-export const NAME_MAX = 12;
+export const NAME_MAX = 14; // 무작위 법명이 공백 포함 최대 13자 (generateDharmaName 4만 번 실측) — 그보다 한 자 여유
 
 const MESSAGES = {
   empty: '내용이 비어 있습니다',

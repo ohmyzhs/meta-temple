@@ -45,14 +45,14 @@
 - Produces:
   - `normalizeText(s: string): string` — 비교용 정규형.
   - `checkText(s: string, opts: { kind: 'wish'|'name'|'chat', max?: number }): { ok: true, text: string } | { ok: false, reason: 'empty'|'too_short'|'too_long'|'link'|'contact'|'abuse'|'sexual'|'reserved', message: string }` — `text` 는 정리된 원문(공백 정리·제어문자 제거, 원래 글자 유지).
-  - `NAME_MIN = 2`, `NAME_MAX = 12`.
+  - `NAME_MIN = 2`, `NAME_MAX = 14`.
 
 - [ ] **Step 1: 실패하는 테스트 작성** — `server/moderation.test.js` (`node:test`, `node:assert`)
   - `blocks_sexual_variants`: `['쉐엑스','Cex','세엑스','Sex','S e x','S.e.x','s3x','섹 스','쎅쓰','섹쓰','ㅅㅔㄱㅅㅡ','sex하자']` 각각 `checkText(x,{kind:'wish'}).ok === false` 이고 `reason === 'sexual'`.
   - `blocks_abuse_variants`: `['시발','씨발','시1발','ㅅㅂ','ㅆㅂ','병신','병1신','ㅂㅅ','좆','개새끼','지랄','fuck','f*ck']` → `reason === 'abuse'`.
   - `blocks_links_contacts`: `['www.abc.com','abc.kr','http://x','010-1234-5678','01012345678','카톡 abc123','오픈채팅']` → `reason` 가 `'link'` 또는 `'contact'`.
   - `allows_normal`: `['건강기원','부모님 부자 되세요','로또대박기원🙏','흐르는데로 편하게 지내다 가자','아자아자','시발점에서 다시','섹션 정리','엑스포 구경','캬~~']` → `ok === true`.
-  - `name_rules`: `checkText('',{kind:'name'}).reason==='empty'`, `checkText('가',{kind:'name'}).reason==='too_short'`, `checkText('가'.repeat(13),{kind:'name'}).reason==='too_long'`; `['관리자','운영자','admin','청연산사']` → `'reserved'`; `'청풍 스님'` → ok.
+  - `name_rules`: `checkText('',{kind:'name'}).reason==='empty'`, `checkText('가',{kind:'name'}).reason==='too_short'`, `checkText('가'.repeat(15),{kind:'name'}).reason==='too_long'`; `['관리자','운영자','admin','청연산사']` → `'reserved'`; `'청풍 스님'` → ok.
   - `normalize_examples`: `normalizeText(' S.e.X ') === normalizeText('sex')`, `normalizeText('ㅅㅔㄱㅅㅡ') === normalizeText('섹스')`.
 - [ ] **Step 2: 실패 확인** — Run: `node --test server/moderation.test.js` → Expected: FAIL (`Cannot find module './moderation.js'`).
 - [ ] **Step 3: `server/moderation.js` 구현**
@@ -118,7 +118,7 @@
 - [ ] **Step 2: 실패 확인** — Run: `node --test web/src/core/state.test.js` → Expected: FAIL.
 - [ ] **Step 3: 구현** — 위 Interfaces. 공유 글 저장 제외(`shared:true` 필터)는 지금 동작 유지.
 - [ ] **Step 4: 통과 확인** — Run: `node --test web/src/core/state.test.js` → Expected: PASS.
-- [ ] **Step 5: 화면 연결** — 입장 화면: 지금의 `#intro-dharma-name` 옆에 「직접 짓기」 → 입력칸(2~12자, 입력 중 `checkText` 결과를 아래 한 줄로), 「다시 받기」는 추천 법명. 내 모습 메뉴에도 같은 입력. 바꾸면 `live.setIdentity(name, style)`. 수행 기록 화면에 「기록 내보내기 / 가져오기」(파일 저장·열기).
+- [ ] **Step 5: 화면 연결** — 입장 화면: 지금의 `#intro-dharma-name` 옆에 「직접 짓기」 → 입력칸(2~14자, 입력 중 `checkText` 결과를 아래 한 줄로), 「다시 받기」는 추천 법명. 내 모습 메뉴에도 같은 입력. 바꾸면 `live.setIdentity(name, style)`. 수행 기록 화면에 「기록 내보내기 / 가져오기」(파일 저장·열기).
 - [ ] **Step 6: 화면 확인** — 헤드리스로 390×844·1280×800 입장 화면 스크린샷, 금지어 입력 시 안내 문구, 정상 이름 저장 후 새로고침해도 유지.
 - [ ] **Step 7: Commit** — `git commit -m "State schema v3 with profileId, custom dharma names, export/import"`
 

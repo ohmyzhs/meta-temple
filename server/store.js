@@ -34,6 +34,13 @@ CREATE TABLE IF NOT EXISTS stones (
   hidden boolean NOT NULL DEFAULT false,
   created_at timestamptz NOT NULL DEFAULT now()
 );
+CREATE TABLE IF NOT EXISTS reports (
+  kind text NOT NULL,
+  item_id text NOT NULL,
+  client_hash text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (kind, item_id, client_hash)
+);
 CREATE INDEX IF NOT EXISTS lanterns_recent ON lanterns (created_at DESC) WHERE NOT hidden;
 CREATE INDEX IF NOT EXISTS tiles_recent ON tiles (created_at DESC) WHERE NOT hidden;
 CREATE INDEX IF NOT EXISTS stones_recent ON stones (created_at DESC) WHERE NOT hidden;
@@ -89,6 +96,19 @@ export async function createStore(url) {
       );
       return r.rows[0] ? row(r.rows[0]) : null;
     },
+    /** 신고 한 건 (같은 사람은 한 번). hideAt 명이 넘으면 숨긴다. 글이 없으면 null */
+    async report(table, id, clientHash, hideAt) {
+      const found = await pool.query(`SELECT hidden FROM ${table} WHERE id = $1`, [id]);
+      if (!found.rows[0]) return null;
+      await pool.query('INSERT INTO reports (kind, item_id, client_hash) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING', [table, id, clientHash]);
+      const n = (await pool.query('SELECT count(*)::int AS n FROM reports WHERE kind = $1 AND item_id = $2', [table, id])).rows[0].n;
+      let hidden = found.rows[0].hidden;
+      if (!hidden && n >= hideAt) {
+        await pool.query(`UPDATE ${table} SET hidden = true WHERE id = $1`, [id]);
+        hidden = true;
+      }
+      return { hidden, reports: n };
+    },
     async empathize(id, clientHash) {
       const c = await pool.connect();
       try {
@@ -110,7 +130,7 @@ export async function createStore(url) {
 }
 
 function memoryStore() {
-  const db = { lanterns: [], tiles: [], stones: [], emp: new Set() };
+  const db = { lanterns: [], tiles: [], stones: [], emp: new Set(), reports: new Map() };
   const newest = (a, n) => [...a].filter((x) => !x.hidden).sort((x, y) => y.created_at - x.created_at).slice(0, n).map(row);
   return {
     kind: 'memory',
@@ -126,6 +146,16 @@ function memoryStore() {
       const r = { empathy: table === 'lanterns' ? 0 : undefined, hidden: false, created_at: Date.now(), ...item };
       db[table].push(r);
       return row(r);
+    },
+    async report(table, id, clientHash, hideAt) {
+      const item = db[table].find((x) => x.id === id);
+      if (!item) return null;
+      const key = `${table}|${id}`;
+      if (!db.reports.has(key)) db.reports.set(key, new Set());
+      const who = db.reports.get(key);
+      who.add(clientHash);
+      if (!item.hidden && who.size >= hideAt) item.hidden = true;
+      return { hidden: item.hidden, reports: who.size };
     },
     async empathize(id, clientHash) {
       const l = db.lanterns.find((x) => x.id === id);

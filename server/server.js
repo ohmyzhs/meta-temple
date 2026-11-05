@@ -8,6 +8,7 @@ import http from 'node:http';
 import crypto from 'node:crypto';
 import { WebSocketServer } from 'ws';
 import { createStore } from './store.js';
+import { checkText } from './moderation.js';
 
 const PORT = Number(process.env.PORT) || 8080;
 const SALT = process.env.ID_SALT || 'dev-salt';
@@ -19,13 +20,18 @@ const STYLES = new Set(['monk', 'ink_wanderer', 'lantern_spirit']);
 const ACTIONS = new Set(['idle', 'walk', 'bow_half', 'prostrate', 'meditate', 'incense', 'circumambulate', 'tea', 'sit', 'lookUp']);
 const COLOR_RE = /^#[0-9a-f]{6}$/i;
 const ID_RE = /^[a-z]_[0-9a-f-]{36}$/;
-const LINK_RE = /(https?:\/\/|www\.|\.com\b|\.kr\b|\.net\b)/i;
-// 공개 서원에 걸러 낼 말 (최소한 — 더 필요하면 늘린다)
-const BLOCK_RE = /(시발|씨발|ㅅㅂ|병신|ㅂㅅ|좆|개새|지랄|섹스|야동|카지노|토토|대출)/;
+const KINDS = { '/api/lanterns': 'lanterns', '/api/tiles': 'tiles', '/api/stones': 'stones' };
+const WISH_MAX = { lanterns: 80, tiles: 24, stones: 30 };
+const REPORT_HIDE = 3; // 서로 다른 사람 셋이 신고하면 숨긴다
+const POST_COOLDOWN_MS = Number(process.env.POST_COOLDOWN_MS) || 20000; // 같은 사람이 같은 종류를 연달아 올리는 간격
 
 const store = await createStore(process.env.DATABASE_URL);
 console.log(`[live] store=${store.kind} port=${PORT}`);
 
+const safeName = (v, fallback) => {
+  const r = checkText(v, { kind: 'name' });
+  return r.ok ? r.text : fallback;
+};
 const hash = (v) => crypto.createHash('sha256').update(`${SALT}:${v}`).digest('hex').slice(0, 32);
 const clean = (s, max) => String(s ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
 const ipOf = (req) => String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
@@ -71,13 +77,12 @@ function readJson(req, limit = 4096) {
   });
 }
 
-function validWish(wish, max) {
-  const w = clean(wish, max);
-  if (!w) return { error: '내용이 비어 있습니다' };
-  if (LINK_RE.test(w)) return { error: '링크는 올릴 수 없습니다' };
-  if (BLOCK_RE.test(w.replace(/\s/g, ''))) return { error: '함께 보는 자리에 어울리지 않는 말이 있습니다' };
-  return { wish: w };
-}
+// ponytail: 메모리에만 둔다 — 서버를 다시 띄우면 초기화된다. 여러 대로 늘리면 저장소로 옮길 것
+const lastPost = new Map(); // `${clientHash}|${kind}` → 시각
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, t] of lastPost) if (now - t > POST_COOLDOWN_MS) lastPost.delete(k);
+}, 60000).unref();
 
 async function api(req, res) {
   const url = new URL(req.url, 'http://x');
@@ -98,20 +103,30 @@ async function api(req, res) {
     return send(res, 400, { error: e.message });
   }
   const clientHash = hash(clean(body.clientId, 64) || ip);
-  const author = clean(body.author, 24) || '이름 없는 도반';
+  const author = safeName(body.author, '이름 없는 도반');
+
+  if (url.pathname === '/api/report') {
+    const kind = { lanterns: 'lanterns', tiles: 'tiles', stones: 'stones' }[body.kind];
+    if (!kind || !ID_RE.test(String(body.id || ''))) return send(res, 400, { error: 'bad report' });
+    const r = await store.report(kind, body.id, clientHash, REPORT_HIDE);
+    return r ? send(res, 200, r) : send(res, 404, { error: 'not found' });
+  }
 
   const m = url.pathname.match(/^\/api\/lanterns\/([^/]+)\/empathy$/);
   if (m) {
     const r = await store.empathize(m[1], clientHash);
     return r ? send(res, 200, r) : send(res, 404, { error: 'not found' });
   }
-  const kind = { '/api/lanterns': 'lanterns', '/api/tiles': 'tiles', '/api/stones': 'stones' }[url.pathname];
+  const kind = KINDS[url.pathname];
   if (!kind) return send(res, 404, { error: 'not found' });
   if (!ID_RE.test(String(body.id || ''))) return send(res, 400, { error: 'bad id' });
-  const v = validWish(body.wish, { lanterns: 80, tiles: 24, stones: 30 }[kind]);
-  if (v.error) return send(res, 422, v);
+  const v = checkText(body.wish, { kind: 'wish', max: WISH_MAX[kind] });
+  if (!v.ok) return send(res, 422, { error: v.message, reason: v.reason });
+  const key = `${clientHash}|${kind}`;
+  if (Date.now() - (lastPost.get(key) || 0) < POST_COOLDOWN_MS) return send(res, 429, { error: '잠시 숨을 고른 뒤 다시 올려 주세요' });
   if ((await store.countToday(kind, clientHash)) >= DAILY[kind]) return send(res, 429, { error: '오늘은 충분히 올리셨습니다' });
-  const item = { id: body.id, author, wish: v.wish, client_hash: clientHash };
+  lastPost.set(key, Date.now());
+  const item = { id: body.id, author, wish: v.text, client_hash: clientHash };
   if (kind === 'lanterns') {
     if (!COLOR_RE.test(String(body.color || ''))) return send(res, 400, { error: 'bad color' });
     item.color = body.color;
@@ -165,7 +180,7 @@ wss.on('connection', (ws, req) => {
       return;
     }
     if (m.t === 'hello') {
-      peer.name = clean(m.name, 24) || '도반';
+      peer.name = safeName(m.name, '도반');
       peer.style = STYLES.has(m.style) ? m.style : 'monk';
       peer.ready = true;
       peer.dirty = true;
@@ -178,7 +193,7 @@ wss.on('connection', (ws, req) => {
       peer.a = ACTIONS.has(m.a) ? m.a : 'idle';
       peer.n = Number.isInteger(m.n) ? m.n : 0;
       if (m.style && STYLES.has(m.style)) peer.style = m.style;
-      if (m.name) peer.name = clean(m.name, 24) || peer.name;
+      if (m.name) peer.name = safeName(m.name, peer.name);
       peer.ready = true;
       peer.dirty = true;
     } else if (m.t === 'bow' && peer.ready) {
