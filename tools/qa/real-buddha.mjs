@@ -1,4 +1,4 @@
-// 실사 세계 — 불상 사진 판 검사: 법당 안 낮·밤·폰, 판이 절차적 불상 자리에 맞는지 (계획: docs/superpowers/plans/2026-11-05-launch-stage3-real.md)
+// 실사 세계 — 불상 사진 판·후불벽 사진 판 검사: 법당 안 낮·밤·폰, 판이 절차적 불상 자리에 맞는지 (계획: docs/superpowers/plans/2026-11-05-launch-stage3-real.md)
 // Playwright MCP: browser_run_code_unsafe { filename: '<repo>/tools/qa/real-buddha.mjs' }   서버: python3 .claude/devserver.py 8083
 async (page) => {
   const OUT = '.playwright-mcp/real';
@@ -13,8 +13,8 @@ async (page) => {
       window.temple.avatars.solo = true;
       window.temple.avatars.teleport(1.5, -20.8, Math.PI); // 법당 문턱
     });
-    await page.waitForFunction(() => ['buddha', 'bodhiL', 'bodhiR'].every((k) => { const s = window.temple.world.real?.state.get(k); return s?.isObject3D || s === 'failed'; }), null, { timeout: 60000 });
-    res[`${w}x${h}`] = await page.evaluate(() => Object.fromEntries(['buddha', 'bodhiL', 'bodhiR'].map((k) => {
+    await page.waitForFunction(() => ['buddha', 'bodhiL', 'bodhiR', 'wallC', 'wallL', 'wallR'].every((k) => { const s = window.temple.world.real?.state.get(k); return s?.isObject3D || s === 'failed'; }), null, { timeout: 60000 });
+    res[`${w}x${h}`] = await page.evaluate(() => Object.fromEntries(['buddha', 'bodhiL', 'bodhiR', 'wallC', 'wallL', 'wallR'].map((k) => {
       const s = window.temple.world.real.state.get(k);
       return [k, s?.isObject3D ? { w: +s.geometry.parameters.width.toFixed(2), h: +s.geometry.parameters.height.toFixed(2), pos: s.position.toArray().map((v) => +v.toFixed(2)) } : s];
     })));
