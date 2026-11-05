@@ -23,7 +23,10 @@ export const CREDITS = {
     ['예불 듣기', '자연의소리_월출산무위사극락보전사시예불', 15076174],
     ['예불 듣기', '자연의소리_변산반도개암사새벽예불소리', 15076175]
   ].map(([use, title, id]) => ({ use, title, by: '국립공원공단', license: KOGL1, url: `https://www.data.go.kr/data/${id}/fileData.do` })),
-  scans: [],
+  // 실사 세계(world/real)에서 쓴다 — 줄이고(4만 삼각형) 색·노멀·AO 를 다시 구움 (tools/blender/scan_bake.py)
+  scans: [
+    { use: '마당 삼층석탑', title: '경주 고선사지 삼층석탑 3D 데이터', by: '국가유산청', license: KOGL1, url: 'https://digital.khs.go.kr/record/recordDetail3D.do?ichDataUid=13921661843230600369&bizId=20210000011' }
+  ],
   textures: [],
   patterns: [],
   generated: []

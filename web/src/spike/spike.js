@@ -47,7 +47,7 @@ const t0 = performance.now();
 const [hallG, groundG, pagodaG, lmDay, lmNight, meta, lm, dayBg, nightBg, dayEnv, nightEnv] = await Promise.all([
   gltf.loadAsync(`${ASSETS}hall_${SIZE}.glb`),
   gltf.loadAsync(`${ASSETS}ground_${SIZE}.glb`),
-  gltf.loadAsync(`${ASSETS}pagoda_${SIZE}.glb`),
+  gltf.loadAsync(`./assets/world/pagoda_${SIZE}.glb`),
   ktx2.loadAsync(ASSETS + 'lm_day.ktx2'),
   ktx2.loadAsync(ASSETS + 'lm_night.ktx2'),
   json('hall.json'),
@@ -90,7 +90,7 @@ scene.add(groundG.scene);
 
 const pagoda = pagodaG.scene;
 pagoda.position.set(...PAGODA_AT);
-pagoda.rotation.y = THREE.MathUtils.degToRad(-18.4); // 스캔 좌표계 회전(rcInfo transformToModel) 을 되돌려 기단을 법당과 나란히
+pagoda.rotation.y = 0; // 하층기단이 이미 축과 나란함 (측정: tools/blender/scan_bake.py 결과에서 기단 최소 사각형 각 0~2°)
 pagoda.traverse((o) => { if (o.isMesh) { o.castShadow = o.receiveShadow = true; } });
 scene.add(pagoda);
 

@@ -19,7 +19,7 @@ glb() { # in out — 노멀은 UASTC, 나머지(색·AO·거칠기)는 ETC1S, �
   $GT etc1s "$b.2.glb" "$b.3.glb" --quality 160  # 이미 KTX2 인 노멀은 건너뜀
   $GT meshopt "$b.3.glb" "$out" --level medium
 }
-glb "$W/scan/out/pagoda.glb" "$OUT/pagoda_$SIZE.glb"
+glb "$W/scan/out/pagoda.glb" "$REPO/web/assets/world/pagoda_$SIZE.glb"  # 실사 세계와 같이 씀
 glb "$W/hall/out/hall.glb" "$OUT/hall_$SIZE.glb"
 glb "$W/hall/out/ground.glb" "$OUT/ground_$SIZE.glb"
 
