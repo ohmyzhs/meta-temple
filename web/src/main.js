@@ -11,9 +11,13 @@ import { AvatarManager } from './world/avatarManager.js';
 import { L, isWalkable, zoneAt, streamZ, walkHeight } from './world/layout.js';
 import { ModalManager } from './ui/modalManager.js';
 import { LiveLink, sharedApi } from './core/live.js';
-import { YEBUL_TRACKS } from './data/soundCredits.js';
+import { YEBUL_TRACKS } from './data/credits.js';
 import { bindNameForm } from './ui/nameField.js';
 import { veil, veiling } from './ui/veil.js';
+import { DOCK_RITUALS } from './data/templeData.js';
+import { icon, ZONE_ICONS } from './ui/icons.js';
+import { toggleSheet, closeTop, closeAll } from './ui/sheets.js';
+import { installBackGuard } from './ui/backGuard.js';
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
@@ -228,6 +232,7 @@ class MetaTempleApp {
     $('#intro').classList.add('leaving');
     setTimeout(() => $('#intro').classList.add('hidden'), 1500);
     $('#hud').classList.remove('hidden');
+    installBackGuard({ closeTop: () => this._closeTop(), toast: (m) => this.toast(m) }); // 입장 클릭 안에서 (사용자 동작)
     this._syncSoundButton();
     const { streak, isNewDay } = this.store.checkIn();
     this._applyItems();
@@ -894,6 +899,7 @@ class MetaTempleApp {
     if (this.avatars) {
       const real = this.live?.count || 0;
       $('#hud-presence').textContent = real > 0 ? `지금 도반 ${real}명이 말없이 함께 머무는 중` : `지금은 홀로 머무는 중 · 산사 식구 ${this.avatars.npcCount}명`;
+      $('#hud-presence-count').textContent = real > 0 ? real : '';
     }
   }
 
@@ -903,21 +909,10 @@ class MetaTempleApp {
     if (z === this.zone && !force) return;
     this.zone = z;
     const info = ZONES[z];
-    $('#hud-zone-index').textContent = info.index;
     $('#hud-zone-name').textContent = info.name;
     $('#hud-zone-subtitle').textContent = info.subtitle;
     $$('[data-goto-zone]').forEach((b) => b.classList.toggle('active', b.dataset.gotoZone === z));
-    const bar = $('#ritual-bar');
-    bar.innerHTML = '';
-    info.rituals.forEach((id, i) => {
-      const r = RITUALS[id];
-      const b = document.createElement('button');
-      b.className = 'ritual';
-      b.style.animationDelay = `${i * 60}ms`;
-      b.innerHTML = `<span>${r.icon}</span><span>${r.label}</span>`;
-      b.addEventListener('click', () => this.activate(id));
-      bar.appendChild(b);
-    });
+    this._zoneRituals(z);
     if (this.entered) this.sound.setZone(z);
     if (z !== 'DAEUNGJEON') this.sound.stopTrack(); // 예불 듣기는 법당 안에서만
   }
@@ -941,27 +936,63 @@ class MetaTempleApp {
     $('#sound-tool').classList.toggle('muted', !on);
   }
 
+  /** 지금 구역의 신행: 주 신행 1~2개는 하단 독에, 나머지는 「더보기」에. 몸짓 단추와 같은 것(헌향·탑돌이)은 몸짓이 맡는다 */
+  _zoneRituals(z) {
+    const dock = DOCK_RITUALS[z] || [];
+    const rest = ZONES[z].rituals.filter((id) => !dock.includes(id) && id !== 'incense' && id !== 'circumambulate');
+    const btn = (id, cls, text) => `<button class="ctl ${cls}" type="button" data-ritual="${id}" title="${RITUALS[id].label}">${icon(id)}<span class="lbl">${text}</span></button>`;
+    $('#dock-rituals').innerHTML = dock.map((id) => btn(id, 'dock-btn ritual', RITUALS[id].short)).join('');
+    $('#more-rituals').innerHTML = rest.map((id) => btn(id, 'tile', RITUALS[id].label)).join('');
+    $('#more-rituals-wrap').classList.toggle('hidden', !rest.length);
+    $('#place-btn .i')?.remove();
+    $('#place-btn').insertAdjacentHTML('afterbegin', icon(ZONE_ICONS[z]));
+    $('#place-name').textContent = ZONES[z].short;
+  }
+
+  /** 뒤로가기가 닫는 순서: 예불 듣기 → 열린 창(차담 포함) → 시트 → 펼친 현판. 닫은 것이 있으면 true */
+  _closeTop() {
+    if (this._listening) {
+      this.exitListening();
+      return true;
+    }
+    if (this.modals.isOpen) {
+      this.modals.close();
+      return true;
+    }
+    if (closeTop()) return true;
+    if ($('#hud-plaque').classList.contains('collapsed')) return false;
+    $('#plaque-toggle').click();
+    return true;
+  }
+
   _bindHUD() {
-    // 팝오버
-    const closePops = (except) => {
-      $$('.popover').forEach((p) => p !== except && p.classList.add('hidden'));
-      $$('[data-pop]').forEach((b) => b.classList.toggle('active', except && b.dataset.pop === except.id));
-    };
-    $$('[data-pop]').forEach((b) =>
-      b.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const pop = $('#' + b.dataset.pop);
-        const open = pop.classList.contains('hidden');
-        closePops(open ? pop : null);
-        if (open) {
-          pop.classList.remove('hidden');
-          this._syncChips();
-        }
+    // 그림 아이콘을 채우고 장소 목록을 만든다
+    $$('[data-icon]').forEach((el) => el.insertAdjacentHTML('afterbegin', icon(el.dataset.icon)));
+    $('#place-list').innerHTML = Object.values(ZONES)
+      .map(
+        (z) => `<li><button class="ctl place-item" type="button" data-goto-zone="${z.id}">${icon(ZONE_ICONS[z.id])}
+          <span class="place-txt"><b>${z.short}</b><small>${z.subtitle}</small></span><em class="here">지금 여기</em></button></li>`
+      )
+      .join('');
+
+    // 시트: 단추로 여닫고, 하위 시트는 ‹ 로 메뉴에 돌아가며, 바깥을 누르거나 Esc 로 닫는다
+    $$('[data-sheet]').forEach((b) =>
+      b.addEventListener('click', () => {
+        toggleSheet(b.dataset.sheet);
+        this._syncChips();
         this.sound.playUIClick();
       })
     );
-    $$('.popover').forEach((p) => p.addEventListener('pointerdown', (e) => e.stopPropagation()));
-    document.addEventListener('pointerdown', () => closePops(null));
+    $$('[data-sheet-back]').forEach((b) => b.addEventListener('click', () => closeTop()));
+    $$('[data-sheet-close]').forEach((b) => b.addEventListener('click', () => closeAll()));
+    document.addEventListener('pointerdown', (e) => !e.target.closest?.('.sheet, [data-sheet], #modal-overlay') && closeAll());
+    window.addEventListener('keydown', (e) => e.key === 'Escape' && !this.modals.isOpen && !this._listening && closeTop() && e.preventDefault(), true);
+    // 장소 이동·몸짓·신행을 고르면 그 시트는 닫는다
+    $$('#place-sheet, #more-sheet').forEach((s) => s.addEventListener('click', (e) => e.target.closest('[data-goto-zone], [data-gesture], [data-ritual]') && closeAll()));
+    $('#hud').addEventListener('click', (e) => {
+      const r = e.target.closest('[data-ritual]');
+      if (r) this.activate(r.dataset.ritual);
+    });
 
     $$('[data-time]').forEach((b) =>
       b.addEventListener('click', () => {
@@ -1007,23 +1038,17 @@ class MetaTempleApp {
         this.store.setSetting('volumes', { ...this.store.state.settings.volumes, [ch]: v });
       })
     );
-    $('#record-btn').addEventListener('click', () => this.modals.open('profile'));
-    $('#help-btn').addEventListener('click', () => this.modals.open('help'));
-    const setPlaque = (collapsed) => {
-      $('#hud-plaque').classList.toggle('collapsed', collapsed);
-      $('#plaque-toggle').setAttribute('aria-expanded', String(!collapsed));
-    };
-    let plaqueByUser = false;
+    [['#record-btn', 'profile'], ['#help-btn', 'help'], ['#credits-btn', 'credits']].forEach(([sel, view]) =>
+      $(sel).addEventListener('click', () => {
+        closeAll();
+        this.modals.open(view);
+      })
+    );
+    // 현판은 접어 둔다 (펼치면 이곳 안내·내 법명·수행·동석)
     $('#plaque-toggle').addEventListener('click', () => {
-      plaqueByUser = true;
-      setPlaque(!$('#hud-plaque').classList.contains('collapsed'));
+      const open = $('#hud-plaque').classList.toggle('collapsed') === false;
+      $('#plaque-toggle').setAttribute('aria-expanded', String(open));
     });
-    // 좁거나 낮은 화면(폰 세로·가로)은 현판을 접어 둔다. 회전·폴드로 크기가 바뀌면 따라가되, 직접 접고 편 뒤에는 그대로 둔다.
-    const smallQ = matchMedia('(max-width: 599px), (max-height: 519px)');
-    setPlaque(smallQ.matches);
-    smallQ.addEventListener('change', (e) => !plaqueByUser && setPlaque(e.matches));
-    // 중간 너비에서 토스트를 하단 버튼 줄 바로 위에 띄우기 위한 높이
-    new ResizeObserver(([e]) => document.documentElement.style.setProperty('--actions-h', `${Math.round(e.contentRect.height)}px`)).observe($('.hud-actions'));
 
     $$('[data-goto-zone]').forEach((b) =>
       b.addEventListener('click', () => this.travelTo(b.dataset.gotoZone))

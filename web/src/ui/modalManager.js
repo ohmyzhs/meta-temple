@@ -10,7 +10,7 @@
  */
 import { nameFeedback, NAME_PLACEHOLDER } from './nameField.js';
 import { NAME_MAX, checkText } from '../core/moderation.js';
-import { SOUND_CREDITS, SOUND_CREDIT_NOTE, YEBUL_TRACKS } from '../data/soundCredits.js';
+import { CREDITS, CREDIT_GROUPS, LICENSE_URLS, YEBUL_TRACKS } from '../data/credits.js';
 import { SUTRA_VERSES, DHARMA_CARDS, localMonkResponse, isCrisisText } from '../data/dharmaTexts.js';
 import { LANTERN_COLORS, ZONES, RITUALS } from '../data/templeData.js';
 import { kstDateString } from '../core/state.js';
@@ -26,7 +26,8 @@ const VIEWS = {
   yebul: { title: '예불 듣기', hanja: '禮佛', sub: '산사에서 실제로 올린 예불을 처음부터 끝까지.', render: '_yebul', variant: 'side' },
   dharma_card: { title: '오늘의 죽비', hanja: '竹篦', sub: '지금 내 걸음에 닿는 경전 한 구절.', render: '_card' },
   profile: { title: '수행 기록', hanja: '修行', sub: '견주지 않는, 나만의 조용한 흔적.', render: '_profile' },
-  help: { title: '산사 안내', hanja: '案內', sub: '천천히 둘러보세요. 서두를 곳이 없습니다.', render: '_help' }
+  help: { title: '산사 안내', hanja: '案內', sub: '천천히 둘러보세요. 서두를 곳이 없습니다.', render: '_help' },
+  credits: { title: '자료 출처', hanja: '出處', sub: '산사를 빚는 데 쓴 자료와 그 출처입니다.', render: '_credits' }
 };
 
 const STAT_LABELS = [
@@ -1503,7 +1504,7 @@ export class ModalManager {
           </button>
         </li>`).join('')}
       </ul>
-      <p class="m-hint">고르면 화면이 바뀌어 좌복에 홀로 앉아 처음부터 끝까지 듣습니다. Esc 나 「일어나기」로 돌아옵니다.<br/>국립공원공단 「자연의소리」 · 공공누리 제1유형</p>`);
+      <p class="m-hint">고르면 화면이 바뀌어 좌복에 홀로 앉아 처음부터 끝까지 듣습니다. Esc 나 「일어나기」로 돌아옵니다.</p>`);
     this._on(root, 'click', (e) => {
       const b = e.target.closest('.yebul-item');
       if (b) this.cb.onYebul?.(YEBUL_TRACKS.find((x) => x.id === b.dataset.id));
@@ -1807,11 +1808,28 @@ export class ModalManager {
         <p class="help-p"><b>번뇌 소각</b>에 적은 글은 어디에도 저장되거나 보내지지 않으며, 태우는 순간 화면에서도 사라집니다.</p>
         <p class="help-p">${remote ? '차담은 선사의 답을 받기 위해 전해지지만 이 브라우저에 남지 않습니다.' : '차담 내용도 저장되지 않습니다.'} 기도와 고민은 광고에 쓰이지 않습니다.</p>
       </section>
-      <section class="help-sec">
-        <h3 class="m-sub">소리의 출처</h3>
-        <p class="help-p">${esc(SOUND_CREDIT_NOTE)} <a href="https://www.kogl.or.kr/info/licenseType1.do" target="_blank" rel="noopener">공공누리 제1유형</a></p>
-        <ul class="help-credits">${SOUND_CREDITS.map((c) => `<li>${esc(c.use)} — 국립공원공단, <a href="${esc(c.url)}" target="_blank" rel="noopener">${esc(c.title)}</a></li>`).join('')}</ul>
-      </section>`);
+      <p class="help-foot"><button type="button" class="m-link" data-act="credits">자료 출처</button></p>`);
+    this._on(this.body, 'click', (e) => e.target.closest('[data-act="credits"]') && this.open('credits'));
+    return {};
+  }
+
+  /* ═════════ 11. 자료 출처 ═════════ */
+  _credits() {
+    const link = (url, text) => `<a href="${esc(url)}" target="_blank" rel="noopener">${esc(text)}</a>`;
+    const groups = Object.entries(CREDITS)
+      .filter(([, list]) => list.length)
+      .map(([key, list]) => {
+        const g = CREDIT_GROUPS[key] || { title: key };
+        return `<section class="help-sec">
+          <h3 class="m-sub">${esc(g.title)}</h3>
+          ${g.note ? `<p class="help-p">${esc(g.note)}</p>` : ''}
+          <ul class="help-credits">${list
+            .map((c) => `<li>${esc(c.use)} — ${esc(c.by)}, ${link(c.url, c.title)}${c.license ? ` · ${LICENSE_URLS[c.license] ? link(LICENSE_URLS[c.license], c.license) : esc(c.license)}` : ''}</li>`)
+            .join('')}</ul>
+        </section>`;
+      })
+      .join('');
+    this._root(groups);
     return {};
   }
 }
