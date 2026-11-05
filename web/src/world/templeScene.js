@@ -24,8 +24,8 @@ import { kstHour } from '../core/state.js';
 
 /* ───── 시간대 키프레임 (KST 시각) ───── */
 const KEYS = [
-  { h: 0, elev: 38, az: 150, light: '#a9bde6', li: 1.35, top: '#0b1424', hor: '#2a3a5a', fog: '#1f2a42', fd: 0.01, hemiS: '#5d7099', hemiG: '#1c1a18', hi: 1.05, exp: 1.3, night: 1, stars: 1, cloud: '#2a3348' },
-  { h: 4.4, elev: 30, az: 120, light: '#a9bde6', li: 1.25, top: '#0c1628', hor: '#2c3c5c', fog: '#212c44', fd: 0.011, hemiS: '#5d7099', hemiG: '#1c1a18', hi: 1.0, exp: 1.3, night: 1, stars: 0.9, cloud: '#2a3348' },
+  { h: 0, elev: 38, az: 150, light: '#a9bde6', li: 1.35, top: '#101b2f', hor: '#2a3a5a', fog: '#1f2a42', fd: 0.01, hemiS: '#5d7099', hemiG: '#1c1a18', hi: 1.05, exp: 1.3, night: 1, stars: 1, cloud: '#2a3348' },
+  { h: 4.4, elev: 30, az: 120, light: '#a9bde6', li: 1.25, top: '#121e34', hor: '#2c3c5c', fog: '#212c44', fd: 0.011, hemiS: '#5d7099', hemiG: '#1c1a18', hi: 1.0, exp: 1.3, night: 1, stars: 0.9, cloud: '#2a3348' },
   { h: 5.0, elev: -6, az: 80, light: '#7c8fb8', li: 0.18, top: '#141e30', hor: '#55627a', fog: '#47526a', fd: 0.034, hemiS: '#4b5a7a', hemiG: '#1a1814', hi: 0.55, exp: 1.05, night: 0.75, stars: 0.35, cloud: '#56617a' },
   { h: 6.4, elev: 4, az: 82, light: '#ffb07a', li: 1.6, top: '#5b7aa6', hor: '#eab38e', fog: '#b9a596', fd: 0.02, hemiS: '#9fb2cc', hemiG: '#3a3026', hi: 0.6, exp: 1.0, night: 0.2, stars: 0, cloud: '#e8b9a0' },
   { h: 9, elev: 32, az: 120, light: '#fff1dc', li: 3.0, top: '#3270c4', hor: '#a4c6e6', fog: '#b0c7dc', fd: 0.006, hemiS: '#b4cdea', hemiG: '#4a4232', hi: 0.8, exp: 1.08, night: 0, stars: 0, cloud: '#f8f8f6' },
@@ -33,8 +33,8 @@ const KEYS = [
   { h: 16.4, elev: 24, az: 240, light: '#ffe2b8', li: 2.9, top: '#3468b4', hor: '#b2c8e0', fog: '#b8c4ce', fd: 0.006, hemiS: '#c2cad6', hemiG: '#4e4030', hi: 0.75, exp: 1.06, night: 0, stars: 0, cloud: '#f8eadc' },
   { h: 18.0, elev: 3, az: 268, light: '#ff8a4c', li: 2.2, top: '#3a4675', hor: '#e08458', fog: '#a7765f', fd: 0.012, hemiS: '#8a7a8c', hemiG: '#3a2a20', hi: 0.55, exp: 1.06, night: 0.5, stars: 0, cloud: '#f0a070' },
   { h: 19.1, elev: -7, az: 285, light: '#6a6a9a', li: 0.4, top: '#161b36', hor: '#5e4256', fog: '#2e2a3a', fd: 0.014, hemiS: '#4a4c6a', hemiG: '#14100c', hi: 0.55, exp: 1.0, night: 0.9, stars: 0.4, cloud: '#4a3a4c' },
-  { h: 22, elev: 40, az: 160, light: '#a9bde6', li: 1.35, top: '#0b1424', hor: '#2a3a5a', fog: '#1f2a42', fd: 0.01, hemiS: '#5d7099', hemiG: '#1c1a18', hi: 1.05, exp: 1.3, night: 1, stars: 1, cloud: '#2a3348' },
-  { h: 24, elev: 38, az: 150, light: '#a9bde6', li: 1.35, top: '#0b1424', hor: '#2a3a5a', fog: '#1f2a42', fd: 0.01, hemiS: '#5d7099', hemiG: '#1c1a18', hi: 1.05, exp: 1.3, night: 1, stars: 1, cloud: '#2a3348' }
+  { h: 22, elev: 40, az: 160, light: '#a9bde6', li: 1.35, top: '#101b2f', hor: '#2a3a5a', fog: '#1f2a42', fd: 0.01, hemiS: '#5d7099', hemiG: '#1c1a18', hi: 1.05, exp: 1.3, night: 1, stars: 1, cloud: '#2a3348' },
+  { h: 24, elev: 38, az: 150, light: '#a9bde6', li: 1.35, top: '#101b2f', hor: '#2a3a5a', fog: '#1f2a42', fd: 0.01, hemiS: '#5d7099', hemiG: '#1c1a18', hi: 1.05, exp: 1.3, night: 1, stars: 1, cloud: '#2a3348' }
 ];
 export const PRESET_HOURS = { dawn: 5.0, day: 13, sunset: 18.0, night: 22 };
 

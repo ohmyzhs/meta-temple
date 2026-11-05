@@ -168,8 +168,8 @@ async (page) => {
     { name: 'gate', outdoor: true, player: [gx + 0.6, 40.5], pos: [gx + 0.6, 2.3, 38.5], look: [gx, 6.0, 26] },
     { name: 'courtyard', outdoor: true, player: [5.2, 4.4], pos: [5.0, 2.1, 2.6], look: [1, 6.5, -16] },
     { name: 'hall', outdoor: false, player: [1.5, -20.8], pos: [1.2, 4.7, -21.0], look: [0, 4.2, -28.4] },
-    // 마당에서 올려다본 대웅전 지붕: 용마루가 뒷산보다 높이 보여 지붕선이 하늘 앞에 선다 → (b) 를 하늘 앞 지붕선으로 잰다 (x 3.5 연등 줄 기둥을 비켜 x 0.8)
-    { name: 'hallroof', outdoor: true, skyRoof: true, player: [1.2, -8.2], pos: [0.8, 1.9, -10.5], look: [0, 9.5, -25] }
+    // 대웅전 계단 앞에서 올려다본 지붕: 용마루 쪽 지붕면이 뒷산보다 높아 하늘 앞에 선다 → (b) 를 하늘 앞 지붕선으로 잰다 (석등 북쪽이라 석등이 가리지 않음)
+    { name: 'hallroof', outdoor: true, skyRoof: true, player: [1.5, -11.5], pos: [1.5, 1.9, -13.6], look: [0, 10, -25] }
   ];
   const run = async (h, s, tag) => {
     await page.evaluate(([h, s]) => { window.__qa.setHour(h); window.__qa.shot(s); }, [h, s]);
