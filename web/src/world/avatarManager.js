@@ -600,6 +600,7 @@ export class AvatarManager {
     pl.seat = null;
     pl.returnPos = null;
     if (back) pl.root.position.set(back.x, walkHeight(back.x, back.z), back.z);
+    pl.restState = null; // 앉아서 쉬던 몸짓(차·가부좌)이 다음 동작 뒤에 선 채로 되살아나지 않게
     pl.setState('idle');
     pl.root.userData.eyeHeight = pl.style === 'lantern_spirit' ? 1.05 : 1.2;
     pl.root.userData.focusHeight = pl.style === 'lantern_spirit' ? 0.9 : 0.95;

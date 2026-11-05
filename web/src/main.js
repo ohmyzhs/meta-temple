@@ -797,7 +797,8 @@ class MetaTempleApp {
   _sitTea() {
     const s = L.teaSeat;
     const def = this._interactable('tea_chat');
-    this.avatars.sitAt({ x: s.x, y: s.y, z: s.z, ry: Math.PI / 2, standAt: { x: def.approach.x, z: def.approach.z } }, 'sit');
+    const seat = { x: s.x, y: s.y, z: s.z, ry: Math.PI / 2, standAt: { x: def.approach.x, z: def.approach.z } };
+    this.avatars.sitAt(seat, 'sit');
     this.player.restState = null;
     const monk = this.avatars.teaMonk;
     monk.restState = 'sit';
@@ -806,7 +807,7 @@ class MetaTempleApp {
       this.sound.playTeaPour();
       this.temple.teaSteam.userData.uniforms.uIntensity.value = 1;
     }, 900);
-    setTimeout(() => this.player.setState('tea'), 2400);
+    setTimeout(() => this.player.seat === seat && this.player.setState('tea'), 2400); // 그새 일어나 걸어갔으면 찻잔을 들지 않는다
     this.modals.open('tea_chat');
   }
 
