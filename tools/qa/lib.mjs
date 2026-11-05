@@ -12,9 +12,10 @@ export async function launch() {
 }
 
 /** 뷰포트 하나로 열고 실제 클릭으로 산문에 들어선다 (사용자 활성화가 있어야 뒤로가기 방어가 쌓인다). 너비 1000 미만은 터치 기기로 본다. */
-export async function enter(browser, [w, h], { prev, scale = 1 } = {}) {
+export async function enter(browser, [w, h], { prev, scale = 1, init } = {}) {
   const touch = w < 1000;
   const ctx = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: scale, hasTouch: touch, isMobile: touch, locale: 'ko-KR' });
+  if (init) await ctx.addInitScript(init);
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e)));

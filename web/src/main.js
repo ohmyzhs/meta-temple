@@ -15,6 +15,7 @@ import { YEBUL_TRACKS } from './data/credits.js';
 import { DOCK_RITUALS } from './data/templeData.js';
 import { icon, ZONE_ICONS } from './ui/icons.js';
 import { toggleSheet, closeTop, closeAll } from './ui/sheets.js';
+import { installBackGuard } from './ui/backGuard.js';
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
@@ -202,6 +203,7 @@ class MetaTempleApp {
     $('#intro').classList.add('leaving');
     setTimeout(() => $('#intro').classList.add('hidden'), 1500);
     $('#hud').classList.remove('hidden');
+    installBackGuard({ closeTop: () => this._closeTop(), toast: (m) => this.toast(m) }); // 입장 클릭 안에서 (사용자 동작)
     this._syncSoundButton();
     const { streak, isNewDay } = this.store.checkIn();
     this._applyItems();
@@ -887,6 +889,22 @@ class MetaTempleApp {
     $('#place-btn .i')?.remove();
     $('#place-btn').insertAdjacentHTML('afterbegin', icon(ZONE_ICONS[z]));
     $('#place-name').textContent = ZONES[z].short;
+  }
+
+  /** 뒤로가기가 닫는 순서: 예불 듣기 → 열린 창(차담 포함) → 시트 → 펼친 현판. 닫은 것이 있으면 true */
+  _closeTop() {
+    if (this._listening) {
+      this.exitListening();
+      return true;
+    }
+    if (this.modals.isOpen) {
+      this.modals.close();
+      return true;
+    }
+    if (closeTop()) return true;
+    if ($('#hud-plaque').classList.contains('collapsed')) return false;
+    $('#plaque-toggle').click();
+    return true;
   }
 
   _bindHUD() {
