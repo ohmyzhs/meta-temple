@@ -534,7 +534,9 @@ export class TempleScene {
   }
 
   orbit(dx, dy) {
-    this.cam.yaw -= dx * 0.0055;
+    // 1인칭은 끌어서 돈 만큼을 main.js 가 몸·시선에 함께 나눠 준다
+    if (this.cam.mode === 'first') this.cam.turn = (this.cam.turn || 0) - dx * 0.0055;
+    else this.cam.yaw -= dx * 0.0055;
     this.cam.pitch = clamp(this.cam.pitch + dy * 0.004, this.cam.mode === 'first' ? -1.1 : -0.15, this.cam.mode === 'first' ? 1.0 : 1.25);
   }
 
@@ -587,6 +589,7 @@ export class TempleScene {
   _updateCamera(dt, player) {
     const c = this.cam;
     const p = player.position;
+    player.visible = true;
     if (c.shot) {
       const s = c.shot;
       s.t += dt;
@@ -602,9 +605,11 @@ export class TempleScene {
     c.dist += (c.targetDist - c.dist) * (1 - Math.exp(-dt * 6));
     const inHall = zoneAt(p.x, p.z) === 'DAEUNGJEON';
     if (c.mode === 'first') {
-      const eye = player.userData.eyeHeight ?? 1.5;
-      const target = new THREE.Vector3(p.x, p.y + eye, p.z);
-      this.camera.position.lerp(target, 1 - Math.exp(-dt * 10));
+      const av = player.userData.avatar;
+      const target = av ? av.eyeWorld(new THREE.Vector3()) : new THREE.Vector3(p.x, p.y + (player.userData.eyeHeight ?? 1.5), p.z);
+      this.camera.position.lerp(target, 1 - Math.exp(-dt * 12));
+      // 내 몸(연꽃 정령·삿갓·머리)이 눈앞을 가리므로 1인칭에서는 내 화면에서만 숨긴다 — 다른 도반에게는 그대로 보인다
+      player.visible = this.camera.position.distanceTo(target) > 0.9;
       // 3인칭과 같은 규약: yaw 0 = 북쪽(-z)을 봄, pitch 양수 = 아래를 봄
       const look = new THREE.Vector3(-Math.sin(c.yaw) * Math.cos(c.pitch), -Math.sin(c.pitch), -Math.cos(c.yaw) * Math.cos(c.pitch));
       this.camera.lookAt(this.camera.position.clone().add(look));

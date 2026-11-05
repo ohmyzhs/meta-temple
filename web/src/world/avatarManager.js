@@ -399,6 +399,17 @@ export class Avatar {
     }
   }
 
+  /** 1인칭 눈 위치(월드): 절하고 앉고 걷는 머리를 그대로 따라간다 */
+  eyeWorld(out) {
+    if (this.spirit) {
+      this.spirit.getWorldPosition(out);
+      out.y += 0.06;
+      return out;
+    }
+    this.head.updateWorldMatrix(true, false);
+    return this.head.localToWorld(out.set(0, 0.2, 0.06));
+  }
+
   update(dt, t, night) {
     const target = this._targetPose(dt, t);
     const k = 9;
@@ -800,7 +811,7 @@ export class AvatarManager {
       p.y = damp(p.y, walkHeight(p.x, p.z), 12, dt);
     } else if (v.plan.role === 'circler') {
       const pg = L.pagoda;
-      v.angle -= dt * (0.9 / v.r);
+      v.angle += dt * (0.9 / v.r); // 우요 — 탑을 오른쪽에 두고
       const nx = pg.x + Math.cos(v.angle) * v.r, nz = pg.z + Math.sin(v.angle) * v.r;
       av.heading = Math.atan2(nx - p.x, nz - p.z);
       p.set(nx, walkHeight(nx, nz), nz);
@@ -916,7 +927,7 @@ export class AvatarManager {
       speed = Math.hypot(m.x - p.x, m.z - p.z) / dt;
       p.x = m.x;
       p.z = m.z;
-      pl.heading = Math.atan2(input.x, input.z);
+      pl.heading = input.face ?? Math.atan2(input.x, input.z); // 1인칭은 뒤로 걸어도 몸을 돌리지 않는다
     } else if (this.moveTarget && !pl.busy) {
       const mt = this.moveTarget;
       const dx = mt.x - p.x, dz = mt.z - p.z;
@@ -945,7 +956,7 @@ export class AvatarManager {
       const c = this.circling;
       const pg = L.pagoda;
       const step = dt * (0.95 / pg.radius);
-      c.angle -= step; // 시계 방향(우요)
+      c.angle += step; // 우요(右繞): 위에서 보아 시계 방향, 탑이 늘 오른쪽 (+x 동·-z 북 좌표에서는 각도가 늘어나는 쪽)
       c.travelled += step;
       if (c.travelled >= TAU) {
         c.travelled -= TAU;

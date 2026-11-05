@@ -25,6 +25,10 @@ function detectQuality() {
   return (coarse && small) || weak ? 'low' : 'high';
 }
 
+const FP_TURN = 2.0; // 1인칭 A/D·조이스틱 좌우로 도는 빠르기(rad/s)
+// 1인칭 탑돌이: 걷는 방향에서 탑 쪽(오른쪽)으로 57° — 실측: 1000×640 은 탑 중심이 화면 x≈0.8, 375×812 는 탑 기단이 오른쪽 1/3 에 들고 왼쪽엔 앞길
+const FP_CIRCLE_LOOK = -1.0;
+const wrapAngle = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 const LISTEN_SHOT_SEC = 40; // 예불 듣기: 한 장면을 이만큼 천천히 흘린 뒤 다음 장면으로 끊는다
 const fmtTime = (s) => (Number.isFinite(s) ? `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}` : '–:––');
 
@@ -1167,12 +1171,38 @@ class MetaTempleApp {
       ix += this.joy.x;
       iz += this.joy.z;
     }
-    const yaw = this.world.cam.yaw;
+    // 1인칭: 시선과 몸이 함께 돈다. 좌우 키·조이스틱·끌기는 돌아보기(게걸음 없음),
+    // 걷기·탑돌이·좌복에 앉기처럼 몸이 스스로 돌면 시선도 따라 돈다. 앉아 있거나 걸어가는 중에 끌면 고개만 돌린다.
+    const cam = this.world.cam, pl = this.player, A = this.avatars;
+    const fp = this.entered && cam.mode === 'first' && !this._listening;
+    let face;
+    if (fp) {
+      this._fp ||= { off: wrapAngle(cam.yaw - (pl.heading - Math.PI)) };
+      const turn = (cam.turn || 0) - ix * FP_TURN * dt;
+      cam.turn = 0;
+      ix = 0; // 돌아보기는 수행 창을 닫거나 자리에서 일으키지 않는다
+      if (!pl.sitting && !pl.busy && !A.moveTarget && !A.circling) {
+        pl.heading = wrapAngle(pl.heading + this._fp.off + turn);
+        pl.root.rotation.y = pl.heading;
+        this._fp.off = 0;
+      } else {
+        this._fp.off = wrapAngle(this._fp.off + turn);
+        // 탑돌이는 탑 쪽(오른쪽)으로 비스듬히, 걸어가는 중이면 둘러본 시선이 천천히 길 쪽으로 돌아온다
+        if (A.circling) this._fp.off += (FP_CIRCLE_LOOK - this._fp.off) * (1 - Math.exp(-dt * 0.8));
+        else if (A.moveTarget) this._fp.off *= Math.exp(-dt * 0.7);
+      }
+      face = pl.heading;
+    } else {
+      this._fp = null;
+      cam.turn = 0;
+    }
+    const yaw = fp ? pl.heading - Math.PI + this._fp.off : cam.yaw;
     const wx = ix * Math.cos(yaw) + iz * Math.sin(yaw);
     const wz = -ix * Math.sin(yaw) + iz * Math.cos(yaw);
     if ((ix || iz) && this.modals.isOpen && this.modals.current === 'practice_108') this.modals.close();
     const night = this.world.env.night;
-    this.avatars.update(dt, t, { x: wx, z: wz, run: this.keys.ShiftLeft || this.keys.ShiftRight }, night);
+    this.avatars.update(dt, t, { x: wx, z: wz, run: this.keys.ShiftLeft || this.keys.ShiftRight, face }, night);
+    if (fp) cam.yaw = pl.root.rotation.y - Math.PI + this._fp.off;
     this.world.update(dt, t, this.player.root, this.player.items.hand_lantern);
 
     if (this._listening) this._listenTick(dt);
@@ -1208,7 +1238,7 @@ class MetaTempleApp {
           this._actSeq = (this._actSeq || 0) + 1;
         }
         const p = pl.root.position;
-        this.live.update({ x: p.x, y: p.y, z: p.z, ry: pl.root.rotation.y, a: pl.seq?.name || pl.state || 'idle', n: this._actSeq || 0 });
+        this.live.update({ x: p.x, y: p.y, z: p.z, ry: wrapAngle(pl.root.rotation.y), a: pl.seq?.name || pl.state || 'idle', n: this._actSeq || 0 });
       }
     }
     this.world.render();
