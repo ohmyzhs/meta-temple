@@ -93,6 +93,12 @@ async (page) => {
     window.__qa.restore = () => (A.update = orig);
   }, 44, 2, SIDE));
   await page.evaluate(() => window.__qa.restore?.());
+  // 차수 걷기 — 게임 그대로의 속도: 바닥을 누르거나 WASD 면 2.4m/s (moveTo). 위의 1.1m/s 는 참배객 속도
+  lines.push(await scene('walk_chasu_game', () => { const t = window.temple; t.avatars.teleport(6, 4, Math.PI); t.avatars.moveTo(6, -8); }, 30, 1, SIDE));
+  lines.push(await page.evaluate(() => {
+    const r = window.temple.player.rig, a = r?.current;
+    return a ? `  게임 속도 차수 걷기: ${r.name} 빠르기 ${window.temple.player.speed.toFixed(2)}m/s, 클립 배속 ${a.getEffectiveTimeScale().toFixed(2)} → 초당 ${((2 * a.getEffectiveTimeScale()) / a.getClip().duration).toFixed(1)}걸음` : '';
+  }));
   // 합장 반배
   lines.push(await scene('bow_half', () => { const t = window.temple; t.avatars.teleport(5, 3, Math.PI); t.gesture('bow_half'); }, 78, 3, SIDE));
   // 탑돌이 (합장하고 시계 방향)
