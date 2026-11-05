@@ -6,6 +6,7 @@
 //  (d) 2초 안에 한 번 더 → 이전 페이지로 나감
 //  (e) 창 하나를 연 채 0.2초 간격으로 세 번 연타 → 창만 닫히고 사이트 안
 //  (f) 예불 듣기 중 뒤로 → 듣기에서 일어남   (g) 차담 창도 닫힘
+//  (h) 링크로 바로 들어온 경우(앞 페이지 없음)   (i) 새로고침 뒤 다시 들어온 경우
 // 더해서: 입장 뒤 모든 pushState 가 사용자 동작(navigator.userActivation.isActive) 안에서 일어났는지.
 //   크롬은 뒤로가기 뒤 사용자 동작 없이 쌓은 항목을 '건너뛸 항목'으로 표시해 다음 뒤로가기가 사이트를 통째로 넘긴다.
 //   page.goBack() 은 CDP 로 항목을 직접 골라 가서 그 건너뛰기를 재현하지 못하므로, 이 조건으로 대신 확인한다.
@@ -176,6 +177,44 @@ await ctx.close();
   check(`pushState ${pushes.length}번 모두 사용자 동작 안에서 (뒤로가기 뒤 채우기 포함)`, pushes.length > 4 && !bad.length, bad.length ? bad.map((p) => p.state).join(', ') : '');
   await ctx.close();
 }
+// (h) 링크로 바로 들어옴 (앞 페이지 없음): 안내 → 한 번 더 누르면 맨 아래(원래 항목)로 — 그다음 뒤로가기는 브라우저가 탭을 닫는다
+{
+  const { ctx, page } = await enter(browser, [390, 844], { fresh: true });
+  const goBack = () => page.goBack({ waitUntil: 'commit', timeout: 5000 });
+  await page.waitForTimeout(600);
+  const len = await page.evaluate(() => history.length);
+  await goBack();
+  await page.waitForTimeout(250);
+  await page.waitForTimeout(500);
+  await goBack();
+  await page.waitForTimeout(500);
+  const at = await page.evaluate(() => ({ state: history.state, entered: document.querySelector('#intro').classList.contains('hidden') }));
+  check('(h) 앞 페이지 없이 들어와 두 번 → 원래 항목에 섬(새로고침 없음, 사이트 안)', at.state === null && at.entered && page.url().startsWith(BASE), `history.length ${len} · ${JSON.stringify(at)}`);
+  const more = await goBack().catch(() => 'err');
+  check('(h) 그다음 뒤로가기는 갈 곳 없음 (안드로이드는 탭을 닫음)', more === null, String(more));
+  await ctx.close();
+}
+
+// (i) 새로고침(당겨서 새로고침) 뒤 다시 들어와도: 안내 → 한 번 더 누르면 옛 칸을 모두 건너 이전 페이지로
+{
+  const { ctx, page } = await enter(browser, [390, 844], { prev: PREV });
+  await page.waitForTimeout(600);
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => window.temple && !document.querySelector('#intro-enter').disabled, null, { timeout: 90000 });
+  await page.click('#intro-enter');
+  await page.waitForTimeout(1600);
+  const st0 = await page.evaluate(() => JSON.stringify(history.state));
+  const goBack = () => page.goBack({ waitUntil: 'commit', timeout: 5000 }).catch(() => {});
+  await goBack();
+  await page.waitForTimeout(250);
+  const t = await page.evaluate(() => [...document.querySelectorAll('.toast')].map((x) => x.textContent).join(' / '));
+  await page.waitForTimeout(500);
+  await goBack();
+  await page.waitForURL((u) => !String(u).startsWith(BASE), { timeout: 4000 }).catch(() => {});
+  check('(i) 새로고침 뒤 다시 들어와 두 번 → 이전 페이지로', t.includes(MSG) && page.url().startsWith('data:'), `들어온 칸 ${st0} · ${page.url().slice(0, 40)}`);
+  await ctx.close();
+}
+
 await browser.close();
 console.log(failed ? `FAIL (${failed})` : 'PASS');
 process.exit(failed ? 1 : 0);

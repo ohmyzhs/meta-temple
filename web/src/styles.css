@@ -456,10 +456,12 @@ body.listening.l-idle, body.listening.l-idle canvas { cursor: none; }
 .listen.l-idle .listen-ctl { opacity: 0; transform: translate(-50%, 10px); }
 
 .l-btn {
-  flex: none; width: 44px; height: 44px; border-radius: 50%; border: 0; padding: 0;
+  flex: none; width: 48px; height: 48px; border-radius: 50%; border: 0; padding: 0;
   display: grid; place-items: center; background: transparent; color: inherit; cursor: pointer;
   transition: background 0.2s;
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; touch-action: manipulation;
 }
+.l-btn > * { pointer-events: none; }
 .l-btn:hover, .l-btn:focus-visible { background: rgba(243, 236, 220, 0.1); outline: none; }
 .l-btn svg { width: 20px; height: 20px; fill: currentColor; }
 .l-main { background: rgba(201, 163, 90, 0.9); color: var(--ink-900); }
@@ -489,9 +491,8 @@ body.listening.l-idle, body.listening.l-idle canvas { cursor: none; }
 
 @media (max-width: 520px) {
   .listen-ctl { gap: 0; padding: 5px 6px; }
-  .l-btn[data-l='prev'], .l-btn[data-l='next'] { width: 36px; }
   .l-exit span { display: none; }
-  .l-exit { width: 44px; padding: 0; justify-content: center; }
+  .l-exit { width: 48px; padding: 0; justify-content: center; }
   .listen-title b { font-size: 19px; }
 }
 @media (prefers-reduced-motion: reduce) {

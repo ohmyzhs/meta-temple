@@ -909,7 +909,7 @@ class MetaTempleApp {
 
   _bindHUD() {
     // 그림 아이콘을 채우고 장소 목록을 만든다
-    $$('#hud [data-icon]').forEach((el) => el.insertAdjacentHTML('afterbegin', icon(el.dataset.icon)));
+    $$('[data-icon]').forEach((el) => el.insertAdjacentHTML('afterbegin', icon(el.dataset.icon)));
     $('#place-list').innerHTML = Object.values(ZONES)
       .map(
         (z) => `<li><button class="ctl place-item" type="button" data-goto-zone="${z.id}">${icon(ZONE_ICONS[z.id])}

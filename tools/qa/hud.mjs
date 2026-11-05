@@ -116,9 +116,11 @@ for (const vp of VIEWPORTS) {
     t.avatars.teleport(a.x, a.z, a.ry ?? 0);
   });
   await page.waitForFunction(() => !document.querySelector('#prompt').classList.contains('hidden'), null, { timeout: 4000 }).catch(() => {});
+  await page.waitForTimeout(500); // 나타나는 움직임(투명→불투명)이 끝난 뒤에 잰다
   const withPrompt = await page.evaluate(controls, '#hud');
   const pOv = overlaps(withPrompt), pSm = small(withPrompt.filter((c) => c.name === '#prompt'));
-  console.log(`  안내  #prompt ${withPrompt.some((c) => c.name === '#prompt') ? 'on' : 'off'} · 48미만 ${pSm.length} ${fail(pSm.length)} · 겹침 ${pOv.length} ${fail(pOv.length)}${pOv.length ? ' [' + pOv.join(', ') + ']' : ''}`);
+  const coverPrompt = await page.evaluate(coverage);
+  console.log(`  안내  #prompt ${withPrompt.some((c) => c.name === '#prompt') ? 'on' : 'off'} · 48미만 ${pSm.length} ${fail(pSm.length)} · 겹침 ${pOv.length} ${fail(pOv.length)}${pOv.length ? ' [' + pOv.join(', ') + ']' : ''} · 안내가 뜬 동안 가림 ${fmt(coverPrompt * 100)}% (참고)`);
 
   // 신행이 둘인 구역(독이 가장 붐빔)에서도 크기·겹침·화면 밖
   for (const z of ['COURTYARD', 'DAEUNGJEON', 'TEAHOUSE']) {
@@ -169,6 +171,32 @@ for (const vp of VIEWPORTS) {
     const ssm = small(sl), sov = overlaps(sl), sst = sl.filter((c) => c.style.length).map((c) => `${c.name}(${c.style})`);
     console.log(`  시트  ${target.padEnd(12)} 단추 ${String(sl.length).padStart(2)} · 최소 ${minOf(sl)} ${fail(ssm.length)} 48미만 ${ssm.length}${ssm.length ? ' [' + ssm.join(', ') + ']' : ''} · 겹침 ${sov.length} ${fail(sov.length)}${sov.length ? ' [' + sov.join(', ') + ']' : ''} · 스타일 누락 ${sst.length} ${fail(sst.length)}`);
   }
+  // 창(모달)·예불 듣기 재생기: 단추 글자 선택·길게 누르기 막힘, 닫기·재생기 단추 48 이상 (창 안 다른 단추 크기는 참고로만)
+  await reset(page);
+  await page.evaluate(() => window.temple.modals.open('help'));
+  await page.waitForTimeout(900); // 열리는 움직임(크기 키우기)이 끝난 뒤에 잰다
+  const ml = await page.evaluate(controls, '#modal-overlay');
+  const mClose = ml.filter((c) => c.name === '#modal-close-btn');
+  const mst = ml.filter((c) => c.style.length).map((c) => `${c.name}(${c.style})`);
+  const cb = mClose[0];
+  let mSel = '';
+  if (cb) {
+    await page.evaluate(() => addEventListener('click', window.__block, true));
+    await page.mouse.click(cb.x + cb.w / 2, cb.y + cb.h / 2, { clickCount: 3 });
+    mSel = await page.evaluate(() => getSelection().toString().trim());
+    await page.evaluate(() => removeEventListener('click', window.__block, true));
+  }
+  console.log(`  창    단추 ${ml.length} · 닫기 ${cb ? `${fmt(cb.w, 0)}×${fmt(cb.h, 0)}` : '없음'} ${fail(!cb || small(mClose).length)} · 스타일 누락 ${mst.length} ${fail(mst.length)}${mst.length ? ' [' + mst.slice(0, 4).join(', ') + ']' : ''} · 닫기 세 번 눌러 선택된 글자 "${mSel}" ${fail(mSel)} · 48미만(참고) ${small(ml).length}`);
+  await reset(page);
+  await page.evaluate(async () => window.temple.listen((await import('./src/data/credits.js')).YEBUL_TRACKS[0]));
+  await page.waitForFunction(() => document.body.classList.contains('listening'), null, { timeout: 4000 }).catch(() => {});
+  await page.mouse.move(w / 2, h / 2);
+  await page.waitForTimeout(300);
+  const ll = (await page.evaluate(controls, '#listen')).filter((c) => !/^listen-seek|^#listen-seek/.test(c.name));
+  const lsm = small(ll), lst = ll.filter((c) => c.style.length).map((c) => `${c.name}(${c.style})`), lov = overlaps(ll);
+  console.log(`  듣기  단추 ${ll.length} · 최소 ${minOf(ll)} ${fail(!ll.length || lsm.length)} 48미만 ${lsm.length}${lsm.length ? ' [' + lsm.join(', ') + ']' : ''} · 겹침 ${lov.length} ${fail(lov.length)} · 스타일 누락 ${lst.length} ${fail(lst.length)}`);
+  await page.evaluate(() => window.temple.exitListening());
+  await page.waitForTimeout(800);
   if (errors.length) console.log(`  페이지 오류 ${errors.length} ${fail(true)} ${errors[0]}`);
   await ctx.close();
 }
