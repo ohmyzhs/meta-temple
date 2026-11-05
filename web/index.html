@@ -2,129 +2,160 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#14110e" />
   <title>청연산사 (清蓮山寺) — 무설치 웹 3D 온라인 사찰</title>
+  <meta name="description" content="링크 하나로 들어서는 웹 3D 산사. 말없이 함께 머물며 절·연등·사경·차담으로 마음을 비우는 디지털 안식처." />
+  <meta property="og:title" content="청연산사 — 웹 3D 온라인 사찰" />
+  <meta property="og:description" content="설치도 가입도 없이, 산사의 바람과 풍경 소리 속에 잠시 머물다 가세요." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Nanum+Brush+Script&family=Noto+Sans+KR:wght@400;500;700&family=Noto+Serif+KR:wght@400;600;900&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./src/styles.css" />
+  <link rel="stylesheet" href="./src/ui/modals.css" />
   <script type="importmap">
     {
       "imports": {
-        "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js"
+        "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
       }
     }
   </script>
 </head>
 <body>
-  <!-- 3D 산사 렌더링 캔버스 -->
-  <div id="canvas-container"></div>
+  <div id="scene"></div>
+  <div id="focus-vignette" aria-hidden="true"></div>
 
-  <!-- 토스트 메시지 배너 -->
-  <div id="toast-banner" class="toast-banner hidden"></div>
-
-  <!-- 좌측 상단: 산사 현판 & 환경(시간대·날씨) 제어 바 -->
-  <aside class="hud-top-left">
-    <div class="temple-plaque-card">
-      <div class="plaque-header">
-        <span class="temple-title">청연산사 (清蓮山寺)</span>
-        <span class="co-presence-badge">🕯️ 도반 9명 말없이 동석 중</span>
+  <!-- 입장 화면 -->
+  <section id="intro" class="intro">
+    <div class="intro-inner">
+      <div class="intro-loading" id="intro-loading">
+        <div class="intro-loading-bar"><span id="intro-progress"></span></div>
+        <p id="intro-loading-text">산문을 여는 중…</p>
       </div>
-      <div id="hud-zone-name" class="zone-name">Zone 1 · 일주문 & 전나무 숲길</div>
-      <div id="hud-zone-subtitle" class="zone-subtitle">속세의 걸음을 늦추고 물소리와 함께 들어서는 산사 어귀</div>
-      <div class="dharma-profile-row">
-        <span id="hud-dharma-name" class="dharma-name-tag">법명: 새벽안개 품은 솔잎</span>
-        <span id="hud-merit-summary" class="merit-summary">절 0배 · 염주 0알 · 연등 0등</span>
+      <h1 class="intro-title"><span class="hanja">清蓮山寺</span><span class="hangul">청연산사</span></h1>
+      <p class="intro-lede">말없이 함께 머물며, 바람과 풍경 소리 속에서<br />잠시 마음을 내려놓는 웹 산사입니다.</p>
+      <div class="intro-name">
+        <span class="intro-label">오늘의 법명</span>
+        <strong id="intro-dharma-name">—</strong>
+        <button id="intro-rename" class="link-btn" type="button">다시 받기</button>
       </div>
-    </div>
-
-    <div class="env-control-card">
-      <button class="chip-btn" data-time="dawn">🌅 새벽안개</button>
-      <button class="chip-btn" data-time="day">☀️ 한낮</button>
-      <button class="chip-btn active" data-time="sunset">🌇 저녁노을</button>
-      <button class="chip-btn" data-time="night">🌙 산사의 밤</button>
-      <button class="chip-btn" data-time="realtime">🕒 실시간</button>
-      <button class="chip-btn active" data-weather="clear">🍃 맑음</button>
-      <button class="chip-btn" data-weather="rain">🌧️ 산사 봄비</button>
-      <button class="chip-btn" data-weather="snow">❄️ 설경</button>
-    </div>
-  </aside>
-
-  <!-- 우측 상단: 입체 공간 ASMR 사운드 믹서 & 아바타·시점 전환 -->
-  <aside class="hud-top-right">
-    <div class="asmr-mixer-card">
-      <div class="mixer-top-row">
-        <span class="mixer-title">🎧 입체 공간 ASMR 믹서</span>
-        <button id="audio-toggle-btn" class="audio-toggle-btn">🔇 클릭 시 ASMR 시작</button>
+      <p id="intro-streak" class="intro-streak"></p>
+      <div class="intro-avatars" role="radiogroup" aria-label="모습 고르기">
+        <button class="avatar-card" data-avatar="monk" role="radio"><span class="avatar-glyph">🧘</span><b>목각 동자승</b><small>백자·회색 장삼</small></button>
+        <button class="avatar-card" data-avatar="ink_wanderer" role="radio"><span class="avatar-glyph">🎋</span><b>삿갓 수묵 행자</b><small>먹빛 도포·삿갓</small></button>
+        <button class="avatar-card" data-avatar="lantern_spirit" role="radio"><span class="avatar-glyph">🪷</span><b>연꽃 등불 정령</b><small>떠도는 작은 빛</small></button>
       </div>
-      <div class="slider-row">
-        <span>🌲 바람·여울·빗소리</span>
-        <input id="vol-nature" type="range" min="0" max="1" step="0.05" value="0.7" />
-      </div>
-      <div class="slider-row">
-        <span>🎐 풍경·예불·범종</span>
-        <input id="vol-temple" type="range" min="0" max="1" step="0.05" value="0.65" />
-      </div>
-      <div class="slider-row">
-        <span>🪵 내 목탁·염주·발걸음</span>
-        <input id="vol-sfx" type="range" min="0" max="1" step="0.05" value="0.8" />
-      </div>
-      <div class="avatar-cam-row">
-        <button class="chip-btn active" data-avatar="monk">🧘 목각 동자승</button>
-        <button class="chip-btn" data-avatar="ink_wanderer">🎩 삿갓 행자</button>
-        <button class="chip-btn" data-avatar="lantern_spirit">🏮 등불 정령</button>
-      </div>
-      <div class="avatar-cam-row">
-        <button id="camera-toggle-btn" class="chip-btn" style="width:100%">🎥 시점: 3인칭 동석뷰 (단축키 V)</button>
-      </div>
-    </div>
-  </aside>
-
-  <!-- 좌측 하단: 4대 가람 구역 빠른 이동 나침반 -->
-  <nav class="hud-bottom-left">
-    <span class="compass-label">🧭 산사 가람 이동 (바닥 클릭 또는 WASD 이동 가능)</span>
-    <div class="zone-nav-group">
-      <button class="zone-nav-btn active" data-goto-zone="FOREST">🌲 1. 일주문 & 전나무 숲길 (돌탑)</button>
-      <button class="zone-nav-btn" data-goto-zone="COURTYARD">🏮 2. 대웅전 앞마당 & 삼층석탑 (연등·범종)</button>
-      <button class="zone-nav-btn" data-goto-zone="DAEUNGJEON">🙏 3. 대웅전 법당 내부 (108배·사경)</button>
-      <button class="zone-nav-btn" data-goto-zone="TEAHOUSE">🍵 4. 후원 다실 심검당 (AI 선사 차담)</button>
-    </div>
-  </nav>
-
-  <!-- 중앙 하단: 사찰 신행 활동 & 침묵 동작 6종 액티브 바 -->
-  <section class="hud-bottom-center">
-    <div class="ritual-action-bar">
-      <button class="ritual-btn" data-open-modal="prostrate_108">🙇 108배 · 염주 수행</button>
-      <button class="ritual-btn" data-open-modal="wish_lantern">🏮 소원 연등 달기</button>
-      <button class="ritual-btn" data-open-modal="wish_tile">🪨 기와 불사</button>
-      <button class="ritual-btn" data-open-modal="stone_pagoda">⛰️ 소원 돌탑</button>
-      <button class="ritual-btn" data-open-modal="burn_worry">🔥 번뇌 소각장</button>
-      <button class="ritual-btn" data-open-modal="sutra_copy">🖌️ 반야심경 사경</button>
-      <button class="ritual-btn" data-open-modal="ai_tea_chat">🍵 AI 스님 차담</button>
-      <button class="ritual-btn" data-open-modal="bell_strike">🔔 범종 타종</button>
-    </div>
-
-    <div class="gesture-action-bar">
-      <button class="gesture-btn" data-gesture="bow_half">[1] 🙏 합장 반배</button>
-      <button class="gesture-btn" data-gesture="prostrate">[2] 🙇 1회 큰절</button>
-      <button class="gesture-btn" data-gesture="meditate">[3] 📿 가부좌·염주</button>
-      <button class="gesture-btn" data-gesture="incense">[4] 🕯️ 헌향·헌촉</button>
-      <button class="gesture-btn" data-gesture="circumambulate">[5] 🔄 석탑 탑돌이</button>
-      <button class="gesture-btn" data-gesture="tea">[6] 🍵 다선(차 마시기)</button>
+      <button id="intro-enter" class="enter-btn" type="button" disabled>산문에 들어서기</button>
+      <p class="intro-hint">소리와 함께하면 더 좋습니다 · 이어폰 권장</p>
     </div>
   </section>
 
-  <!-- 신행 활동 공통 모달 창 -->
+  <!-- HUD -->
+  <div id="hud" class="hud hidden">
+    <header class="hud-plaque" id="hud-plaque">
+      <button class="plaque-head" id="plaque-toggle" type="button" aria-expanded="true">
+        <span class="plaque-temple">清蓮山寺</span>
+        <span class="plaque-zone"><em id="hud-zone-index">1</em><span id="hud-zone-name">일주문 & 전나무 숲길</span></span>
+      </button>
+      <div class="plaque-body">
+        <p id="hud-zone-subtitle" class="plaque-sub"></p>
+        <p class="plaque-me"><span id="hud-dharma-name"></span></p>
+        <p id="hud-merit-summary" class="plaque-merit"></p>
+        <p class="plaque-presence"><span class="dot"></span><span id="hud-presence">도반 0명 말없이 동석 중</span></p>
+      </div>
+    </header>
+
+    <nav class="hud-tools" aria-label="설정">
+      <button class="tool-btn" data-pop="pop-env" title="시간·날씨" type="button">☾</button>
+      <button class="tool-btn" data-pop="pop-sound" id="sound-tool" title="소리" type="button">♫</button>
+      <button class="tool-btn" data-pop="pop-self" title="모습·시점" type="button">◎</button>
+      <button class="tool-btn" id="record-btn" title="수행 기록" type="button">卍</button>
+      <button class="tool-btn" id="help-btn" title="도움말" type="button">?</button>
+    </nav>
+
+    <div class="popover hidden" id="pop-env">
+      <h3>시간</h3>
+      <div class="chip-row" data-group="time">
+        <button class="chip" data-time="realtime">실시간</button>
+        <button class="chip" data-time="dawn">새벽 05시</button>
+        <button class="chip" data-time="day">한낮 13시</button>
+        <button class="chip" data-time="sunset">노을 18시</button>
+        <button class="chip" data-time="night">밤 22시</button>
+      </div>
+      <h3>날씨</h3>
+      <div class="chip-row" data-group="weather">
+        <button class="chip" data-weather="clear">맑음</button>
+        <button class="chip" data-weather="rain">산사 봄비</button>
+        <button class="chip" data-weather="snow">겨울 설경</button>
+      </div>
+      <p class="pop-note" id="realtime-note"></p>
+    </div>
+
+    <div class="popover hidden" id="pop-sound">
+      <div class="pop-row">
+        <h3>입체 ASMR</h3>
+        <button class="chip" id="audio-toggle-btn">켜기</button>
+      </div>
+      <label class="slider"><span>자연 환경음 <small>계곡·솔바람·산새·빗소리</small></span><input id="vol-nature" type="range" min="0" max="1" step="0.05" /></label>
+      <label class="slider"><span>사찰 공간음 <small>풍경·독송·범종</small></span><input id="vol-temple" type="range" min="0" max="1" step="0.05" /></label>
+      <label class="slider"><span>수행 효과음 <small>목탁·죽비·염주·발걸음</small></span><input id="vol-sfx" type="range" min="0" max="1" step="0.05" /></label>
+    </div>
+
+    <div class="popover hidden" id="pop-self">
+      <h3>모습</h3>
+      <div class="chip-row" data-group="avatar">
+        <button class="chip" data-avatar="monk">목각 동자승</button>
+        <button class="chip" data-avatar="ink_wanderer">삿갓 행자</button>
+        <button class="chip" data-avatar="lantern_spirit">등불 정령</button>
+      </div>
+      <h3>시점 <small>V</small></h3>
+      <div class="chip-row" data-group="camera">
+        <button class="chip" data-camera="third">3인칭 동석</button>
+        <button class="chip" data-camera="first">1인칭 몰입</button>
+      </div>
+    </div>
+
+    <nav class="hud-compass" aria-label="가람 이동">
+      <button class="zone-btn" data-goto-zone="FOREST"><em>1</em><span>일주문 숲길</span></button>
+      <button class="zone-btn" data-goto-zone="COURTYARD"><em>2</em><span>앞마당</span></button>
+      <button class="zone-btn" data-goto-zone="DAEUNGJEON"><em>3</em><span>대웅전</span></button>
+      <button class="zone-btn" data-goto-zone="TEAHOUSE"><em>4</em><span>후원 다실</span></button>
+    </nav>
+
+    <section class="hud-actions">
+      <div id="prompt" class="prompt hidden"><kbd>E</kbd><span id="prompt-text"></span></div>
+      <div class="ritual-bar" id="ritual-bar"></div>
+      <div class="gesture-bar">
+        <button class="gesture" data-gesture="bow_half" title="합장 반배"><kbd>1</kbd><span>합장</span></button>
+        <button class="gesture" data-gesture="prostrate" title="큰절"><kbd>2</kbd><span>큰절</span></button>
+        <button class="gesture" data-gesture="meditate" title="가부좌·염주"><kbd>3</kbd><span>가부좌</span></button>
+        <button class="gesture" data-gesture="incense" title="헌향·헌촉"><kbd>4</kbd><span>헌향</span></button>
+        <button class="gesture" data-gesture="circumambulate" title="탑돌이"><kbd>5</kbd><span>탑돌이</span></button>
+        <button class="gesture" data-gesture="tea" title="차 마시기"><kbd>6</kbd><span>다선</span></button>
+      </div>
+    </section>
+
+    <div id="joystick" class="joystick" aria-hidden="true"><div class="joy-knob"></div></div>
+  </div>
+
+  <div id="toast-stack" class="toast-stack" aria-live="polite"></div>
+
+  <!-- 신행 모달 (ui/modalManager.js) -->
   <div id="modal-overlay" class="modal-overlay hidden">
-    <div class="modal-window">
+    <div class="modal-window" role="dialog" aria-modal="true" aria-labelledby="modal-title">
       <div class="modal-header">
         <div>
-          <h2 id="modal-title">신행 활동</h2>
+          <h2 id="modal-title"></h2>
           <p id="modal-subtitle" class="modal-subtitle"></p>
         </div>
-        <button id="modal-close-btn" class="modal-close" aria-label="닫기">&times;</button>
+        <button id="modal-close-btn" class="modal-close" type="button" aria-label="닫기">&times;</button>
       </div>
-      <div id="modal-body"></div>
+      <div id="modal-body" class="modal-body"></div>
     </div>
   </div>
 
+  <noscript>이 산사는 자바스크립트와 WebGL이 필요합니다.</noscript>
   <script type="module" src="./src/main.js"></script>
 </body>
 </html>

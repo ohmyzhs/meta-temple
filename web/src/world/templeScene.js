@@ -1,1002 +1,673 @@
+/**
+ * 렌더링 파이프라인 (docs/03 §2.1)
+ *  - WebGLRenderer + ACES 톤매핑 + PCFSoft 그림자 + 블룸 후처리
+ *  - 시간대(실시간 KST 포함 5종)·날씨(3종) 상태를 키프레임 보간으로 부드럽게 전환
+ *  - 3인칭 궤도 / 1인칭 카메라, 클릭 피킹
+ */
 import * as THREE from 'three';
-import { ZONES } from '../data/templeData.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { L, terrainHeight, walkHeight, zoneAt, clamp, lerp, colliders } from './layout.js';
+import { envUniforms } from './materials.js';
+import { setAnisotropy } from './textures.js';
+import { buildTerrain, waterUniforms, ridgeUniforms } from './terrain.js';
+import { buildVegetation } from './vegetation.js';
+import { Temple } from './temple.js';
+import { Weather, Ripples } from './effects.js';
+import { kstHour } from '../core/state.js';
+
+/* ───── 시간대 키프레임 (KST 시각) ───── */
+const KEYS = [
+  { h: 0, elev: 38, az: 150, light: '#8ea4d6', li: 0.55, top: '#060a14', hor: '#1a2234', fog: '#121827', fd: 0.014, hemiS: '#3a4a6a', hemiG: '#12100c', hi: 0.6, exp: 1.12, night: 1, stars: 1, cloud: '#1a1f2c' },
+  { h: 4.4, elev: 30, az: 120, light: '#8ea4d6', li: 0.5, top: '#080c18', hor: '#1e2638', fog: '#141a2a', fd: 0.016, hemiS: '#3a4a6a', hemiG: '#12100c', hi: 0.58, exp: 1.12, night: 1, stars: 0.9, cloud: '#1a1f2c' },
+  { h: 5.0, elev: -6, az: 80, light: '#7c8fb8', li: 0.18, top: '#141e30', hor: '#55627a', fog: '#47526a', fd: 0.034, hemiS: '#4b5a7a', hemiG: '#1a1814', hi: 0.55, exp: 1.05, night: 0.75, stars: 0.35, cloud: '#56617a' },
+  { h: 6.4, elev: 4, az: 82, light: '#ffb07a', li: 1.6, top: '#5b7aa6', hor: '#eab38e', fog: '#b9a596', fd: 0.02, hemiS: '#9fb2cc', hemiG: '#3a3026', hi: 0.6, exp: 1.0, night: 0.2, stars: 0, cloud: '#e8b9a0' },
+  { h: 9, elev: 32, az: 120, light: '#fff1dc', li: 2.7, top: '#5d8fc2', hor: '#c8d7e2', fog: '#bccbd6', fd: 0.0095, hemiS: '#b9cde2', hemiG: '#4a4232', hi: 0.75, exp: 1.0, night: 0, stars: 0, cloud: '#f4f4f2' },
+  { h: 13, elev: 56, az: 180, light: '#fff6e6', li: 3.0, top: '#5a8ec4', hor: '#cfdde6', fog: '#c6d4de', fd: 0.0078, hemiS: '#c4d6e8', hemiG: '#4e4634', hi: 0.8, exp: 0.98, night: 0, stars: 0, cloud: '#ffffff' },
+  { h: 16.4, elev: 24, az: 240, light: '#ffe2b8', li: 2.6, top: '#5c84b4', hor: '#e2d2bc', fog: '#cfc5b6', fd: 0.0095, hemiS: '#c9c6c0', hemiG: '#4e4030', hi: 0.7, exp: 1.0, night: 0, stars: 0, cloud: '#f6e6d2' },
+  { h: 18.0, elev: 3, az: 268, light: '#ff8a4c', li: 2.2, top: '#3a4675', hor: '#e08458', fog: '#a7765f', fd: 0.012, hemiS: '#8a7a8c', hemiG: '#3a2a20', hi: 0.55, exp: 1.06, night: 0.5, stars: 0, cloud: '#f0a070' },
+  { h: 19.1, elev: -7, az: 285, light: '#6a6a9a', li: 0.4, top: '#161b36', hor: '#5e4256', fog: '#2e2a3a', fd: 0.014, hemiS: '#4a4c6a', hemiG: '#14100c', hi: 0.55, exp: 1.0, night: 0.9, stars: 0.4, cloud: '#4a3a4c' },
+  { h: 22, elev: 40, az: 160, light: '#8ea4d6', li: 0.58, top: '#070b15', hor: '#1a2234', fog: '#121827', fd: 0.013, hemiS: '#3a4a6a', hemiG: '#12100c', hi: 0.62, exp: 1.12, night: 1, stars: 1, cloud: '#1a1f2c' },
+  { h: 24, elev: 38, az: 150, light: '#8ea4d6', li: 0.55, top: '#060a14', hor: '#1a2234', fog: '#121827', fd: 0.014, hemiS: '#3a4a6a', hemiG: '#12100c', hi: 0.6, exp: 1.12, night: 1, stars: 1, cloud: '#1a1f2c' }
+];
+export const PRESET_HOURS = { dawn: 5.0, day: 13, sunset: 18.0, night: 22 };
+
+const _ca = new THREE.Color(), _cb = new THREE.Color();
+function sampleKeys(hour) {
+  hour = ((hour % 24) + 24) % 24;
+  let i = 0;
+  while (i < KEYS.length - 1 && KEYS[i + 1].h <= hour) i++;
+  const a = KEYS[i], b = KEYS[Math.min(i + 1, KEYS.length - 1)];
+  const t = b.h === a.h ? 0 : (hour - a.h) / (b.h - a.h);
+  const out = {};
+  for (const k of Object.keys(a)) {
+    if (typeof a[k] === 'number') out[k] = lerp(a[k], b[k], t);
+    else out[k] = _ca.set(a[k]).lerp(_cb.set(b[k]), t).getHexString();
+  }
+  // 고도가 음↔양을 넘나들 때 방위각 보간이 튀지 않게
+  return out;
+}
+
+/* ───── 하늘 돔 셰이더 ───── */
+function skyMaterial() {
+  return new THREE.ShaderMaterial({
+    side: THREE.BackSide,
+    depthWrite: false,
+    fog: false,
+    uniforms: {
+      uTop: { value: new THREE.Color() },
+      uHorizon: { value: new THREE.Color() },
+      uBottom: { value: new THREE.Color() },
+      uSunDir: { value: new THREE.Vector3(0, 1, 0) },
+      uSunColor: { value: new THREE.Color() },
+      uSunVis: { value: 1 },
+      uMoonDir: { value: new THREE.Vector3(0.3, 0.6, -0.7).normalize() },
+      uStars: { value: 0 },
+      uCloud: { value: new THREE.Color() },
+      uCloudAmt: { value: 0.5 },
+      uTime: envUniforms.uTime
+    },
+    vertexShader: `
+      varying vec3 vDir;
+      void main() {
+        vDir = normalize((modelMatrix * vec4(position, 1.0)).xyz - (modelMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz);
+        vec4 p = projectionMatrix * viewMatrix * modelMatrix * vec4(position, 1.0);
+        gl_Position = p.xyww;
+      }`,
+    fragmentShader: `
+      uniform vec3 uTop, uHorizon, uBottom, uSunColor, uCloud;
+      uniform vec3 uSunDir, uMoonDir;
+      uniform float uSunVis, uStars, uCloudAmt, uTime;
+      varying vec3 vDir;
+      float hash(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+      float n2(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+        float a = hash(vec3(i, 1.0)), b = hash(vec3(i + vec2(1, 0), 1.0)), c = hash(vec3(i + vec2(0, 1), 1.0)), d = hash(vec3(i + vec2(1, 1), 1.0));
+        return mix(mix(a, b, f.x), mix(c, d, f.x), f.y); }
+      float fbm(vec2 p) { float s = 0.0, a = 0.5; for (int i = 0; i < 5; i++) { s += a * n2(p); p *= 2.03; a *= 0.5; } return s; }
+      void main() {
+        vec3 d = normalize(vDir);
+        float h = d.y;
+        vec3 col = mix(uHorizon, uTop, pow(clamp(h, 0.0, 1.0), 0.55));
+        col = mix(col, uBottom, smoothstep(0.02, -0.12, h));
+        // 태양 광륜
+        float sd = max(dot(d, normalize(uSunDir)), 0.0);
+        col += uSunColor * (pow(sd, 6.0) * 0.28 + pow(sd, 64.0) * 0.6) * uSunVis;
+        col += uSunColor * smoothstep(0.9993, 0.9997, sd) * 6.0 * uSunVis * step(0.0, uSunDir.y + 0.02);
+        // 별
+        if (uStars > 0.01 && h > 0.0) {
+          vec3 g = floor(d * 380.0);
+          float s = hash(g);
+          float tw = 0.6 + 0.4 * sin(uTime * (1.0 + s * 3.0) + s * 40.0);
+          col += vec3(0.9, 0.93, 1.0) * step(0.9965, s) * tw * uStars * smoothstep(0.0, 0.25, h) * 1.4;
+        }
+        // 달
+        float md = max(dot(d, normalize(uMoonDir)), 0.0);
+        col += vec3(0.85, 0.88, 1.0) * (smoothstep(0.99955, 0.9997, md) * 2.4 + pow(md, 300.0) * 0.35) * uStars;
+        // 구름 (낮게 깔린 층운)
+        if (h > -0.02) {
+          vec2 cp = d.xz / (h + 0.12) * 0.9 + vec2(uTime * 0.004, 0.0);
+          float c = fbm(cp * 1.4);
+          float m = smoothstep(0.55 - uCloudAmt * 0.25, 0.85, c) * smoothstep(-0.02, 0.18, h) * (1.0 - smoothstep(0.55, 0.95, h));
+          vec3 cc = uCloud + uSunColor * pow(sd, 4.0) * 0.35 * uSunVis;
+          col = mix(col, cc, m * 0.75);
+        }
+        gl_FragColor = vec4(col, 1.0);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }`
+  });
+}
+
+/* ───── 최종 패스: 비네팅 + 미세 그레인 + 따뜻한 색감 ───── */
+const FinalShader = {
+  uniforms: { tDiffuse: { value: null }, uTime: { value: 0 }, uVignette: { value: 0.32 }, uFocus: { value: 0 } },
+  vertexShader: `varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+  fragmentShader: `
+    uniform sampler2D tDiffuse; uniform float uTime, uVignette, uFocus; varying vec2 vUv;
+    float rnd(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233)) + uTime) * 43758.5453); }
+    void main() {
+      vec4 c = texture2D(tDiffuse, vUv);
+      vec2 q = vUv - 0.5;
+      float v = 1.0 - dot(q, q) * (uVignette + uFocus * 1.4) * 2.2;
+      c.rgb *= clamp(v, 0.0, 1.0);
+      c.rgb += (rnd(vUv * 731.0) - 0.5) * 0.018;
+      c.rgb = mix(c.rgb, c.rgb * vec3(1.03, 1.0, 0.95), 0.6);
+      gl_FragColor = c;
+    }`
+};
 
 /**
- * 청연산사 (清蓮山寺) — 3D 산사 월드 빌더, 실시간 시간대·날씨 조명 및 1/3인칭 카메라 컨트롤러
- * - Zone 1: 일주문(Iljumun), 전나무 숲길, 계곡 물줄기 & 돌다리, 소원 돌탑
- * - Zone 2: 대웅전 앞마당, 천년 삼층석탑, 소원 연등 군락, 범종각(청동 범종), 번뇌 소각 화로, 기와 불사대
- * - Zone 3: 대웅전 법당 내부(팔작지붕 목조건축, 금동 삼존불, 후불탱화, 청동 향로 & 쌍촛대, 좌복 방석, 사경 서안)
- * - Zone 4: 후원 다실(심검당), 대나무 숲, 연꽃 연못 & 수중 정자
+ * 정적 메쉬를 재질별로 하나로 합친다 (드로우콜 수백 → 수십).
+ * 움직이는 소품(exclude 하위), 인스턴스, 다중 재질, 셰이더/투명 장식은 건드리지 않는다.
  */
-export class TempleScene {
-  constructor(canvasContainer, callbacks = {}) {
-    this.container = canvasContainer;
-    this.callbacks = callbacks;
-
-    this.scene = new THREE.Scene();
-    this.camera = new THREE.PerspectiveCamera(
-      50,
-      window.innerWidth / window.innerHeight,
-      0.1,
-      220
-    );
-
-    this.renderer = new THREE.WebGLRenderer({
-      antialias: true,
-      powerPreference: 'high-performance'
+function batchStatic(scene, exclude) {
+  scene.updateMatrixWorld(true);
+  const buckets = new Map();
+  const excluded = (o) => {
+    for (let p = o; p; p = p.parent) if (exclude.has(p)) return true;
+    return false;
+  };
+  scene.traverse((o) => {
+    if (!o.isMesh || o.isInstancedMesh || Array.isArray(o.material) || o.userData.noBatch) return;
+    if (o.material.isShaderMaterial || (o.material.transparent && !o.material.alphaTest)) return;
+    if (excluded(o)) return;
+    const g = o.geometry;
+    const sig = Object.keys(g.attributes).sort().join(',');
+    const key = `${o.material.uuid}|${sig}|${o.castShadow}`;
+    if (!buckets.has(key)) buckets.set(key, { mat: o.material, cast: o.castShadow, items: [] });
+    buckets.get(key).items.push(o);
+  });
+  let before = 0, after = 0;
+  for (const b of buckets.values()) {
+    before += b.items.length;
+    if (b.items.length < 2) {
+      after += b.items.length;
+      continue;
+    }
+    const geos = b.items.map((o) => {
+      const g = (o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone()).applyMatrix4(o.matrixWorld);
+      g.clearGroups();
+      return g;
     });
+    const merged = mergeGeometries(geos);
+    if (!merged) {
+      after += b.items.length;
+      continue;
+    }
+    const mesh = new THREE.Mesh(merged, b.mat);
+    mesh.castShadow = b.cast;
+    mesh.receiveShadow = true;
+    mesh.matrixAutoUpdate = false;
+    scene.add(mesh);
+    b.items.forEach((o) => o.removeFromParent());
+    geos.forEach((g) => g.dispose());
+    after += 1;
+  }
+  return { before, after };
+}
+
+export class TempleScene {
+  constructor(container, { quality = 'high', onProgress } = {}) {
+    this.container = container;
+    this.quality = quality;
+    this.onProgress = onProgress || (() => {});
+    const low = quality === 'low';
+
+    this.renderer = new THREE.WebGLRenderer({ antialias: !low, powerPreference: 'high-performance' });
+    this.pixelRatio = Math.min(window.devicePixelRatio || 1, low ? 1.25 : 1.75);
+    this.renderer.setPixelRatio(this.pixelRatio);
     this.renderer.setSize(window.innerWidth, window.innerHeight);
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1;
+    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.05;
-    this.container.appendChild(this.renderer.domElement);
+    container.appendChild(this.renderer.domElement);
+    setAnisotropy(Math.min(8, this.renderer.capabilities.getMaxAnisotropy()));
 
-    // 카메라 제어 상태 (3인칭 숄더/오빗 뷰 ↔ 1인칭 몰입 뷰)
-    this.cameraMode = 'third'; // 'third' | 'first'
-    this.orbitYaw = 0;
-    this.orbitPitch = 0.42;
-    this.orbitDistance = 8.5;
-    this.isDragging = false;
-    this.dragStart = { x: 0, y: 0 };
+    this.labelRenderer = new CSS2DRenderer();
+    this.labelRenderer.setSize(window.innerWidth, window.innerHeight);
+    Object.assign(this.labelRenderer.domElement.style, { position: 'absolute', inset: '0', pointerEvents: 'none' });
+    container.appendChild(this.labelRenderer.domElement);
 
-    // 레이캐스터 및 인터랙티브 오브젝트 레지스트리
-    this.raycaster = new THREE.Raycaster();
-    this.mouse = new THREE.Vector2();
-    this.walkableMeshes = [];
-    this.interactiveObjects = [];
+    this.scene = new THREE.Scene();
+    this.scene.fog = new THREE.FogExp2(0xc6d4de, 0.008);
+    this.camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.08, 900);
+    this.camera.position.set(0, 4, 44);
 
-    // 환경 상태
-    this.timeMode = 'sunset'; // 'realtime' | 'dawn' | 'day' | 'sunset' | 'night'
-    this.weatherMode = 'clear'; // 'clear' | 'rain' | 'snow'
-    this.lanternMeshes = [];
-    this.stoneMeshes = [];
-    this.incenseParticles = [];
-    this.fireParticles = [];
-    this.bellSwingTimer = 0;
-
+    this._initSky();
     this._initLights();
-    this._buildTerrainAndMountains();
-    this._buildZone1ForestAndIljumun();
-    this._buildZone2CourtyardAndPagoda();
-    this._buildZone3DaeungjeonHall();
-    this._buildZone4TeahouseAndPond();
-    this._initWeatherParticles();
-    this._bindPointerEvents();
+    this.weather = new Weather(this.scene, quality);
+    this.weather.setPixelRatio(this.pixelRatio);
+    this.ripples = new Ripples(this.scene);
 
-    this.setTimeOfDay('sunset');
+    // 카메라 상태
+    this.cam = { mode: 'third', yaw: Math.PI, pitch: 0.32, dist: 7.5, targetDist: 7.5, focus: new THREE.Vector3(), seated: false, intro: 0 };
+    this.cam.yaw = 0; // 남쪽(+z)에서 북쪽을 바라봄
+    // 시간·날씨
+    this.timeMode = 'realtime';
+    this.hour = kstHour();
+    this.hourTarget = this.hour;
+    this.weatherName = 'clear';
+    this.env = sampleKeys(this.hour);
+    this.wet = 0;
+    this.snow = 0;
+    this._envTimer = 0;
+    this.picking = new THREE.Raycaster();
+    this.picking.layers.set(1);
+    this.pointer = new THREE.Vector2();
+
+    this._initPost();
+    window.addEventListener('resize', () => this.resize());
+  }
+
+  /** 무거운 월드 생성 — 단계별로 진행률을 보고하며 프레임을 양보한다 */
+  async build() {
+    const step = async (p, label, fn) => {
+      this.onProgress(p, label);
+      await new Promise((r) => setTimeout(r, 0));
+      return fn();
+    };
+    this.terrain = await step(0.15, '산자락을 다지는 중…', () => buildTerrain(this.scene, this.quality));
+    this.veg = await step(0.45, '숲길에 나무를 심는 중…', () => buildVegetation(this.scene, this.quality));
+    this.temple = await step(0.7, '전각을 세우는 중…', () => new Temple(this.scene, this.quality));
+    this._buildCrownGrid(this.veg.crowns);
+    this.batchStats = batchStatic(this.scene, this.temple.dynamicRoots());
+    await step(0.85, '등불을 켜는 중…', () => {
+      this._placeLights();
+      this.terrain.ground.forEach((g) => g.layers.enable(1));
+      this._enablePickLayer();
+      this.applyEnv(true);
+      this.renderer.compile(this.scene, this.camera);
+    });
+    await this.loadCustomGLBModels();
+    this.onProgress(1, '산문이 열렸습니다');
+  }
+
+  /**
+   * docs/03 로드맵 Step 1 훅: 국가유산청 실측 .glb 로 절차적 메쉬를 교체한다.
+   * window.TEMPLE_CONFIG.models = [{ url, position:[x,y,z], rotationY, scale, replace: 'hall'|'pagoda'|... }]
+   */
+  async loadCustomGLBModels() {
+    const list = window.TEMPLE_CONFIG?.models;
+    if (!Array.isArray(list) || !list.length) return [];
+    const loader = new GLTFLoader();
+    const out = [];
+    for (const m of list) {
+      try {
+        const gltf = await loader.loadAsync(m.url);
+        const obj = gltf.scene;
+        if (m.position) obj.position.fromArray(m.position);
+        if (m.rotationY) obj.rotation.y = m.rotationY;
+        if (m.scale) obj.scale.setScalar(m.scale);
+        obj.traverse((o) => {
+          if (o.isMesh) {
+            o.castShadow = o.receiveShadow = true;
+          }
+        });
+        this.scene.add(obj);
+        out.push(obj);
+      } catch (e) {
+        console.warn('[glb] load failed', m.url, e);
+      }
+    }
+    return out;
+  }
+
+  _buildCrownGrid(crowns) {
+    this.crownGrid = new Map();
+    for (const c of crowns) {
+      const k = `${Math.floor(c[0] / 6)},${Math.floor(c[1] / 6)}`;
+      if (!this.crownGrid.has(k)) this.crownGrid.set(k, []);
+      this.crownGrid.get(k).push(c);
+    }
+  }
+
+  /** 카메라 위치 q 가 나무 수관·기둥·담 같은 장애물 안인가 */
+  _blocked(q, skipColliders) {
+    const gx = Math.floor(q.x / 6), gz = Math.floor(q.z / 6);
+    const base = terrainHeight(q.x, q.z);
+    for (let i = -1; i <= 1; i++) {
+      for (let j = -1; j <= 1; j++) {
+        const list = this.crownGrid.get(`${gx + i},${gz + j}`);
+        if (!list) continue;
+        for (const [x, z, r, y0, y1] of list) {
+          const h = q.y - base;
+          if (h > y0 - 0.6 && h < y1 && Math.hypot(q.x - x, q.z - z) < r) return true;
+        }
+      }
+    }
+    if (skipColliders) return false;
+    for (const c of colliders) {
+      if (q.y - base > 6.5) continue;
+      if (c.type === 'c') {
+        if (Math.hypot(q.x - c.x, q.z - c.z) < c.r + 0.25) return true;
+      } else if (q.x > c.x0 - 0.25 && q.x < c.x1 + 0.25 && q.z > c.z0 - 0.25 && q.z < c.z1 + 0.25) return true;
+    }
+    return false;
+  }
+
+  _enablePickLayer() {
+    // 식생(noPick)·입자·하늘·원경(ShaderMaterial)을 뺀 나머지를 피킹 대상으로
+    this.scene.traverse((o) => {
+      if (!o.isMesh || o.userData.noPick || o.material?.isShaderMaterial || o === this.sky) return;
+      o.layers.enable(1);
+    });
+  }
+
+  _initSky() {
+    this.skyMat = skyMaterial();
+    this.sky = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 16), this.skyMat);
+    this.sky.scale.setScalar(800);
+    this.sky.frustumCulled = false;
+    this.sky.renderOrder = -10;
+    this.scene.add(this.sky);
+    // 환경맵 생성용 장면
+    this.envScene = new THREE.Scene();
+    this.envSky = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 16), this.skyMat);
+    this.envSky.scale.setScalar(100);
+    this.envScene.add(this.envSky);
+    this.pmrem = new THREE.PMREMGenerator(this.renderer);
+    this.envRT = null;
   }
 
   _initLights() {
-    this.ambientLight = new THREE.AmbientLight(0xd8e2ec, 0.55);
-    this.scene.add(this.ambientLight);
-
-    this.hemiLight = new THREE.HemisphereLight(0x9ec5e8, 0x3a3228, 0.5);
-    this.scene.add(this.hemiLight);
-
-    this.sunLight = new THREE.DirectionalLight(0xffdfba, 1.35);
-    this.sunLight.position.set(24, 34, 18);
-    this.sunLight.castShadow = true;
-    this.sunLight.shadow.mapSize.width = 2048;
-    this.sunLight.shadow.mapSize.height = 2048;
-    this.sunLight.shadow.camera.near = 2;
-    this.sunLight.shadow.camera.far = 110;
-    const d = 38;
-    this.sunLight.shadow.camera.left = -d;
-    this.sunLight.shadow.camera.right = d;
-    this.sunLight.shadow.camera.top = d;
-    this.sunLight.shadow.camera.bottom = -d;
-    this.sunLight.shadow.bias = -0.0005;
-    this.scene.add(this.sunLight);
-
-    this.scene.fog = new THREE.FogExp2(0x1f2633, 0.015);
-  }
-
-  /**
-   * 전체 산사 지형, 계곡 물줄기 및 원경 산봉우리 생성
-   */
-  _buildTerrainAndMountains() {
-    // 1. 기본 숲 지면 (Zone 1)
-    const groundGeo = new THREE.PlaneGeometry(130, 130, 32, 32);
-    this.groundMat = new THREE.MeshStandardMaterial({
-      color: 0x3b4436,
-      roughness: 0.92,
-      metalness: 0.04
-    });
-    const ground = new THREE.Mesh(groundGeo, this.groundMat);
-    ground.rotation.x = -Math.PI / 2;
-    ground.receiveShadow = true;
-    this.scene.add(ground);
-    this.walkableMeshes.push(ground);
-
-    // 2. 대웅전 앞마당 백색 마사토 기단 (Zone 2)
-    const courtyardGeo = new THREE.BoxGeometry(30, 0.4, 24);
-    this.courtyardMat = new THREE.MeshStandardMaterial({
-      color: 0xc2b9a7,
-      roughness: 0.84,
-      metalness: 0.05
-    });
-    const courtyard = new THREE.Mesh(courtyardGeo, this.courtyardMat);
-    courtyard.position.set(0, 0.2, -3.5);
-    courtyard.receiveShadow = true;
-    this.scene.add(courtyard);
-    this.walkableMeshes.push(courtyard);
-
-    // 3. 숲길 포석 산책로
-    const pathGeo = new THREE.BoxGeometry(4.4, 0.08, 26);
-    const pathMat = new THREE.MeshStandardMaterial({
-      color: 0x8a8479,
-      roughness: 0.88
-    });
-    const pathMesh = new THREE.Mesh(pathGeo, pathMat);
-    pathMesh.position.set(0, 0.04, 21);
-    pathMesh.receiveShadow = true;
-    this.scene.add(pathMesh);
-    this.walkableMeshes.push(pathMesh);
-
-    // 4. 원경 산봉우리 실루엣 (중첩 산세)
-    const mountainMat = new THREE.MeshStandardMaterial({
-      color: 0x1c2826,
-      roughness: 0.95
-    });
-    const peaks = [
-      { x: 0, z: -58, r: 34, h: 28 },
-      { x: -34, z: -48, r: 28, h: 22 },
-      { x: 36, z: -46, r: 30, h: 24 },
-      { x: -46, z: -12, r: 24, h: 18 },
-      { x: 48, z: -10, r: 25, h: 19 }
-    ];
-    peaks.forEach((p) => {
-      const mGeo = new THREE.ConeGeometry(p.r, p.h, 9);
-      const mMesh = new THREE.Mesh(mGeo, mountainMat);
-      mMesh.position.set(p.x, p.h / 2 - 2, p.z);
-      this.scene.add(mMesh);
-    });
-  }
-
-  /**
-   * Zone 1: 전통 일주문, 전나무 숲길, 계곡 돌다리(석교), 소원 돌탑
-   */
-  _buildZone1ForestAndIljumun() {
-    const woodRedMat = new THREE.MeshStandardMaterial({ color: 0x6e2c23, roughness: 0.65 });
-    const dancheongMat = new THREE.MeshStandardMaterial({ color: 0x2f5d50, roughness: 0.6 });
-    const roofTileMat = new THREE.MeshStandardMaterial({ color: 0x26292e, roughness: 0.72 });
-
-    // 1. 전통 일주문 (Iljumun Gate, Z = +28)
-    const iljumun = new THREE.Group();
-    iljumun.position.set(0, 0, 28);
-
-    const pillarGeo = new THREE.CylinderGeometry(0.32, 0.36, 4.6, 16);
-    const leftPillar = new THREE.Mesh(pillarGeo, woodRedMat);
-    leftPillar.position.set(-2.9, 2.3, 0);
-    leftPillar.castShadow = true;
-    const rightPillar = new THREE.Mesh(pillarGeo, woodRedMat);
-    rightPillar.position.set(2.9, 2.3, 0);
-    rightPillar.castShadow = true;
-
-    const beam = new THREE.Mesh(new THREE.BoxGeometry(7.6, 0.55, 0.8), dancheongMat);
-    beam.position.set(0, 4.4, 0);
-    beam.castShadow = true;
-
-    const roof = new THREE.Mesh(new THREE.ConeGeometry(5.6, 1.8, 4), roofTileMat);
-    roof.position.set(0, 5.5, 0);
-    roof.rotation.y = Math.PI / 4;
-    roof.scale.set(1.35, 1, 0.55);
-    roof.castShadow = true;
-
-    // 현판 (청연산사)
-    const plaque = new THREE.Mesh(
-      new THREE.BoxGeometry(2.5, 0.72, 0.15),
-      new THREE.MeshStandardMaterial({ color: 0x1c1917, roughness: 0.5 })
-    );
-    plaque.position.set(0, 4.55, 0.45);
-
-    iljumun.add(leftPillar, rightPillar, beam, roof, plaque);
-    this.scene.add(iljumun);
-
-    // 2. 계곡 물줄기 & 무지개 돌다리 (Z = +19)
-    const streamGeo = new THREE.PlaneGeometry(55, 3.4);
-    const streamMat = new THREE.MeshStandardMaterial({
-      color: 0x2b5870,
-      roughness: 0.18,
-      metalness: 0.65,
-      transparent: true,
-      opacity: 0.88
-    });
-    const stream = new THREE.Mesh(streamGeo, streamMat);
-    stream.rotation.x = -Math.PI / 2;
-    stream.position.set(0, 0.05, 19);
-    this.scene.add(stream);
-
-    const bridge = new THREE.Mesh(
-      new THREE.BoxGeometry(4.8, 0.32, 4.0),
-      new THREE.MeshStandardMaterial({ color: 0x999388, roughness: 0.82 })
-    );
-    bridge.position.set(0, 0.16, 19);
-    bridge.receiveShadow = true;
-    this.scene.add(bridge);
-    this.walkableMeshes.push(bridge);
-
-    // 3. 소원 돌탑 (Stone Pagoda, X = -3.8, Z = +15)
-    this.stonePagodaGroup = new THREE.Group();
-    this.stonePagodaGroup.position.set(-3.8, 0, 15);
-    const stoneMat = new THREE.MeshStandardMaterial({ color: 0x7d7a72, roughness: 0.88 });
-
-    const baseRadii = [1.1, 0.92, 0.76, 0.62, 0.48, 0.36, 0.25];
-    let currentY = 0.18;
-    baseRadii.forEach((r) => {
-      const sMesh = new THREE.Mesh(new THREE.DodecahedronGeometry(r, 1), stoneMat);
-      sMesh.scale.y = 0.52;
-      sMesh.position.y = currentY;
-      sMesh.castShadow = true;
-      this.stonePagodaGroup.add(sMesh);
-      currentY += r * 0.55;
-    });
-    this.stoneTopY = currentY;
-    this.scene.add(this.stonePagodaGroup);
-    this._registerInteractive(this.stonePagodaGroup, 'stone_pagoda', '소원 돌탑 쌓기');
-
-    // 4. 아름드리 전나무·소나무 숲 군락 배치
-    const trunkMat = new THREE.MeshStandardMaterial({ color: 0x4a3525, roughness: 0.9 });
-    const pineLeafMat = new THREE.MeshStandardMaterial({ color: 0x254232, roughness: 0.82 });
-
-    const treeCoords = [
-      [-6, 26], [6, 26], [-8, 22], [8, 22], [-5.5, 16], [5.8, 16],
-      [-10, 12], [10, 12], [-14, 18], [14, 18], [-16, 6], [16, 6],
-      [-18, -6], [-17, -16], [18, -16], [-12, -26], [12, -26]
-    ];
-    treeCoords.forEach(([tx, tz], idx) => {
-      const tree = new THREE.Group();
-      const h = 4.5 + (idx % 3) * 1.2;
-      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.35, h, 8), trunkMat);
-      trunk.position.y = h / 2;
-      trunk.castShadow = true;
-      tree.add(trunk);
-
-      for (let layer = 0; layer < 3; layer++) {
-        const cone = new THREE.Mesh(
-          new THREE.ConeGeometry(2.1 - layer * 0.45, 2.6, 9),
-          pineLeafMat
-        );
-        cone.position.y = h - 0.8 + layer * 1.35;
-        cone.castShadow = true;
-        tree.add(cone);
-      }
-      tree.position.set(tx, 0, tz);
-      this.scene.add(tree);
-    });
-  }
-
-  /**
-   * Zone 2: 대웅전 앞마당, 천년 삼층석탑, 소원 연등 군락, 범종각, 번뇌 소각 화로, 기와 불사대
-   */
-  _buildZone2CourtyardAndPagoda() {
-    const graniteMat = new THREE.MeshStandardMaterial({
-      color: 0xa8a296,
-      roughness: 0.78,
-      metalness: 0.08
-    });
-
-    // 1. 중앙 천년 삼층석탑 (Three-Story Stone Pagoda, X = 0, Z = -2)
-    this.pagodaGroup = new THREE.Group();
-    this.pagodaGroup.position.set(0, 0.4, -2);
-
-    // 기단부
-    const base1 = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.55, 3.4), graniteMat);
-    base1.position.y = 0.275;
-    const base2 = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.65, 2.6), graniteMat);
-    base2.position.y = 0.85;
-    this.pagodaGroup.add(base1, base2);
-
-    // 1~3층 탑신 및 옥개석
-    let py = 1.2;
-    [1.8, 1.45, 1.15].forEach((w) => {
-      const body = new THREE.Mesh(new THREE.BoxGeometry(w * 0.78, w * 0.72, w * 0.78), graniteMat);
-      body.position.y = py + (w * 0.72) / 2;
-      body.castShadow = true;
-      py += w * 0.72;
-
-      const roof = new THREE.Mesh(new THREE.BoxGeometry(w * 1.28, 0.32, w * 1.28), graniteMat);
-      roof.position.y = py + 0.16;
-      roof.castShadow = true;
-      py += 0.34;
-      this.pagodaGroup.add(body, roof);
-    });
-
-    // 상륜부 (보주)
-    const finial = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.08, 0.22, 1.1, 12),
-      new THREE.MeshStandardMaterial({ color: 0xd4af37, roughness: 0.35, metalness: 0.7 })
-    );
-    finial.position.y = py + 0.55;
-    this.pagodaGroup.add(finial);
-    this.scene.add(this.pagodaGroup);
-    this._registerInteractive(this.pagodaGroup, 'circumambulate', '천년 삼층석탑 탑돌이');
-
-    // 2. 우측 범종각 & 청동 범종 (Bell Pavilion, X = 9.5, Z = -3)
-    const bellPavilion = new THREE.Group();
-    bellPavilion.position.set(9.5, 0.4, -3);
-
-    const woodMat = new THREE.MeshStandardMaterial({ color: 0x5c261e, roughness: 0.68 });
-    const roofMat = new THREE.MeshStandardMaterial({ color: 0x23262b, roughness: 0.7 });
-
-    [[-2.2, -2.2], [2.2, -2.2], [-2.2, 2.2], [2.2, 2.2]].forEach(([px, pz]) => {
-      const col = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.25, 4.2, 12), woodMat);
-      col.position.set(px, 2.1, pz);
-      col.castShadow = true;
-      bellPavilion.add(col);
-    });
-
-    const bellRoof = new THREE.Mesh(new THREE.ConeGeometry(4.4, 2.1, 4), roofMat);
-    bellRoof.position.y = 5.1;
-    bellRoof.rotation.y = Math.PI / 4;
-    bellRoof.castShadow = true;
-    bellPavilion.add(bellRoof);
-
-    // 청동 범종
-    const bronzeMat = new THREE.MeshStandardMaterial({
-      color: 0x524632,
-      roughness: 0.38,
-      metalness: 0.75
-    });
-    this.bronzeBell = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.55, 0.88, 1.75, 24),
-      bronzeMat
-    );
-    this.bronzeBell.position.y = 2.45;
-    this.bronzeBell.castShadow = true;
-    bellPavilion.add(this.bronzeBell);
-
-    this.scene.add(bellPavilion);
-    this._registerInteractive(bellPavilion, 'bell_strike', '범종각 타종 체험');
-
-    // 3. 좌측 번뇌 소각 화로 (Worry Brazier, X = -9.2, Z = -1.5)
-    this.brazierGroup = new THREE.Group();
-    this.brazierGroup.position.set(-9.2, 0.4, -1.5);
-
-    const pot = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.95, 0.68, 1.1, 20),
-      new THREE.MeshStandardMaterial({ color: 0x2e2a27, roughness: 0.7, metalness: 0.5 })
-    );
-    pot.position.y = 0.55;
-    pot.castShadow = true;
-    this.brazierGroup.add(pot);
-
-    // 타오르는 불꽃 코어 & 광원
-    const flameGeo = new THREE.ConeGeometry(0.52, 0.95, 10);
-    const flameMat = new THREE.MeshBasicMaterial({ color: 0xff7043 });
-    this.brazierFlame = new THREE.Mesh(flameGeo, flameMat);
-    this.brazierFlame.position.y = 1.25;
-    this.brazierGroup.add(this.brazierFlame);
-
-    this.brazierLight = new THREE.PointLight(0xff6d00, 1.8, 9);
-    this.brazierLight.position.y = 1.6;
-    this.brazierGroup.add(this.brazierLight);
-
-    this.scene.add(this.brazierGroup);
-    this._registerInteractive(this.brazierGroup, 'burn_worry', '번뇌 소각 화로 (고민 태우기)');
-
-    // 4. 좌측 기와 불사대 (Wish Tile Stand, X = -9.2, Z = -6.2)
-    const tileStand = new THREE.Group();
-    tileStand.position.set(-9.2, 0.4, -6.2);
-
-    const desk = new THREE.Mesh(
-      new THREE.BoxGeometry(2.8, 0.9, 1.4),
-      new THREE.MeshStandardMaterial({ color: 0x4e342e, roughness: 0.75 })
-    );
-    desk.position.y = 0.45;
-    tileStand.add(desk);
-
-    // 검은 기와 샘플들
-    for (let i = -2; i <= 2; i++) {
-      const tile = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.22, 0.22, 0.55, 12, 1, false, 0, Math.PI),
-        new THREE.MeshStandardMaterial({ color: 0x212121, roughness: 0.6 })
-      );
-      tile.position.set(i * 0.48, 1.05, 0);
-      tile.rotation.z = 0.2;
-      tileStand.add(tile);
+    const low = this.quality === 'low';
+    this.hemi = new THREE.HemisphereLight(0xc4d6e8, 0x4e4634, 0.8);
+    this.scene.add(this.hemi);
+    this.sun = new THREE.DirectionalLight(0xfff6e6, 3);
+    this.sun.castShadow = true;
+    const sm = low ? 1024 : 2048;
+    this.sun.shadow.mapSize.set(sm, sm);
+    const ext = 26;
+    Object.assign(this.sun.shadow.camera, { left: -ext, right: ext, top: ext, bottom: -ext, near: 1, far: 140 });
+    this.sun.shadow.bias = -0.0004;
+    this.sun.shadow.normalBias = 0.035;
+    this.sun.shadow.radius = 3;
+    this.scene.add(this.sun, this.sun.target);
+    // 점광원 풀 — 개수 고정 (재질 재컴파일 방지). 밤낮은 세기만 바꾼다.
+    this.points = [];
+    for (let i = 0; i < 8; i++) {
+      const p = new THREE.PointLight(0xffb066, 0, 10, 1.8);
+      this.scene.add(p);
+      this.points.push(p);
     }
-    this.scene.add(tileStand);
-    this._registerInteractive(tileStand, 'wish_tile', '기와 불사 각인');
-
-    // 5. 소원 연등 컨테이너 그룹
-    this.lanternContainer = new THREE.Group();
-    this.scene.add(this.lanternContainer);
   }
 
-  /**
-   * Zone 3: 대웅전 법당 본당, 금동 삼존불, 청동 향로(헌향), 수행 좌복, 사경 서안
-   */
-  _buildZone3DaeungjeonHall() {
-    this.hallGroup = new THREE.Group();
-    this.hallGroup.position.set(0, 0.4, -21);
-
-    // 1. 화강암 기단 및 돌계단
-    const platform = new THREE.Mesh(
-      new THREE.BoxGeometry(20, 1.12, 14),
-      new THREE.MeshStandardMaterial({ color: 0x9e978b, roughness: 0.82 })
-    );
-    platform.position.y = 0.56;
-    platform.receiveShadow = true;
-    this.hallGroup.add(platform);
-
-    // 마룻바닥 (실내 수행 공간)
-    const woodFloor = new THREE.Mesh(
-      new THREE.BoxGeometry(18.6, 0.08, 12.6),
-      new THREE.MeshStandardMaterial({ color: 0x4a2f1d, roughness: 0.45 })
-    );
-    woodFloor.position.y = 1.14;
-    woodFloor.receiveShadow = true;
-    this.hallGroup.add(woodFloor);
-    this.walkableMeshes.push(woodFloor);
-
-    // 중앙 돌계단
-    for (let s = 0; s < 4; s++) {
-      const step = new THREE.Mesh(
-        new THREE.BoxGeometry(4.4, 0.28, 0.8),
-        new THREE.MeshStandardMaterial({ color: 0xb0a99d, roughness: 0.8 })
-      );
-      step.position.set(0, 0.14 + s * 0.28, 7.2 - s * 0.45);
-      this.hallGroup.add(step);
-    }
-
-    // 2. 대웅전 기둥 및 후벽·측벽 (전면 개방형으로 카메라 시야 확보)
-    const pillarMat = new THREE.MeshStandardMaterial({ color: 0x6b281e, roughness: 0.65 });
-    const wallMat = new THREE.MeshStandardMaterial({ color: 0x3b261a, roughness: 0.8 });
-
-    const pillarPositions = [
-      [-8.5, 5.5], [-4.2, 5.5], [4.2, 5.5], [8.5, 5.5],
-      [-8.5, 0], [8.5, 0],
-      [-8.5, -5.5], [-4.2, -5.5], [4.2, -5.5], [8.5, -5.5]
-    ];
-    pillarPositions.forEach(([px, pz]) => {
-      const p = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.36, 5.6, 16), pillarMat);
-      p.position.set(px, 3.9, pz);
-      p.castShadow = true;
-      this.hallGroup.add(p);
-    });
-
-    const backWall = new THREE.Mesh(new THREE.BoxGeometry(17.4, 5.4, 0.4), wallMat);
-    backWall.position.set(0, 3.8, -5.5);
-    this.hallGroup.add(backWall);
-
-    // 팔작지붕 처마
-    const mainRoof = new THREE.Mesh(
-      new THREE.ConeGeometry(14.5, 3.8, 4),
-      new THREE.MeshStandardMaterial({ color: 0x1f2328, roughness: 0.7 })
-    );
-    mainRoof.position.set(0, 8.5, 0);
-    mainRoof.rotation.y = Math.PI / 4;
-    mainRoof.scale.set(1.25, 1, 0.92);
-    mainRoof.castShadow = true;
-    this.hallGroup.add(mainRoof);
-
-    // 3. 수미단 & 금동 삼존불 (Golden Triad Buddhas)
-    const altar = new THREE.Mesh(
-      new THREE.BoxGeometry(8.6, 1.25, 2.4),
-      new THREE.MeshStandardMaterial({ color: 0x382014, roughness: 0.55 })
-    );
-    altar.position.set(0, 1.75, -3.8);
-    this.hallGroup.add(altar);
-
-    // 후불탱화 배경판
-    const taenghwa = new THREE.Mesh(
-      new THREE.BoxGeometry(8.2, 3.8, 0.12),
-      new THREE.MeshStandardMaterial({
-        color: 0x5c1d18,
-        emissive: 0x2a0c08,
-        roughness: 0.65
-      })
-    );
-    taenghwa.position.set(0, 3.8, -5.1);
-    this.hallGroup.add(taenghwa);
-
-    const goldMat = new THREE.MeshStandardMaterial({
-      color: 0xffcf52,
-      emissive: 0x422a00,
-      roughness: 0.24,
-      metalness: 0.88
-    });
-
-    [-2.4, 0, 2.4].forEach((bx, idx) => {
-      const scale = idx === 1 ? 1.25 : 0.92;
-      const buddhaGroup = new THREE.Group();
-      buddhaGroup.position.set(bx, 2.4, -3.8);
-      buddhaGroup.scale.setScalar(scale);
-
-      // 연화좌
-      const lotusPedestal = new THREE.Mesh(new THREE.CylinderGeometry(0.68, 0.52, 0.35, 18), goldMat);
-      // 결가부좌 몸체
-      const bBody = new THREE.Mesh(new THREE.ConeGeometry(0.58, 1.15, 16), goldMat);
-      bBody.position.y = 0.72;
-      // 불두
-      const bHead = new THREE.Mesh(new THREE.SphereGeometry(0.28, 20, 20), goldMat);
-      bHead.position.y = 1.42;
-      // 광배 (Halo)
-      const halo = new THREE.Mesh(new THREE.RingGeometry(0.45, 0.82, 28), goldMat);
-      halo.position.set(0, 1.15, -0.25);
-
-      buddhaGroup.add(lotusPedestal, bBody, bHead, halo);
-      this.hallGroup.add(buddhaGroup);
-    });
-
-    // 불단 성스러운 금빛 스포트라이트
-    const buddhaLight = new THREE.PointLight(0xffca64, 2.2, 12);
-    buddhaLight.position.set(0, 4.8, -2.2);
-    this.hallGroup.add(buddhaLight);
-
-    // 4. 헌향 청동 향로 & 쌍촛대 (Z = -1.8)
-    const burnerGroup = new THREE.Group();
-    burnerGroup.position.set(0, 1.18, -1.8);
-    const burnerTable = new THREE.Mesh(
-      new THREE.BoxGeometry(2.4, 0.75, 0.9),
-      new THREE.MeshStandardMaterial({ color: 0x3e2518, roughness: 0.6 })
-    );
-    burnerTable.position.y = 0.38;
-    const incensePot = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.28, 0.2, 0.32, 16),
-      new THREE.MeshStandardMaterial({ color: 0x8d7648, metalness: 0.7, roughness: 0.35 })
-    );
-    incensePot.position.y = 0.9;
-    burnerGroup.add(burnerTable, incensePot);
-    this.hallGroup.add(burnerGroup);
-    this._registerInteractive(burnerGroup, 'incense', '불단 헌향·헌촉 올리기');
-
-    // 5. 수행 좌복(방석) 배열
-    const cushionMat = new THREE.MeshStandardMaterial({ color: 0x6e6a63, roughness: 0.88 });
-    const cushionCoords = [
-      [-3.3, 0.5], [-1.1, 0.5], [1.1, 0.5], [3.3, 0.5],
-      [-3.3, 2.5], [-1.1, 2.5], [1.1, 2.5], [3.3, 2.5],
-      [-3.3, 4.3], [-1.1, 4.3], [1.1, 4.3], [3.3, 4.3]
-    ];
-    cushionCoords.forEach(([cx, cz]) => {
-      const cushion = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.1, 0.95), cushionMat);
-      cushion.position.set(cx, 1.2, cz);
-      cushion.receiveShadow = true;
-      this.hallGroup.add(cushion);
-      this._registerInteractive(cushion, 'prostrate_108', '좌복에 앉아 108배·명상 수행');
-    });
-
-    // 6. 우측 반야심경 디지털 사경 서안(책상)
-    const sutraDesk = new THREE.Group();
-    sutraDesk.position.set(6.4, 1.18, 1.5);
-    const deskMesh = new THREE.Mesh(
-      new THREE.BoxGeometry(1.8, 0.45, 0.9),
-      new THREE.MeshStandardMaterial({ color: 0x4e301d, roughness: 0.6 })
-    );
-    deskMesh.position.y = 0.22;
-    const hanjiPaper = new THREE.Mesh(
-      new THREE.PlaneGeometry(1.1, 0.55),
-      new THREE.MeshBasicMaterial({ color: 0xf5ebd6 })
-    );
-    hanjiPaper.rotation.x = -Math.PI / 2;
-    hanjiPaper.position.y = 0.46;
-    sutraDesk.add(deskMesh, hanjiPaper);
-    this.hallGroup.add(sutraDesk);
-    this._registerInteractive(sutraDesk, 'sutra_copy', '반야심경·법구경 디지털 사경(필사)');
-
-    this.scene.add(this.hallGroup);
+  _placeLights() {
+    const a = this.temple.lightAnchors;
+    const set = (i, pos, color, dist) => {
+      this.points[i].position.copy(pos);
+      this.points[i].color.set(color);
+      this.points[i].distance = dist;
+    };
+    set(0, a.candleL, '#ffb35a', 7);
+    set(1, a.candleR, '#ffb35a', 7);
+    set(2, a.buddha, '#ffcf8a', 14);
+    set(3, a.brazier, '#ff8a3a', 9);
+    set(4, a.lanternGlow, '#ffb27a', 26);
+    set(5, a.stoneLantern, '#ffb466', 9);
+    set(6, a.teahouse, '#ffc27a', 9);
+    set(7, new THREE.Vector3(0, -10, 0), '#ffcf8a', 6); // 손연등
   }
 
-  /**
-   * Zone 4: 후원 다실(심검당), 대나무 숲 및 연꽃 연못
-   */
-  _buildZone4TeahouseAndPond() {
-    this.teahouseGroup = new THREE.Group();
-    this.teahouseGroup.position.set(18, 0, -6);
-
-    // 1. 연꽃 연못 (Lotus Pond)
-    const pond = new THREE.Mesh(
-      new THREE.CircleGeometry(4.8, 32),
-      new THREE.MeshStandardMaterial({
-        color: 0x204d48,
-        roughness: 0.12,
-        metalness: 0.72
-      })
-    );
-    pond.rotation.x = -Math.PI / 2;
-    pond.position.set(-1.5, 0.06, 4.8);
-    this.teahouseGroup.add(pond);
-
-    // 연잎과 연꽃
-    const padMat = new THREE.MeshStandardMaterial({ color: 0x3b6e4c, roughness: 0.8 });
-    [[-2.5, 4.2], [-0.5, 5.5], [-1.8, 6.0], [0.8, 4.0]].forEach(([lx, lz]) => {
-      const pad = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 0.03, 16), padMat);
-      pad.position.set(lx, 0.08, lz);
-      this.teahouseGroup.add(pad);
-    });
-
-    // 2. 다실 툇마루 (심검당)
-    const maru = new THREE.Mesh(
-      new THREE.BoxGeometry(7.2, 0.65, 6.2),
-      new THREE.MeshStandardMaterial({ color: 0x5c3c24, roughness: 0.58 })
-    );
-    maru.position.set(0, 0.325, 0);
-    maru.receiveShadow = true;
-    this.teahouseGroup.add(maru);
-    this.walkableMeshes.push(maru);
-
-    const teaRoof = new THREE.Mesh(
-      new THREE.ConeGeometry(5.6, 2.2, 4),
-      new THREE.MeshStandardMaterial({ color: 0x25282c, roughness: 0.75 })
-    );
-    teaRoof.position.set(0, 4.4, 0);
-    teaRoof.rotation.y = Math.PI / 4;
-    this.teahouseGroup.add(teaRoof);
-
-    // 낮은 찻상과 다기 세트
-    const teaTable = new THREE.Mesh(
-      new THREE.BoxGeometry(1.8, 0.35, 1.1),
-      new THREE.MeshStandardMaterial({ color: 0x3b2313, roughness: 0.5 })
-    );
-    teaTable.position.set(0, 0.82, 0);
-    this.teahouseGroup.add(teaTable);
-
-    const teaLight = new THREE.PointLight(0xffb74d, 1.5, 9);
-    teaLight.position.set(0, 2.8, 0);
-    this.teahouseGroup.add(teaLight);
-
-    // 3. 대나무 숲 군락
-    const bambooMat = new THREE.MeshStandardMaterial({ color: 0x4b7340, roughness: 0.55 });
-    for (let i = 0; i < 18; i++) {
-      const angle = (i / 18) * Math.PI * 1.2 - 0.8;
-      const dist = 4.5 + (i % 3) * 0.8;
-      const bamboo = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 6.5, 8), bambooMat);
-      bamboo.position.set(Math.cos(angle) * dist, 3.2, Math.sin(angle) * dist - 1.5);
-      this.teahouseGroup.add(bamboo);
-    }
-
-    this.scene.add(this.teahouseGroup);
-    this._registerInteractive(this.teahouseGroup, 'ai_tea_chat', '다실(심검당) AI 스님과 1:1 차담');
+  _initPost() {
+    const low = this.quality === 'low';
+    this.composer = new EffectComposer(this.renderer);
+    this.composer.setPixelRatio(this.pixelRatio);
+    this.composer.setSize(window.innerWidth, window.innerHeight);
+    this.composer.addPass(new RenderPass(this.scene, this.camera));
+    const bs = new THREE.Vector2(window.innerWidth, window.innerHeight).multiplyScalar(low ? 0.35 : 0.5);
+    this.bloom = new UnrealBloomPass(bs, 0.55, 0.55, 0.92);
+    this.composer.addPass(this.bloom);
+    this.composer.addPass(new OutputPass());
+    this.finalPass = new ShaderPass(FinalShader);
+    this.composer.addPass(this.finalPass);
   }
 
-  /**
-   * 소원 연등 3D 오브젝트 렌더링 및 실시간 추가
-   */
-  syncLanterns(lanternList = []) {
-    while (this.lanternContainer.children.length > 0) {
-      this.lanternContainer.remove(this.lanternContainer.children[0]);
-    }
-    this.lanternMeshes = [];
-
-    lanternList.forEach((item, idx) => {
-      const group = new THREE.Group();
-      const px = item.pos?.x ?? ((idx % 5) - 2) * 2.4;
-      const py = item.pos?.y ?? 4.9;
-      const pz = item.pos?.z ?? -4.0 - Math.floor(idx / 5) * 3.2;
-      group.position.set(px, py, pz);
-
-      const lanternMat = new THREE.MeshStandardMaterial({
-        color: item.color || 0xff9e80,
-        emissive: item.color || 0xff6e40,
-        emissiveIntensity: 0.85,
-        roughness: 0.35
-      });
-      const body = new THREE.Mesh(new THREE.SphereGeometry(0.32, 16, 14), lanternMat);
-      body.scale.y = 1.15;
-      group.add(body);
-
-      // 아래로 늘어진 소원지(꼬리표)
-      const tag = new THREE.Mesh(
-        new THREE.PlaneGeometry(0.14, 0.55),
-        new THREE.MeshBasicMaterial({ color: 0xfff3e0, side: THREE.DoubleSide })
-      );
-      tag.position.y = -0.58;
-      group.add(tag);
-
-      group.userData = {
-        interactiveType: 'lantern_view',
-        lanternData: item,
-        label: `소원 연등 (${item.author})`,
-        phase: idx * 0.9
-      };
-
-      this.lanternContainer.add(group);
-      this.lanternMeshes.push(group);
-      this.interactiveObjects.push(body);
-      body.userData = group.userData;
-    });
+  resize() {
+    const w = window.innerWidth, h = window.innerHeight;
+    this.camera.aspect = w / h;
+    this.camera.updateProjectionMatrix();
+    this.renderer.setSize(w, h);
+    this.composer.setSize(w, h);
+    this.labelRenderer.setSize(w, h);
   }
 
-  /**
-   * 소원 돌탑에 새 조약돌 얹기 시각 연출
-   */
-  addStoneToPagoda() {
-    const stone = new THREE.Mesh(
-      new THREE.DodecahedronGeometry(0.18, 1),
-      new THREE.MeshStandardMaterial({ color: 0xbdb7ab, roughness: 0.75 })
-    );
-    stone.scale.y = 0.55;
-    stone.position.set(
-      (Math.random() - 0.5) * 0.14,
-      this.stoneTopY,
-      (Math.random() - 0.5) * 0.14
-    );
-    this.stoneTopY += 0.14;
-    this.stonePagodaGroup.add(stone);
+  setPixelRatio(pr) {
+    this.pixelRatio = pr;
+    this.renderer.setPixelRatio(pr);
+    this.composer.setPixelRatio(pr);
+    this.weather.setPixelRatio(pr);
+    this.temple?.emitters.forEach((e) => (e.userData.uniforms.uPx.value = pr));
+    this.resize();
   }
 
-  /**
-   * 범종 타종 시각 파동 및 종 흔들림 트리거
-   */
-  triggerBellStrikeVisual() {
-    this.bellSwingTimer = 3.5;
-  }
-
-  /**
-   * 번뇌 소각 화로 불꽃 타오름 연출
-   */
-  triggerBrazierFlare() {
-    if (!this.brazierFlame || !this.brazierLight) return;
-    this.brazierFlame.scale.set(1.8, 2.3, 1.8);
-    this.brazierLight.intensity = 4.2;
-    setTimeout(() => {
-      this.brazierFlame.scale.set(1, 1, 1);
-      this.brazierLight.intensity = 1.8;
-    }, 1400);
-  }
-
-  _initWeatherParticles() {
-    const count = 900;
-    const geo = new THREE.BufferGeometry();
-    const positions = new Float32Array(count * 3);
-    for (let i = 0; i < count; i++) {
-      positions[i * 3] = (Math.random() - 0.5) * 70;
-      positions[i * 3 + 1] = Math.random() * 22 + 0.5;
-      positions[i * 3 + 2] = (Math.random() - 0.5) * 70;
-    }
-    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-
-    this.particleMat = new THREE.PointsMaterial({
-      color: 0xffe082,
-      size: 0.16,
-      transparent: true,
-      opacity: 0.75
-    });
-    this.weatherParticles = new THREE.Points(geo, this.particleMat);
-    this.scene.add(this.weatherParticles);
-  }
-
-  /**
-   * 시간대(새벽/낮/노을/밤/실시간) 전환
-   */
+  /* ───── 시간·날씨 ───── */
   setTimeOfDay(mode) {
     this.timeMode = mode;
-    let effective = mode;
-    if (mode === 'realtime') {
-      const hr = new Date().getHours();
-      if (hr >= 4 && hr < 7) effective = 'dawn';
-      else if (hr >= 7 && hr < 17) effective = 'day';
-      else if (hr >= 17 && hr < 20) effective = 'sunset';
-      else effective = 'night';
+    this.hourTarget = mode === 'realtime' ? kstHour() : PRESET_HOURS[mode];
+    // 짧은 쪽으로 돈다
+    let d = this.hourTarget - this.hour;
+    if (d > 12) this.hour += 24;
+    if (d < -12) this.hour -= 24;
+    this._envTimer = 99;
+  }
+
+  setWeather(w) {
+    this.weatherName = w;
+    this.weather.set(w);
+  }
+
+  get phase() {
+    const h = ((this.hour % 24) + 24) % 24;
+    if (h >= 4.5 && h < 6.2) return 'dawn';
+    if (h >= 6.2 && h < 17.2) return 'day';
+    if (h >= 17.2 && h < 19.4) return 'sunset';
+    return 'night';
+  }
+
+  applyEnv(force = false) {
+    const e = sampleKeys(this.hour);
+    this.env = e;
+    const sky = this.skyMat.uniforms;
+    const rain = this.weather.rainU.uAmount.value, snow = this.weather.snowU.uAmount.value;
+    const overcast = Math.max(rain, snow * 0.8);
+    const grey = new THREE.Color('#8e959c');
+    const top = new THREE.Color('#' + e.top).lerp(grey.clone().multiplyScalar(0.3 + (1 - e.night) * 0.7), overcast * 0.75);
+    const hor = new THREE.Color('#' + e.hor).lerp(grey.clone().multiplyScalar(0.35 + (1 - e.night) * 0.75), overcast * 0.7);
+    const fog = new THREE.Color('#' + e.fog).lerp(hor, overcast * 0.6);
+    sky.uTop.value.copy(top);
+    sky.uHorizon.value.copy(hor);
+    sky.uBottom.value.copy(fog);
+    sky.uCloud.value.set('#' + e.cloud).lerp(grey, overcast * 0.6);
+    sky.uCloudAmt.value = 0.45 + overcast * 0.55;
+    sky.uStars.value = e.stars * (1 - overcast);
+    sky.uSunVis.value = 1 - overcast * 0.9;
+    // 태양/달 방향 (+x 동쪽, -z 북쪽, +z 남쪽)
+    const el = THREE.MathUtils.degToRad(e.elev), az = THREE.MathUtils.degToRad(e.az);
+    // az: 90=동(+x), 180=남(+z), 270=서(-x)
+    const dir = new THREE.Vector3().set(Math.sin(az) * Math.cos(el), Math.sin(el), -Math.cos(az) * Math.cos(el));
+    sky.uSunDir.value.copy(e.night > 0.85 ? new THREE.Vector3(0, -1, 0) : dir);
+    sky.uMoonDir.value.copy(e.night > 0.5 ? dir : new THREE.Vector3(0.3, 0.6, -0.7).normalize());
+    sky.uSunColor.value.set('#' + e.light);
+    this.lightDir = dir;
+    this.sun.color.set('#' + e.light);
+    this.sun.intensity = Math.max(0.02, e.li * (1 - overcast * 0.65) * (e.elev < 0 ? 0.25 : 1));
+    this.hemi.color.set('#' + e.hemiS);
+    this.hemi.groundColor.set('#' + e.hemiG);
+    this.hemi.intensity = e.hi * (1 + overcast * 0.25);
+    this.scene.fog.color.copy(fog);
+    this.scene.fog.density = e.fd * (1 + overcast * 0.9) * (this.weatherName === 'snow' ? 1.25 : 1);
+    this.renderer.toneMappingExposure = e.exp;
+    envUniforms.uNight.value = e.night;
+    envUniforms.uWind.value = 0.5 + rain * 0.6 + (this.weatherName === 'snow' ? 0.2 : 0);
+    // 물·원경
+    waterUniforms.uSkyTop.value.copy(top);
+    waterUniforms.uSkyHorizon.value.copy(hor);
+    waterUniforms.uSunDir.value.copy(dir);
+    waterUniforms.uSunColor.value.set('#' + e.light);
+    waterUniforms.uDeep.value.set('#1e3a36').lerp(new THREE.Color('#05080a'), e.night * 0.8);
+    waterUniforms.uRain.value = rain;
+    ridgeUniforms.forEach(({ u, base, li }) => {
+      u.uHorizon.value.copy(fog.clone().lerp(hor, 0.5));
+      u.uColor.value.copy(base).lerp(new THREE.Color('#0a0e14'), e.night * 0.85).lerp(hor, overcast * 0.35);
+      u.uFade.value = 0.18 + li * 0.24 + overcast * 0.25;
+    });
+    this._regenEnv(force);
+  }
+
+  _regenEnv(force) {
+    const now = performance.now();
+    if (!force && now - (this._lastEnv || 0) < 1500) return;
+    this._lastEnv = now;
+    const prev = this.envRT;
+    this.envRT = this.pmrem.fromScene(this.envScene, 0, 0.1, 200);
+    this.scene.environment = this.envRT.texture;
+    this.scene.environmentIntensity = 0.35 + (1 - this.env.night) * 0.45;
+    prev?.dispose();
+  }
+
+  /* ───── 카메라 ───── */
+  toggleCameraMode(mode) {
+    this.cam.mode = mode || (this.cam.mode === 'third' ? 'first' : 'third');
+    return this.cam.mode;
+  }
+
+  orbit(dx, dy) {
+    this.cam.yaw -= dx * 0.0055;
+    this.cam.pitch = clamp(this.cam.pitch + dy * 0.004, this.cam.mode === 'first' ? -1.1 : -0.15, this.cam.mode === 'first' ? 1.0 : 1.25);
+  }
+
+  zoom(delta) {
+    this.cam.targetDist = clamp(this.cam.targetDist * (1 + delta), 2.2, 12);
+  }
+
+  /** 화면 좌표 → 클릭된 대상 */
+  pick(clientX, clientY) {
+    this.pointer.set((clientX / window.innerWidth) * 2 - 1, -(clientY / window.innerHeight) * 2 + 1);
+    this.picking.setFromCamera(this.pointer, this.camera);
+    const hits = this.picking.intersectObjects(this.scene.children, true);
+    for (const h of hits) {
+      if (h.object === this.temple.lanterns.mesh && h.instanceId != null) {
+        return { kind: 'lantern', id: this.temple.lanterns.idAt(h.instanceId), point: h.point };
+      }
+      if (h.object === this.temple.cushionMesh && h.instanceId != null) {
+        return { kind: 'cushion', index: h.instanceId, point: h.point };
+      }
+      if (h.object.isSprite || h.object.isPoints || h.object.isLine) continue;
+      return { kind: 'point', point: h.point, object: h.object };
     }
-
-    const presets = {
-      dawn: {
-        sky: 0x162234,
-        fogDensity: 0.022,
-        sunColor: 0x8ab4f8,
-        sunIntensity: 0.65,
-        ambientIntensity: 0.45,
-        lanternGlow: 1.1
-      },
-      day: {
-        sky: 0x7da4c4,
-        fogDensity: 0.009,
-        sunColor: 0xfff5e4,
-        sunIntensity: 1.55,
-        ambientIntensity: 0.75,
-        lanternGlow: 0.35
-      },
-      sunset: {
-        sky: 0x3b2431,
-        fogDensity: 0.014,
-        sunColor: 0xff8a50,
-        sunIntensity: 1.25,
-        ambientIntensity: 0.55,
-        lanternGlow: 1.25
-      },
-      night: {
-        sky: 0x090d16,
-        fogDensity: 0.016,
-        sunColor: 0x4a6588,
-        sunIntensity: 0.28,
-        ambientIntensity: 0.32,
-        lanternGlow: 1.65
-      }
-    };
-
-    const p = presets[effective] || presets.sunset;
-    this.scene.background = new THREE.Color(p.sky);
-    this.scene.fog.color.setHex(p.sky);
-    this.scene.fog.density = p.fogDensity;
-    this.sunLight.color.setHex(p.sunColor);
-    this.sunLight.intensity = p.sunIntensity;
-    this.ambientLight.intensity = p.ambientIntensity;
-
-    this.lanternMeshes.forEach((g) => {
-      const body = g.children[0];
-      if (body && body.material) {
-        body.material.emissiveIntensity = p.lanternGlow;
-      }
-    });
+    return null;
   }
 
-  /**
-   * 날씨(맑음/봄비/설경) 전환
-   */
-  setWeather(weather) {
-    this.weatherMode = weather;
-    if (weather === 'rain') {
-      this.particleMat.color.setHex(0x90caf9);
-      this.particleMat.size = 0.14;
-      this.courtyardMat.roughness = 0.22; // 젖은 마당 반사광 연출
-    } else if (weather === 'snow') {
-      this.particleMat.color.setHex(0xffffff);
-      this.particleMat.size = 0.24;
-      this.courtyardMat.roughness = 0.9;
-    } else {
-      this.particleMat.color.setHex(0xffe082);
-      this.particleMat.size = 0.16;
-      this.courtyardMat.roughness = 0.84;
+  hoverLantern(clientX, clientY) {
+    this.pointer.set((clientX / window.innerWidth) * 2 - 1, -(clientY / window.innerHeight) * 2 + 1);
+    this.picking.setFromCamera(this.pointer, this.camera);
+    const hits = this.picking.intersectObject(this.temple.lanterns.mesh, false);
+    this.temple.lanterns.hover = hits[0]?.instanceId ?? -1;
+    return this.temple.lanterns.hover >= 0;
+  }
+
+  _updateCamera(dt, player) {
+    const c = this.cam;
+    const p = player.position;
+    c.dist += (c.targetDist - c.dist) * (1 - Math.exp(-dt * 6));
+    const inHall = zoneAt(p.x, p.z) === 'DAEUNGJEON';
+    if (c.mode === 'first') {
+      const eye = player.userData.eyeHeight ?? 1.5;
+      const target = new THREE.Vector3(p.x, p.y + eye, p.z);
+      this.camera.position.lerp(target, 1 - Math.exp(-dt * 10));
+      // 3인칭과 같은 규약: yaw 0 = 북쪽(-z)을 봄, pitch 양수 = 아래를 봄
+      const look = new THREE.Vector3(-Math.sin(c.yaw) * Math.cos(c.pitch), -Math.sin(c.pitch), -Math.cos(c.yaw) * Math.cos(c.pitch));
+      this.camera.lookAt(this.camera.position.clone().add(look));
+      return;
     }
-  }
-
-  toggleCameraMode() {
-    this.cameraMode = this.cameraMode === 'third' ? 'first' : 'third';
-    return this.cameraMode;
-  }
-
-  _registerInteractive(object3D, type, label) {
-    object3D.traverse((child) => {
-      if (child.isMesh) {
-        child.userData = { interactiveType: type, label };
-        this.interactiveObjects.push(child);
-      }
-    });
-  }
-
-  _bindPointerEvents() {
-    const dom = this.renderer.domElement;
-
-    dom.addEventListener('pointerdown', (e) => {
-      if (e.button !== 0) return;
-      this.isDragging = false;
-      this.dragStart.x = e.clientX;
-      this.dragStart.y = e.clientY;
-    });
-
-    dom.addEventListener('pointermove', (e) => {
-      if (e.buttons === 1) {
-        const dx = e.clientX - this.dragStart.x;
-        const dy = e.clientY - this.dragStart.y;
-        if (Math.hypot(dx, dy) > 5) {
-          this.isDragging = true;
-          this.orbitYaw -= dx * 0.0055;
-          this.orbitPitch = THREE.MathUtils.clamp(this.orbitPitch + dy * 0.004, 0.12, 1.15);
-          this.dragStart.x = e.clientX;
-          this.dragStart.y = e.clientY;
+    const focusY = (player.userData.focusHeight ?? 1.25);
+    const focus = new THREE.Vector3(p.x, p.y + focusY, p.z);
+    c.focus.lerp(focus, 1 - Math.exp(-dt * 8));
+    let dist = c.dist;
+    let pitch = c.pitch;
+    if (inHall) {
+      dist = Math.min(dist, 5.2);
+      pitch = Math.min(pitch, 0.42);
+    }
+    const off = new THREE.Vector3(Math.sin(c.yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(c.yaw) * Math.cos(pitch)).multiplyScalar(dist);
+    const want = c.focus.clone().add(off);
+    if (inHall) {
+      want.x = clamp(want.x, L.hall.x0 + 0.5, L.hall.x1 - 0.5);
+      want.z = clamp(want.z, L.hall.z0 + 0.5, -15);
+      want.y = Math.min(want.y, L.hall.floorY + 4.0);
+    }
+    if (!inHall && this.crownGrid) {
+      // 초점에서 카메라 쪽으로 걸어가며 처음 막히는 곳 앞에서 멈춘다
+      const dir = want.clone().sub(c.focus);
+      const len = dir.length();
+      dir.divideScalar(len);
+      const skip = this._blocked(c.focus, false);
+      const q = new THREE.Vector3();
+      for (let s = 0.8; s < len; s += 0.35) {
+        q.copy(c.focus).addScaledVector(dir, s);
+        if (this._blocked(q, skip)) {
+          want.copy(c.focus).addScaledVector(dir, Math.max(1.2, s - 0.45));
+          break;
         }
       }
-    });
-
-    dom.addEventListener('pointerup', (e) => {
-      if (this.isDragging) return;
-      const rect = dom.getBoundingClientRect();
-      this.mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-      this.mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-
-      this.raycaster.setFromCamera(this.mouse, this.camera);
-
-      // 1. 인터랙티브 사찰 오브젝트 클릭 여부 확인
-      const hits = this.raycaster.intersectObjects(this.interactiveObjects, false);
-      if (hits.length > 0) {
-        const data = hits[0].object.userData;
-        if (data && data.interactiveType && this.callbacks.onObjectClick) {
-          this.callbacks.onObjectClick(data.interactiveType, data);
-          return;
-        }
-      }
-
-      // 2. 바닥 클릭 시 해당 지점으로 아바타 산책 이동
-      const groundHits = this.raycaster.intersectObjects(this.walkableMeshes, false);
-      if (groundHits.length > 0 && this.callbacks.onGroundClick) {
-        this.callbacks.onGroundClick(groundHits[0].point);
-      }
-    });
-
-    dom.addEventListener(
-      'wheel',
-      (e) => {
-        this.orbitDistance = THREE.MathUtils.clamp(this.orbitDistance + e.deltaY * 0.006, 3.8, 18.0);
-      },
-      { passive: true }
-    );
-
-    window.addEventListener('resize', () => {
-      this.camera.aspect = window.innerWidth / window.innerHeight;
-      this.camera.updateProjectionMatrix();
-      this.renderer.setSize(window.innerWidth, window.innerHeight);
-    });
+    }
+    const ground = terrainHeight(want.x, want.z) + 0.5;
+    if (want.y < ground) want.y = ground;
+    this.camera.position.lerp(want, 1 - Math.exp(-dt * 9));
+    this.camera.lookAt(c.focus);
   }
 
-  /**
-   * 플레이어 위치 기준 현재 구역(Zone 1 ~ 4) 판별
-   */
-  detectZone(pos) {
-    if (pos.x > 11.5 && pos.z < 2) return ZONES.TEAHOUSE;
-    if (pos.z < -13.0 && Math.abs(pos.x) < 10.5) return ZONES.DAEUNGJEON;
-    if (pos.z <= 8.5) return ZONES.COURTYARD;
-    return ZONES.FOREST;
+  /* ───── 프레임 ───── */
+  update(dt, t, player, nightLanternOn) {
+    envUniforms.uTime.value = t;
+    this.finalPass.uniforms.uTime.value = t % 10;
+    // 시간 보간
+    if (this.timeMode === 'realtime') this.hourTarget = kstHour();
+    const dh = this.hourTarget - this.hour;
+    this.hour += dh * (1 - Math.exp(-dt * 0.9));
+    if (Math.abs(dh) < 0.002) this.hour = this.hourTarget;
+    const wv = this.weather.update(dt, this.camera.position, (this.env.night > 0.5 && this.weatherName === 'clear' ? 1 : 0));
+    this.wet += ((this.weatherName === 'rain' ? 1 : 0) - this.wet) * (1 - Math.exp(-dt * 0.25));
+    this.snow += ((this.weatherName === 'snow' ? 1 : 0) - this.snow) * (1 - Math.exp(-dt * 0.15));
+    envUniforms.uWet.value = this.wet;
+    envUniforms.uSnow.value = this.snow;
+    this._envTimer += dt;
+    const moving = Math.abs(dh) > 0.002 || Math.abs(wv.rain - (this._lastRain ?? 0)) > 0.01 || Math.abs(wv.snow - (this._lastSnow ?? 0)) > 0.01;
+    if (moving || this._envTimer > 20) {
+      this._envTimer = 0;
+      this._lastRain = wv.rain;
+      this._lastSnow = wv.snow;
+      this.applyEnv();
+    }
+
+    // 그림자 카메라가 플레이어를 따라다닌다 (텍셀 단위 스냅)
+    const p = player.position;
+    const ld = this.lightDir || new THREE.Vector3(0, 1, 0);
+    const snap = 52 / this.sun.shadow.mapSize.x;
+    const cx = Math.round(p.x / snap) * snap, cz = Math.round(p.z / snap) * snap;
+    this.sun.target.position.set(cx, p.y, cz);
+    this.sun.position.set(cx + ld.x * 60, p.y + Math.max(ld.y, 0.15) * 60, cz + ld.z * 60);
+
+    // 점광원: 밤엔 세게, 낮엔 거의 끔
+    const night = this.env.night;
+    const flick = (k) => 0.85 + Math.sin(t * 13 + k) * 0.06 + Math.sin(t * 7.3 + k * 2) * 0.06 + Math.random() * 0.04;
+    const inHall = zoneAt(p.x, p.z) === 'DAEUNGJEON';
+    this.points[0].intensity = (inHall ? 2.4 : 0.6) * flick(1) * (0.6 + night * 0.6);
+    this.points[1].intensity = (inHall ? 2.4 : 0.6) * flick(2) * (0.6 + night * 0.6);
+    this.points[2].intensity = (inHall ? 6 : 2) * (0.7 + night * 0.4);
+    this.points[3].intensity = (this.temple.brazierLight || 1) * (1.4 + night * 3) * flick(3);
+    this.points[4].intensity = night * 26;
+    this.points[5].intensity = night * 3.2 * flick(5);
+    this.points[6].intensity = 0.4 + night * 3.2;
+    const hand = this.points[7];
+    if (nightLanternOn && night > 0.4) {
+      hand.position.set(p.x, p.y + 0.9, p.z);
+      hand.intensity = night * 2.4 * flick(7);
+    } else hand.intensity = 0;
+
+    this.temple.update(dt, t, night);
+    this.ripples.update(dt);
+    this.sky.position.copy(this.camera.position);
+    this._updateCamera(dt, player);
   }
 
-  /**
-   * 매 프레임 파티클, 연등 흔들림, 카메라 추적 및 렌더링
-   */
-  renderFrame(delta, elapsedTime, playerGroup) {
-    // 1. 연등 바람 흔들림
-    this.lanternMeshes.forEach((g) => {
-      g.position.y = 4.9 + Math.sin(elapsedTime * 1.6 + (g.userData.phase || 0)) * 0.08;
-      g.rotation.z = Math.sin(elapsedTime * 1.2 + (g.userData.phase || 0)) * 0.06;
-    });
+  render() {
+    this.composer.render();
+    this.labelRenderer.render(this.scene, this.camera);
+  }
 
-    // 2. 범종 흔들림
-    if (this.bellSwingTimer > 0 && this.bronzeBell) {
-      this.bellSwingTimer -= delta;
-      this.bronzeBell.rotation.z = Math.sin(elapsedTime * 8) * 0.08 * (this.bellSwingTimer / 3.5);
-    }
-
-    // 3. 화로 불꽃 일렁임
-    if (this.brazierFlame) {
-      this.brazierFlame.scale.y = 1.0 + Math.sin(elapsedTime * 11) * 0.16;
-    }
-
-    // 4. 날씨 파티클 업데이트
-    if (this.weatherParticles) {
-      const posAttr = this.weatherParticles.geometry.attributes.position;
-      for (let i = 0; i < posAttr.count; i++) {
-        let y = posAttr.getY(i);
-        if (this.weatherMode === 'rain') {
-          y -= delta * 15.5;
-          if (y < 0) y = 22;
-        } else if (this.weatherMode === 'snow') {
-          y -= delta * 2.4;
-          if (y < 0) y = 22;
-        } else {
-          // 반딧불/향 입자 부유
-          y += Math.sin(elapsedTime * 1.5 + i) * delta * 0.35;
-          if (y > 16) y = 0.8;
-        }
-        posAttr.setY(i, y);
-      }
-      posAttr.needsUpdate = true;
-    }
-
-    // 5. 카메라 추적 (3인칭 숄더/오빗 뷰 vs 1인칭 몰입 뷰)
-    if (playerGroup) {
-      const pPos = playerGroup.position;
-      if (this.cameraMode === 'first') {
-        const eyePos = new THREE.Vector3(pPos.x, pPos.y + 1.48, pPos.z);
-        this.camera.position.lerp(eyePos, 0.18);
-        const lookTarget = new THREE.Vector3(
-          pPos.x - Math.sin(this.orbitYaw) * 8,
-          pPos.y + 1.5 - (this.orbitPitch - 0.35) * 4,
-          pPos.z - Math.cos(this.orbitYaw) * 8
-        );
-        this.camera.lookAt(lookTarget);
-      } else {
-        const offsetX = Math.sin(this.orbitYaw) * Math.cos(this.orbitPitch) * this.orbitDistance;
-        const offsetY = Math.sin(this.orbitPitch) * this.orbitDistance + 1.4;
-        const offsetZ = Math.cos(this.orbitYaw) * Math.cos(this.orbitPitch) * this.orbitDistance;
-
-        const desiredCamPos = new THREE.Vector3(pPos.x + offsetX, pPos.y + offsetY, pPos.z + offsetZ);
-        this.camera.position.lerp(desiredCamPos, 0.12);
-        this.camera.lookAt(pPos.x, pPos.y + 1.25, pPos.z);
-      }
-    }
-
-    this.renderer.render(this.scene, this.camera);
+  setFocusVignette(on) {
+    this.finalPass.uniforms.uFocus.value = on ? 1 : 0;
   }
 }
+
+export { walkHeight };

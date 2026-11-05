@@ -1,814 +1,369 @@
+/* 청연산사 — 디자인 토큰 & HUD
+   먹(ink) 바탕의 반투명 HUD, 한지(hanji) 바탕의 모달. 금니(gold)는 강조에만. */
 :root {
-  --bg-dark: rgba(16, 20, 26, 0.78);
-  --bg-panel: rgba(22, 26, 34, 0.86);
-  --border-gold: rgba(212, 175, 55, 0.35);
-  --accent-gold: #e6c15a;
-  --accent-amber: #ff9e44;
-  --text-hanji: #f4ece1;
-  --text-muted: #b0aba0;
-  --danger-fire: #e65100;
+  --ink-900: #14110e;
+  --ink-800: #1d1915;
+  --ink-700: #2a241e;
+  --ink-600: #3b332b;
+  --hanji-50: #faf6ec;
+  --hanji-100: #f3ecdc;
+  --hanji-200: #e6dcc6;
+  --hanji-300: #d4c6a8;
+  --muk: #2b2722;          /* 먹 글씨 */
+  --muk-soft: #5e554a;
+  --gold: #c9a35a;          /* 금니 */
+  --gold-soft: rgba(201, 163, 90, 0.35);
+  --dancheong-green: #2f7a6a;
+  --dancheong-red: #b5432c;
+  --lotus: #e9a3b4;
+  --glass: rgba(20, 17, 14, 0.58);
+  --glass-strong: rgba(20, 17, 14, 0.78);
+  --line: rgba(243, 236, 220, 0.14);
+  --text: #f3ecdc;
+  --text-dim: rgba(243, 236, 220, 0.66);
+  --radius: 14px;
+  --radius-sm: 9px;
+  --shadow: 0 10px 34px rgba(0, 0, 0, 0.35);
+  --font-sans: 'Noto Sans KR', system-ui, -apple-system, 'Apple SD Gothic Neo', sans-serif;
+  --font-serif: 'Noto Serif KR', 'Nanum Myeongjo', serif;
+  --font-brush: 'Nanum Brush Script', 'Noto Serif KR', cursive;
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-t: env(safe-area-inset-top, 0px);
+  --ease: cubic-bezier(0.22, 0.8, 0.24, 1);
 }
 
-* {
-  box-sizing: border-box;
+* { box-sizing: border-box; }
+html, body {
   margin: 0;
-  padding: 0;
-  user-select: none;
-}
-
-body, html {
-  width: 100%;
   height: 100%;
   overflow: hidden;
-  background-color: #0d1118;
-  font-family: 'Pretendard', 'Noto Serif KR', -apple-system, BlinkMacSystemFont, sans-serif;
-  color: var(--text-hanji);
+  background: var(--ink-900);
+  color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+}
+button { font: inherit; color: inherit; cursor: pointer; }
+.hidden { display: none !important; }
+kbd {
+  font-family: var(--font-sans);
+  font-size: 10px;
+  line-height: 1;
+  padding: 3px 5px;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-dim);
 }
 
-#canvas-container {
+#scene { position: fixed; inset: 0; touch-action: none; }
+#scene canvas { display: block; outline: none; }
+.name-label {
+  font-family: var(--font-serif);
+  font-size: 12px;
+  color: var(--hanji-100);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9);
+  white-space: nowrap;
+  pointer-events: none;
+  letter-spacing: 0.02em;
+  transition: opacity 0.4s;
+}
+.name-label.me { color: #f6dfa5; }
+
+#focus-vignette {
   position: fixed;
   inset: 0;
-  z-index: 1;
-}
-
-/* 상단 좌측: 산사 현판 & 내 법명·공덕 바 */
-.hud-top-left {
-  position: fixed;
-  top: 18px;
-  left: 20px;
-  z-index: 10;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  max-width: 390px;
-}
-
-.temple-plaque-card {
-  background: var(--bg-dark);
-  backdrop-filter: blur(12px);
-  border: 1px solid var(--border-gold);
-  border-radius: 14px;
-  padding: 14px 18px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
-}
-
-.plaque-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.temple-title {
-  font-size: 1.15rem;
-  font-weight: 700;
-  color: var(--accent-gold);
-  letter-spacing: 0.04em;
-}
-
-.co-presence-badge {
-  font-size: 0.75rem;
-  background: rgba(230, 193, 90, 0.14);
-  color: var(--accent-gold);
-  padding: 3px 9px;
-  border-radius: 99px;
-  border: 1px solid rgba(230, 193, 90, 0.3);
-}
-
-.zone-name {
-  margin-top: 6px;
-  font-size: 0.92rem;
-  font-weight: 600;
-  color: var(--text-hanji);
-}
-
-.zone-subtitle {
-  margin-top: 2px;
-  font-size: 0.76rem;
-  color: var(--text-muted);
-}
-
-.dharma-profile-row {
-  margin-top: 10px;
-  padding-top: 9px;
-  border-top: 1px solid rgba(255, 255, 255, 0.09);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 0.8rem;
-}
-
-.dharma-name-tag {
-  color: #ffd584;
-  font-weight: 600;
-}
-
-.merit-summary {
-  color: var(--text-muted);
-  font-size: 0.75rem;
-}
-
-/* 시간대 및 날씨 전환 바 */
-.env-control-card {
-  background: var(--bg-dark);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 12px;
-  padding: 9px 12px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-}
-
-.chip-btn {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  color: var(--text-hanji);
-  font-size: 0.73rem;
-  padding: 5px 9px;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.chip-btn:hover {
-  background: rgba(230, 193, 90, 0.18);
-}
-
-.chip-btn.active {
-  background: rgba(230, 193, 90, 0.28);
-  border-color: var(--accent-gold);
-  color: #fff3c4;
-  font-weight: 600;
-}
-
-/* 상단 우측: 입체 ASMR 사운드 믹서 & 아바타·시점 설정 */
-.hud-top-right {
-  position: fixed;
-  top: 18px;
-  right: 20px;
-  z-index: 10;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  width: 280px;
-}
-
-.asmr-mixer-card {
-  background: var(--bg-dark);
-  backdrop-filter: blur(12px);
-  border: 1px solid var(--border-gold);
-  border-radius: 14px;
-  padding: 13px 15px;
-}
-
-.mixer-top-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
-}
-
-.mixer-title {
-  font-size: 0.84rem;
-  font-weight: 600;
-  color: var(--accent-gold);
-}
-
-.audio-toggle-btn {
-  background: rgba(230, 193, 90, 0.22);
-  border: 1px solid var(--accent-gold);
-  color: #fff3c4;
-  font-size: 0.74rem;
-  padding: 4px 10px;
-  border-radius: 99px;
-  cursor: pointer;
-}
-
-.slider-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 0.74rem;
-  color: var(--text-muted);
-  margin-bottom: 6px;
-}
-
-.slider-row input[type="range"] {
-  width: 125px;
-  accent-color: var(--accent-gold);
-  cursor: pointer;
-}
-
-.avatar-cam-row {
-  display: flex;
-  gap: 5px;
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-/* 좌측 하단: 4대 전각 빠른 이동 나침반 */
-.hud-bottom-left {
-  position: fixed;
-  bottom: 22px;
-  left: 20px;
-  z-index: 10;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.compass-label {
-  font-size: 0.72rem;
-  color: var(--text-muted);
-  padding-left: 4px;
-}
-
-.zone-nav-group {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.zone-nav-btn {
-  background: var(--bg-dark);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(212, 175, 55, 0.25);
-  color: var(--text-hanji);
-  padding: 8px 13px;
-  border-radius: 10px;
-  font-size: 0.78rem;
-  text-align: left;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.zone-nav-btn:hover,
-.zone-nav-btn.active {
-  background: rgba(212, 175, 55, 0.22);
-  border-color: var(--accent-gold);
-  transform: translateX(3px);
-}
-
-/* 중앙 하단: 비언어 침묵 동작 6종 & 신행 활동 액티브 바 */
-.hud-bottom-center {
-  position: fixed;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 10;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-}
-
-.ritual-action-bar,
-.gesture-action-bar {
-  background: var(--bg-dark);
-  backdrop-filter: blur(14px);
-  border: 1px solid var(--border-gold);
-  border-radius: 14px;
-  padding: 8px 12px;
-  display: flex;
-  gap: 7px;
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5);
-}
-
-.ritual-btn {
-  background: linear-gradient(135deg, rgba(212, 175, 55, 0.26), rgba(141, 91, 62, 0.34));
-  border: 1px solid var(--accent-gold);
-  color: #fff6d6;
-  padding: 8px 13px;
-  border-radius: 10px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-  white-space: nowrap;
-}
-
-.ritual-btn:hover {
-  background: rgba(212, 175, 55, 0.42);
-  transform: translateY(-2px);
-}
-
-.gesture-btn {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  color: var(--text-hanji);
-  padding: 6px 11px;
-  border-radius: 9px;
-  font-size: 0.75rem;
-  cursor: pointer;
-  transition: all 0.18s;
-  white-space: nowrap;
-}
-
-.gesture-btn:hover {
-  background: rgba(255, 255, 255, 0.16);
-  border-color: var(--accent-gold);
-}
-
-/* 토스트 알림 배너 */
-.toast-banner {
-  position: fixed;
-  top: 24px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 30;
-  background: rgba(22, 26, 34, 0.92);
-  border: 1px solid var(--accent-gold);
-  color: #ffecb3;
-  padding: 10px 20px;
-  border-radius: 99px;
-  font-size: 0.84rem;
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.5);
-  transition: opacity 0.35s ease;
-}
-
-.hidden {
-  display: none !important;
-}
-
-/* 모달 오버레이 및 한지/목조 테마 창 */
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 40;
-  background: rgba(6, 9, 14, 0.68);
-  backdrop-filter: blur(6px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-}
-
-.modal-window {
-  background: var(--bg-panel);
-  border: 1px solid var(--border-gold);
-  border-radius: 18px;
-  width: 100%;
-  max-width: 580px;
-  max-height: 85vh;
-  overflow-y: auto;
-  padding: 24px;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.65);
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 16px;
-}
-
-.modal-header h2 {
-  font-size: 1.2rem;
-  color: var(--accent-gold);
-}
-
-.modal-subtitle {
-  font-size: 0.82rem;
-  color: var(--text-muted);
-  margin-top: 4px;
-  line-height: 1.45;
-}
-
-.modal-close {
-  background: transparent;
-  border: none;
-  color: var(--text-muted);
-  font-size: 1.4rem;
-  cursor: pointer;
-}
-
-.modal-form-box {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
-  padding: 14px;
-  margin-bottom: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.form-label {
-  font-size: 0.8rem;
-  color: var(--text-muted);
-}
-
-textarea,
-input[type="text"] {
-  width: 100%;
-  background: rgba(10, 13, 18, 0.75);
-  border: 1px solid rgba(212, 175, 55, 0.3);
-  border-radius: 9px;
-  padding: 10px 12px;
-  color: var(--text-hanji);
-  font-size: 0.86rem;
-  user-select: text;
-}
-
-.color-picker-row {
-  display: flex;
-  gap: 8px;
-}
-
-.color-chip {
-  border: 2px solid transparent;
-  padding: 5px 12px;
-  border-radius: 99px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: #1c1917;
-  cursor: pointer;
-}
-
-.color-chip.active {
-  border-color: #ffffff;
-  box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
-}
-
-.primary-gold-btn {
-  background: linear-gradient(135deg, #d4af37, #b38728);
-  border: none;
-  color: #16130d;
-  font-weight: 700;
-  padding: 10px 16px;
-  border-radius: 10px;
-  font-size: 0.85rem;
-  cursor: pointer;
-}
-
-.secondary-outline-btn {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid var(--border-gold);
-  color: var(--text-hanji);
-  padding: 10px 14px;
-  border-radius: 10px;
-  font-size: 0.83rem;
-  cursor: pointer;
-}
-
-.secondary-outline-btn.active-loop {
-  background: rgba(230, 193, 90, 0.25);
-  border-color: var(--accent-gold);
-}
-
-.danger-fire-btn {
-  background: linear-gradient(135deg, #ff6d00, #c62828);
-  border: none;
-  color: #fff;
-  font-weight: 700;
-  padding: 11px 20px;
-  border-radius: 10px;
-  font-size: 0.88rem;
-  cursor: pointer;
-}
-
-.wish-scroll-list {
-  max-height: 220px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.wish-item {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 10px;
-  padding: 10px 12px;
-}
-
-.wish-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 5px;
-  font-size: 0.78rem;
-}
-
-.lantern-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-}
-
-.empathy-btn {
-  margin-left: auto;
-  background: rgba(230, 193, 90, 0.14);
-  border: 1px solid rgba(230, 193, 90, 0.3);
-  color: var(--accent-gold);
-  font-size: 0.72rem;
-  padding: 2px 8px;
-  border-radius: 99px;
-  cursor: pointer;
-}
-
-.wish-text {
-  font-size: 0.84rem;
-  line-height: 1.45;
-}
-
-/* 기와 불사 미리보기 */
-.tile-preview-slab {
-  background: radial-gradient(circle at center, #2e3136, #181a1d);
-  border: 2px solid #454950;
-  border-radius: 14px;
-  padding: 22px;
-  text-align: center;
-  margin-bottom: 14px;
-}
-
-.tile-live-brush {
-  font-size: 1.15rem;
-  font-weight: 700;
-  color: #f5f5f5;
-  letter-spacing: 0.06em;
-}
-
-.tile-live-author {
-  margin-top: 8px;
-  font-size: 0.76rem;
-  color: #9e9e9e;
-}
-
-.tile-grid-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 8px;
-}
-
-.tile-card {
-  background: #1d2024;
-  border: 1px solid #383c42;
-  border-radius: 10px;
-  padding: 10px;
-}
-
-.tile-brush-text {
-  font-size: 0.82rem;
-  color: #ececec;
-  margin-bottom: 6px;
-}
-
-.tile-footer {
-  font-size: 0.7rem;
-  color: #8c9199;
-}
-
-/* 번뇌 소각 애니메이션 */
-.hanji-burn-paper {
-  background: #f3e9d2;
-  padding: 12px;
-  border-radius: 12px;
-  margin-bottom: 14px;
-  transition: all 1.2s ease;
-}
-
-.hanji-burn-paper textarea {
-  background: transparent;
-  border: none;
-  color: #2b2520;
-  font-weight: 500;
-}
-
-.burning-ash-anim {
-  background: #ff5722 !important;
-  box-shadow: 0 0 35px #ff6d00;
-  transform: scale(0.85) translateY(-18px);
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 45%, rgba(8, 6, 4, 0.75) 100%);
   opacity: 0;
+  transition: opacity 1.6s var(--ease);
+  z-index: 2;
 }
+#focus-vignette.on { opacity: 1; }
 
-.burn-complete-msg {
-  margin-top: 12px;
-  text-align: center;
-  font-size: 0.84rem;
-  color: #ffcc80;
-}
-
-/* 108배 & 염주 대시보드 */
-.practice-dashboard {
+/* ───────── 입장 화면 ───────── */
+.intro {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-bottom: 12px;
+  place-items: center;
+  padding: 24px 16px calc(24px + var(--safe-b));
+  background:
+    radial-gradient(ellipse at 50% 30%, rgba(30, 26, 22, 0.35), rgba(12, 10, 8, 0.86) 70%),
+    linear-gradient(180deg, rgba(10, 9, 8, 0.4), rgba(10, 9, 8, 0.85));
+  transition: opacity 1.4s var(--ease), visibility 1.4s;
+  overflow-y: auto;
+}
+.intro.leaving { opacity: 0; visibility: hidden; }
+.intro-inner { width: min(560px, 100%); text-align: center; }
+.intro-title { margin: 0 0 14px; font-weight: 400; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.intro-title .hanja {
+  font-family: var(--font-serif);
+  font-weight: 900;
+  font-size: clamp(44px, 11vw, 76px);
+  letter-spacing: 0.18em;
+  color: var(--hanji-100);
+  text-shadow: 0 0 40px rgba(201, 163, 90, 0.25);
+  padding-left: 0.18em;
+}
+.intro-title .hangul { font-family: var(--font-serif); font-size: 15px; letter-spacing: 0.6em; color: var(--gold); padding-left: 0.6em; }
+.intro-lede { font-family: var(--font-serif); color: var(--text-dim); line-height: 1.8; margin: 0 0 26px; font-size: 15px; }
+.intro-name { display: flex; align-items: baseline; justify-content: center; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+.intro-label { font-size: 12px; color: var(--text-dim); }
+.intro-name strong { font-family: var(--font-serif); font-size: 20px; font-weight: 600; color: #f6dfa5; }
+.link-btn { background: none; border: none; color: var(--gold); font-size: 12px; text-decoration: underline; text-underline-offset: 3px; padding: 4px; }
+.intro-streak { min-height: 18px; font-size: 12px; color: var(--text-dim); margin: 0 0 18px; }
+.intro-avatars { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 22px; }
+.avatar-card {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  padding: 14px 6px 12px;
+  border-radius: var(--radius);
+  background: rgba(243, 236, 220, 0.05);
+  border: 1px solid var(--line);
+  transition: border-color 0.25s, background 0.25s, transform 0.25s var(--ease);
+}
+.avatar-card:hover { transform: translateY(-2px); }
+.avatar-card[aria-checked='true'] { border-color: var(--gold); background: rgba(201, 163, 90, 0.12); }
+.avatar-glyph { font-size: 26px; }
+.avatar-card b { font-family: var(--font-serif); font-weight: 600; font-size: 13px; }
+.avatar-card small { font-size: 11px; color: var(--text-dim); }
+.enter-btn {
+  width: 100%;
+  padding: 16px;
+  border-radius: 999px;
+  border: 1px solid var(--gold);
+  background: linear-gradient(180deg, rgba(201, 163, 90, 0.28), rgba(201, 163, 90, 0.12));
+  font-family: var(--font-serif);
+  font-size: 17px;
+  letter-spacing: 0.3em;
+  color: var(--hanji-50);
+  transition: background 0.3s, opacity 0.3s;
+}
+.enter-btn:disabled { opacity: 0.35; cursor: wait; }
+.enter-btn:not(:disabled):hover { background: linear-gradient(180deg, rgba(201, 163, 90, 0.42), rgba(201, 163, 90, 0.2)); }
+.intro-hint { font-size: 11px; color: var(--text-dim); margin-top: 12px; }
+.intro-loading { margin: 0 auto 28px; width: 180px; }
+.intro-loading-bar { height: 2px; background: var(--line); border-radius: 2px; overflow: hidden; }
+.intro-loading-bar span { display: block; height: 100%; width: 0; background: var(--gold); transition: width 0.3s; }
+.intro-loading p { font-size: 11px; color: var(--text-dim); margin: 8px 0 0; }
+.intro-loading.done { visibility: hidden; }
+
+/* ───────── HUD ───────── */
+.hud { position: fixed; inset: 0; pointer-events: none; z-index: 10; }
+.hud > * { pointer-events: auto; }
+.glass {
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+  backdrop-filter: blur(14px) saturate(1.2);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
 }
 
-.stat-pill-box {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
-  padding: 12px;
-  text-align: center;
-}
-
-.stat-num {
-  font-size: 1.6rem;
-  font-weight: 700;
-  color: var(--accent-gold);
-}
-
-.stat-num span {
-  font-size: 0.85rem;
-  margin-left: 3px;
-}
-
-.stat-label {
-  font-size: 0.74rem;
-  color: var(--text-muted);
-  margin-top: 4px;
-}
-
-.progress-bar-bg {
-  margin-top: 8px;
-  height: 6px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 99px;
+.hud-plaque {
+  position: absolute;
+  top: calc(14px + var(--safe-t));
+  left: 14px;
+  width: 290px;
+  border-radius: var(--radius);
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
   overflow: hidden;
 }
+.plaque-head {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  background: none; border: none; padding: 12px 14px 10px; text-align: left;
+}
+.plaque-temple {
+  font-family: var(--font-serif); font-weight: 900; font-size: 15px; letter-spacing: 0.16em;
+  color: var(--ink-900); background: var(--gold); padding: 6px 5px 6px 7px; border-radius: 4px;
+  writing-mode: vertical-rl; line-height: 1; flex: none;
+}
+.plaque-zone { display: flex; align-items: center; gap: 8px; font-family: var(--font-serif); font-size: 15px; font-weight: 600; }
+.plaque-zone em {
+  font-style: normal; font-size: 11px; width: 20px; height: 20px; border-radius: 50%;
+  display: grid; place-items: center; border: 1px solid var(--gold); color: var(--gold); flex: none;
+}
+.plaque-body { padding: 0 14px 12px; }
+.plaque-sub { margin: 0 0 10px; font-size: 12px; line-height: 1.55; color: var(--text-dim); }
+.plaque-me { margin: 0 0 3px; font-family: var(--font-serif); font-size: 13px; color: #f6dfa5; }
+.plaque-merit { margin: 0 0 8px; font-size: 11.5px; color: var(--text-dim); }
+.plaque-presence { margin: 0; font-size: 11.5px; color: var(--text-dim); display: flex; align-items: center; gap: 7px; }
+.plaque-presence .dot { width: 6px; height: 6px; border-radius: 50%; background: #e9b766; box-shadow: 0 0 8px #e9b766; animation: breathe 3.4s ease-in-out infinite; }
+.hud-plaque.collapsed .plaque-body { display: none; }
+@keyframes breathe { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
 
-.progress-bar-fill {
-  height: 100%;
-  background: var(--accent-gold);
-  transition: width 0.3s ease;
+.hud-tools { position: absolute; top: calc(14px + var(--safe-t)); right: 14px; display: flex; gap: 8px; }
+.tool-btn {
+  width: 40px; height: 40px; border-radius: 50%;
+  background: var(--glass); border: 1px solid var(--line);
+  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+  font-family: var(--font-serif); font-size: 16px; color: var(--hanji-100);
+  transition: border-color 0.2s, background 0.2s;
+}
+.tool-btn:hover, .tool-btn.active { border-color: var(--gold); background: var(--glass-strong); }
+.tool-btn.muted { color: var(--text-dim); text-decoration: line-through; }
+
+.popover {
+  position: absolute; top: calc(62px + var(--safe-t)); right: 14px; width: 300px;
+  padding: 14px 16px 16px; border-radius: var(--radius);
+  background: var(--glass-strong); border: 1px solid var(--line);
+  -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px);
+  box-shadow: var(--shadow);
+  animation: pop-in 0.22s var(--ease);
+}
+@keyframes pop-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+.popover h3 { font-family: var(--font-serif); font-weight: 600; font-size: 13px; margin: 4px 0 8px; color: var(--hanji-100); }
+.popover h3 small { color: var(--text-dim); font-weight: 400; margin-left: 4px; }
+.popover h3 + .chip-row { margin-bottom: 12px; }
+.pop-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.pop-note { font-size: 11px; color: var(--text-dim); margin: 4px 0 0; }
+.chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  padding: 7px 11px; border-radius: 999px; font-size: 12px;
+  background: rgba(243, 236, 220, 0.06); border: 1px solid var(--line); color: var(--text);
+  transition: border-color 0.2s, background 0.2s;
+}
+.chip:hover { border-color: var(--gold-soft); }
+.chip.active { border-color: var(--gold); background: rgba(201, 163, 90, 0.18); color: #f6dfa5; }
+.slider { display: flex; flex-direction: column; gap: 6px; margin: 12px 0 0; font-size: 12.5px; }
+.slider small { color: var(--text-dim); font-size: 11px; margin-left: 4px; }
+.slider input { width: 100%; accent-color: var(--gold); }
+
+.hud-compass {
+  position: absolute; left: 14px; bottom: calc(14px + var(--safe-b));
+  display: flex; flex-direction: column; gap: 6px;
+}
+.zone-btn {
+  display: flex; align-items: center; gap: 9px; padding: 8px 14px 8px 8px;
+  border-radius: 999px; background: var(--glass); border: 1px solid var(--line);
+  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+  font-family: var(--font-serif); font-size: 12.5px; text-align: left;
+  transition: border-color 0.2s, background 0.2s;
+}
+.zone-btn em {
+  font-style: normal; font-size: 11px; width: 22px; height: 22px; border-radius: 50%;
+  display: grid; place-items: center; border: 1px solid var(--line); color: var(--text-dim);
+}
+.zone-btn:hover { border-color: var(--gold-soft); }
+.zone-btn.active { border-color: var(--gold); }
+.zone-btn.active em { background: var(--gold); color: var(--ink-900); border-color: var(--gold); }
+
+.hud-actions {
+  position: absolute; left: 50%; bottom: calc(14px + var(--safe-b)); transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  max-width: calc(100vw - 28px);
+}
+.prompt {
+  display: flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 999px;
+  background: var(--glass-strong); border: 1px solid var(--gold-soft);
+  font-family: var(--font-serif); font-size: 13px; cursor: pointer;
+  animation: pop-in 0.25s var(--ease);
+}
+.prompt kbd { color: var(--gold); border-color: var(--gold-soft); }
+.ritual-bar { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+.ritual {
+  display: flex; align-items: center; gap: 7px; padding: 9px 15px; border-radius: 999px;
+  background: linear-gradient(180deg, rgba(201, 163, 90, 0.22), rgba(201, 163, 90, 0.08)), var(--glass);
+  border: 1px solid var(--gold-soft);
+  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+  font-family: var(--font-serif); font-size: 13px; color: var(--hanji-50);
+  transition: border-color 0.2s, transform 0.2s var(--ease);
+  animation: pop-in 0.3s var(--ease) both;
+}
+.ritual:hover { border-color: var(--gold); transform: translateY(-1px); }
+.gesture-bar {
+  display: flex; gap: 4px; padding: 5px; border-radius: 999px;
+  background: var(--glass); border: 1px solid var(--line);
+  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+}
+.gesture {
+  display: flex; align-items: center; gap: 6px; padding: 7px 11px; border-radius: 999px;
+  background: none; border: 1px solid transparent; font-size: 12.5px; color: var(--hanji-100);
+  transition: background 0.2s, border-color 0.2s;
+}
+.gesture:hover { background: rgba(243, 236, 220, 0.07); }
+.gesture.active { border-color: var(--gold); background: rgba(201, 163, 90, 0.15); }
+
+.toast-stack {
+  position: fixed; top: calc(16px + var(--safe-t)); left: 50%; transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  z-index: 60; pointer-events: none; width: min(520px, calc(100vw - 32px));
+}
+.toast {
+  padding: 10px 18px; border-radius: 999px; text-align: center;
+  background: var(--glass-strong); border: 1px solid var(--gold-soft);
+  -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
+  font-family: var(--font-serif); font-size: 13.5px; line-height: 1.5; color: var(--hanji-50);
+  box-shadow: var(--shadow);
+  animation: toast-in 0.5s var(--ease) both;
+}
+.toast.out { animation: toast-out 0.6s var(--ease) both; }
+@keyframes toast-in { from { opacity: 0; transform: translateY(-8px) scale(0.98); } to { opacity: 1; transform: none; } }
+@keyframes toast-out { to { opacity: 0; transform: translateY(-6px); } }
+
+.joystick {
+  display: none;
+  position: absolute; left: 22px; bottom: calc(110px + var(--safe-b));
+  width: 116px; height: 116px; border-radius: 50%;
+  background: rgba(20, 17, 14, 0.35); border: 1px solid var(--line);
+  touch-action: none;
+}
+.joy-knob {
+  position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; margin: -23px 0 0 -23px;
+  border-radius: 50%; background: rgba(243, 236, 220, 0.18); border: 1px solid var(--gold-soft);
 }
 
-.breath-guide-box {
-  background: rgba(212, 175, 55, 0.12);
-  border: 1px solid rgba(212, 175, 55, 0.3);
-  border-radius: 10px;
-  padding: 11px;
-  text-align: center;
-  font-size: 0.84rem;
-  color: #ffe8a3;
-  margin-bottom: 14px;
-}
-
-.practice-btn-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-/* 사경 필사 시트 */
-.sutra-tabs-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 12px;
-}
-
-.sutra-tab {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  color: var(--text-muted);
-  padding: 5px 10px;
-  border-radius: 8px;
-  font-size: 0.74rem;
-  cursor: pointer;
-}
-
-.sutra-tab.active {
-  background: rgba(212, 175, 55, 0.24);
-  border-color: var(--accent-gold);
-  color: #fff;
-}
-
-.hanji-sutra-sheet {
-  background: rgba(244, 236, 225, 0.07);
-  border: 1px solid var(--border-gold);
-  border-radius: 12px;
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.sutra-hanja {
-  font-size: 1.05rem;
-  color: var(--accent-gold);
-  letter-spacing: 0.08em;
-}
-
-.sutra-guide-text {
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: #fff;
-}
-
-.sutra-meaning {
-  font-size: 0.78rem;
-  color: var(--text-muted);
-  line-height: 1.45;
-}
-
-.sutra-status-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 0.78rem;
-}
-
-/* 다실 AI 스님 차담 */
-.tea-chat-box {
-  max-height: 240px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-bottom: 12px;
-  padding-right: 4px;
-}
-
-.monk-message,
-.user-message {
-  padding: 11px 14px;
-  border-radius: 12px;
-  font-size: 0.84rem;
-  line-height: 1.5;
-}
-
-.monk-message {
-  background: rgba(212, 175, 55, 0.11);
-  border: 1px solid rgba(212, 175, 55, 0.3);
-}
-
-.user-message {
-  background: rgba(255, 255, 255, 0.07);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  align-self: flex-end;
-}
-
-.msg-sender {
-  font-size: 0.74rem;
-  color: var(--accent-gold);
-  margin-bottom: 4px;
-  font-weight: 600;
-}
-
-.monk-verse-quote {
-  margin-top: 8px;
-  padding-top: 6px;
-  border-top: 1px dashed rgba(212, 175, 55, 0.3);
-  font-size: 0.78rem;
-  color: #ffe082;
-}
-
-.tea-input-row {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 10px;
-}
-
-.dharma-card-frame {
-  background: linear-gradient(145deg, rgba(42, 34, 24, 0.9), rgba(22, 26, 34, 0.95));
-  border: 1px solid var(--accent-gold);
-  border-radius: 14px;
-  padding: 24px 20px;
-  text-align: center;
-  margin-bottom: 14px;
-}
-
-.dharma-card-source {
-  font-size: 0.78rem;
-  color: var(--accent-gold);
-  margin-bottom: 10px;
-}
-
-.dharma-card-quote {
-  font-size: 1.08rem;
-  font-weight: 700;
-  color: #fff6d6;
-  line-height: 1.5;
-  margin-bottom: 12px;
-}
-
-.dharma-card-reflection {
-  font-size: 0.84rem;
-  color: var(--text-hanji);
-  line-height: 1.55;
-}
-
-.modal-action-center {
-  display: flex;
-  justify-content: center;
-}
-
-@media (max-width: 768px) {
-  .hud-top-right {
-    width: 220px;
+/* ───────── 모바일 ───────── */
+@media (max-width: 760px), (pointer: coarse) and (max-width: 1024px) {
+  .hud-plaque { width: auto; max-width: calc(100vw - 120px); left: 10px; top: calc(10px + var(--safe-t)); }
+  .plaque-head { padding: 9px 11px; gap: 9px; }
+  .plaque-temple { font-size: 12px; padding: 5px 4px 5px 5px; }
+  .plaque-zone { font-size: 13px; }
+  .plaque-body { padding: 0 11px 10px; }
+  .plaque-sub { display: none; }
+  .hud-tools { top: calc(10px + var(--safe-t)); right: 10px; flex-direction: column; gap: 6px; }
+  .tool-btn { width: 38px; height: 38px; font-size: 15px; }
+  .popover {
+    top: auto; right: 0; left: 0; bottom: 0; width: auto;
+    border-radius: 18px 18px 0 0; padding: 18px 18px calc(22px + var(--safe-b));
+    animation: sheet-in 0.3s var(--ease);
   }
-  .hud-bottom-left {
-    display: none;
+  @keyframes sheet-in { from { transform: translateY(30px); opacity: 0; } to { transform: none; opacity: 1; } }
+  .hud-compass {
+    left: auto; right: 10px; top: calc(232px + var(--safe-t)); bottom: auto;
+    flex-direction: column; gap: 6px;
   }
-  .ritual-action-bar,
-  .gesture-action-bar {
-    flex-wrap: wrap;
-    justify-content: center;
+  .ritual-bar {
+    flex-wrap: nowrap; justify-content: flex-start; overflow-x: auto; scrollbar-width: none;
+    width: 100%; padding-left: 132px; padding-right: 4px;
   }
+  .ritual-bar::-webkit-scrollbar { display: none; }
+  .ritual { flex: none; }
+  .prompt { margin-left: 120px; }
+  .zone-btn { padding: 5px; }
+  .zone-btn span { display: none; }
+  .zone-btn em { width: 26px; height: 26px; font-size: 12px; }
+  .toast-stack { top: calc(64px + var(--safe-t)); }
+  .toast { font-size: 12.5px; padding: 8px 14px; border-radius: 14px; }
+  .hud-actions { bottom: calc(10px + var(--safe-b)); width: calc(100vw - 20px); }
+  .ritual { padding: 8px 12px; font-size: 12.5px; }
+  .gesture-bar { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+  .gesture-bar::-webkit-scrollbar { display: none; }
+  .gesture kbd { display: none; }
+  .gesture { padding: 8px 10px; white-space: nowrap; }
+  .joystick { display: block; }
+  .intro-avatars { gap: 6px; }
+  .avatar-card { padding: 12px 4px 10px; }
+}
+@media (pointer: coarse) {
+  .prompt kbd { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }

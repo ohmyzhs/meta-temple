@@ -9,32 +9,34 @@
 별도의 무거운 번들러 설치 없이도 즉시 실행 가능하며, 동시에 Vite/Next.js 등 모던 프론트엔드 환경으로 바로 이식할 수 있는 **표준 ES Module (`type="module"`) 기반 아키텍처**로 설계되었습니다.
 
 ```text
-/Users/gabriel.k/Documents/Workspace/meta-temple/
-├── README.md                          # 프로젝트 전체 개요, 실행 방법 및 이어하기 가이드
-├── docs/
-│   ├── 01-planning-and-market-analysis.md  # 기획 의도, 벤치마킹 및 시장 분석
-│   ├── 02-spatial-and-avatar-design.md     # 4단계 가람 배치, 아바타 3종 및 UX 상세 설계서
-│   └── 03-technical-specification.md       # 기술 스택, 데이터 스키마 및 고도화 로드맵 (본 문서)
-├── index.html                         # 메인 엔트리 HTML (Three.js Import Map 및 미니멀 HUD UI)
-└── src/
-    ├── styles.css                     # 한국 전통 사찰 미학(한지·먹빛·금니·단청 톤) 반응형 스타일시트
-    ├── main.js                        # 앱 초기화, 루프 제어, UI 이벤트 바인딩 및 구역 감지 컨트롤러
-    ├── data/
-    │   └── templeData.js              # 자동 법명 사전, 반야심경/법구경 사경 데이터, AI 스님 차담 지식베이스, 초기 연등/기와 샘플
-    ├── audio/
-    │   └── soundEngine.js             # Web Audio API 기반 실시간 절차적(Procedural) ASMR & 전통 타악기(목탁·범종·풍경·죽비) 합성 엔진
-    ├── world/
-    │   ├── templeScene.js             # Three.js 씬, 카메라(1인칭/3인칭), 실시간 시간대·날씨(비/눈/안개) 조명 및 4대 구역 PBR 지형·전각 빌더
-    │   └── avatarManager.js           # 플레이어 아바타(3종 외형) 및 동석 참배객(Co-presence NPC/Realtime 피어) 생성·애니메이션 상태 머신
-    └── ui/
-        └── modalManager.js            # 신행 활동(108배·염주 오버레이, 소원 연등, 기와 불사, 돌탑, 번뇌 소각장, 디지털 사경, AI 차담) 모달 제어
+meta-temple/
+├── docs/                         # 기획·설계 문서 (배포 제외)
+├── web/                          # 배포 루트
+│   ├── index.html                # 입장 화면 · HUD · 모달 뼈대 · import map(three, three/addons)
+│   └── src/
+│       ├── main.js               # 앱 진입점, 입력·HUD·신행 연결, 정시 예불, 품질 자동 조정
+│       ├── styles.css            # 디자인 토큰 + HUD
+│       ├── core/state.js         # localStorage(meta_temple_cheongyeon_state_v1) 수행 기록·출석·해금
+│       ├── data/templeData.js    # 구역·법명 사전·연등 색·초기 서원
+│       ├── data/dharmaTexts.js   # 사경문·죽비 카드·차담 지식베이스
+│       ├── audio/soundEngine.js  # 절차적 입체 ASMR 엔진
+│       ├── ui/modalManager.js    # 신행 모달, generateMonkResponse()
+│       └── world/
+│           ├── layout.js         # 좌표 계약: terrainHeight / walkHeight / isWalkable / 충돌
+│           ├── templeScene.js    # 렌더러·후처리·하늘·시간대/날씨·카메라·피킹, loadCustomGLBModels()
+│           ├── terrain.js · vegetation.js · architecture.js · temple.js
+│           ├── avatarManager.js  # 아바타·동석, syncRemotePeers()
+│           └── effects.js · materials.js · textures.js
+└── deploy/ · .github/workflows/  # 오라클 VM 배포 파이프라인
 ```
+
+> 2026-11 재구현: 파일럿의 단일 `templeScene.js`를 좌표 계약(`layout.js`)·지형·식생·건축·경내 조립으로 나눴다. 자세한 파일 설명은 저장소 `README.md`.
 
 ---
 
 ## 2. 핵심 서브시스템 기술 명세 (Core Subsystem Specs)
 
-### 2.1 3D 렌더링 및 환경 조명 파이프라인 (`src/world/templeScene.js`)
+### 2.1 3D 렌더링 및 환경 조명 파이프라인 (`web/src/world/templeScene.js`)
 1. **엔진 및 렌더러 설정**
    - [Three.js](https://threejs.org/manual/) `WebGLRenderer` (향후 `WebGPURenderer` 호환 구조)
    - `ACESFilmicToneMapping` 및 물리 기반 조명(`shadowMap.type = THREE.PCFSoftShadowMap`)을 활성화하여 목조건축의 깊은 처마 그림자와 금동불·연등의 따뜻한 글로우를 표현합니다.
@@ -53,7 +55,7 @@
    - 지면(`groundMesh`)에 대한 `THREE.Raycaster` 클릭 이동과 키보드(`WASD` / 화살표 키) 연속 이동을 동시에 지원합니다.
    - 플레이어의 `(X, Z)` 위치에 따라 현재 구역(`Zone 1 ~ 4`)을 실시간 판별하여 상단 현판 UI, 하단 추천 신행 버튼, 공간 음향 믹싱 비율을 자동으로 전환합니다.
 
-### 2.2 절차적 Web Audio API 공간 ASMR 합성 엔진 (`src/audio/soundEngine.js`)
+### 2.2 절차적 Web Audio API 공간 ASMR 합성 엔진 (`web/src/audio/soundEngine.js`)
 외부 MP3 파일 로딩 실패나 저작권 문제 없이 언제나 즉각 작동하도록 **[MDN Web Audio API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API/Web_audio_spatialization_basics) 네이티브 오실레이터·노이즈 필터·컨볼루션 리버브 기반 절차적 사운드 엔진**을 구현했습니다 (추후 실제 사찰 현장 녹음 음원 `.mp3/.ogg` 트랙을 레이어로 손쉽게 추가 가능).
 1. **3채널 마스터 믹서 버스 (`GainNode`)**
    - `natureGain`: 핑크/브라운 노이즈 + 대역통과 필터(`BiquadFilterNode`) 변조를 이용한 **솔바람 소리, 계곡 물소리, 빗소리**, 그리고 고주파 사인파 포락선 변조를 이용한 **산새 지저귐**.
@@ -63,7 +65,7 @@
    - 플레이어가 `Zone 3 (대웅전 내부)`에 들어가면 외부 바람·계곡물 볼륨이 40%로 줄어들고 법당 독송 공명과 실내 잔향(Reverb)이 깊어집니다.
    - `Zone 1 (일주문 숲길)`에서는 계곡물과 산새 소리가 강조되고, `Zone 4 (후원 다실)`에서는 찻물 끓는 소리와 대나무 바람 소리가 강조됩니다.
 
-### 2.3 아바타 & 동석(Co-presence) 매니저 (`src/world/avatarManager.js`)
+### 2.3 아바타 & 동석(Co-presence) 매니저 (`web/src/world/avatarManager.js`)
 1. **플레이어 아바타 메쉬 빌더 (`buildAvatarMesh(style, meritData)`)**
    - `monk`: 무광 백자/목각 피부 셰이더 + 회색 장삼·가사 폴드 + 합장 가능한 양팔 관절 그룹 + 공덕 달성 시 손목 단주(염주) 및 손연등 부착.
    - `ink_wanderer`: 전통 삿갓(원추형 대나무 삿갓) + 먹빛 도포 + 반투명 수묵 아우라.
@@ -123,7 +125,7 @@
    ```bash
    npx @gltf-transform/cli optimize raw_daeungjeon.glb public/models/daeungjeon_opt.glb --compress draco --texture-compress ktx2
    ```
-3. `src/world/templeScene.js`의 `loadCustomGLBModels()` 훅에 경로를 연결하면 절차적 기본 메쉬가 실측 스캔 모델로 즉시 대체됩니다.
+3. `web/src/world/templeScene.js`의 `loadCustomGLBModels()`는 `window.TEMPLE_CONFIG.models = [{ url, position, rotationY, scale }]` 를 읽어 `.glb` 를 배치합니다 (대체할 절차적 메쉬를 숨기는 처리는 아직 없음).
 4. 산사 원경(산봉우리, 계곡, 소나무 숲)은 드론 촬영 영상을 [PlayCanvas SuperSplat](https://developer.playcanvas.com/user-manual/supersplat/)으로 정제한 `.ply` / `.splat` 파일로 불러와 배경 레이어에 배치합니다.
 
 ### Step 2. Supabase Realtime 기반 실시간 멀티플레이어 동석 연동
@@ -131,5 +133,5 @@
 2. 플레이어의 위치 `(x, y, z)`, 회전값 `ry`, 아바타 스타일 `avatarStyle`, 현재 동작 `actionState`를 200ms 주기로 브로드캐스트하여 `avatarManager.syncRemotePeers(peers)`에 주입합니다.
 
 ### Step 3. LLM API(Gemini / OpenAI) 기반 실시간 AI 스님 차담 고도화
-1. `src/ui/modalManager.js`의 `generateMonkResponse(userMessage)` 함수를 서버리스 함수(`/api/monk-chat`)와 연결합니다.
+1. `web/src/ui/modalManager.js`의 `generateMonkResponse(message, history)` 는 `window.TEMPLE_CONFIG.monkChatEndpoint` 가 있으면 그 주소로 POST 하고, 실패하거나 없으면 로컬 지식베이스로 답합니다. API 키는 클라이언트에 두지 않습니다.
 2. 시스템 프롬프트에 초기불교 경전(법구경, 숫타니파타, 금강경)과 선어록 구절을 RAG(검색 증강 생성)로 주입하여, 사용자의 고민에 대해 판단이나 훈계 없이 따뜻한 차담과 경전 한 구절을 건네도록 확장합니다.
