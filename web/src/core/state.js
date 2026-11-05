@@ -75,7 +75,8 @@ function fresh() {
     lanterns: INITIAL_LANTERNS.map((l) => ({ ...l })),
     tiles: INITIAL_TILES.map((t) => ({ ...t })),
     stones: INITIAL_STONES.map((s) => ({ ...s })),
-    empathized: []
+    empathized: [],
+    reported: [] // 내가 신고한 남의 글 — 다시 받아도 내 화면에는 보이지 않게
   };
 }
 
@@ -105,7 +106,8 @@ export function migrateState(raw) {
       dharmaCards: Array.isArray(p.dharmaCards) ? p.dharmaCards : []
     },
     settings: { ...base.settings, ...(raw.settings || {}) },
-    empathized: Array.isArray(raw.empathized) ? raw.empathized : []
+    empathized: Array.isArray(raw.empathized) ? raw.empathized : [],
+    reported: Array.isArray(raw.reported) ? raw.reported.filter((x) => typeof x === 'string') : []
   };
   // v1 연등은 pos 를 갖고 있었다 — 자리는 이제 연등 줄이 정하므로 버린다.
   const rawLanterns = Array.isArray(raw.lanterns) ? raw.lanterns : [];
@@ -316,13 +318,21 @@ export class TempleStore {
     const merge = (key, incoming) => {
       const local = st[key].filter((x) => !x.shared);
       const have = new Set(local.map((x) => x.id));
-      const add = incoming.filter((x) => !have.has(x.id)).map((x) => ({ ...x, shared: true, mine: false }));
+      const add = incoming.filter((x) => !have.has(x.id) && !st.reported.includes(x.id)).map((x) => ({ ...x, shared: true, mine: false }));
       st[key] = [...local, ...add].sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
       return add.length;
     };
     const n = merge('lanterns', lanterns) + merge('tiles', tiles) + merge('stones', stones);
     this.sharedStoneTotal = stoneTotal;
     return n;
+  }
+
+  /** 신고한 남의 글을 내 화면에서 치우고 기억한다 */
+  hideReported(id) {
+    const st = this.state;
+    if (!st.reported.includes(id)) st.reported.push(id);
+    for (const key of ['lanterns', 'tiles', 'stones']) st[key] = st[key].filter((x) => !(x.shared && x.id === id));
+    this.save();
   }
 
   /** 돌탑 전체 개수: 공유 총계 + 공개하지 않은 내 돌 + 처음 받은 예시 돌 */

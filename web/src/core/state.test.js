@@ -85,3 +85,16 @@ test('export_import_roundtrip', () => {
   assert.equal(other.importState('{"foo":1}').ok, false);
   assert.equal(other.profileId, st.profileId); // 실패한 가져오기는 아무것도 바꾸지 않는다
 });
+
+test('reported_shared_stays_hidden', () => {
+  const st = new TempleStore();
+  const shared = { stones: [{ id: 's_x1', author: '남', wish: '나쁜 말', createdAt: '2026-11-05T00:00:00Z' }, { id: 's_x2', author: '남', wish: '좋은 말', createdAt: '2026-11-05T00:00:01Z' }] };
+  st.mergeShared(shared);
+  assert.equal(st.state.stones.filter((s) => s.shared).length, 2);
+  st.hideReported('s_x1');
+  assert.equal(st.state.stones.some((s) => s.id === 's_x1'), false);
+  st.mergeShared(shared); // 다음에 다시 받아도
+  assert.equal(st.state.stones.some((s) => s.id === 's_x1'), false);
+  assert.equal(st.state.stones.some((s) => s.id === 's_x2'), true);
+  assert.deepEqual(JSON.parse(localStorage.getItem(KEY)).reported, ['s_x1']); // 새로고침해도
+});

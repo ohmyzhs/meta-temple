@@ -138,5 +138,6 @@ async function call(path, body, timeout = 5000) {
 export const sharedApi = {
   recent: () => call('/shared'),
   publish: (kind, item, clientId) => call(`/${kind}`, { ...item, clientId }),
-  empathize: (id, clientId) => call(`/lanterns/${encodeURIComponent(id)}/empathy`, { clientId })
+  empathize: (id, clientId) => call(`/lanterns/${encodeURIComponent(id)}/empathy`, { clientId }),
+  report: (kind, id, clientId) => call('/report', { kind, id, clientId })
 };

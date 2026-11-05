@@ -338,6 +338,15 @@ class MetaTempleApp {
       },
       onRename: () => this._setName(generateDharmaName(this.store.profile.dharmaName), false).text,
       onSetName: (text) => this._setName(text, true),
+      onReport: (kind, id) => {
+        this.store.hideReported(id);
+        this.temple.lanterns.sync(this.store.state.lanterns);
+        this.temple.tileRack.sync(this.store.state.tiles);
+        this.temple.cairn.sync(Math.min(this.store.stoneTotal, 40));
+        sharedApi.report(kind, id, this.store.profileId).then((r) =>
+          this.toast(r.error ? '신고를 보내지 못했습니다 · 내 화면에서는 가렸습니다' : '신고했습니다 · 이 글은 이제 내 화면에 보이지 않습니다')
+        );
+      },
       onExport: () => this.store.exportState(),
       onImport: (json) => this.store.importState(json),
       onYebul: (track) => this.listen(track),

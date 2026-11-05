@@ -1234,3 +1234,14 @@
 .modal-window .name-form.is-bad .name-hint { color: #a3432b; }
 .pf-backup { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 6px; }
 .pf-backup .m-btn { min-height: 44px; }
+
+/* 남의 공유 글 신고 단추 — 작게, 눌러야 할 때만 보이게 */
+.m-report {
+  flex: none; min-width: 44px; min-height: 32px; padding: 4px 8px; border: 0; border-radius: 8px;
+  background: transparent; color: var(--muk-soft); font-size: 11.5px; text-decoration: underline; text-underline-offset: 3px;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.m-report:hover, .m-report:focus-visible { color: #a3432b; outline: none; }
+.lantern-detail .m-report { display: block; margin: 6px auto 0; }
+.giwa-item .m-report { display: block; margin: 2px auto 0; }
+.stone-item .m-report, .lantern-item .m-report { margin-left: auto; align-self: center; }

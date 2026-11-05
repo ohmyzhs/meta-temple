@@ -9,7 +9,7 @@
  * 번뇌 소각 글은 어디에도 저장·기록·전송하지 않는다.
  */
 import { nameFeedback, NAME_PLACEHOLDER } from './nameField.js';
-import { NAME_MAX } from '../core/moderation.js';
+import { NAME_MAX, checkText } from '../core/moderation.js';
 import { SOUND_CREDITS, SOUND_CREDIT_NOTE, YEBUL_TRACKS } from '../data/soundCredits.js';
 import { SUTRA_VERSES, DHARMA_CARDS, localMonkResponse, isCrisisText } from '../data/dharmaTexts.js';
 import { LANTERN_COLORS, ZONES, RITUALS } from '../data/templeData.js';
@@ -434,6 +434,7 @@ export class ModalManager {
           </span>
         </button>
         ${empBtn(l)}
+        ${reportBtn('lanterns', l)}
       </li>`;
 
     const renderView = () => {
@@ -454,6 +455,7 @@ export class ModalManager {
                 ${done ? '합장 공감을 건넸습니다' : '합장 공감'} · <b>${l.empathy || 0}</b></button>
             </div>
             <p class="m-hint">공감은 연등 하나에 한 번, 말없이 건네는 마음입니다.</p>
+            ${reportBtn('lanterns', l)}
           </div>`;
         return;
       }
@@ -484,6 +486,7 @@ export class ModalManager {
         ta.focus();
         return;
       }
+      if (!this._shareCheck(root, wish, 80, live, ta)) return;
       const res = this.cb.onAddLantern?.(wish, color, root.querySelector('[data-share]')?.checked !== false);
       ta.value = '';
       counter.textContent = '0 / 80';
@@ -517,6 +520,12 @@ export class ModalManager {
         detailId = null;
         renderView();
       } else if (b.dataset.emp) empathize(b.dataset.emp);
+      else if (b.dataset.report) {
+        if (this._report(b.dataset.report, b.dataset.id)) {
+          detailId = null;
+          renderView();
+        }
+      }
     });
 
     nameEl.textContent = this.store.profile.dharmaName;
@@ -565,7 +574,7 @@ export class ModalManager {
         .map(
           (t) => `<li class="giwa-item${t.mine ? ' is-mine' : ''}">
             <div class="giwa is-small"><p class="giwa-text">${esc(t.wish)}</p></div>
-            <p class="giwa-meta">${esc(t.author)}${t.mine ? ' · <em>나의 기와</em>' : ''}</p></li>`
+            <p class="giwa-meta">${esc(t.author)}${t.mine ? ' · <em>나의 기와</em>' : ''}</p>${reportBtn('tiles', t)}</li>`
         )
         .join('');
     };
@@ -584,6 +593,7 @@ export class ModalManager {
         input.focus();
         return;
       }
+      if (!this._shareCheck(root, wish, 24, live, input)) return;
       this.cb.onAddTile?.(wish, root.querySelector('[data-share]')?.checked !== false);
       this._sfx('playBrushStroke');
       const giwa = root.querySelector('.giwa.is-preview');
@@ -603,9 +613,30 @@ export class ModalManager {
         add();
       }
     });
-    this._on(root, 'click', (e) => e.target.closest('[data-act="add"]') && add());
+    this._on(root, 'click', (e) => {
+      if (e.target.closest('[data-act="add"]')) return add();
+      const r = e.target.closest('[data-report]');
+      if (r && this._report(r.dataset.report, r.dataset.id)) renderGallery();
+    });
     renderGallery();
     return { refresh: renderGallery };
+  }
+
+  /** 「다른 도반에게도 보이기」가 켜져 있으면 올리기 전에 거름을 먼저 보여 준다 (서버가 최종 판정) */
+  _shareCheck(root, wish, max, live, field) {
+    if (root.querySelector('[data-share]')?.checked === false) return true;
+    const r = checkText(wish, { kind: 'wish', max });
+    if (r.ok) return true;
+    this._flash(live, `${r.message}. 고쳐 쓰거나 「다른 도반에게도 보이기」를 끄면 나만 보도록 둘 수 있습니다.`);
+    field?.focus();
+    return false;
+  }
+
+  /** 남의 공유 글 신고 — 내 화면에서는 바로 치우고 서버에 알린다. 반환: 신고했는지 */
+  _report(kind, id) {
+    if (!window.confirm('이 글을 신고할까요?\n내 화면에서는 바로 사라지고, 서로 다른 세 분이 신고하면 모두에게서 가려집니다.')) return false;
+    this.cb.onReport?.(kind, id);
+    return true;
   }
 
   /* ═════════ 3. 소원 돌탑 ═════════ */
@@ -639,7 +670,7 @@ export class ModalManager {
           (s) => `<li class="stone-item${s.mine ? ' is-mine' : ''}">
             <span class="stone-pebble" aria-hidden="true"></span>
             <span class="stone-text"><span class="stone-wish">${esc(s.wish)}</span>
-            <span class="stone-meta">${esc(s.author)}${s.mine ? ' · <em>나의 돌</em>' : ''} · ${relTime(s.createdAt)}</span></span></li>`
+            <span class="stone-meta">${esc(s.author)}${s.mine ? ' · <em>나의 돌</em>' : ''} · ${relTime(s.createdAt)}</span></span>${reportBtn('stones', s)}</li>`
         )
         .join('');
     };
@@ -651,6 +682,7 @@ export class ModalManager {
         input.focus();
         return;
       }
+      if (!this._shareCheck(root, wish, 30, live, input)) return;
       this.cb.onAddStone?.(wish, root.querySelector('[data-share]')?.checked !== false);
       const g = root.querySelector('[data-new]');
       g.classList.remove('is-drop');
@@ -669,7 +701,11 @@ export class ModalManager {
         add();
       }
     });
-    this._on(root, 'click', (e) => e.target.closest('[data-act="add"]') && add());
+    this._on(root, 'click', (e) => {
+      if (e.target.closest('[data-act="add"]')) return add();
+      const r = e.target.closest('[data-report]');
+      if (r && this._report(r.dataset.report, r.dataset.id)) render();
+    });
     render();
     return { refresh: render };
   }
@@ -1812,6 +1848,11 @@ function wrapText(ctx, text, maxW) {
  * 없거나 실패하면 로컬 지식베이스로. 위기 신호는 서버에 묻기 전에 로컬에서 먼저, 반드시 109 를 안내한다.
  * API 키는 절대 클라이언트에 두지 않는다 — 엔드포인트는 서버 쪽 프록시여야 한다.
  */
+/** 남이 공개한 글에만 붙는 작은 신고 단추 */
+function reportBtn(kind, x) {
+  return x.shared && !x.mine ? `<button type="button" class="m-report" data-report="${kind}" data-id="${esc(x.id)}" aria-label="이 글 신고하기">신고</button>` : '';
+}
+
 export async function generateMonkResponse(userMessage, history = []) {
   const text = String(userMessage ?? '').slice(0, 1000);
   if (isCrisisText(text)) return localMonkResponse(text, history);
