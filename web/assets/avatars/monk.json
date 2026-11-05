@@ -1,0 +1,94 @@
+{
+ "tris": 5716,
+ "fps": 30,
+ "clips": {
+  "idle": {
+   "duration": 4.0,
+   "loop": true,
+   "eyeMin": 0.9823,
+   "eyeMax": 0.9957,
+   "foreheadMin": 1.1213,
+   "foreheadMinAt": 0.0
+  },
+  "idle_chasu": {
+   "duration": 4.0,
+   "loop": true,
+   "eyeMin": 0.9823,
+   "eyeMax": 0.9957,
+   "foreheadMin": 1.1213,
+   "foreheadMinAt": 0.0
+  },
+  "walk": {
+   "duration": 0.5333333333333333,
+   "loop": true,
+   "speed": 0.5795,
+   "cycle": 0.5333333333333333,
+   "eyeMin": 0.9623,
+   "eyeMax": 0.9683,
+   "foreheadMin": 1.1016,
+   "foreheadMinAt": 0.0
+  },
+  "walk_chasu": {
+   "duration": 0.5333333333333333,
+   "loop": true,
+   "speed": 0.5795,
+   "cycle": 0.5333333333333333,
+   "eyeMin": 0.962,
+   "eyeMax": 0.9684,
+   "foreheadMin": 1.1012,
+   "foreheadMinAt": 0.0
+  },
+  "walk_gassho": {
+   "duration": 0.5333333333333333,
+   "loop": true,
+   "speed": 0.5795,
+   "cycle": 0.5333333333333333,
+   "eyeMin": 0.9328,
+   "eyeMax": 0.9526,
+   "foreheadMin": 1.0688,
+   "foreheadMinAt": 0.0
+  },
+  "run": {
+   "duration": 0.4,
+   "loop": true,
+   "speed": 2.1875,
+   "cycle": 0.4,
+   "eyeMin": 0.9275,
+   "eyeMax": 0.9567,
+   "foreheadMin": 1.0665,
+   "foreheadMinAt": 0.06666666666666667
+  },
+  "bow_half": {
+   "duration": 2.466666666666667,
+   "loop": false,
+   "bowAt": 1.35,
+   "eyeMin": 0.6113,
+   "eyeMax": 0.9867,
+   "foreheadMin": 0.6786,
+   "foreheadMinAt": 1.3666666666666667
+  },
+  "prostrate": {
+   "duration": 4.0,
+   "loop": false,
+   "foreheadAt": 1.4,
+   "eyeMin": 0.0452,
+   "eyeMax": 0.9867,
+   "foreheadMin": 0.012,
+   "foreheadMinAt": 1.4
+  },
+  "sit": {
+   "duration": 5.0,
+   "loop": true,
+   "eyeMin": 0.6149,
+   "eyeMax": 0.6285,
+   "foreheadMin": 0.7471,
+   "foreheadMinAt": 0.0
+  }
+ },
+ "eye": [
+  0.0,
+  -0.23999999463558197,
+  1.0
+ ],
+ "height": 1.340000033378601
+}

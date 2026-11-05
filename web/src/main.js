@@ -8,6 +8,7 @@ import { TempleStore, kstHour } from './core/state.js';
 import { TempleSoundEngine } from './audio/soundEngine.js';
 import { TempleScene } from './world/templeScene.js';
 import { AvatarManager } from './world/avatarManager.js';
+import { loadRig } from './world/avatarRig.js';
 import { L, isWalkable, zoneAt, streamZ, walkHeight } from './world/layout.js';
 import { ModalManager } from './ui/modalManager.js';
 import { LiveLink, sharedApi } from './core/live.js';
@@ -112,6 +113,8 @@ class MetaTempleApp {
 
   async _boot() {
     const container = $('#scene');
+    // 블렌더 아바타(GLB)는 산사를 짓는 동안 함께 받는다. 늦거나 못 받으면 절차식 몸으로 시작해 받는 대로 바꾼다 (?rig=0 이면 받지 않음)
+    const rig = new URLSearchParams(location.search).get('rig') === '0' ? Promise.resolve(null) : loadRig();
     try {
       this.world = new TempleScene(container, {
         quality: this.quality,
@@ -154,6 +157,7 @@ class MetaTempleApp {
     });
     this._rebuildPlayer();
     this.avatars.spawnAmbientVisitors();
+    rig.then((lib) => lib && this.avatars.upgradeRigs());
     temple.lanterns.sync(this.store.state.lanterns);
     await this._brushFont(this.store.state.tiles.map((t) => t.wish).join(''));
     temple.tileRack.sync(this.store.state.tiles);

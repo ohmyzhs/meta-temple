@@ -4,6 +4,7 @@
  *  - 동작 6종 상태 머신: bow_half, prostrate, meditate, incense, circumambulate, tea (+ walk, sit)
  *  - 동석 참배객: 숲길 산책, 탑돌이, 좌복 절, 다실·정자 명상, 연등 바라보기
  *  - syncRemotePeers(peers): 실시간 멀티플레이어(Supabase Presence) 주입 훅
+ *  - 블렌더 몸(avatarRig.js): GLB 가 받아지면 monk 는 스킨드 몸·구운 동작으로 바뀐다 (useRig). 상태·동작 API 는 그대로.
  */
 import * as THREE from 'three';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
@@ -11,6 +12,8 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { L, walkHeight, stepMove, zoneAt, pathX, clamp } from './layout.js';
 import { faceTexture, softDotTexture } from './textures.js';
 import { generateDharmaName } from '../data/templeData.js';
+import { RigBody, rigLib, RIG_STYLES } from './avatarRig.js';
+import { pickMotion } from '../core/avatarMotion.js';
 
 const TAU = Math.PI * 2;
 const damp = (a, b, k, dt) => a + (b - a) * (1 - Math.exp(-k * dt));
@@ -109,8 +112,10 @@ export class Avatar {
     this.speed = 0;
     this.items = { wooden_mala: false, jade_mala: false, hand_lantern: false };
     this.heading = 0;
+    this.body = new THREE.Group(); // 절차식 몸 (블렌더 몸으로 바뀌면 통째로 뗀다)
+    this.root.add(this.body);
     if (style === 'lantern_spirit') this._buildSpirit();
-    else this._buildHuman(variant || style);
+    else if (!this.useRig()) this._buildHuman(variant || style);
     this._buildLabel();
     this.root.userData.eyeHeight = style === 'lantern_spirit' ? 1.05 : 1.2;
     this.root.userData.focusHeight = style === 'lantern_spirit' ? 0.9 : 0.95;
@@ -146,13 +151,13 @@ export class Avatar {
     const skirt = new THREE.Mesh(paintGeo(new THREE.LatheGeometry(skirtProf.map(([r, y]) => new THREE.Vector2(r, y)), 18), st.robe), bodyMat);
     skirt.castShadow = true;
     this.skirt = skirt;
-    this.root.add(skirt);
+    this.body.add(skirt);
     // 발 (신)
     this.feet = [];
     for (const s of [-1, 1]) {
       const f = new THREE.Mesh(paintGeo(place(new THREE.SphereGeometry(1, 8, 6), { scale: [0.06, 0.04, 0.11] }), st.shoe), bodyMat);
       f.position.set(s * 0.09, 0.035, 0.06);
-      this.root.add(f);
+      this.body.add(f);
       this.feet.push(f);
     }
     // 가부좌 다리
@@ -160,13 +165,13 @@ export class Avatar {
     legs.position.set(0, 0.06, 0.1);
     legs.visible = false;
     legs.castShadow = true;
-    this.root.add(legs);
+    this.body.add(legs);
     this.sitLegs = legs;
 
     // 몸통 (허리 피벗): 장삼 + 가사 + 깃을 한 메쉬로
     const hips = new THREE.Group();
     hips.position.y = 0.55;
-    this.root.add(hips);
+    this.body.add(hips);
     this.hips = hips;
     const torsoProf = [[0.19, 0], [0.2, 0.12], [0.185, 0.3], [0.13, 0.4], [0.06, 0.44], [0.0, 0.45]];
     const torsoGeo = mergeGeometries([
@@ -204,7 +209,7 @@ export class Avatar {
       const aura = new THREE.Sprite(new THREE.SpriteMaterial({ map: softDotTexture(), color: 0x1a1d22, transparent: true, opacity: 0.22, depthWrite: false }));
       aura.scale.set(1.5, 1.8, 1);
       aura.position.y = 0.75;
-      this.root.add(aura);
+      this.body.add(aura);
     }
 
     // 팔: 윗팔 / 소매+손
@@ -250,17 +255,43 @@ export class Avatar {
     this._buildHandLantern(this.root);
   }
 
-  _beadRing(color) {
+  /** 블렌더 몸으로 바꾼다 (GLB 가 받아져 있고 이 모습이 지원될 때). 상태·자리·소지품은 그대로 이어진다. */
+  useRig() {
+    if (this.rig || !RIG_STYLES.has(this.style) || !rigLib()) return false;
+    const rig = new RigBody();
+    this.body.removeFromParent();
+    this.body.traverse((o) => o.geometry?.dispose());
+    this.body = rig.model;
+    this.root.add(rig.model);
+    this.rig = rig;
+    // 소품: 손목 단주, 오른손 찻잔·향. 자리·방향은 쉬는 자세(블렌더 좌표)의 손목·손바닥 기준 — tools/blender/avatar_clips.J
+    //  왼손목 (0.342, -0.016, 0.487), 손끝 방향 (0.722, -0.12, -0.682), 오른손 손바닥 방향 (0.707, 0, -0.707)
+    this.malaWood = this._beadRing(0x6a2a1c, 0.75);
+    rig.attach(this.malaWood, 'handL', [0.349, -0.017, 0.48], [0.722, -0.12, -0.682]);
+    this.malaJade = this._beadRing(0xe9efe6, 0.75);
+    rig.attach(this.malaJade, 'handR', [-0.349, -0.017, 0.48], [-0.722, -0.12, -0.682]);
+    this.cup = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.026, 0.048, 12), new THREE.MeshStandardMaterial({ color: 0xf2efe6, roughness: 0.3 }));
+    rig.attach(this.cup, 'handR', [-0.35, -0.022, 0.431], [0.707, 0, -0.707]);
+    this.stick = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.24, 4), new THREE.MeshStandardMaterial({ color: 0x8a5a3a, emissive: 0x401000 }));
+    rig.attach(this.stick, 'handR', [-0.393, -0.025, 0.439], [-0.722, -0.12, -0.682]);
+    this.cup.visible = this.stick.visible = false;
+    if (!this.handLantern) this._buildHandLantern(this.root);
+    this.malaWood.visible = !!this.items.wooden_mala;
+    this.malaJade.visible = !!this.items.jade_mala;
+    return true;
+  }
+
+  _beadRing(color, k = 1) {
     // 염주알 14개를 한 지오메트리로 (아바타당 드로우콜 절약)
     const beads = [];
     for (let i = 0; i < 14; i++) {
       const a = (i / 14) * TAU;
       const b = new THREE.SphereGeometry(0.014, 6, 4);
-      b.translate(Math.cos(a) * 0.058, 0, Math.sin(a) * 0.05);
+      b.translate(Math.cos(a) * 0.058 * k, 0, Math.sin(a) * 0.05 * k);
       beads.push(b);
     }
     const g = new THREE.Mesh(mergeGeometries(beads), new THREE.MeshStandardMaterial({ color, roughness: 0.35, metalness: 0.05 }));
-    g.position.y = -0.18;
+    if (k === 1) g.position.y = -0.18;
     g.visible = false;
     return g;
   }
@@ -401,6 +432,7 @@ export class Avatar {
 
   /** 1인칭 눈 위치(월드): 절하고 앉고 걷는 머리를 그대로 따라간다 */
   eyeWorld(out) {
+    if (this.rig) return this.rig.eyeWorld(out);
     if (this.spirit) {
       this.spirit.getWorldPosition(out);
       out.y += 0.06;
@@ -442,8 +474,9 @@ export class Avatar {
         mp.setXYZ(i, Math.cos(a) * r, Math.sin(t * 1.3 + i) * 0.25, Math.sin(a) * r);
       }
       mp.needsUpdate = true;
+    } else if (this.rig) {
+      this._updateRig(dt, t);
     } else {
-      this.root.children[0].position.y = 0;
       this.skirt.scale.set(p.skirtW, p.skirtY, p.skirtW);
       this.skirt.rotation.z = sw * 0.04;
       this.hips.position.y = 0.55 * p.skirtY + p.rootY * 0.35 + bob - (p.sit > 0.5 ? 0.02 : 0);
@@ -475,8 +508,8 @@ export class Avatar {
         this.handLantern.position.set(0.55 + Math.sin(t * 0.9) * 0.05, 0.72 + Math.sin(t * 1.3) * 0.05 + p.rootY * 0.6, 0.2);
       }
     }
-    // 걸음 이벤트
-    if (moving) {
+    // 걸음 이벤트 (블렌더 몸은 발이 실제로 닿는 순간에 _updateRig 가 부른다)
+    if (moving && !this.rig) {
       const step = Math.floor(this.walkPhase / Math.PI);
       if (step !== this._lastStep) {
         this._lastStep = step;
@@ -485,11 +518,26 @@ export class Avatar {
     }
   }
 
+  /** 블렌더 몸: 상태·속도·구역으로 클립을 고르고 섞는다 (한 번짜리 동작의 길이·끝은 _targetPose 가 그대로 잰다) */
+  _updateRig(dt) {
+    const r = this.rig;
+    const p = this.root.position;
+    const name = pickMotion({ seq: this.seq?.name, state: this.state, speed: this.speed, zone: zoneAt(p.x, p.z), has: r.has });
+    r.play(name, !!this.seq && this.seq !== this._rigSeq && r.name === name);
+    this._rigSeq = this.seq;
+    r.update(dt, this.speed, this.onStep);
+    this.cup.visible = this.state === 'tea';
+    this.stick.visible = this.seq?.name === 'incense' && this.seq.i >= 1 && this.seq.i <= 2;
+  }
+
   dispose() {
+    this.rig?.dispose();
     this.label.element.remove();
     this.root.removeFromParent();
   }
 }
+
+const _prev = new THREE.Vector3();
 
 /* ───── 동석 참배객 시나리오 ───── */
 const VISITOR_PLANS = [
@@ -543,6 +591,14 @@ export class AvatarManager {
     this.scene.add(av.root);
     this.player = av;
     return av;
+  }
+
+  /** GLB 가 늦게 받아졌을 때: 지금 있는 아바타(나·참배객·도반)를 제자리에서 블렌더 몸으로 바꾼다 */
+  upgradeRigs() {
+    const all = [this.player, ...this.visitors.map((v) => v.av), ...[...this.remote.values()].map((r) => r.av)];
+    let n = 0;
+    for (const av of all) if (av?.useRig()) n++;
+    return n;
   }
 
   surfaceAt(p) {
@@ -987,8 +1043,10 @@ export class AvatarManager {
     }
     for (const r of this.remote.values()) {
       r.av.root.visible = !this.solo;
+      const before = _prev.copy(r.av.root.position);
       r.av.root.position.lerp(r.target, 1 - Math.exp(-dt * 6));
-      r.av.speed = damp(r.av.speed, r.av.root.position.distanceTo(r.target) > 0.05 ? 1.5 : 0, 6, dt);
+      const moved = dt > 0 ? r.av.root.position.distanceTo(before) / dt : 0;
+      r.av.speed = damp(r.av.speed, r.av.root.position.distanceTo(r.target) > 0.05 ? moved : 0, 6, dt);
       r.av.root.rotation.y = angleDamp(r.av.root.rotation.y, r.ry, 8, dt);
       r.av.update(dt, t, night);
       const d = r.av.root.position.distanceTo(p);
