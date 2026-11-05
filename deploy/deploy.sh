@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# deploy.sh — push the static site to the Oracle VM (saju-a1), served at https://temple.lotiony.com
+# deploy.sh — push web/ to the Oracle VM (saju-a1), served at https://temple.lotiony.com
 #
-# usage: deploy/deploy.sh          # rsync index.html + src/ (nginx serves the new files immediately)
+# usage: deploy/deploy.sh          # stage web/ + rsync (nginx serves the new files immediately)
 #        deploy/deploy.sh setup    # first time only: start the nginx container on the VM
 #
 # VM layout: /srv/temple/dist (static files) · /srv/temple/logs (nginx logs)
@@ -9,6 +9,10 @@
 # (ingress rule for temple.lotiony.com in /srv/saju/deploy/cloudflared/config.yml).
 # CI (.github/workflows/deploy.yml) uses the same rsync with TEMPLE_DEPLOY_KEY, a key locked to rrsync /srv/temple/dist.
 # macOS /usr/bin/rsync (openrsync) is refused by rrsync — on the Mac, deploy with the default saju_oci key.
+#
+# Cache busting: Cloudflare caches .js/.css for 4h but never index.html, so web/src/ is published as
+# v/<rev>/ and index.html is rewritten to point there. Old v/ dirs are kept (P filter) so a page that
+# loaded the previous index.html still finds its modules.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 VM="ubuntu@168.110.37.254"
@@ -22,10 +26,18 @@ if [ "${1:-}" = "setup" ]; then
   exit 0
 fi
 
-# Only the site itself — docs/, README, package.json stay private.
+REV="$(git -C "$ROOT" rev-parse --short=10 HEAD)"
+git -C "$ROOT" diff --quiet HEAD -- web || REV="$REV-dirty$(date +%s)"
+STAGE="$(mktemp -d)"
+trap 'rm -rf "$STAGE"' EXIT
+mkdir -p "$STAGE/v"
+rsync -a --exclude .DS_Store "$ROOT/web/src/" "$STAGE/v/$REV/"
+sed "s#\./src/#./v/$REV/#g" "$ROOT/web/index.html" > "$STAGE/index.html"
+grep -q "v/$REV/main.js" "$STAGE/index.html"
+
 # With the CI key the remote path is relative to /srv/temple/dist (rrsync); with saju_oci it is absolute.
 DEST="${TEMPLE_DEPLOY_KEY:+./}"
 DEST="${DEST:-/srv/temple/dist/}"
-cd "$ROOT"
-rsync -az --delete --exclude .DS_Store -e "${SSH[*]}" index.html src "$VM:$DEST"
+rsync -az --delete --filter='P v/' -e "${SSH[*]}" "$STAGE/" "$VM:$DEST"
 curl -fsS -o /dev/null -w "temple.lotiony.com %{http_code}\n" https://temple.lotiony.com/
+curl -fsS -o /dev/null -w "v/$REV/main.js %{http_code}\n" "https://temple.lotiony.com/v/$REV/main.js"
