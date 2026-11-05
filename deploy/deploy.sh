@@ -28,13 +28,14 @@ if [ "${1:-}" = "setup" ]; then
 fi
 
 REV="$(git -C "$ROOT" rev-parse --short=10 HEAD)"
-git -C "$ROOT" diff --quiet HEAD -- web || REV="$REV-dirty$(date +%s)"
+git -C "$ROOT" diff --quiet HEAD -- web server/moderation.js || REV="$REV-dirty$(date +%s)"
 STAGE="$(mktemp -d)"
 trap 'rm -rf "$STAGE"' EXIT
 # mktemp -d 는 700 으로 만든다 — 그대로 올리면 rsync 가 서버 사이트 루트도 700 으로 바꿔 nginx 가 403 을 낸다
 chmod 755 "$STAGE"
 mkdir -p "$STAGE/v"
-rsync -a --exclude .DS_Store "$ROOT/web/src/" "$STAGE/v/$REV/"
+# -L: web/src/core/moderation.js 는 server/moderation.js 로 가는 링크 — 실제 파일로 올린다 (서버·화면 공용 거름)
+rsync -aL --exclude .DS_Store "$ROOT/web/src/" "$STAGE/v/$REV/"
 sed "s#\./src/#./v/$REV/#g" "$ROOT/web/index.html" > "$STAGE/index.html"
 # 녹음 등 큰 정적 파일은 버전 경로 밖 assets/ 에 둔다 (매 배포마다 다시 올리지 않게). 바꿀 땐 파일명을 바꿀 것.
 [ -d "$ROOT/web/assets" ] && rsync -a --exclude .DS_Store "$ROOT/web/assets/" "$STAGE/assets/"
