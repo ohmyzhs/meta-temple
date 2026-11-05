@@ -11,6 +11,7 @@ import { AvatarManager } from './world/avatarManager.js';
 import { L, isWalkable, zoneAt, streamZ, walkHeight } from './world/layout.js';
 import { ModalManager } from './ui/modalManager.js';
 import { LiveLink, sharedApi } from './core/live.js';
+import { YEBUL_TRACKS } from './data/soundCredits.js';
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
@@ -23,6 +24,9 @@ function detectQuality() {
   const weak = (navigator.deviceMemory && navigator.deviceMemory < 4) || (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4);
   return (coarse && small) || weak ? 'low' : 'high';
 }
+
+const LISTEN_SHOT_SEC = 40; // 예불 듣기: 한 장면을 이만큼 천천히 흘린 뒤 다음 장면으로 끊는다
+const fmtTime = (s) => (Number.isFinite(s) ? `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}` : '–:––');
 
 const UNLOCK_MSG = {
   wooden_mala: '📿 손목에 붉은 자단목 단주가 채워졌습니다.',
@@ -131,6 +135,7 @@ class MetaTempleApp {
     this.modals = new ModalManager(this.store, this._modalCallbacks(), this.sound);
     this._bindHUD();
     this._bindInput();
+    this._bindListen();
     this._syncChips();
     this._updateHUD();
     $('#intro-loading').classList.add('done');
@@ -313,9 +318,7 @@ class MetaTempleApp {
         this._updateHUD();
         return n;
       },
-      onYebul: () => {
-        if (this.player.state !== 'meditate') this.gesture('meditate');
-      },
+      onYebul: (track) => this.listen(track),
       onPracticeEnd: () => {
         this.avatars.standUp();
         this.world.setFocusVignette(false);
@@ -325,6 +328,7 @@ class MetaTempleApp {
 
   /** 실제 도반의 합장: 내가 막 합장했으면 '답례', 아니면 '인사' */
   _onPeerBow({ id, name }) {
+    if (this._listening) return; // 홀로 듣는 동안에는 알리지 않는다
     const r = this.avatars.remote.get(id);
     if (r) this.world.ripples.spawn(r.av.root.position, { color: '#f2c46d', maxR: 2.4, life: 1.8 });
     this.sound.playBlessing();
@@ -419,6 +423,237 @@ class MetaTempleApp {
       case 'yebul':
         return this.modals.open('yebul');
     }
+  }
+
+  /* ───────── 예불 듣기: 화면이 바뀌어 좌복에 홀로 앉아 처음부터 끝까지 ───────── */
+  listen(track) {
+    if (!track || this._listening?.leaving) return;
+    this.sound.init();
+    if (!this.sound.isEnabled) {
+      this.sound.toggleAudio();
+      this._soundStarted = true;
+      this._syncSoundButton();
+    }
+    // 소리는 누른 그 순간에 튼다 (iOS 는 사용자 동작 안에서만 재생을 허락한다). 화면은 가림막 뒤에서 바꾼다
+    if (this._listening) {
+      this._listenPlay(track);
+      return this._veil(() => this._listening && this._listenScene(), 380);
+    }
+    this.modals.close();
+    const cam = this.world.cam;
+    const ls = (this._listening = { track, saved: { mode: cam.mode, pitch: cam.pitch, dist: cam.targetDist } });
+    this.joy = { x: 0, z: 0 };
+    this.keys = {};
+    this._listenPlay(track);
+    this._veil(() => {
+      if (this._listening !== ls) return;
+      const c = this.avatars.freeCushionNear(0.75, -24.7); // 둘째 줄 가운데: 불단과 삼존불이 한눈에 들어오는 자리
+      const seat = this.avatars.cushionSeat(c);
+      seat.kind = 'cushion';
+      this.avatars.sitAt(seat, 'meditate');
+      this.player.restState = 'meditate';
+      ls.cushion = c;
+      this.avatars.solo = true;
+      this.world.setFocusVignette(true);
+      document.body.classList.add('listening');
+      $('#listen').classList.remove('hidden');
+      this._listenScene();
+    });
+  }
+
+  _listenPlay(track) {
+    const ls = this._listening;
+    ls.track = track;
+    ls.gone = 0;
+    ls.ready = !!this.sound.playTrack('./assets/audio/' + track.file);
+    $('#listen-name').textContent = `${track.title} · ${track.place}`;
+    this._listenSync();
+  }
+
+  /** 첫 장면으로 끊고 제목을 잠시 띄운다 */
+  _listenScene() {
+    const ls = this._listening;
+    ls.shot = 0;
+    ls.shotT = 0;
+    this.world.setShot(this._listenShot(0), true);
+    const tt = $('#listen-title');
+    tt.querySelector('b').textContent = ls.track.title;
+    tt.querySelector('small').textContent = `${ls.track.place} · ${ls.track.note}`;
+    tt.classList.add('show');
+    clearTimeout(this._titleT);
+    this._titleT = setTimeout(() => tt.classList.remove('show'), 7000);
+    this._listenWake();
+  }
+
+  exitListening() {
+    const ls = this._listening;
+    if (!ls || ls.leaving) return;
+    ls.leaving = true;
+    this.sound.stopTrack(1.2);
+    this._veil(() => {
+      this._listening = null;
+      this.avatars.solo = false;
+      this.avatars.standUp();
+      this.world.setShot(null);
+      // 일어서면 불단을 바라보는 뒷모습에서 다시 시작
+      Object.assign(this.world.cam, { mode: ls.saved.mode, yaw: 0, pitch: ls.saved.pitch, targetDist: ls.saved.dist });
+      document.body.classList.remove('listening', 'l-idle');
+      $('#listen').classList.add('hidden');
+      $('#listen-title').classList.remove('show');
+      this.world.setFocusVignette(false);
+      this._syncChips();
+    });
+  }
+
+  /** 화면 전환 가림막: 어두워진 뒤 fn, 그리고 천천히 걷힌다 */
+  _veil(fn, hold = 600) {
+    const v = $('#listen-veil');
+    v.classList.add('on');
+    clearTimeout(this._veilT);
+    this._veilT = setTimeout(() => {
+      fn();
+      setTimeout(() => v.classList.remove('on'), 60);
+    }, hold);
+  }
+
+  /** 장면들: 좌복(c) 기준. 세로 화면은 삼존불이 다 들어오지 않으니 더 가깝고 높게 잡는다 */
+  _listenShot(i) {
+    const c = this._listening.cushion, fy = L.hall.floorY;
+    const V = (x, y, z) => new THREE.Vector3(x, y, z);
+    const tall = innerWidth / innerHeight < 0.85;
+    const shots = tall
+      ? [
+          // 높은 뒤: 나는 오른쪽 아래, 본존불은 위 가운데 (내려다봐서 재생기 위로 올린다)
+          { pos: V(c.x - 0.5, fy + 2.1, c.z + 3.6), to: V(c.x - 0.3, fy + 1.95, c.z + 3.0), look: V(0.45, fy + 0.7, -28.8), lookTo: V(0.4, fy + 0.8, -28.8) },
+          // 오른쪽 뒤 비스듬히: 나는 왼쪽, 본존불은 오른쪽 (좁은 화면엔 옆모습과 불상이 같이 안 들어간다)
+          { pos: V(c.x + 1.3, fy + 1.0, c.z + 2.2), to: V(c.x + 1.45, fy + 1.05, c.z + 2.1), look: V(c.x - 0.33, fy + 0.95, c.z - 1.45), lookTo: V(c.x - 0.3, fy + 1.0, c.z - 1.5) },
+          // 불단 쪽에서 얼굴: 열린 문 너머 석탑이 머리 뒤로 (기둥은 비켜서)
+          { pos: V(c.x - 0.1, fy + 1.15, c.z - 2.2), to: V(c.x + 0.05, fy + 1.07, c.z - 1.95), look: V(c.x, fy + 0.7, c.z), lookTo: V(c.x, fy + 0.72, c.z + 0.1) }
+        ]
+      : [
+          // 왼쪽 뒤: 나는 오른쪽 1/3, 삼존불은 가운데 (재생기와 겹치지 않는 높이)
+          { pos: V(c.x - 1.4, fy + 1.25, c.z + 3.6), to: V(c.x - 1.0, fy + 1.2, c.z + 2.9), look: V(0.9, fy + 1.15, -28.6), lookTo: V(0.75, fy + 1.25, -28.6) },
+          // 오른쪽 옆모습: 불단 촛불이 뒤로
+          { pos: V(c.x + 2.4, fy + 0.95, c.z + 0.8), to: V(c.x + 2.1, fy + 0.9, c.z + 0.2), look: V(c.x - 0.4, fy + 0.75, c.z - 0.6), lookTo: V(c.x - 0.5, fy + 0.8, c.z - 1.0) },
+          // 불단 쪽에서 얼굴: 열린 법당 문 너머 마당 (기둥이 머리 뒤에 오지 않게 왼쪽으로)
+          { pos: V(c.x - 1.3, fy + 1.1, c.z - 2.3), to: V(c.x - 1.0, fy + 1.02, c.z - 2.0), look: V(c.x + 0.1, fy + 0.72, c.z), lookTo: V(c.x + 0.05, fy + 0.74, c.z + 0.1) },
+          // 높은 모서리: 법당 전체에 홀로
+          { pos: V(-6.2, fy + 3.6, -21.2), to: V(-5.0, fy + 3.5, -21.4), look: V(0.5, fy + 0.9, -26.5), lookTo: V(0.6, fy + 1.0, -26.8) }
+        ];
+    const s = { ...shots[i % shots.length], dur: LISTEN_SHOT_SEC };
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      delete s.to;
+      delete s.lookTo;
+    }
+    return s;
+  }
+
+  _listenTick(dt) {
+    const ls = this._listening;
+    if (!ls.ready || ls.leaving || !ls.cushion) return;
+    if (!this.sound.currentTrack) {
+      // 끝까지 들었다: 잠깐 고요히 머문 뒤 일어난다
+      if ((ls.gone += dt) > 2.5) this.exitListening();
+      return;
+    }
+    ls.shotT += dt;
+    if (ls.shotT > LISTEN_SHOT_SEC && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      ls.shotT = 0;
+      const n = ++ls.shot;
+      this._veil(() => this._listening === ls && this.world.setShot(this._listenShot(n), true), 450);
+    }
+    if ((ls.uiT = (ls.uiT || 0) + dt) > 0.25) {
+      ls.uiT = 0;
+      this._listenSync();
+    }
+  }
+
+  _listenSync() {
+    const ls = this._listening;
+    if (!ls) return;
+    const el = this.sound.currentTrack?.el;
+    const d = el && Number.isFinite(el.duration) ? el.duration : ls.track.sec;
+    const t = el ? el.currentTime : 0;
+    const paused = !!el && el.paused;
+    $('#listen').classList.toggle('paused', paused);
+    $('#listen .l-main').setAttribute('aria-label', paused ? '이어 듣기' : '일시정지');
+    $('#listen-time').textContent = `${fmtTime(t)} / ${fmtTime(d)}`;
+    const seek = $('#listen-seek');
+    if (!ls.seeking) seek.value = Math.round((t / d) * 1000);
+    seek.style.setProperty('--p', `${seek.value / 10}%`);
+    $('#listen-line').style.width = `${(t / d) * 100}%`;
+  }
+
+  _listenToggle() {
+    const el = this.sound.currentTrack?.el;
+    if (el) el.paused ? el.play() : el.pause();
+  }
+
+  _listenSeek(by) {
+    const el = this.sound.currentTrack?.el;
+    if (el && Number.isFinite(el.duration)) el.currentTime = Math.max(0, Math.min(el.duration - 0.5, el.currentTime + by));
+  }
+
+  _listenStep(k) {
+    const n = YEBUL_TRACKS.length;
+    this.listen(YEBUL_TRACKS[(YEBUL_TRACKS.indexOf(this._listening.track) + k + n) % n]);
+  }
+
+  /** 듣는 동안의 키: Esc·이동 = 일어나기, Space = 멈춤/이어 듣기, ←→ = 10초 */
+  _listenKey(e) {
+    const c = e.code;
+    if (c === 'Escape' || ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown'].includes(c)) this.exitListening();
+    else if (c === 'Space') this._listenToggle();
+    else if (c === 'ArrowLeft' || c === 'ArrowRight') this._listenSeek(c === 'ArrowLeft' ? -10 : 10);
+    else return this._listenWake();
+    e.preventDefault();
+    this._listenWake();
+    this._listenSync();
+  }
+
+  /** 재생기는 손이 닿으면 나타나고, 3.5초 가만히 있으면 사라진다 (멈춤 중·손을 올린 동안은 그대로) */
+  _listenWake() {
+    const ui = $('#listen');
+    ui.classList.remove('l-idle');
+    document.body.classList.remove('l-idle');
+    clearTimeout(this._idleT);
+    this._idleT = setTimeout(() => {
+      if (!this._listening) return;
+      const ctl = ui.querySelector('.listen-ctl');
+      if (this.sound.currentTrack?.el.paused || ctl.matches(':hover') || ctl.contains(document.activeElement)) return this._listenWake();
+      ui.classList.add('l-idle');
+      document.body.classList.add('l-idle');
+    }, 3500);
+  }
+
+  _bindListen() {
+    const ui = $('#listen');
+    ui.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-l]');
+      if (!b || !this._listening) return;
+      const act = b.dataset.l;
+      if (act === 'play') this._listenToggle();
+      else if (act === 'prev') this._listenStep(-1);
+      else if (act === 'next') this._listenStep(1);
+      else if (act === 'exit') this.exitListening();
+      this._listenSync();
+      this._listenWake();
+    });
+    const seek = $('#listen-seek');
+    seek.addEventListener('input', () => {
+      if (this._listening) this._listening.seeking = true;
+      seek.style.setProperty('--p', `${seek.value / 10}%`);
+    });
+    seek.addEventListener('change', () => {
+      const el = this.sound.currentTrack?.el;
+      if (el && Number.isFinite(el.duration)) el.currentTime = (seek.value / 1000) * el.duration;
+      if (this._listening) this._listening.seeking = false;
+      seek.blur();
+      this._listenSync();
+    });
+    const wake = () => this._listening && this._listenWake();
+    window.addEventListener('pointermove', wake, { passive: true });
+    window.addEventListener('pointerdown', wake, { passive: true });
   }
 
   _strikeBell() {
@@ -723,6 +958,10 @@ class MetaTempleApp {
   _bindInput() {
     const typing = () => ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName) || document.activeElement?.isContentEditable;
     window.addEventListener('keydown', (e) => {
+      if (this._listening) {
+        if (!e.target.closest?.('#listen') || e.code === 'Escape') this._listenKey(e); // 재생기 단추·막대는 제 키를 쓴다
+        return;
+      }
       if (typing() || !this.entered) return;
       if (this.modals.isOpen && !this.modals.current?.match(/practice_108|tea_chat/)) return;
       this.keys[e.code] = true;
@@ -784,7 +1023,7 @@ class MetaTempleApp {
     const up = (e) => {
       pointers.delete(e.pointerId);
       if (pointers.size < 2) pinch = 0;
-      if (down && down.moved <= 6 && performance.now() - down.t < 450 && this.entered) this._click(e.clientX, e.clientY);
+      if (down && down.moved <= 6 && performance.now() - down.t < 450 && this.entered && !this._listening) this._click(e.clientX, e.clientY);
       down = null;
     };
     el.addEventListener('pointerup', up);
@@ -894,7 +1133,7 @@ class MetaTempleApp {
 
     // 이동 입력 (카메라 기준)
     let ix = 0, iz = 0;
-    if (this.entered && !(this.modals.isOpen && !['practice_108', 'tea_chat'].includes(this.modals.current))) {
+    if (this.entered && !this._listening && !(this.modals.isOpen && !['practice_108', 'tea_chat'].includes(this.modals.current))) {
       const k = this.keys;
       if (k.KeyW || k.ArrowUp) iz -= 1;
       if (k.KeyS || k.ArrowDown) iz += 1;
@@ -911,6 +1150,7 @@ class MetaTempleApp {
     this.avatars.update(dt, t, { x: wx, z: wz, run: this.keys.ShiftLeft || this.keys.ShiftRight }, night);
     this.world.update(dt, t, this.player.root, this.player.items.hand_lantern);
 
+    if (this._listening) this._listenTick(dt);
     if (this.entered) {
       this._onZoneChange();
       this._promptTimer = (this._promptTimer || 0) + dt;

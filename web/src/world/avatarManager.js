@@ -965,7 +965,9 @@ export class AvatarManager {
     pl.root.rotation.y = angleDamp(pl.root.rotation.y, pl.heading, 10, dt);
     pl.update(dt, t, night);
 
+    // solo: 예불 듣기 — 나 말고는 아무도 보이지 않는다 (움직임·자리는 그대로 이어간다)
     for (const v of this.visitors) {
+      v.av.root.visible = !v.hidden && !this.solo;
       if (v.hidden) continue;
       if (v.plan.role !== 'resident') this._updateVisitor(v, dt, t);
       v.av.update(dt, t, night);
@@ -973,6 +975,7 @@ export class AvatarManager {
       v.av.labelEl.style.opacity = dist < 9 ? String(clamp((9 - dist) / 3, 0, 0.85)) : '0';
     }
     for (const r of this.remote.values()) {
+      r.av.root.visible = !this.solo;
       r.av.root.position.lerp(r.target, 1 - Math.exp(-dt * 6));
       r.av.speed = damp(r.av.speed, r.av.root.position.distanceTo(r.target) > 0.05 ? 1.5 : 0, 6, dt);
       r.av.root.rotation.y = angleDamp(r.av.root.rotation.y, r.ry, 8, dt);

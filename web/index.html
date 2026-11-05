@@ -141,6 +141,23 @@
 
   <div id="toast-stack" class="toast-stack" aria-live="polite"></div>
 
+  <!-- 예불 듣기 모드: 화면 전환 가림막 + 제목 + 작은 재생기 (main.js listen) -->
+  <div id="listen-veil" aria-hidden="true"></div>
+  <div id="listen" class="listen hidden">
+    <div class="listen-title" id="listen-title" aria-live="polite"><b></b><small></small></div>
+    <div class="listen-ctl" role="group" aria-label="예불 듣기">
+      <button type="button" class="l-btn" data-l="prev" aria-label="이전 예불"><svg viewBox="0 0 24 24"><path d="M6 5h2v14H6zM19 5.8v12.4L9.5 12z"/></svg></button>
+      <button type="button" class="l-btn l-main" data-l="play" aria-label="일시정지"><svg class="i-pause" viewBox="0 0 24 24"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/></svg><svg class="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13l10.5-6.5z"/></svg></button>
+      <button type="button" class="l-btn" data-l="next" aria-label="다음 예불"><svg viewBox="0 0 24 24"><path d="M16 5h2v14h-2zM5 5.8v12.4L14.5 12z"/></svg></button>
+      <div class="l-info">
+        <div class="l-row"><span class="l-name" id="listen-name"></span><span class="l-time" id="listen-time">0:00 / 0:00</span></div>
+        <input type="range" class="l-seek" id="listen-seek" min="0" max="1000" value="0" step="1" aria-label="재생 위치" />
+      </div>
+      <button type="button" class="l-btn l-exit" data-l="exit" aria-label="일어나기"><svg viewBox="0 0 24 24"><path d="M6.4 5 5 6.4 10.6 12 5 17.6 6.4 19l5.6-5.6 5.6 5.6 1.4-1.4-5.6-5.6L19 6.4 17.6 5 12 10.6z"/></svg><span>일어나기</span></button>
+    </div>
+    <div class="listen-line" aria-hidden="true"><span id="listen-line"></span></div>
+  </div>
+
   <!-- 신행 모달 (ui/modalManager.js) -->
   <div id="modal-overlay" class="modal-overlay hidden">
     <div class="modal-window" role="dialog" aria-modal="true" aria-labelledby="modal-title">

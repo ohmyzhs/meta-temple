@@ -1451,57 +1451,26 @@ export class ModalManager {
   /* ═════════ 8. 오늘의 죽비 ═════════ */
   /* ───── 예불 듣기 ───── */
   _yebul() {
-    const base = './assets/audio/';
-    const fmt = (s) => (Number.isFinite(s) ? `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}` : '–:––');
+    const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
     const root = this._root(`
       <ul class="yebul-list">${YEBUL_TRACKS.map((t) => `
-        <li class="yebul-item" data-id="${esc(t.id)}">
-          <button type="button" class="yebul-play" data-act="toggle" data-id="${esc(t.id)}" aria-label="${esc(t.title)} 듣기"><span aria-hidden="true">▶</span></button>
-          <div class="yebul-meta">
-            <b>${esc(t.title)}</b>
-            <small>${esc(t.place)} · ${esc(t.note)}</small>
-            <div class="yebul-bar" aria-hidden="true"><span></span></div>
-          </div>
-          <span class="yebul-time"></span>
+        <li>
+          <button type="button" class="yebul-item" data-id="${esc(t.id)}" aria-label="${esc(t.title)} 듣기">
+            <span class="yebul-play" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 5.5v13l10.5-6.5z"/></svg></span>
+            <span class="yebul-meta">
+              <b>${esc(t.title)}</b>
+              <small>${esc(t.place)} · ${esc(t.note)}</small>
+            </span>
+            <span class="yebul-time">${fmt(t.sec)}</span>
+          </button>
         </li>`).join('')}
       </ul>
-      <p class="m-hint">닫아도 계속 들리고, 법당을 나서면 잦아듭니다. 국립공원공단 「자연의소리」 · 공공누리 제1유형</p>`);
-    const trackOf = (id) => YEBUL_TRACKS.find((x) => x.id === id);
-    const sync = () => {
-      const cur = this.sound?.currentTrack;
-      root.querySelectorAll('.yebul-item').forEach((li) => {
-        const el = cur && cur.url.endsWith(trackOf(li.dataset.id).file) ? cur.el : null;
-        li.classList.toggle('is-on', !!el);
-        li.querySelector('.yebul-play span').textContent = el && !el.paused ? '❚❚' : '▶';
-        li.querySelector('.yebul-bar span').style.width = el && el.duration ? `${(el.currentTime / el.duration) * 100}%` : '0%';
-        li.querySelector('.yebul-time').textContent = el ? `${fmt(el.currentTime)} / ${fmt(el.duration)}` : '';
-      });
-    };
-    let bound = null;
-    const bind = () => {
-      const cur = this.sound?.currentTrack;
-      if (!cur || bound === cur.el) return;
-      bound = cur.el;
-      for (const ev of ['timeupdate', 'play', 'pause', 'ended', 'loadedmetadata']) this._on(cur.el, ev, sync);
-    };
+      <p class="m-hint">고르면 화면이 바뀌어 좌복에 홀로 앉아 처음부터 끝까지 듣습니다. Esc 나 「일어나기」로 돌아옵니다.<br/>국립공원공단 「자연의소리」 · 공공누리 제1유형</p>`);
     this._on(root, 'click', (e) => {
-      const b = e.target.closest('[data-act="toggle"]');
-      if (!b) return;
-      const t = trackOf(b.dataset.id);
-      const cur = this.sound?.currentTrack;
-      if (cur && cur.url.endsWith(t.file)) {
-        if (cur.el.paused) cur.el.play();
-        else cur.el.pause();
-      } else {
-        this.sound?.playTrack(base + t.file);
-        this.cb.onYebul?.(t);
-      }
-      bind();
-      sync();
+      const b = e.target.closest('.yebul-item');
+      if (b) this.cb.onYebul?.(YEBUL_TRACKS.find((x) => x.id === b.dataset.id));
     });
-    bind();
-    sync();
-    return { refresh: sync };
+    return {};
   }
 
   _card() {

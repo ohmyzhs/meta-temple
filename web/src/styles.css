@@ -459,3 +459,85 @@ kbd {
 }
 
 .name-label.peer { color: #d5ead9; font-weight: 600; }
+
+/* ───────── 예불 듣기 모드 ───────── */
+/* 화면 전환 가림막: 켤 때는 빠르게 어두워지고, 걷을 때는 천천히 밝아진다 */
+#listen-veil {
+  position: fixed; inset: 0; z-index: 70; pointer-events: none;
+  background: #07060a; opacity: 0; transition: opacity 1.4s var(--ease);
+}
+#listen-veil.on { opacity: 1; transition-duration: 0.55s; }
+
+/* 모드 중에는 HUD·이름표·알림을 모두 거둔다 */
+.hud, .toast-stack { transition: opacity 0.8s var(--ease); }
+body.listening .hud, body.listening .toast-stack { opacity: 0; }
+body.listening .hud, body.listening .hud * { pointer-events: none !important; }
+body.listening .name-label { visibility: hidden !important; }
+body.listening.l-idle, body.listening.l-idle canvas { cursor: none; }
+
+.listen { position: fixed; inset: 0; z-index: 40; pointer-events: none; }
+
+.listen-title {
+  position: absolute; left: calc(28px + var(--safe-l)); top: calc(26px + var(--safe-t));
+  display: flex; flex-direction: column; gap: 6px; color: var(--hanji-50);
+  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.7);
+  opacity: 0; transform: translateY(6px); transition: opacity 1.6s var(--ease), transform 1.6s var(--ease);
+}
+.listen-title.show { opacity: 1; transform: none; }
+.listen-title b { font-family: var(--font-serif); font-weight: 600; font-size: 22px; letter-spacing: 0.08em; }
+.listen-title small { font-family: var(--font-serif); font-size: 13px; color: rgba(243, 236, 220, 0.72); letter-spacing: 0.04em; }
+
+.listen-ctl {
+  position: absolute; left: 50%; bottom: calc(18px + var(--safe-b)); transform: translateX(-50%);
+  width: min(560px, calc(100vw - 32px - var(--safe-l) - var(--safe-r)));
+  display: flex; align-items: center; gap: 4px; padding: 6px 8px;
+  border-radius: 999px; pointer-events: auto;
+  background: rgba(16, 13, 10, 0.4); border: 1px solid rgba(243, 236, 220, 0.12);
+  -webkit-backdrop-filter: blur(10px) saturate(1.1); backdrop-filter: blur(10px) saturate(1.1);
+  color: var(--hanji-50);
+  transition: opacity 0.9s var(--ease), transform 0.9s var(--ease);
+}
+.listen.l-idle .listen-ctl { opacity: 0; transform: translate(-50%, 10px); }
+
+.l-btn {
+  flex: none; width: 44px; height: 44px; border-radius: 50%; border: 0; padding: 0;
+  display: grid; place-items: center; background: transparent; color: inherit; cursor: pointer;
+  transition: background 0.2s;
+}
+.l-btn:hover, .l-btn:focus-visible { background: rgba(243, 236, 220, 0.1); outline: none; }
+.l-btn svg { width: 20px; height: 20px; fill: currentColor; }
+.l-main { background: rgba(201, 163, 90, 0.9); color: var(--ink-900); }
+.l-main:hover, .l-main:focus-visible { background: var(--gold); }
+.l-main .i-play { display: none; margin-left: 2px; }
+.listen.paused .l-main .i-play { display: block; }
+.listen.paused .l-main .i-pause { display: none; }
+
+.l-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; padding: 0 8px; }
+.l-row { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.l-name { flex: 1; min-width: 0; font-family: var(--font-serif); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.l-time { flex: none; font-size: 11.5px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+
+/* 얇은 재생 위치 막대 (누르기 쉬운 높이는 유지) */
+.l-seek { -webkit-appearance: none; appearance: none; width: 100%; height: 18px; margin: 0; background: transparent; cursor: pointer; }
+.l-seek::-webkit-slider-runnable-track { height: 3px; border-radius: 3px; background: linear-gradient(90deg, var(--gold) var(--p, 0%), rgba(243, 236, 220, 0.22) var(--p, 0%)); }
+.l-seek::-moz-range-track { height: 3px; border-radius: 3px; background: linear-gradient(90deg, var(--gold) var(--p, 0%), rgba(243, 236, 220, 0.22) var(--p, 0%)); }
+.l-seek::-webkit-slider-thumb { -webkit-appearance: none; width: 11px; height: 11px; margin-top: -4px; border-radius: 50%; background: var(--hanji-50); border: 0; }
+.l-seek::-moz-range-thumb { width: 11px; height: 11px; border-radius: 50%; background: var(--hanji-50); border: 0; }
+
+.l-exit { width: auto; padding: 0 14px 0 10px; border-radius: 999px; gap: 6px; display: flex; align-items: center; font-size: 13px; font-family: var(--font-sans); }
+.l-exit svg { width: 16px; height: 16px; }
+
+/* 재생기가 숨어도 남는 머리카락 굵기의 진행선 */
+.listen-line { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: rgba(243, 236, 220, 0.08); }
+.listen-line span { display: block; height: 100%; width: 0; background: rgba(201, 163, 90, 0.7); }
+
+@media (max-width: 520px) {
+  .listen-ctl { gap: 0; padding: 5px 6px; }
+  .l-btn[data-l='prev'], .l-btn[data-l='next'] { width: 36px; }
+  .l-exit span { display: none; }
+  .l-exit { width: 44px; padding: 0; justify-content: center; }
+  .listen-title b { font-size: 19px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .listen-title, .listen-ctl, #listen-veil { transition-duration: 0.01s !important; }
+}

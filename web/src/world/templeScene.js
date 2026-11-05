@@ -568,9 +568,37 @@ export class TempleScene {
     return this.temple.lanterns.hover >= 0;
   }
 
+  /**
+   * 예불 듣기: 정해 둔 자리에서 천천히 흐르는 카메라. shot = { pos, to?, look, lookTo?, dur } (to 가 없으면 고정).
+   * null 이면 평소 카메라로 돌아간다. snap 이면 그 자리로 바로 끊어 옮긴다 (가림막 뒤에서).
+   */
+  setShot(shot, snap = false) {
+    const c = this.cam;
+    c.shot = shot;
+    if (!shot) return;
+    shot.t = 0;
+    c.look ||= shot.look.clone();
+    if (snap) {
+      this.camera.position.copy(shot.pos);
+      c.look.copy(shot.look);
+    }
+  }
+
   _updateCamera(dt, player) {
     const c = this.cam;
     const p = player.position;
+    if (c.shot) {
+      const s = c.shot;
+      s.t += dt;
+      const u = 0.5 - 0.5 * Math.cos(Math.min(s.t / s.dur, 1) * Math.PI);
+      const pos = s.to ? s.pos.clone().lerp(s.to, u) : s.pos;
+      const look = s.lookTo ? s.look.clone().lerp(s.lookTo, u) : s.look;
+      const k = 1 - Math.exp(-dt * 4);
+      this.camera.position.lerp(pos, k);
+      c.look.lerp(look, k);
+      this.camera.lookAt(c.look);
+      return;
+    }
     c.dist += (c.targetDist - c.dist) * (1 - Math.exp(-dt * 6));
     const inHall = zoneAt(p.x, p.z) === 'DAEUNGJEON';
     if (c.mode === 'first') {

@@ -21,9 +21,9 @@ export const SOUND_CREDITS = [
 export const SOUND_CREDIT_NOTE =
   '산사의 소리는 국립공원공단이 공공누리 제1유형(출처표시)으로 개방한 「자연의소리」를 이용했습니다. 원본은 공공데이터포털에서 무료로 받을 수 있습니다.';
 
-/** 법당 「예불 듣기」 — 실제 사찰에서 녹음한 예불을 처음부터 끝까지 (국립공원공단 녹음 길이 그대로, 약 5분) */
+/** 법당 「예불 듣기」 — 실제 사찰에서 녹음한 예불을 처음부터 끝까지 (국립공원공단 녹음 길이 그대로, 약 5분). sec = ffprobe 실측 길이 */
 export const YEBUL_TRACKS = [
-  { id: 'baekyang', title: '백양사 염불', place: '내장산 백양사', note: '목탁에 맞춘 염불', file: 'yebul-baekyang.mp3', url: 'https://www.data.go.kr/data/15076137/fileData.do' },
-  { id: 'muwi', title: '무위사 사시예불', place: '월출산 무위사', note: '극락보전 사시예불', file: 'yebul-muwi.mp3', url: 'https://www.data.go.kr/data/15076174/fileData.do' },
-  { id: 'gaeam', title: '개암사 새벽예불', place: '변산반도 개암사', note: '범종으로 여는 새벽예불', file: 'yebul-gaeam.mp3', url: 'https://www.data.go.kr/data/15076175/fileData.do' }
+  { id: 'baekyang', title: '백양사 염불', place: '내장산 백양사', note: '목탁에 맞춘 염불', file: 'yebul-baekyang.mp3', sec: 292.9, url: 'https://www.data.go.kr/data/15076137/fileData.do' },
+  { id: 'muwi', title: '무위사 사시예불', place: '월출산 무위사', note: '극락보전 사시예불', file: 'yebul-muwi.mp3', sec: 287.8, url: 'https://www.data.go.kr/data/15076174/fileData.do' },
+  { id: 'gaeam', title: '개암사 새벽예불', place: '변산반도 개암사', note: '범종으로 여는 새벽예불', file: 'yebul-gaeam.mp3', sec: 292.9, url: 'https://www.data.go.kr/data/15076175/fileData.do' }
 ];
