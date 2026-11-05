@@ -25,7 +25,8 @@ async (page) => {
         W.timeMode = 'fixed';
         W.hour = W.hourTarget = 13;
         W.applyEnv(true);
-        const out = { rigs: [t.player, ...t.avatars.visitors.map((x) => x.av)].filter((a) => a.rig).length };
+        const all = [t.player, ...t.avatars.visitors.map((x) => x.av)];
+        const out = { rigs: all.filter((a) => a.rig).length, of: all.length };
         const loop = t._loop;
         t._loop = () => {};
         let clock = 200;
@@ -75,7 +76,7 @@ async (page) => {
     page.on('requestfinished', onDone);
     const t0 = Date.now();
     await page.goto(`${base}/?q=low`);
-    await page.waitForFunction(async () => { const R = await import('/src/world/avatarRig.js'); return !!R.rigLib(); }, null, { timeout: 180000, polling: 100 });
+    await page.waitForFunction(() => !!window.temple?.player?.rig, null, { timeout: 180000, polling: 100 }); // 내 몸이 블렌더 몸으로 바뀐 때
     const ready = Date.now() - t0;
     const intro = await page.waitForFunction(() => !document.querySelector('#intro-enter').disabled, null, { timeout: 180000 }).then(() => Date.now() - t0);
     await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });

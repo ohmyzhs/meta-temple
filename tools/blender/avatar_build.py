@@ -66,6 +66,15 @@ R_PELVIS = (0.875, 0.1875, 1.0, 0.3125)
 R_RING = (0.5, 0.125, 0.5625, 0.1875)
 R_EYE = (0.5625, 0.0625, 0.6875, 0.1875)   # 뜬 눈 한 짝 (두 눈이 같이 쓴다)
 R_LID = (0.6875, 0.125, 0.75, 0.1875)      # 감은 눈 선 (짙은 단색)
+R_HAT = (0.75, 0.0, 1.0, 0.1875)           # 삿갓 (행자): 위 v 0→0.6, 아래 0.6→1
+R_BEAD = (0.5, 0.0, 0.5625, 0.0625)        # 목에 거는 염주 알 (상주 스님)
+
+# 모습마다 옷 빛깔 — 같은 몸·뼈대·클립을 쓰고 질감만 다르다
+PALETTE = {
+    'monk': dict(robe='#8e8a81', pants='#7d7970', collar='#86827a', band='kasa', band_color='#983d28'),
+    # 삿갓 수묵 행자: 먹빛 도포, 흰 동정, 가사 대신 짙은 쪽빛 바랑 끈
+    'wanderer': dict(robe='#34343b', pants='#2a2a30', collar='#cfccc4', band='strap', band_color='#46505f'),
+}
 
 # ───────────────────────── 메시 도구 ─────────────────────────
 PARTS = []  # (name, bmesh-built object, weight rule)
@@ -323,6 +332,44 @@ def eye_patch(name, kind):
     if s < 0:
         bmesh.ops.reverse_faces(bm, faces=bm.faces[:])
     return new_obj(name, bm)
+
+
+def build_hat():
+    """삿갓: 넓고 얕은 원뿔(위) + 오목한 안쪽(아래)을 한 몸으로, 꼭대기 꼭지. 정수리에 얹고 앞으로 조금 숙인다."""
+    c = V((0, HC.y + 0.01, AC.J['crown'][2] - 0.075))
+    R, n = 0.43, 36
+    prof = [(0.0, 0.215), (0.012, 0.212), (0.03, 0.2), (0.12, 0.15), (0.25, 0.085), (0.36, 0.028), (R, 0.0),  # 위
+            (R, -0.012), (0.36, 0.012), (0.24, 0.045), (0.16, 0.06), (0.0, 0.07)]  # 아래 (머리에 닿는 안쪽)
+    tilt = Matrix.Rotation(math.radians(7), 3, 'X')  # 앞이 조금 숙는다
+    rings, vs = [], []
+    for k, (r, z) in enumerate(prof):
+        rr = max(r, 0.004)
+        rings.append([c + tilt @ V((rr * math.sin(TAU * i / n), rr * math.cos(TAU * i / n), z)) for i in range(n)])
+        vs.append(0.6 * k / 6 if k <= 6 else 0.6 + 0.4 * (k - 6) / 5)
+    return loft('wanderer_hat', rings, R_HAT, vs, cap0=True, cap1=True)
+
+
+def build_necklace():
+    """상주 스님이 목에 건 염주: 뒷목에서 가슴 앞으로 늘어진 고리 알 40개 + 앞의 술."""
+    beads = []
+    for i in range(40):
+        a = TAU * i / 40
+        u = (1 - math.cos(a)) / 2  # 0 뒤 → 1 앞
+        p = V((0.098 * math.sin(a), 0.068 * (1 - u) - 0.15 * u, 0.737 - 0.255 * u ** 1.6))
+        s_ = torso_surface(p.z, math.atan2(p.x, p.y))
+        r = max(V((s_.x, s_.y, 0)).length, V((p.x, p.y, 0)).length) + 0.012
+        p = V((0, 0, p.z)) + V((p.x, p.y, 0)).normalized() * r
+        beads.append(ellipsoid(f'bead{i}', p, (0.0115, 0.0115, 0.0115), R_BEAD, 6, 4))
+    tip = V((0, -0.168, 0.465))
+    beads.append(ellipsoid('tassel', tip + V((0, -0.004, -0.03)), (0.012, 0.01, 0.03), R_BEAD, 8, 5))
+    bpy.ops.object.select_all(action='DESELECT')
+    for b in beads:
+        b.select_set(True)
+    bpy.context.view_layer.objects.active = beads[0]
+    bpy.ops.object.join()
+    ob = bpy.context.view_layer.objects.active
+    ob.name = 'necklace'
+    return ob
 
 
 def build_pelvis():
@@ -766,11 +813,10 @@ def ridge(x, c, w):
     return np.exp(-((x - c) / w) ** 2)
 
 
-def paint(atlas_n):
+def paint(atlas_n, pal):
     at = Atlas(atlas_n)
     # 게임 장면은 노출이 밝아(햇빛·톤매핑) 바탕색을 한 단계 진하게 잡는다 — 게임 안 캡처로 맞춘 값
-    robe = '#8e8a81'   # 승복: 따뜻한 회색
-    pants = '#7d7970'
+    robe, pants = pal['robe'], pal['pants']
 
     # 저고리: 위는 밝고 아래로 갈수록 살짝 어둡게, 아랫단 바느질 두 줄, 옆구리·겨드랑이 부드러운 주름
     def t_shade(U, Vv):
@@ -809,21 +855,25 @@ def paint(atlas_n):
     at.col[sy, sx][Vv > 0.955] *= 0.5
     soft_cloth(at, R_PELVIS, pants, 0.5, 0.25, 70)
     # 깃: 조금 짙은 회색 + 가운데 바느질
-    U, Vv = soft_cloth(at, R_COLLAR, '#86827a', 0.9, 0.03, 80)
+    U, Vv = soft_cloth(at, R_COLLAR, pal['collar'], 0.9, 0.03, 80)
     sy, sx = at.region(R_COLLAR)
     at.col[sy, sx][(np.abs(Vv - 0.5) < 0.06) & (((U * 160) % 1) < 0.5)] *= 1.15
 
     # 가사: 따뜻한 괴색, 조각을 이어 붙인 밭 모양 — 솔기는 가늘고 짙게, 가장자리 연(緣)은 한 톤 짙게
-    U, Vv = soft_cloth(at, R_KASA, '#983d28', 1.15, 0.085, 90, rough=0.85)
+    U, Vv = soft_cloth(at, R_KASA, pal['band_color'], 1.15, 0.085, 90, rough=0.85)
     sy, sx = at.region(R_KASA)
-    cu, cv = (U * 22) % 1, ((Vv - 0.15) / 0.7 * 2) % 1
-    seam = (np.minimum(cu, 1 - cu) < 0.035) | ((np.minimum(cv, 1 - cv) < 0.04) & (Vv > 0.15) & (Vv < 0.85))
-    edge = (Vv < 0.15) | (Vv > 0.85)
-    patch = np.floor(U * 22) + 5 * np.floor(Vv * 2)
-    at.col[sy, sx] *= (0.96 + 0.07 * ((patch * 0.618) % 1))[..., None]
-    at.col[sy, sx][edge] *= 0.8
-    at.col[sy, sx][seam] *= 0.78
-    at.hgt[sy, sx] += np.where(seam, 0.0008, 0)
+    if pal['band'] == 'strap':  # 바랑 끈: 단색, 가장자리 바느질만
+        at.col[sy, sx][(np.abs(Vv - 0.12) < 0.03) | (np.abs(Vv - 0.88) < 0.03)] *= 1.25
+        Vv = None
+    if Vv is not None:
+        cu, cv = (U * 22) % 1, ((Vv - 0.15) / 0.7 * 2) % 1
+        seam = (np.minimum(cu, 1 - cu) < 0.035) | ((np.minimum(cv, 1 - cv) < 0.04) & (Vv > 0.15) & (Vv < 0.85))
+        edge = (Vv < 0.15) | (Vv > 0.85)
+        patch = np.floor(U * 22) + 5 * np.floor(Vv * 2)
+        at.col[sy, sx] *= (0.96 + 0.07 * ((patch * 0.618) % 1))[..., None]
+        at.col[sy, sx][edge] *= 0.8
+        at.col[sy, sx][seam] *= 0.78
+        at.hgt[sy, sx] += np.where(seam, 0.0008, 0)
 
     # 피부: 복숭앗빛, 매끈하게 (나뭇결 없음)
     skin = to_lin(hexrgb('#e2a986'))
@@ -883,6 +933,20 @@ def paint(atlas_n):
     at.put(R_SHOE, col, 0.0005 * rim, 0.5, 0.2, 0.15)
     U, Vv = at.grid(R_RING)
     at.put(R_RING, to_lin(hexrgb('#efe6d0'))[None, None, :] * np.ones(U.shape)[..., None], np.zeros(U.shape), 0.35, 0.1, 0.03)
+    # 삿갓: 대오리 결 — 위는 꼭대기에서 퍼지는 살 + 둘레 띠, 아래(안쪽)는 한 톤 어둡게
+    U, Vv = at.grid(R_HAT)
+    h, w = U.shape
+    rib = 0.5 + 0.5 * np.cos(U * TAU * 56)
+    ring = 0.5 + 0.5 * np.cos(Vv * TAU * 9)
+    straw = to_lin(hexrgb('#b39a6b'))[None, None, :] * (0.88 + 0.08 * rib + 0.05 * ring + 0.04 * (vnoise(h, w, 6, 24, seed=130) - 0.5))[..., None]
+    under = Vv > 0.6
+    straw[under] *= 0.62
+    band = np.abs(Vv - 0.585) < 0.02  # 테두리 감은 띠
+    straw[band] = to_lin(hexrgb('#5b4630'))
+    at.put(R_HAT, straw, 0.0006 * rib + 0.0004 * ring, 0.8, 1.2, 0.5)
+    # 염주 알: 짙은 밤나무빛, 윤이 조금
+    U, Vv = at.grid(R_BEAD)
+    at.put(R_BEAD, to_lin(hexrgb('#4a2a1c'))[None, None, :] * (0.9 + 0.2 * Vv)[..., None], np.zeros(U.shape), 0.35, 0.03, 0.03)
     return at
 
 
@@ -906,12 +970,12 @@ def save_image(name, arr, path, srgb):
     return img
 
 
-def make_material(at):
+def make_material(at, name='monk'):
     n = at.n
-    col = save_image('monk_col', at.col, os.path.join(OUT, 'monk_col.png'), True)
-    nrm = save_image('monk_nrm', at.normal(1.0), os.path.join(OUT, 'monk_nrm.png'), False)
-    orm = save_image('monk_orm', np.dstack([np.ones((n, n)), at.rough, np.zeros((n, n))]), os.path.join(OUT, 'monk_orm.png'), False)
-    mat = bpy.data.materials.new('monk')
+    col = save_image(f'{name}_col', at.col, os.path.join(OUT, f'{name}_col.png'), True)
+    nrm = save_image(f'{name}_nrm', at.normal(1.0), os.path.join(OUT, f'{name}_nrm.png'), False)
+    orm = save_image(f'{name}_orm', np.dstack([np.ones((n, n)), at.rough, np.zeros((n, n))]), os.path.join(OUT, f'{name}_orm.png'), False)
+    mat = bpy.data.materials.new(name)
     mat.use_backface_culling = True  # 한 면만 (소맷부리·저고리 단은 안쪽 면을 따로 만들었다)
     mat.use_nodes = True
     nt = mat.node_tree
@@ -961,20 +1025,32 @@ def build_model():
     body.name = 'monk_body'
     bpy.ops.object.vertex_group_limit_total(group_select_mode='ALL', limit=4)
     bpy.ops.object.vertex_group_normalize_all(group_select_mode='ALL', lock_active=False)
-    mat = make_material(paint(TEX))
+    mat = make_material(paint(TEX, PALETTE['monk']), 'monk')
+    wmat = make_material(paint(TEX, PALETTE['wanderer']), 'wanderer')
+    # 삿갓 행자 몸: 같은 몸(같은 UV·가중치)에 먹빛 질감
+    wbody = body.copy()
+    wbody.data = body.data.copy()
+    wbody.name = 'wanderer_body'
+    SC.collection.objects.link(wbody)
     # 눈: 뜬 눈·감은 눈 두 조각 (런타임이 깜빡이고, 좌선·절할 때 감는다) — 같은 재질, 머리 뼈에만
     eyes = [eye_patch('eyes_open', 'open'), eye_patch('eyes_closed', 'closed')]
-    for ob in [body] + eyes:
-        if ob is not body:
+    hat = build_hat()
+    necklace = build_necklace()
+    assign_weights(necklace, arm, lambda p: {'neck': 1.0 if p.y > 0.0 and p.z > 0.66 else 0, 'chest': 1, 'spine': 0.4 if p.z < 0.52 else 0})
+    for ob, m in [(body, mat), (wbody, wmat), (hat, wmat), (necklace, mat)] + [(e, mat) for e in eyes]:
+        if ob in eyes or ob is hat:
             assign_weights(ob, arm, lambda p: {'head': 1})
         ob.data.materials.clear()
-        ob.data.materials.append(mat)
+        ob.data.materials.append(m)
         ob.parent = arm
-        mod = ob.modifiers.new('rig', 'ARMATURE')
-        mod.object = arm
+        if not ob.modifiers.get('rig'):
+            mod = ob.modifiers.new('rig', 'ARMATURE')
+            mod.object = arm
+    eyes = eyes + [wbody, hat, necklace]  # 함께 내보낼 것 (런타임이 모습마다 골라 보인다)
     me = body.data
-    tris = sum(len(p.vertices) - 2 for p in me.polygons) + sum(len(p.vertices) - 2 for e in eyes for p in e.data.polygons)
-    log('body', len(me.vertices), 'verts', tris, 'tris (눈 포함)')
+    tris = sum(len(p.vertices) - 2 for p in me.polygons) + sum(len(p.vertices) - 2 for e in eyes[:2] for p in e.data.polygons)
+    log('body', len(me.vertices), 'verts', tris, 'tris (눈 포함)',
+        {o.name: sum(len(p.vertices) - 2 for p in o.data.polygons) for o in eyes[2:]})
     body['eyes'] = [e.name for e in eyes]
     return arm, body, eyes, tris
 
@@ -1262,28 +1338,32 @@ def export(arm, body, eyes, meta):
         json.dump(meta, f, ensure_ascii=False, indent=1)
 
 
-arm, body, eyes, tris = build_model()
-meta = {'tris': tris}
-if not ONLY_MODEL:
-    meta.update(bake_clips(arm, body))
-for e in eyes:  # 미리보기·쉬는 자세에는 뜬 눈만
-    e.hide_render = e.name != 'eyes_open'
-if PREVIEW:
-    shots = [('rest_front', None, 0, 0, 8, 3.0), ('rest_34', None, 0, 35, 12, 3.0), ('rest_back', None, 0, 180, 10, 3.0)]
-    TIMES = {'prostrate': [round(x * 0.2, 1) for x in range(39)], 'bow_half': [0.5, 1.2, 1.5, 2.0],
-             'stand_up': [0, 0.3, 0.45, 0.65, 0.85, 1.0, 1.2, 1.5], 'sit_down': [0, 0.3, 0.5, 0.65, 0.85, 1.05, 1.3, 1.5],
-             'walk': [0, 0.17, 0.33, 0.5], 'walk_chasu': [0, 0.17, 0.33, 0.5], 'walk_gassho': [0.1, 0.4], 'sit': [0, 2.5],
-             'idle': [0], 'idle_chasu': [0]}
-    for c in ([] if ONLY_MODEL else AC.CLIPS):
-        for i, tt in enumerate(TIMES.get(c['name'], [0])):
-            if c['name'] == 'prostrate':  # 다리 꼬임 검사: 옆·뒤·앞비스듬히
-                for az in (90, 200, 320):
-                    shots.append((f"prostrate_{az}_{i:02d}", c['name'], round(tt * AC.FPS), az, 18, 2.3))
-                continue
-            az = 90 if c['name'] == 'bow_half' or c['name'].startswith('walk') else 300 if c['name'] in ('stand_up', 'sit_down') else 30
-            shots.append((f"{c['name']}_{i:02d}", c['name'], round(tt * AC.FPS), az, 10, 3.0))
-            if c['name'] in ('sit', 'idle_chasu', 'walk_gassho') and i == 0:
-                shots.append((f"{c['name']}_{i:02d}f", c['name'], round(tt * AC.FPS), 10, 14, 2.4))
-    preview(arm, body, shots)
-export(arm, body, eyes, meta)
-log('done')
+if __name__ == '__main__':  # avatar_spirit.py 가 도구 함수만 가져다 쓸 수 있게
+    arm, body, eyes, tris = build_model()
+    meta = {'tris': tris}
+    if not ONLY_MODEL:
+        meta.update(bake_clips(arm, body))
+    STYLE = arg('--style', 'monk')
+    SHOW = {'monk': {'monk_body', 'eyes_open'}, 'resident': {'monk_body', 'eyes_open', 'necklace'},
+            'wanderer': {'wanderer_body', 'wanderer_hat', 'eyes_open'}}[STYLE]
+    for e in [body] + eyes:  # 미리보기에는 고른 모습만, 뜬 눈만
+        e.hide_render = e.name not in SHOW
+    if PREVIEW:
+        shots = [('rest_front', None, 0, 0, 8, 3.0), ('rest_34', None, 0, 35, 12, 3.0), ('rest_back', None, 0, 180, 10, 3.0)]
+        TIMES = {'prostrate': [round(x * 0.2, 1) for x in range(39)], 'bow_half': [0.5, 1.2, 1.5, 2.0],
+                 'stand_up': [0, 0.3, 0.45, 0.65, 0.85, 1.0, 1.2, 1.5], 'sit_down': [0, 0.3, 0.5, 0.65, 0.85, 1.05, 1.3, 1.5],
+                 'walk': [0, 0.17, 0.33, 0.5], 'walk_chasu': [0, 0.17, 0.33, 0.5], 'walk_gassho': [0.1, 0.4], 'sit': [0, 2.5],
+                 'idle': [0], 'idle_chasu': [0]}
+        for c in ([] if ONLY_MODEL else AC.CLIPS):
+            for i, tt in enumerate(TIMES.get(c['name'], [0])):
+                if c['name'] == 'prostrate':  # 다리 꼬임 검사: 옆·뒤·앞비스듬히
+                    for az in (90, 200, 320):
+                        shots.append((f"prostrate_{az}_{i:02d}", c['name'], round(tt * AC.FPS), az, 18, 2.3))
+                    continue
+                az = 90 if c['name'] == 'bow_half' or c['name'].startswith('walk') else 300 if c['name'] in ('stand_up', 'sit_down') else 30
+                shots.append((f"{c['name']}_{i:02d}", c['name'], round(tt * AC.FPS), az, 10, 3.0))
+                if c['name'] in ('sit', 'idle_chasu', 'walk_gassho') and i == 0:
+                    shots.append((f"{c['name']}_{i:02d}f", c['name'], round(tt * AC.FPS), 10, 14, 2.4))
+        preview(arm, body, shots)
+    export(arm, body, eyes, meta)
+    log('done')

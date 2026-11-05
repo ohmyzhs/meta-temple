@@ -1133,6 +1133,95 @@
      }
     ]
    }
+  },
+  "gassho": {
+   "duration": 4.0,
+   "loop": true,
+   "eyeMin": 0.978,
+   "eyeMax": 0.9888,
+   "foreheadMin": 1.1166,
+   "foreheadMinAt": 0.0
+  },
+  "look_up": {
+   "duration": 4.0,
+   "loop": true,
+   "eyeMin": 1.0806,
+   "eyeMax": 1.0838,
+   "foreheadMin": 1.2093,
+   "foreheadMinAt": 0.0
+  },
+  "incense": {
+   "duration": 3.4,
+   "loop": false,
+   "propFrom": 0.8,
+   "propTo": 2.5,
+   "eyeMin": 0.8167,
+   "eyeMax": 1.0217,
+   "foreheadMin": 0.9305,
+   "foreheadMinAt": 2.3333333333333335
+  },
+  "tea": {
+   "duration": 7.0,
+   "loop": true,
+   "eyeMin": 0.5838,
+   "eyeMax": 0.6871,
+   "foreheadMin": 0.7102,
+   "foreheadMinAt": 4.0
+  },
+  "serve_tea": {
+   "duration": 2.4,
+   "loop": false,
+   "eyeMin": 0.3854,
+   "eyeMax": 0.6198,
+   "foreheadMin": 0.4719,
+   "foreheadMinAt": 0.7
+  },
+  "meditate": {
+   "duration": 5.5,
+   "loop": true,
+   "beadEvery": 1.1,
+   "eyeMin": 0.6099,
+   "eyeMax": 0.622,
+   "foreheadMin": 0.7412,
+   "foreheadMinAt": 0.0
+  },
+  "offer_stone": {
+   "duration": 3.0,
+   "loop": false,
+   "propFrom": 0.2,
+   "propTo": 1.65,
+   "eyeMin": 0.3521,
+   "eyeMax": 0.9867,
+   "foreheadMin": 0.4046,
+   "foreheadMinAt": 1.1
+  },
+  "write_tile": {
+   "duration": 3.2,
+   "loop": false,
+   "propFrom": 0.25,
+   "propTo": 2.6,
+   "eyeMin": 0.9106,
+   "eyeMax": 0.9989,
+   "foreheadMin": 1.0391,
+   "foreheadMinAt": 0.7333333333333333
+  },
+  "hang_lantern": {
+   "duration": 3.0,
+   "loop": false,
+   "propFrom": 0.0,
+   "propTo": 1.05,
+   "eyeMin": 0.9601,
+   "eyeMax": 1.0855,
+   "foreheadMin": 1.0967,
+   "foreheadMinAt": 0.3333333333333333
+  },
+  "sutra": {
+   "duration": 4.0,
+   "loop": true,
+   "eyeMin": 0.3577,
+   "eyeMax": 0.3577,
+   "foreheadMin": 0.4321,
+   "foreheadMinAt": 0.0
   }
  },
  "eye": [

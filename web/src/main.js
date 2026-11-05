@@ -113,8 +113,7 @@ class MetaTempleApp {
 
   async _boot() {
     const container = $('#scene');
-    // 블렌더 아바타(GLB)는 산사를 짓는 동안 함께 받는다. 늦거나 못 받으면 절차식 몸으로 시작해 받는 대로 바꾼다 (?rig=0 이면 받지 않음)
-    const rig = new URLSearchParams(location.search).get('rig') === '0' ? Promise.resolve(null) : loadRig();
+    const rigWanted = new URLSearchParams(location.search).get('rig') !== '0';
     try {
       this.world = new TempleScene(container, {
         quality: this.quality,
@@ -158,7 +157,9 @@ class MetaTempleApp {
     });
     this._rebuildPlayer();
     this.avatars.spawnAmbientVisitors();
-    rig.then((lib) => lib && this.avatars.upgradeRigs());
+    // 블렌더 아바타(GLB 2개)는 산사를 다 지은 뒤에 받기 시작한다 — 느린 망에서 입장을 늦추지 않게(같이 받으면 Fast 3G 에서 입장이 수 초 늦었다).
+    // 받기 전·못 받으면 절차식 몸, 받는 대로 제자리에서 바꾼다 (?rig=0 이면 받지 않음)
+    if (rigWanted) loadRig().then((ok) => ok && this.avatars.upgradeRigs());
     temple.lanterns.sync(this.store.state.lanterns);
     await this._brushFont(this.store.state.tiles.map((t) => t.wish).join(''));
     temple.tileRack.sync(this.store.state.tiles);
@@ -170,7 +171,7 @@ class MetaTempleApp {
     this.world.setWeather(s.weather || 'clear');
     this.world.applyEnv(true);
 
-    this.modals = new ModalManager(this.store, this._modalCallbacks(), this.sound);
+    this.modals = new ModalManager(this.store, this._withMotions(this._modalCallbacks()), this.sound);
     this._bindHUD();
     this._bindInput();
     this._bindListen();
@@ -275,6 +276,20 @@ class MetaTempleApp {
       bell: { x: L.bell.x, y: 4, z: L.bell.z },
       pond: { x: L.pond.x, y: L.pond.waterY + 0.3, z: L.pond.z }
     };
+  }
+
+  /** 신행을 마치면 아바타도 그 몸짓을 한다 — 돌탑에 조약돌을 얹고, 기와에 쓰고, 연등을 띄운다 (다른 도반에게도 보인다) */
+  _withMotions(cb) {
+    const after = (name, fn) => (...a) => {
+      const r = fn(...a);
+      const pl = this.player;
+      if (!pl.busy && !pl.sitting) {
+        pl.restState = null;
+        pl.play(name);
+      }
+      return r;
+    };
+    return { ...cb, onAddStone: after('offer_stone', cb.onAddStone), onAddTile: after('write_tile', cb.onAddTile), onAddLantern: after('hang_lantern', cb.onAddLantern) };
   }
 
   /* ───────── 신행 콜백 ───────── */
@@ -462,7 +477,7 @@ class MetaTempleApp {
       case 'sutra_copy':
         return this._goAndDo(def, () => {
           const s = this.temple.sutraSeat;
-          this.avatars.sitAt({ ...s, standAt: { x: s.x, z: s.z + 1.0 } }, 'sit');
+          this.avatars.sitAt({ ...s, standAt: { x: s.x, z: s.z + 1.0 } }, 'sutra'); // 서안 앞에서 붓으로 쓴다
           this.player.restState = null;
           this.modals.open('sutra_copy');
         });

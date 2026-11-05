@@ -47,7 +47,11 @@ const SEQ = {
   bow_half: [['gassho', 0.55], ['bow', 0.9], ['gassho', 0.6], ['stand', 0.4]],
   // 천천히 7.6초 (자동 108배는 8초에 한 번). 블렌더 몸의 큰절 클립과 길이가 같아야 한다 — core/avatarMotion.js PROSTRATE
   prostrate: [['gassho', 1.1], ['kneel', 1.5], ['prostrate', 2.3], ['kneel', 1.4], ['gassho', 0.9], ['stand', 0.4]],
-  incense: [['gassho', 0.5], ['offerUp', 1.1], ['offerDown', 0.8], ['gassho', 0.7], ['stand', 0.3]]
+  incense: [['gassho', 0.5], ['offerUp', 1.1], ['offerDown', 0.8], ['gassho', 0.7], ['stand', 0.3]],
+  // 신행을 마칠 때의 몸짓 — 블렌더 클립과 같은 길이 (절차식 몸은 비슷한 자세로)
+  offer_stone: [['gassho', 0.45], ['kneel', 0.65], ['offerDown', 0.7], ['kneel', 0.55], ['gassho', 0.65]],
+  write_tile: [['offerDown', 2.0], ['offerUp', 0.45], ['gassho', 0.4], ['stand', 0.35]],
+  hang_lantern: [['offerDown', 0.35], ['offerUp', 0.75], ['lookUp', 1.2], ['gassho', 0.7]]
 };
 
 function easeInOut(t) {
@@ -115,10 +119,10 @@ export class Avatar {
     this.speed = 0;
     this.items = { wooden_mala: false, jade_mala: false, hand_lantern: false };
     this.heading = 0;
+    this.variant = variant;
     this.body = new THREE.Group(); // 절차식 몸 (블렌더 몸으로 바뀌면 통째로 뗀다)
     this.root.add(this.body);
-    if (style === 'lantern_spirit') this._buildSpirit();
-    else if (!this.useRig()) this._buildHuman(variant || style);
+    if (!this.useRig()) style === 'lantern_spirit' ? this._buildSpirit() : this._buildHuman(variant || style);
     this._buildLabel();
     this.root.userData.eyeHeight = style === 'lantern_spirit' ? 1.05 : 1.2;
     this.root.userData.focusHeight = style === 'lantern_spirit' ? 0.9 : 0.95;
@@ -260,13 +264,21 @@ export class Avatar {
 
   /** 블렌더 몸으로 바꾼다 (GLB 가 받아져 있고 이 모습이 지원될 때). 상태·자리·소지품은 그대로 이어진다. */
   useRig() {
-    if (this.rig || !RIG_STYLES.has(this.style) || !rigLib()) return false;
-    const rig = new RigBody();
+    if (this.rig || !RIG_STYLES.has(this.style) || !rigLib(this.style)) return false;
+    const rig = new RigBody(this.style, this.variant);
     this.body.removeFromParent();
     this.body.traverse((o) => o.geometry?.dispose());
     this.body = rig.model;
     this.root.add(rig.model);
     this.rig = rig;
+    this.spirit = null;
+    if (this.style === 'lantern_spirit') {
+      // 등불 정령: 몸 둘레 후광 (밤에 짙어진다) — 등불 몸 뼈에 붙인다
+      this.halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: softDotTexture(), color: 0xffc58a, transparent: true, opacity: 0.45, depthWrite: false, blending: THREE.AdditiveBlending }));
+      this.halo.scale.setScalar(1.3);
+      rig.head.add(this.halo);
+      rig.model.traverse((o) => o.isMesh && o.material.emissive && (this.glow = o.material));
+    }
     // 소품: 손목 단주, 오른손 찻잔·향. 자리·방향은 쉬는 자세(블렌더 좌표)의 손목·손바닥 기준 — tools/blender/avatar_clips.J
     //  왼손목 (0.342, -0.016, 0.487), 손끝 방향 (0.722, -0.12, -0.682), 오른손 손바닥 방향 (0.707, 0, -0.707)
     this.malaWood = this._beadRing(0x6a2a1c, 0.75);
@@ -277,7 +289,19 @@ export class Avatar {
     rig.attach(this.cup, 'handR', [-0.35, -0.022, 0.431], [0.707, 0, -0.707]);
     this.stick = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.24, 4), new THREE.MeshStandardMaterial({ color: 0x8a5a3a, emissive: 0x401000 }));
     rig.attach(this.stick, 'handR', [-0.393, -0.025, 0.439], [-0.722, -0.12, -0.682]);
-    this.cup.visible = this.stick.visible = false;
+    // 신행 소품 (클립 메타의 propFrom~propTo 동안만): 돌탑 조약돌·기와·붓·연등·좌선 손 염주
+    const mat = (color, extra = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.7, ...extra });
+    this.pebble = new THREE.Mesh(new THREE.SphereGeometry(0.04, 10, 7).scale(1.2, 0.7, 1), mat(0x8d8a84));
+    rig.attach(this.pebble, 'handR', [-0.35, -0.022, 0.431], [0.707, 0, -0.707]);
+    this.tile = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.014, 0.085), mat(0x4a4a4e, { roughness: 0.9 }));
+    rig.attach(this.tile, 'handL', [0.35, -0.022, 0.431], [-0.707, 0, -0.707]);
+    this.brush = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.004, 0.13, 6), mat(0x6b4a2a));
+    rig.attach(this.brush, 'handR', [-0.401, -0.026, 0.43], [-0.722, -0.12, -0.682]);
+    this.lotus = new THREE.Mesh(new THREE.SphereGeometry(0.07, 12, 10).scale(1, 0.85, 1), mat(0xf4a3b5, { emissive: 0xff9a7a, emissiveIntensity: 0.8 }));
+    rig.attach(this.lotus, 'handR', [-0.35, -0.03, 0.43], [0.707, 0, -0.707]);
+    this.handMala = this._beadRing(0x4a2a1c, 0.55);
+    rig.attach(this.handMala, 'handR', [-0.37, -0.024, 0.45], [-0.722, -0.12, -0.682]);
+    for (const o of [this.cup, this.stick, this.pebble, this.tile, this.brush, this.lotus, this.handMala]) o.visible = false;
     if (!this.handLantern) this._buildHandLantern(this.root);
     this.malaWood.visible = !!this.items.wooden_mala;
     this.malaJade.visible = !!this.items.jade_mala;
@@ -317,7 +341,7 @@ export class Avatar {
   _buildSpirit() {
     const g = new THREE.Group();
     g.position.y = 0.95;
-    this.root.add(g);
+    this.body.add(g);
     this.spirit = g;
     const core = new THREE.Mesh(new THREE.SphereGeometry(0.16, 20, 14), new THREE.MeshStandardMaterial({ color: 0xffe2b0, emissive: 0xffc070, emissiveIntensity: 2.6, roughness: 0.4 }));
     g.add(core);
@@ -388,7 +412,7 @@ export class Avatar {
     let seq = SEQ[name];
     if (!seq) return 0;
     // 블렌더 몸이 반가부좌로 앉아 있다 큰절하면: 먼저 일어선다 (그 시간만큼 동작이 길다)
-    const up = name === 'prostrate' && this.rig && SEATED.has(this.rig.name) && this.rig.has('stand_up') ? rigLib().meta.clips.stand_up.duration : 0;
+    const up = name === 'prostrate' && this.rig && SEATED.has(this.rig.name) && this.rig.has('stand_up') ? this.rig.lib.meta.clips.stand_up.duration : 0;
     if (up) seq = [['stand', up], ...seq];
     this.seq = { name, steps: seq, i: 0, t: 0, el: 0 };
     this.state = name;
@@ -424,6 +448,7 @@ export class Avatar {
     switch (this.state) {
       case 'sit':
       case 'meditate':
+      case 'sutra':
         return P.sit;
       case 'tea':
         return (t % 7) < 2.6 ? P.sip : P.sit;
@@ -481,7 +506,7 @@ export class Avatar {
       }
       mp.needsUpdate = true;
     } else if (this.rig) {
-      this._updateRig(dt, t);
+      this._updateRig(dt, t, night);
     } else {
       this.skirt.scale.set(p.skirtW, p.skirtY, p.skirtW);
       this.skirt.rotation.z = sw * 0.04;
@@ -531,15 +556,28 @@ export class Avatar {
   }
 
   /** 블렌더 몸: 상태·속도·구역으로 클립을 고르고 섞는다 (한 번짜리 동작의 길이·끝은 _targetPose 가 그대로 잰다) */
-  _updateRig(dt) {
+  _updateRig(dt, t, night) {
     const r = this.rig;
     const p = this.root.position;
-    const name = pickMotion({ seq: this.seq?.name, state: this.state, speed: this.speed, zone: zoneAt(p.x, p.z), has: r.has });
+    const zone = zoneAt(p.x, p.z);
+    const name = pickMotion({ seq: this.seq?.name, state: this.state, speed: this.speed, zone, seated: this.sitting, has: r.has });
     r.play(name, !!this.seq && this.seq !== this._rigSeq && r.name === name, this.speed > MOVING);
     this._rigSeq = this.seq;
     r.update(dt, this.speed, this.onStep, this.onRustle);
-    this.cup.visible = this.state === 'tea';
-    this.stick.visible = this.seq?.name === 'incense' && this.seq.i >= 1 && this.seq.i <= 2;
+    this.cup.visible = r.name === 'tea' || r.name === 'serve_tea';
+    this.stick.visible = r.propOn('incense');
+    this.pebble.visible = r.propOn('offer_stone');
+    this.tile.visible = r.propOn('write_tile');
+    this.brush.visible = r.propOn('write_tile') || r.name === 'sutra';
+    this.lotus.visible = r.propOn('hang_lantern');
+    this.handMala.visible = r.name === 'meditate';
+    // 삿갓은 법당 안에서, 큰절할 때 벗는다
+    if (r.hat) r.hat.visible = zone !== 'DAEUNGJEON' && r.name !== 'prostrate';
+    if (this.glow) {
+      // 낮에는 은은하게(햇빛 아래 하얗게 뭉개지지 않게), 밤에는 등불처럼 — 게임 안 캡처로 맞춘 값
+      this.glow.emissiveIntensity = 0.3 + 0.9 * night + 0.05 * Math.sin(t * 2.2);
+      this.halo.material.opacity = 0.1 + night * 0.4;
+    }
   }
 
   dispose() {
@@ -928,7 +966,7 @@ export class AvatarManager {
       if (peer.actionState && (peer.actionState !== r.action || peer.actionSeq !== r.seq)) {
         r.action = peer.actionState;
         r.seq = peer.actionSeq;
-        r.av.sitting = ['sit', 'meditate', 'tea'].includes(peer.actionState);
+        r.av.sitting = ['sit', 'meditate', 'tea', 'sutra'].includes(peer.actionState);
         r.av.restState = r.av.sitting ? peer.actionState : null;
         if (SEQ[peer.actionState]) r.av.play(peer.actionState);
         else r.av.setState(peer.actionState);

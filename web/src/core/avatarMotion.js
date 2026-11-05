@@ -9,12 +9,28 @@
 /** 경내: 마당·법당·다실에서는 두 손을 모으고(차수) 다닌다. 숲길은 팔을 흔들며 걷는다. */
 export const PRECINCT = new Set(['COURTYARD', 'DAEUNGJEON', 'TEAHOUSE']);
 
-/** 한 번 하고 끝나는 동작 (seq) → 클립 */
-const ONCE = { bow_half: 'bow_half', prostrate: 'prostrate', incense: 'incense' };
+/** 한 번 하고 끝나는 동작 (seq) → 클립. 돌탑·기와·연등은 신행을 마칠 때 (main.js) */
+const ONCE = {
+  bow_half: 'bow_half', prostrate: 'prostrate', incense: 'incense',
+  offer_stone: 'offer_stone', write_tile: 'write_tile', hang_lantern: 'hang_lantern'
+};
+/**
+ * 동작 상태 이름 — 다른 도반에게 보내는 이름이자 server/server.js ACTIONS 허용 목록.
+ * 넓히며 새로 생긴 것: offer_stone · write_tile · hang_lantern (한 번짜리), sutra (사경 상태).
+ * 서버가 아직 모르면 idle 로 바뀌어 전해지고, 옛 클라이언트는 모르는 상태를 선 자세로 둔다 — 어느 쪽도 깨지지 않는다.
+ */
+export const ACTION_STATES = ['idle', 'walk', 'bow_half', 'prostrate', 'meditate', 'incense', 'circumambulate', 'tea', 'sit', 'lookUp',
+  'offer_stone', 'write_tile', 'hang_lantern', 'sutra'];
 
 /** 클립이 아직 없을 때 대신 쓸 것 (앞에서부터 있는 것) */
 const FALLBACK = {
   incense: ['incense', 'bow_half'],
+  serve_tea: ['serve_tea', 'sit'],
+  offer_stone: ['offer_stone', 'bow_half'],
+  write_tile: ['write_tile', 'bow_half'],
+  hang_lantern: ['hang_lantern', 'bow_half'],
+  meditate: ['meditate', 'sit'],
+  sutra: ['sutra', 'sit'],
   tea: ['tea', 'sit'],
   look_up: ['look_up', 'idle'],
   gassho: ['gassho', 'idle_chasu', 'idle'],
@@ -33,8 +49,9 @@ export const MOVING = 0.15; // m/s — 이보다 빠르면 걷는 동작 (절차
  * @param o.has      (클립 이름) => 있는지
  * @returns 클립 이름
  */
-export function pickMotion({ seq = null, state = 'idle', speed = 0, zone = null, has }) {
+export function pickMotion({ seq = null, state = 'idle', speed = 0, zone = null, seated = false, has }) {
   const ok = (name) => (FALLBACK[name] || [name]).find((n) => has(n)) || (has('idle') ? 'idle' : null);
+  if (seq === 'incense' && seated) return ok('serve_tea'); // 다실 선사가 앉은 채 두 손으로 찻잔을 건넨다
   if (seq && ONCE[seq]) return ok(ONCE[seq]);
   const precinct = PRECINCT.has(zone);
   if (speed > MOVING) {
@@ -43,8 +60,11 @@ export function pickMotion({ seq = null, state = 'idle', speed = 0, zone = null,
   }
   switch (state) {
     case 'sit':
-    case 'meditate':
       return ok('sit');
+    case 'meditate':
+      return ok('meditate'); // 가부좌로 염주를 한 알씩
+    case 'sutra':
+      return ok('sutra');
     case 'tea':
       return ok('tea');
     case 'lookUp':
@@ -57,7 +77,7 @@ export function pickMotion({ seq = null, state = 'idle', speed = 0, zone = null,
 }
 
 /** 앉은 자세 (큰절은 서서 시작해 서서 끝나므로 선 자세로 본다) */
-export const SEATED = new Set(['sit', 'tea']);
+export const SEATED = new Set(['sit', 'tea', 'meditate', 'sutra', 'serve_tea']);
 const VIA = new Set(['stand_up', 'sit_down']);
 
 /**
@@ -81,22 +101,21 @@ export const PROSTRATE = {
 };
 
 /**
- * 클립 사이 크로스페이드(초) — tools/qa/avatar-fade.mjs 로 잰 값 (2026-11-06, 1.1m/s 걷기·7.6초 큰절 monk.glb):
+ * 클립 사이 크로스페이드(초) — tools/qa/avatar-fade.mjs 로 잰 값 (2026-11-06, monk.glb 클립 20개):
  * 섞는 동안 뼈 회전 속도·골반 이동 속도의 최댓값이 '두 클립 자체의 최댓값, 반배의 회전 최댓값(352°/s),
- * 큰절의 골반 최댓값(0.43m/s)' 가운데 큰 것을 넘지 않는 가장 짧은 길이 (쌍마다 잰 값 중 가장 긴 것으로 묶음).
- *   서기↔걷기 0.25(0.2~0.25) · 걷기↔차수걷기↔합장걷기 0.4 · 반배 시작 0.5 / 끝 0.25 · 큰절 시작 0.5 / 끝 0.1
- *   일어서기·앉기 클립 앞뒤 0.15(0.1~0.15) · 그 클립 없이 앉고 설 때(걸어 나갈 때) 0.8
+ * 큰절의 골반 최댓값(0.43m/s)' 가운데 큰 것을 넘지 않는 가장 짧은 길이.
+ *   서기↔걷기 0.25 · 걷기끼리 0.4 · 일어서기·앉기 클립 앞뒤 0.15 · 그 클립 없이 앉고 설 때(걸어 나갈 때) 0.8
+ *   IN: 이 클립으로 들어갈 때, OUT: 이 클립에서 나올 때 (쌍마다 잰 값)
  */
-export const FADE = { move: 0.25, walkSwap: 0.4, bowIn: 0.5, bowOut: 0.25, prostrateIn: 0.5, prostrateOut: 0.1, via: 0.15, seat: 0.8 };
+export const FADE = { move: 0.25, walkSwap: 0.4, via: 0.15, seat: 0.8 };
+const IN = { bow_half: 0.5, prostrate: 0.5, incense: 0.15, offer_stone: 0.1, write_tile: 0.2, hang_lantern: 0.6, gassho: 0.4, tea: 0.2, meditate: 0.4, serve_tea: 0.1, sutra: 0.3 };
+const OUT = { bow_half: 0.25, prostrate: 0.1, incense: 0.15, offer_stone: 0.15, write_tile: 0.15, hang_lantern: 0.15, tea: 0.2, meditate: 0.4, serve_tea: 0.1 };
 
 export function fadeFor(from, to) {
   if (!from) return 0;
+  if (VIA.has(from) && SEATED.has(to)) return Math.max(FADE.via, IN[to] ?? 0); // 앉기 → 사경은 0.3
   if (VIA.has(from) || VIA.has(to)) return FADE.via;
   if (SEATED.has(from) !== SEATED.has(to)) return FADE.seat;
-  if (to === 'bow_half') return FADE.bowIn;
-  if (from === 'bow_half') return FADE.bowOut;
-  if (to === 'prostrate') return FADE.prostrateIn;
-  if (from === 'prostrate') return FADE.prostrateOut;
   if (from.startsWith('walk') && to.startsWith('walk')) return FADE.walkSwap;
-  return FADE.move;
+  return Math.max(IN[to] ?? 0, OUT[from] ?? 0) || FADE.move;
 }

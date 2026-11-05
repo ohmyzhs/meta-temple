@@ -28,7 +28,9 @@ test('기존 상태 이름은 모두 클립이 붙는다 (없는 클립은 가�
     assert.ok(TRIAL.includes(pickMotion({ state, has })), state);
   }
   assert.equal(pickMotion({ state: 'tea', has }), 'sit');
+  assert.equal(pickMotion({ state: 'meditate', has }), 'sit');
   assert.equal(pickMotion({ seq: 'incense', has }), 'bow_half');
+  assert.equal(pickMotion({ seq: 'offer_stone', has }), 'bow_half');
   assert.equal(pickMotion({ state: 'lookUp', zone: 'COURTYARD', has }), 'idle');
 });
 
@@ -72,4 +74,30 @@ test('큰절 시각이 구운 GLB(monk.json)와 같다', async () => {
   for (const n of ['stand_up', 'sit_down']) assert.ok(meta.clips[n], n);
   assert.ok(!meta.clips.run, '달리기는 없앴다');
   assert.ok(Math.abs(meta.clips.walk.speed - 1.1) < 1e-6, '걷기는 게임 이동 속도(1.1m/s)로 굽는다');
+});
+
+test('넓힌 동작: 상태마다 제 클립, 다실 선사는 앉은 채 찻잔을 건넨다', async () => {
+  const { pickMotion, ACTION_STATES } = await import('./avatarMotion.js');
+  const { readFile } = await import('node:fs/promises');
+  const meta = JSON.parse(await readFile(new URL('../../assets/avatars/monk.json', import.meta.url), 'utf8'));
+  const has = (n) => !!meta.clips[n];
+  for (const [o, want] of [[{ state: 'meditate' }, 'meditate'], [{ state: 'tea' }, 'tea'], [{ state: 'sutra' }, 'sutra'], [{ state: 'lookUp' }, 'look_up'],
+    [{ state: 'circumambulate' }, 'gassho'], [{ seq: 'incense' }, 'incense'], [{ seq: 'incense', seated: true }, 'serve_tea'],
+    [{ seq: 'offer_stone' }, 'offer_stone'], [{ seq: 'write_tile' }, 'write_tile'], [{ seq: 'hang_lantern' }, 'hang_lantern']]) {
+    assert.equal(pickMotion({ ...o, has }), want, JSON.stringify(o));
+  }
+  // 서버 허용 목록과 같은 이름들 (server.js ACTIONS)
+  const server = await readFile(new URL('../../../server/server.js', import.meta.url), 'utf8');
+  for (const a of ACTION_STATES) assert.ok(server.includes(`'${a}'`), `server ACTIONS 에 ${a}`);
+});
+
+test('연꽃 등불 정령: 없는 동작은 가까운 것으로', async () => {
+  const { pickMotion } = await import('./avatarMotion.js');
+  const { readFile } = await import('node:fs/promises');
+  const meta = JSON.parse(await readFile(new URL('../../assets/avatars/spirit.json', import.meta.url), 'utf8'));
+  const has = (n) => !!meta.clips[n];
+  assert.equal(pickMotion({ speed: 1.1, zone: 'COURTYARD', has }), 'walk');
+  assert.equal(pickMotion({ state: 'meditate', has }), 'sit');
+  assert.equal(pickMotion({ seq: 'write_tile', has }), 'bow_half');
+  assert.equal(pickMotion({ state: 'circumambulate', has }), 'idle');
 });

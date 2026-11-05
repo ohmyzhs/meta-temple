@@ -440,8 +440,186 @@ def clip_sit_down():
     return {'name': 'sit_down', 'frames': round(SITUP_T * FPS), 'keys': keys, 'meta': {'rustle': SITUP_RUSTLE}}
 
 
+# ───────────────────────── 신행 동작 (넓힘) ─────────────────────────
+def stand(**kw):
+    d = dict(hips_loc=(0, 0, STAND_Z))
+    d.update(kw)
+    return d
+
+
+def H(space, pos, aim, palm):
+    return dict(space=space, pos=pos, aim=aim, palm=palm)
+
+
+def breathe_loop(name, base, T=4.0, n=4, head=(0, 0, 0), extra=None):
+    """자세 하나에 숨 (고리)."""
+    keys = []
+    for i in range(n + 1):
+        t = T * i / n
+        br = 0.5 - 0.5 * math.cos(TAU * t / T)
+        d = dict(base)
+        d.update(chest=(-1.5 * br, 0, 0), head=(head[0] - 1.0 * br, head[1], head[2] + 1.5 * math.sin(TAU * t / T)))
+        if extra:
+            d.update(extra(t))
+        keys.append((t, P(d)))
+    return {'name': name, 'frames': round(T * FPS), 'loop': True, 'keys': keys}
+
+
+# 헌향: 향 가운데를 잡고, 불을 붙일 때 왼손으로 오른손을 받쳐 든다. 이마 높이까지 올린 뒤 향로에 꽂는다 (법보신문 「합장과 절의 의미」).
+INCENSE_T = 3.4  # 절차식 SEQ 와 같은 길이 (main.js 가 1.4초에 향로 연기를 올린다)
+
+
+def clip_incense():
+    hold_r = H('chest', (-0.03, -0.2, 0.53), (0.15, -0.55, 0.8), (1, 0, 0))
+    under_l = H('chest', (0.0, -0.17, 0.47), (-0.8, -0.55, 0.1), (0, 0, 1))
+    up_r = H('chest', (-0.02, -0.215, 0.76), (0.1, -0.5, 0.85), (1, 0, 0))
+    up_l = H('chest', (0.01, -0.19, 0.69), (-0.8, -0.55, 0.1), (0, 0, 1))
+    plant_r = H('chest', (-0.03, -0.25, 0.47), (0, -0.4, -0.9), (1, 0, 0))
+    grip = {'fingers.R': 55.0, 'thumb.R': (-25, 0, 0), 'fingers.L': 10.0, 'pole_arm.L': (0.36, 0.1, 0.4), 'pole_arm.R': (-0.36, 0.1, 0.4)}
+    k = [(0.0, P(HANG_H, stand(head=(2, 0, 0)))),
+         (0.5, P(GASSHO_H, stand(head=(4, 0, 0)))),
+         (0.95, P(grip, stand(head=(8, 0, 0)), **{'hand.R': hold_r, 'hand.L': under_l})),
+         (1.45, P(grip, stand(head=(-4, 0, 0), chest=(-3, 0, 0)), **{'hand.R': up_r, 'hand.L': up_l})),
+         (1.75, P(grip, stand(head=(6, 0, 0)), **{'hand.R': up_r, 'hand.L': up_l})),
+         (2.35, P(grip, stand(hips=(14, 0, 0), spine=(8, 0, 0), head=(8, 0, 0), hips_loc=(0, 0.015, STAND_Z - 0.004)),
+                  **{'hand.R': plant_r, 'hand.L': under_l})),
+         (2.8, P(GASSHO_H, stand(head=(4, 0, 0)))),
+         (INCENSE_T, P(GASSHO_H, stand(head=(3, 0, 0))))]
+    return {'name': 'incense', 'frames': round(INCENSE_T * FPS), 'keys': k, 'meta': {'propFrom': 0.8, 'propTo': 2.5}}
+
+
+# 다선: 찻잔은 두 손으로 — 오른손바닥에 잔을 얹고 왼손으로 받친다. 향을 맡고 천천히 마신다 (7초 고리).
+TEA_T = 7.0
+SIT_BASE = dict(hips_loc=(0, 0.02, 0.08), hips=(6, 0, 0), spine=(-3, 0, 0), neck=(4, 0, 0))
+
+
+def clip_tea():
+    lap_r = H('root', (-0.035, -0.175, 0.17), (0.55, -0.8, 0.1), (0, 0, 1))
+    lap_l = H('root', (0.03, -0.165, 0.155), (-0.55, -0.8, 0.1), (0, 0, 1))
+    sip_r = H('chest', (-0.03, -0.215, 0.43), (0.55, -0.8, 0.15), (0, 0.1, 1))
+    sip_l = H('chest', (0.025, -0.205, 0.415), (-0.55, -0.8, 0.15), (0, 0.1, 1))
+    arms = {'fingers.L': 18.0, 'fingers.R': 25.0, 'pole_arm.L': (0.4, 0.05, 0.2), 'pole_arm.R': (-0.4, 0.05, 0.2)}
+    rest = P(SIT_LEGS, arms, SIT_BASE, chest=(-2, 0, 0), head=(8, 0, 0), **{'hand.R': lap_r, 'hand.L': lap_l})
+    smell = P(SIT_LEGS, arms, SIT_BASE, chest=(-1, 0, 0), head=(14, 0, 0), **{'hand.R': sip_r, 'hand.L': sip_l})
+    sip = P(SIT_LEGS, arms, SIT_BASE, chest=(-3, 0, 0), head=(-6, 0, 0), **{'hand.R': sip_r, 'hand.L': sip_l})
+    k = [(0.0, rest), (3.2, rest), (4.0, smell), (4.5, smell), (4.9, sip), (5.6, sip), (6.3, rest), (TEA_T, rest)]
+    return {'name': 'tea', 'frames': round(TEA_T * FPS), 'loop': True, 'keys': k}
+
+
+def clip_serve_tea():
+    """다실 선사가 앉은 채 두 손으로 찻잔을 건넨다 (2.4초)."""
+    give = H('chest', (-0.02, -0.27, 0.42), (0.5, -0.85, 0.1), (0, 0, 1))
+    give_l = H('chest', (0.03, -0.26, 0.4), (-0.5, -0.85, 0.1), (0, 0, 1))
+    arms = {'fingers.L': 18.0, 'fingers.R': 25.0, 'pole_arm.L': (0.4, 0.05, 0.2), 'pole_arm.R': (-0.4, 0.05, 0.2)}
+    rest = P(SIT_LEGS, MUDRA, SIT_BASE, chest=(-2, 0, 0), head=(8, 0, 0))
+    lean = P(SIT_LEGS, arms, SIT_BASE, hips=(22, 0, 0), spine=(8, 0, 0), chest=(2, 0, 0), head=(10, 0, 0), **{'hand.R': give, 'hand.L': give_l})
+    k = [(0.0, rest), (0.7, lean), (1.4, lean), (2.0, rest), (2.4, rest)]
+    return {'name': 'serve_tea', 'frames': 72, 'keys': k}
+
+
+# 염주: 가부좌로 앉아 오른손 엄지로 한 알씩 당긴다 (1.1초에 한 알 — 독송 목탁 박과 같은 빠르기), 왼손은 무릎 위
+MALA_T = 5.5
+
+
+def clip_meditate():
+    mala_r = H('chest', (-0.03, -0.18, 0.42), (0.35, -0.45, 0.82), (0.9, 0.3, 0))
+    lap_l = H('root', (0.06, -0.16, 0.135), (-1, -0.15, 0.05), (0, 0, 1))
+    keys = []
+    for i in range(11):
+        t = MALA_T * i / 10
+        pull = i % 2  # 0 = 엄지 폄, 1 = 한 알 당김
+        br = 0.5 - 0.5 * math.cos(TAU * t / MALA_T)
+        keys.append((t, P(SIT_LEGS, SIT_BASE, chest=(-2 - 1.4 * br, 0, 0), head=(10 - 1.0 * br, 0, 0),
+                          **{'hand.R': mala_r, 'hand.L': lap_l, 'fingers.R': 35.0, 'fingers.L': 4.0,
+                             'thumb.R': (-10 - 30 * pull, 0, 0), 'pole_arm.L': (0.4, 0.05, 0.2), 'pole_arm.R': (-0.4, 0.1, 0.25)})))
+    return {'name': 'meditate', 'frames': round(MALA_T * FPS), 'loop': True, 'keys': keys, 'meta': {'beadEvery': 1.1}}
+
+
+# 돌탑: 합장하고, 쪼그려 앉아 두 손으로 조약돌을 받쳐 얹은 뒤, 일어나 합장 (3초)
+STONE_T = 3.0
+
+
+def clip_offer_stone():
+    cup_r = H('chest', (-0.04, -0.2, 0.46), (0.5, -0.8, 0.2), (0.2, 0, 1))
+    cup_l = H('chest', (0.04, -0.2, 0.46), (-0.5, -0.8, 0.2), (-0.2, 0, 1))
+    place_r = H('root', (-0.04, -0.33, 0.1), (0.3, -0.9, -0.2), (0.2, 0, 1))
+    place_l = H('root', (0.04, -0.33, 0.1), (-0.3, -0.9, -0.2), (-0.2, 0, 1))
+    hands = {'fingers.L': 25.0, 'fingers.R': 25.0, 'pole_arm.L': (0.4, 0.0, 0.3), 'pole_arm.R': (-0.4, 0.0, 0.3)}
+    squat = dict(hips_loc=(0, 0.04, 0.2), hips=(36, 0, 0), spine=(12, 0, 0), head=(14, 0, 0),
+                 **{'foot.L': foot(0.085, 0.0, J['ankle.L'][2], 0), 'foot.R': foot(-0.085, 0.0, J['ankle.L'][2], 0),
+                    'pole_leg.L': (0.3, -0.5, 0.25), 'pole_leg.R': (-0.3, -0.5, 0.25)})
+    k = [(0.0, P(HANG_H, stand(head=(2, 0, 0)))),
+         (0.45, P(hands, stand(head=(10, 0, 0)), **{'hand.R': cup_r, 'hand.L': cup_l})),
+         (1.1, P(hands, squat, **{'hand.R': cup_r, 'hand.L': cup_l})),
+         (1.5, P(hands, squat, **{'hand.R': place_r, 'hand.L': place_l})),
+         (1.8, P(hands, squat, **{'hand.R': place_r, 'hand.L': place_l})),
+         (2.35, P(GASSHO_H, stand(head=(8, 0, 0)))),
+         (STONE_T, P(GASSHO_H, stand(head=(4, 0, 0))))]
+    return {'name': 'offer_stone', 'frames': round(STONE_T * FPS), 'keys': k, 'meta': {'propFrom': 0.2, 'propTo': 1.65}}
+
+
+# 기와: 왼손에 기와를 들고 오른손 붓으로 세 획을 긋고, 두 손으로 받들어 올린 뒤 합장 (3.2초)
+TILE_T = 3.2
+
+
+def clip_write_tile():
+    tile_l = H('chest', (0.05, -0.21, 0.48), (-0.6, -0.75, 0.2), (0.15, 0.2, 1))
+    brush = lambda dx, dz: H('chest', (-0.03 + dx, -0.25, 0.52 + dz), (0.2, -0.3, -0.93), (0.9, 0, 0.3))
+    lift_l = H('chest', (0.05, -0.22, 0.6), (-0.6, -0.75, 0.2), (0.15, 0.2, 1))
+    lift_r = H('chest', (-0.04, -0.22, 0.6), (0.6, -0.75, 0.2), (-0.15, 0.2, 1))
+    hands = {'fingers.R': 50.0, 'thumb.R': (-25, 0, 0), 'fingers.L': 15.0, 'pole_arm.L': (0.36, 0.1, 0.4), 'pole_arm.R': (-0.36, 0.1, 0.4)}
+    k = [(0.0, P(HANG_H, stand(head=(2, 0, 0))))]
+    k.append((0.45, P(hands, stand(head=(16, 0, 0)), **{'hand.L': tile_l, 'hand.R': brush(0.0, 0.03)})))
+    for i, (a, b) in enumerate(((0.75, 1.0), (1.25, 1.5), (1.75, 2.0))):  # 세 획
+        k.append((a, P(hands, stand(head=(18, 0, 0)), **{'hand.L': tile_l, 'hand.R': brush(-0.02 + 0.02 * i, 0.02)})))
+        k.append((b, P(hands, stand(head=(18, 0, 0)), **{'hand.L': tile_l, 'hand.R': brush(0.0 + 0.02 * i, -0.02)})))
+    k.append((2.45, P(hands, stand(head=(2, 0, 0), chest=(-3, 0, 0)), **{'hand.L': lift_l, 'hand.R': lift_r, 'fingers.R': 15.0})))
+    k.append((2.85, P(GASSHO_H, stand(head=(6, 0, 0)))))
+    k.append((TILE_T, P(GASSHO_H, stand(head=(4, 0, 0)))))
+    return {'name': 'write_tile', 'frames': round(TILE_T * FPS), 'keys': k, 'meta': {'propFrom': 0.25, 'propTo': 2.6}}
+
+
+# 연등: 두 손으로 등을 가슴 앞에 들었다가 머리 위로 올려 놓아 보내고, 올라가는 등을 바라본 뒤 합장 (3초)
+LANTERN_T = 3.0
+
+
+def clip_hang_lantern():
+    hold_r = H('chest', (-0.05, -0.21, 0.5), (0.45, -0.85, 0.2), (0.3, 0, 1))
+    hold_l = H('chest', (0.05, -0.21, 0.5), (-0.45, -0.85, 0.2), (-0.3, 0, 1))
+    up_r = H('chest', (-0.07, -0.13, 0.9), (0.2, -0.3, 0.93), (0.3, 0.2, 0.9))
+    up_l = H('chest', (0.07, -0.13, 0.9), (-0.2, -0.3, 0.93), (-0.3, 0.2, 0.9))
+    hands = {'fingers.L': 15.0, 'fingers.R': 15.0, 'pole_arm.L': (0.4, 0.1, 0.5), 'pole_arm.R': (-0.4, 0.1, 0.5)}
+    k = [(0.0, P(HANG_H, stand(head=(2, 0, 0)))),
+         (0.35, P(hands, stand(head=(8, 0, 0)), **{'hand.R': hold_r, 'hand.L': hold_l})),
+         (0.85, P(hands, stand(head=(-14, 0, 0), neck=(-6, 0, 0), chest=(-4, 0, 0)), **{'hand.R': up_r, 'hand.L': up_l})),
+         (1.1, P(hands, stand(head=(-18, 0, 0), neck=(-8, 0, 0), chest=(-4, 0, 0)), **{'hand.R': up_r, 'hand.L': up_l})),
+         (1.6, P(GASSHO_H, stand(head=(-22, 0, 0), neck=(-8, 0, 0), chest=(-4, 0, 0)))),
+         (2.3, P(GASSHO_H, stand(head=(-20, 0, 0), neck=(-8, 0, 0), chest=(-3, 0, 0)))),
+         (LANTERN_T, P(GASSHO_H, stand(head=(4, 0, 0))))]
+    return {'name': 'hang_lantern', 'frames': round(LANTERN_T * FPS), 'keys': k, 'meta': {'propFrom': 0.0, 'propTo': 1.05}}
+
+
+# 사경: 서안 앞에 반가부좌로 앉아 몸을 숙이고, 왼손은 종이를 누르고 오른손 붓으로 천천히 쓴다 (4초 고리)
+SUTRA_T = 4.0
+
+
+def clip_sutra():
+    paper_l = H('root', (0.11, -0.3, 0.2), (0, -1, -0.1), (0, 0, -1))
+    pen = lambda dx, dz: H('root', (-0.06 + dx, -0.31, 0.24 + dz), (0.15, -0.35, -0.92), (0.95, 0, 0.3))
+    base = dict(SIT_BASE, hips=(18, 0, 0), spine=(8, 0, 0), chest=(4, 0, 0), neck=(6, 0, 0), head=(16, 0, 0))
+    hands = {'fingers.R': 50.0, 'thumb.R': (-25, 0, 0), 'fingers.L': 5.0, 'pole_arm.L': (0.4, 0.0, 0.25), 'pole_arm.R': (-0.4, 0.0, 0.25)}
+    k = []
+    for i, (dx, dz) in enumerate([(0, 0.02), (0.005, -0.02), (0.012, 0.015), (0.015, -0.025), (0.02, 0.0), (0.012, 0.02), (0.006, -0.015), (0.0, 0.01), (0, 0.02)]):
+        k.append((SUTRA_T * i / 8, P(SIT_LEGS, base, hands, **{'hand.L': paper_l, 'hand.R': pen(dx, dz)})))
+    return {'name': 'sutra', 'frames': round(SUTRA_T * FPS), 'loop': True, 'keys': k}
+
+
 CLIPS = [
     clip_idle('idle', HANG_H), clip_idle('idle_chasu', CHASU),
     clip_walk('walk', 'walk'), clip_walk('walk_chasu', 'chasu'), clip_walk('walk_gassho', 'gassho'),
     clip_bow_half(), clip_prostrate(), clip_sit(), clip_stand_up(), clip_sit_down(),
+    breathe_loop('gassho', P(GASSHO_H, stand()), head=(4, 0, 0)),
+    breathe_loop('look_up', P(CHASU, stand(neck=(-8, 0, 0))), head=(-22, 0, 0)),
+    clip_incense(), clip_tea(), clip_serve_tea(), clip_meditate(),
+    clip_offer_stone(), clip_write_tile(), clip_hang_lantern(), clip_sutra(),
 ]

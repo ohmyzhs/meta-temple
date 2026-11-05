@@ -41,7 +41,8 @@ async (page) => {
     }
     for (const [id, r] of A.remote) out.push(`${r.av.name}: ${r.av.rig ? '블렌더 ' + r.av.rig.name : '절차식 ' + r.av.style + '/' + r.av.state} 빠르기 ${r.av.speed.toFixed(2)}`);
     const walker = A.remote.get('p2').av;
-    const ok = A.remote.get('p1').av.rig?.name === 'prostrate' && walker.rig?.name?.startsWith('walk') && walker.speed > 0.6 && A.remote.get('p4').av.rig?.name === 'idle' && A.remote.get('p3').av.rig?.name === 'sit';
+    const ok = A.remote.get('p1').av.rig?.name === 'prostrate' && walker.rig?.name?.startsWith('walk') && walker.speed > 0.6 && A.remote.get('p4').av.rig?.name === 'idle' && A.remote.get('p3').av.rig?.name === 'meditate' &&
+      A.remote.get('p5').av.rig?.name === 'gassho' && !!A.remote.get('p6').av.rig;
     // 같은 큰절을 다시 (순번만 바뀜) → 처음부터 다시
     const p1 = A.remote.get('p1').av;
     step(40);

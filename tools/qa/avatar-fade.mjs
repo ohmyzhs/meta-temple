@@ -20,7 +20,11 @@ async (page) => {
       ['idle', 'sit', 0], ['sit', 'idle', 0], ['sit', 'prostrate', 0], ['prostrate', 'sit', 0],
       ['idle_chasu', 'bow_half', 0], ['bow_half', 'idle_chasu', 0], ['idle_chasu', 'prostrate', 0], ['prostrate', 'idle_chasu', 0],
       ['idle', 'bow_half', 0], ['bow_half', 'idle', 0], ['walk_gassho', 'idle_chasu', 1.1], ['idle_chasu', 'sit', 0], ['sit', 'idle_chasu', 0],
-      ['sit', 'stand_up', 0], ['stand_up', 'prostrate', 0], ['stand_up', 'idle_chasu', 0], ['idle_chasu', 'sit_down', 0], ['sit_down', 'sit', 0], ['prostrate', 'sit_down', 0]
+      ['sit', 'stand_up', 0], ['stand_up', 'prostrate', 0], ['stand_up', 'idle_chasu', 0], ['idle_chasu', 'sit_down', 0], ['sit_down', 'sit', 0], ['prostrate', 'sit_down', 0],
+      ['idle_chasu', 'incense', 0], ['incense', 'idle_chasu', 0], ['idle_chasu', 'offer_stone', 0], ['offer_stone', 'idle_chasu', 0],
+      ['idle_chasu', 'write_tile', 0], ['write_tile', 'idle_chasu', 0], ['idle_chasu', 'hang_lantern', 0], ['hang_lantern', 'idle_chasu', 0],
+      ['sit', 'tea', 0], ['tea', 'sit', 0], ['sit', 'meditate', 0], ['meditate', 'sit', 0], ['sit', 'serve_tea', 0], ['serve_tea', 'sit', 0],
+      ['idle_chasu', 'gassho', 0], ['gassho', 'walk_gassho', 1.1], ['idle', 'look_up', 0], ['look_up', 'idle', 0], ['sit_down', 'sutra', 0]
     ];
     // 회전 속도 최댓값 (°/s, 모든 뼈) 과 골반 이동 속도 (m/s)
     const run = (a, b, fade, speed) => {
