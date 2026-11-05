@@ -108,13 +108,14 @@ for (const [L, dir] of [[sun, meta.sunDirThree], [moon, meta.moonDirThree]]) {
   scene.add(L, L.target);
 }
 
-// 달 원반 + 달무리 (밤하늘 HDRI 에는 달이 없다 — 스펙: 밝은 달과 달무리). 크기는 보이게 키운 설계값.
+// 달 원반 + 달무리 (밤하늘 HDRI 에는 달이 없다 — 스펙: 밝은 달과 달무리). 원반 2.4°(실제 약 0.5°)는 보이게 키운 설계값.
 function glowTex() {
   const c = Object.assign(document.createElement('canvas'), { width: 128, height: 128 });
   const g = c.getContext('2d');
   const r = g.createRadialGradient(64, 64, 0, 64, 64, 64);
   r.addColorStop(0, 'rgba(255,255,255,1)');
-  r.addColorStop(0.2, 'rgba(225,235,255,.35)');
+  r.addColorStop(0.12, 'rgba(235,240,255,.55)');
+  r.addColorStop(0.35, 'rgba(200,215,255,.18)');
   r.addColorStop(1, 'rgba(160,180,230,0)');
   g.fillStyle = r;
   g.fillRect(0, 0, 128, 128);
@@ -124,10 +125,10 @@ function glowTex() {
 }
 const moonSky = new THREE.Group();
 const MOON_D = 1500;
-const disc = new THREE.Mesh(new THREE.CircleGeometry(MOON_D * Math.tan(THREE.MathUtils.degToRad(0.8)), 48),
-  new THREE.MeshBasicMaterial({ color: 0xf4f1e8, toneMapped: false, fog: false }));
-const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex(), blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, opacity: 0.55 }));
-halo.scale.setScalar(MOON_D * Math.tan(THREE.MathUtils.degToRad(9)) * 2);
+const disc = new THREE.Mesh(new THREE.CircleGeometry(MOON_D * Math.tan(THREE.MathUtils.degToRad(1.2)), 48),
+  new THREE.MeshBasicMaterial({ color: 0xfffbf0, toneMapped: false, fog: false, depthWrite: false }));
+const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex(), blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, opacity: 0.9 }));
+halo.scale.setScalar(MOON_D * Math.tan(THREE.MathUtils.degToRad(12)) * 2);
 moonSky.add(halo, disc);
 scene.add(moonSky);
 
@@ -213,7 +214,7 @@ function loop() {
     frames = 0;
     last = now;
     const total = Object.values(bytes()).reduce((a, b) => a + b, 0);
-    info.textContent = `받은 용량 ${(total / 1048576).toFixed(2)}MB · ${fps.toFixed(0)}fps · 삼각형 ${renderer.info.render.triangles.toLocaleString()} · 그리기 ${renderer.info.render.calls}`;
+    info.textContent = `받은 용량 ${(total / 1e6).toFixed(2)}MB · ${fps.toFixed(0)}fps · 삼각형 ${renderer.info.render.triangles.toLocaleString()} · 그리기 ${renderer.info.render.calls}`;
   }
 }
 loop();
@@ -259,5 +260,5 @@ window.__spike = {
     for (let i = 0; i < p.length; i += 4) s += 0.2126 * p[i] + 0.7152 * p[i + 1] + 0.0722 * p[i + 2];
     return +(s / (w * h) / 255).toFixed(3);
   },
-  renderer, scene, camera, state
+  renderer, scene, camera, controls, state
 };

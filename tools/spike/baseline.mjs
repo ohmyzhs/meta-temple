@@ -8,12 +8,14 @@ async (page) => {
     { name: 'courtyard', player: [5.2, 4.4], pos: [5.0, 2.1, 2.6], look: [1, 6.5, -16] },
     { name: 'hall', player: [1.5, -20.8], pos: [1.2, 4.7, -21.0], look: [0, 4.2, -28.4] }
   ];
-  const VIEWS = [[1280, 800, 1], [390, 844, 1], [390, 844, 4]]; // 마지막: CPU 4배 감속(CDP) — measure.mjs 와 같은 조건
-  const cdp = await page.context().newCDPSession(page);
+  // [너비, 높이, CPU 감속, devicePixelRatio] — measure.mjs 와 같은 조건
+  const VIEWS = [[1280, 800, 1, 1], [390, 844, 1, 1], [390, 844, 4, 1], [390, 844, 1, 2]];
   const results = [];
-  for (const [w, h, thr] of VIEWS) {
-    await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
-    await page.setViewportSize({ width: w, height: h });
+  const browser = page.context().browser();
+  for (const [w, h, thr, dpr] of VIEWS) {
+    const ctx = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: dpr });
+    page = await ctx.newPage();
+    const cdp = await ctx.newCDPSession(page);
     await page.goto('http://localhost:8083/?q=high');
     await page.waitForFunction(() => window.temple && !document.querySelector('#intro-enter').disabled, null, { timeout: 90000 });
     const gpu = await page.evaluate(async () => {
@@ -74,12 +76,12 @@ async (page) => {
           requestAnimationFrame(tick);
         }));
         const file = `${OUT}/current-${s.name}-${String(hour).padStart(2, '0')}h-${w}x${h}.png`;
-        if (thr === 1) await page.screenshot({ path: file });
-        results.push({ view: `${w}x${h}`, cpuThrottle: thr, hour, shot: s.name, ...perf });
+        if (thr === 1 && dpr === 1) await page.screenshot({ path: file });
+        results.push({ view: `${w}x${h}`, dpr, cpuThrottle: thr, hour, shot: s.name, ...perf });
       }
     }
-    results.push({ view: `${w}x${h}`, cpuThrottle: thr, gpu });
+    results.push({ view: `${w}x${h}`, dpr, cpuThrottle: thr, gpu });
+    await ctx.close();
   }
-  await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
   return JSON.stringify(results, null, 1);
 }
