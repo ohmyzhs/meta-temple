@@ -28,7 +28,8 @@ import {
   columnGeometry
 } from './architecture.js';
 import { makeEmitter } from './effects.js';
-import { paintingTexture, ceilingTexture, faceTexture, tileWishTexture, softDotTexture, latticeTextures, graniteTextures } from './textures.js';
+import { buildBuddhaStatue } from './buddha.js';
+import { taenghwaTexture, ceilingTexture, sumidanTexture, canopyTexture, valanceTexture, tileWishTexture, softDotTexture, latticeTextures, graniteTextures } from './textures.js';
 
 function rand(seed) {
   let s = seed;
@@ -389,7 +390,7 @@ export class Temple {
 
     // 우물천장
     const ct = ceilingTexture();
-    ct.repeat.set(10, 6);
+    ct.repeat.set(20, 12); // 우물 한 칸 ≈ 0.8m
     const ceil = new THREE.Mesh(new THREE.PlaneGeometry(h.x1 - h.x0, h.z1 - h.z0), new THREE.MeshStandardMaterial({ map: ct, roughness: 0.9 }));
     ceil.rotation.x = Math.PI / 2;
     ceil.position.set(0, fy + colH - 0.02, (h.z0 + h.z1) / 2);
@@ -416,26 +417,103 @@ export class Temple {
       return y + hh;
     };
     let ay = tier(12.4, 0.3, 2.5, fy, altarZ - 0.9, m.woodDark);
-    ay = tier(12, 0.75, 2.2, ay, altarZ - 0.95, m.red);
+    // 가운데 단: 앞·옆에 모란·연꽃 판넬 (수미단)
+    const panel = sumidanTexture().clone();
+    panel.needsUpdate = true;
+    panel.repeat.set(10, 1);
+    const panelSide = sumidanTexture().clone();
+    panelSide.needsUpdate = true;
+    panelSide.repeat.set(2, 1);
+    const pm = new THREE.MeshStandardMaterial({ map: panel, roughness: 0.55 });
+    const pms = new THREE.MeshStandardMaterial({ map: panelSide, roughness: 0.55 });
+    {
+      const b = new THREE.Mesh(new THREE.BoxGeometry(12, 0.75, 2.2), [pms, pms, m.red, m.red, pm, m.red]);
+      b.position.set(0, ay + 0.375, altarZ - 0.95);
+      b.castShadow = b.receiveShadow = true;
+      this.scene.add(b);
+      ay += 0.75;
+    }
     const trim = new THREE.Mesh(new THREE.BoxGeometry(12.1, 0.08, 2.3), m.gold);
     trim.position.set(0, ay - 0.06, altarZ - 0.95);
     this.scene.add(trim);
     ay = tier(12.3, 0.14, 2.4, ay, altarZ - 0.95, m.woodDark);
     addBoxCollider(-6.3, altarZ - 2.2, 6.3, altarZ + 0.4);
 
-    // 삼존불
-    const buddha = buildBuddha(1.0, false);
+    // 삼존: 본존 석가모니불(항마촉지인)과 합장한 협시보살 (world/buddha.js 에서 조각)
+    const buddha = buildBuddhaStatue('buddha', { quality: this.quality });
+    buddha.scale.setScalar(0.95);
     buddha.position.set(0, ay, altarZ - 1.0);
     this.scene.add(buddha);
     for (const sx of [-1, 1]) {
-      const bod = buildBuddha(0.78, true);
+      const bod = buildBuddhaStatue('bodhisattva', { quality: this.quality });
+      bod.scale.setScalar(0.78);
       bod.position.set(sx * 3.6, ay, altarZ - 0.9);
       this.scene.add(bod);
     }
-    // 후불탱화
-    const painting = new THREE.Mesh(new THREE.PlaneGeometry(11.2, 3.7), new THREE.MeshStandardMaterial({ map: paintingTexture(), roughness: 0.85 }));
-    painting.position.set(0, fy + 2.35, h.z0 + 0.12);
-    this.scene.add(painting);
+    // 후불벽: 짙은 붉은 옻칠 판 위에 세 폭 탱화 (가운데 영산회상도, 양옆 보살회상도), 금테 액자
+    const wallMat = new THREE.MeshStandardMaterial({ color: 0x4a1610, roughness: 0.55, metalness: 0.05 });
+    const back = new THREE.Mesh(new THREE.PlaneGeometry(h.x1 - h.x0 - 0.3, colH - 0.05), wallMat);
+    back.position.set(0, fy + colH / 2, h.z0 + 0.1);
+    this.scene.add(back);
+    const frameMat = new THREE.MeshStandardMaterial({ color: 0x2a120c, roughness: 0.5 });
+    const trimMat = m.gold;
+    const bar = (cx, cy, bw, bh, mat, z, d) => {
+      const b = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, d), mat);
+      b.position.set(cx, cy, z);
+      this.scene.add(b);
+    };
+    const hang = (x, w, hgt, y, tex) => {
+      const pic = new THREE.Mesh(new THREE.PlaneGeometry(w, hgt), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.82 }));
+      pic.position.set(x, y, h.z0 + 0.14);
+      this.scene.add(pic);
+      // 짙은 나무 테 + 안쪽 금테
+      for (const [t, mat, z, d] of [[0.09, frameMat, h.z0 + 0.15, 0.06], [0.022, trimMat, h.z0 + 0.175, 0.02]]) {
+        bar(x, y + hgt / 2 + t / 2, w + 2 * t, t, mat, z, d);
+        bar(x, y - hgt / 2 - t / 2, w + 2 * t, t, mat, z, d);
+        bar(x - w / 2 - t / 2, y, t, hgt, mat, z, d);
+        bar(x + w / 2 + t / 2, y, t, hgt, mat, z, d);
+      }
+    };
+    hang(0, 3.7, 3.08, fy + 2.75, taenghwaTexture('center'));
+    for (const sx of [-1, 1]) hang(sx * 3.65, 2.55, 2.75, fy + 2.75, taenghwaTexture('side'));
+
+    // 닫집: 본존 위에 매단 작은 궁전 — 공포 세 층, 낙양 투각 띠, 금 테
+    {
+      const cy0 = fy + colH - 0.02; // 천장 밑면
+      const cz = altarZ - 0.6, cw = 3.3, cd = 1.0;
+      const dc = canopyTexture();
+      const dcMat = new THREE.MeshStandardMaterial({ map: dc, roughness: 0.6 });
+      const dcSide = dc.clone();
+      dcSide.needsUpdate = true;
+      dcSide.repeat.set(0.35, 1);
+      const dcSideMat = new THREE.MeshStandardMaterial({ map: dcSide, roughness: 0.6 });
+      const greenMat = new THREE.MeshStandardMaterial({ color: 0x2f6e55, roughness: 0.6 });
+      const top = new THREE.Mesh(new THREE.BoxGeometry(cw + 0.3, 0.08, cd + 0.3), greenMat);
+      top.position.set(0, cy0 - 0.04, cz);
+      this.scene.add(top);
+      let y = cy0 - 0.08;
+      for (let k = 0; k < 2; k++) {
+        const hh = 0.17, w = cw - k * 0.22, d = cd - k * 0.12;
+        const band = new THREE.Mesh(new THREE.BoxGeometry(w, hh, d), [dcSideMat, dcSideMat, greenMat, greenMat, dcMat, dcSideMat]);
+        band.position.set(0, y - hh / 2, cz);
+        this.scene.add(band);
+        const rim = new THREE.Mesh(new THREE.BoxGeometry(w + 0.04, 0.025, d + 0.04), m.gold);
+        rim.position.set(0, y - hh, cz);
+        this.scene.add(rim);
+        y -= hh + 0.02;
+      }
+      const vMat = new THREE.MeshStandardMaterial({ map: valanceTexture(), alphaTest: 0.5, roughness: 0.35, metalness: 0.7, side: THREE.DoubleSide });
+      const vh = 0.22;
+      const front = new THREE.Mesh(new THREE.PlaneGeometry(cw - 0.3, vh), vMat);
+      front.position.set(0, y - vh / 2, cz + 0.42);
+      this.scene.add(front);
+      for (const sx of [-1, 1]) {
+        const side = new THREE.Mesh(new THREE.PlaneGeometry(cd - 0.3, vh), vMat);
+        side.position.set(sx * ((cw - 0.3) / 2 + 0.005), y - vh / 2, cz);
+        side.rotation.y = Math.PI / 2;
+        this.scene.add(side);
+      }
+    }
 
     // 불단 앞 탁자: 향로 · 촛대 · 공양
     const tz = altarZ + 0.75;
@@ -481,7 +559,7 @@ export class Temple {
     }
     this.lightAnchors.candleL = new THREE.Vector3(-1.15, ty + 1.05, tz + 0.1);
     this.lightAnchors.candleR = new THREE.Vector3(1.15, ty + 1.05, tz + 0.1);
-    this.lightAnchors.buddha = new THREE.Vector3(0, fy + 3.6, -24);
+    this.lightAnchors.buddha = new THREE.Vector3(-2.6, fy + 3.7, -25.6); // 앞 왼쪽 위에서 비스듬히: 얼굴·가사 주름에 음영이 진다
     // 헌촉 — 작은 등촉 줄 (켤 때마다 하나씩)
     this.votives = [];
     const votiveGeo = new THREE.CylinderGeometry(0.035, 0.035, 0.12, 8);
@@ -844,125 +922,6 @@ export class Temple {
 }
 
 /* ───────────────────────── 불상 ───────────────────────── */
-function haloTexture() {
-  const c = document.createElement('canvas');
-  c.width = c.height = 256;
-  const ctx = c.getContext('2d');
-  const cx = 128;
-  for (let r = 124; r > 0; r -= 2) {
-    const t = r / 124;
-    ctx.fillStyle = t > 0.92 ? '#e7c46a' : t > 0.85 ? '#b8862f' : t > 0.6 ? (Math.floor(r / 6) % 2 ? '#d9a948' : '#c08c35') : '#e8c372';
-    ctx.beginPath();
-    ctx.arc(cx, cx, r, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  // 화염문 테두리
-  ctx.fillStyle = '#e7c46a';
-  for (let k = 0; k < 28; k++) {
-    const a = (k / 28) * Math.PI * 2;
-    ctx.beginPath();
-    ctx.moveTo(cx + Math.cos(a - 0.08) * 118, cx + Math.sin(a - 0.08) * 118);
-    ctx.quadraticCurveTo(cx + Math.cos(a) * 140, cx + Math.sin(a) * 140, cx + Math.cos(a + 0.12) * 118, cx + Math.sin(a + 0.12) * 118);
-    ctx.fill();
-  }
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
-}
-let haloTex = null;
-
-function buildBuddha(scale, bodhisattva) {
-  const m = mats();
-  const gold = m.gold;
-  const g = new THREE.Group();
-  // 연화좌
-  const seat = new THREE.Mesh(new THREE.CylinderGeometry(0.85, 0.7, 0.32, 24), gold);
-  seat.position.y = 0.16;
-  g.add(seat);
-  const petalGeo = new THREE.SphereGeometry(0.2, 8, 6, 0, Math.PI * 2, 0, Math.PI / 2);
-  petalGeo.scale(0.9, 1.5, 0.4);
-  const petals = [];
-  for (let ring = 0; ring < 2; ring++) {
-    for (let k = 0; k < 16; k++) {
-      const p = petalGeo.clone();
-      p.rotateX(ring ? 0.5 : -0.2);
-      p.translate(0, 0, 0.82 - ring * 0.08);
-      p.rotateY((k / 16) * Math.PI * 2 + ring * 0.2);
-      p.translate(0, ring ? 0.28 : 0.05, 0);
-      petals.push(p);
-    }
-  }
-  const pm = new THREE.Mesh(mergeGeometries(petals), gold);
-  g.add(pm);
-  // 몸(가사): 앉은 자세 실루엣
-  const body = [
-    [0.0, 0.0], [0.78, 0.0], [0.82, 0.12], [0.62, 0.32], [0.5, 0.55], [0.5, 0.85], [0.44, 1.05], [0.26, 1.2], [0.12, 1.24], [0.0, 1.24]
-  ].map(([r, y]) => new THREE.Vector2(r, y));
-  const torso = new THREE.Mesh(new THREE.LatheGeometry(body, 28), gold);
-  torso.scale.set(1, 1, 0.7);
-  torso.position.y = 0.32;
-  g.add(torso);
-  // 결가부좌 다리
-  const legs = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 12), gold);
-  legs.scale.set(0.82, 0.2, 0.45);
-  legs.position.set(0, 0.46, 0.18);
-  g.add(legs);
-  // 선정인 손
-  const hands = new THREE.Mesh(new THREE.SphereGeometry(1, 14, 10), gold);
-  hands.scale.set(0.22, 0.08, 0.13);
-  hands.position.set(0, 0.6, 0.3);
-  g.add(hands);
-  // 머리
-  if (!haloTex) haloTex = haloTexture();
-  const faceMat = new THREE.MeshStandardMaterial({ map: faceTexture('#e2b456', { blush: false }), roughness: 0.3, metalness: 0.95 });
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.25, 28, 20), faceMat);
-  head.scale.set(1, 1.12, 1);
-  head.position.y = 1.78;
-  g.add(head);
-  for (const sx of [-1, 1]) {
-    const ear = new THREE.Mesh(new THREE.SphereGeometry(1, 8, 8), gold);
-    ear.scale.set(0.04, 0.16, 0.07);
-    ear.position.set(sx * 0.25, 1.72, 0);
-    g.add(ear);
-  }
-  if (bodhisattva) {
-    const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.26, 0.34, 10, 1, true), gold);
-    crown.material.side = THREE.DoubleSide;
-    crown.position.y = 2.06;
-    g.add(crown);
-    for (let k = 0; k < 5; k++) {
-      const gem = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 6), new THREE.MeshStandardMaterial({ color: [0x3a73a8, 0xd8573b, 0x2f7a6a][k % 3], roughness: 0.2, metalness: 0.3 }));
-      const a = -0.8 + k * 0.4;
-      gem.position.set(Math.sin(a) * 0.24, 2.06, Math.cos(a) * 0.24);
-      g.add(gem);
-    }
-  } else {
-    // 나발 + 육계
-    const hair = new THREE.Mesh(new THREE.SphereGeometry(0.262, 24, 12, 0, Math.PI * 2, 0, Math.PI * 0.42), new THREE.MeshStandardMaterial({ color: 0x24324a, roughness: 0.6, metalness: 0.2 }));
-    hair.scale.set(1, 1.12, 1);
-    hair.position.y = 1.78;
-    hair.rotation.x = -0.15;
-    g.add(hair);
-    const ush = new THREE.Mesh(new THREE.SphereGeometry(0.13, 14, 10), hair.material);
-    ush.position.set(0, 2.06, -0.03);
-    g.add(ush);
-  }
-  // 광배 (두광 + 신광)
-  const haloMat = new THREE.MeshStandardMaterial({ map: haloTex, transparent: true, alphaTest: 0.1, roughness: 0.35, metalness: 0.85, emissive: 0x6a4410, emissiveIntensity: 0.25, side: THREE.DoubleSide });
-  const headHalo = new THREE.Mesh(new THREE.CircleGeometry(0.6, 40), haloMat);
-  headHalo.position.set(0, 1.82, -0.42);
-  g.add(headHalo);
-  const bodyHalo = new THREE.Mesh(new THREE.CircleGeometry(1, 40), haloMat);
-  bodyHalo.scale.set(1.05, 1.4, 1);
-  bodyHalo.position.set(0, 1.15, -0.5);
-  g.add(bodyHalo);
-  g.traverse((o) => {
-    if (o.isMesh) o.castShadow = true;
-  });
-  g.scale.setScalar(scale);
-  return g;
-}
-
 /* ───────────────────────── 연등 ───────────────────────── */
 class LanternSystem {
   constructor(scene) {

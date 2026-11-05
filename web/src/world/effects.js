@@ -4,6 +4,7 @@
  */
 import * as THREE from 'three';
 import { envUniforms } from './materials.js';
+import { ROOF_COVER_GLSL } from './layout.js';
 import { softDotTexture, smokeTexture, flameTexture } from './textures.js';
 
 function rand(seed) {
@@ -154,6 +155,7 @@ export class Weather {
       vertexShader: `
         attribute vec4 seed; uniform float uTime, uBox, uAmount, uWind; uniform vec3 uCenter;
         varying float vA;
+        ${ROOF_COVER_GLSL}
         void main() {
           float fall = 15.0;
           vec3 p;
@@ -163,7 +165,7 @@ export class Weather {
           p.x += (uCenter.y + 18.0 - p.y) * 0.08 * uWind;
           p.y += seed.w * 0.55;
           p.x += seed.w * 0.04 * uWind;
-          vA = uAmount * step(fract(seed.z * 17.0), uAmount + 0.001);
+          vA = uAmount * step(fract(seed.z * 17.0), uAmount + 0.001) * (1.0 - roofCover(p));
           gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
         }`,
       fragmentShader: `
@@ -194,13 +196,14 @@ export class Weather {
       vertexShader: `
         attribute vec4 seed; uniform float uTime, uBox, uAmount, uWind, uPx; uniform vec3 uCenter;
         varying float vA;
+        ${ROOF_COVER_GLSL}
         void main() {
           vec3 p;
           float t = uTime * (0.9 + seed.w * 0.6);
           p.x = uCenter.x + (seed.x - 0.5) * uBox * 2.0 + sin(t * 0.8 + seed.z * 20.0) * 0.8 + uWind * 1.2;
           p.z = uCenter.z + (seed.y - 0.5) * uBox * 2.0 + cos(t * 0.6 + seed.x * 20.0) * 0.6;
           p.y = uCenter.y + 16.0 - mod(t * 1.3 + seed.z * 26.0, 26.0);
-          vA = uAmount * step(fract(seed.w * 13.0), uAmount + 0.001);
+          vA = uAmount * step(fract(seed.w * 13.0), uAmount + 0.001) * (1.0 - roofCover(p));
           vec4 mv = viewMatrix * vec4(p, 1.0);
           gl_Position = projectionMatrix * mv;
           gl_PointSize = (2.0 + seed.w * 3.0) * uPx * 14.0 / -mv.z;
@@ -240,13 +243,14 @@ export class Weather {
       vertexShader: `
         attribute vec4 seed; attribute vec3 color; uniform float uTime, uBox, uAmount, uWind, uPx; uniform vec3 uCenter;
         varying float vA; varying vec3 vCol; varying float vRot;
+        ${ROOF_COVER_GLSL}
         void main() {
           vec3 p;
           float t = uTime * (0.35 + seed.w * 0.25);
           p.x = uCenter.x + (seed.x - 0.5) * uBox * 1.6 + sin(t * 1.3 + seed.z * 20.0) * 1.2 + uWind * 2.0 * fract(t * 0.07 + seed.y);
           p.z = uCenter.z + (seed.y - 0.5) * uBox * 1.6 + cos(t * 0.9 + seed.x * 20.0) * 0.9;
           p.y = uCenter.y + 9.0 - mod(t * 1.1 + seed.z * 14.0, 14.0);
-          vA = uAmount * step(fract(seed.w * 7.0), uAmount + 0.001);
+          vA = uAmount * step(fract(seed.w * 7.0), uAmount + 0.001) * (1.0 - roofCover(p));
           vCol = color; vRot = t * 3.0 + seed.x * 6.28;
           vec4 mv = viewMatrix * vec4(p, 1.0);
           gl_Position = projectionMatrix * mv;

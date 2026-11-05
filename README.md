@@ -36,10 +36,13 @@ meta-temple/
 │           ├── vegetation.js # 전나무·소나무·단풍·대숲·풀·연꽃 (인스턴싱 + 바람 셰이더)
 │           ├── architecture.js # 한옥 빌더: 앙곡 지붕(맞배·우진각·팔작)·배흘림 기둥·공포·석탑·석등
 │           ├── temple.js     # 경내 조립 + 연등·돌탑·화로·범종·향로·기와대 + 상호작용 지점
+│           ├── buddha.js     # 대웅전 삼존 조립: 연화대좌·광배·보관·영락 + 조각 메쉬
+│           ├── buddhaSculpt.js # 삼존 조각: SDF → surface nets 메쉬 → AO 꼭짓점 색 (THREE 없음)
+│           ├── buddhaWorker.js # 조각을 워커에서 (메인 스레드를 멈추지 않게)
 │           ├── avatarManager.js # 아바타 3종·동작 상태 머신·동석 참배객·syncRemotePeers
-│           ├── effects.js    # GPU 파티클 (연기·불꽃·찻김·비 1,500·눈 1,200·낙엽·반딧불·파동)
+│           ├── effects.js    # GPU 파티클 (연기·불꽃·찻김·비 1,500·눈 1,200·낙엽·반딧불·파동, 지붕 밑엔 안 들이침)
 │           ├── materials.js  # 공용 재질 + 눈 덮임·젖음·바람·야간 발광 셰이더 주입
-│           └── textures.js   # 절차적 텍스처 (기와·단청·창호·화강암·탱화·현판·얼굴)
+│           └── textures.js   # 절차적 텍스처 (기와·단청·창호·화강암·탱화·우물천장·수미단·닫집·현판·얼굴)
 ├── server/                   # 실시간 동석(WebSocket /ws) + 공유 서원 API(/api) — Node 22, ws, pg
 ├── deploy/
 │   ├── deploy.sh             # web/ → 오라클 VM (버전 경로로 캐시 무효화)

@@ -61,6 +61,24 @@ export function pathX(z) {
 L.bridge.x = pathX(15);
 L.gate.x = pathX(L.gate.z);
 
+/**
+ * 지붕이 덮는 곳: 이 상자 안, 이 높이 아래로는 비·눈·낙엽이 들이치지 않고 바닥이 젖거나 눈이 쌓이지 않는다.
+ * [x0, z0, x1, z1, y] — y 는 지붕 밑면 최저점(위로 쏜 광선으로 잰 값: 대웅전 7.54, 심검당 4.77, 범종각 5.35, 정자 4.28)에서 0.1m 뺀 값.
+ * 상자는 처마 안쪽이라 처마 끝 바로 밖에는 비가 그대로 떨어진다.
+ */
+export const ROOF_COVERS = [
+  [-10.5, -32.9, 10.5, -17.9, 7.44], // 대웅전
+  [23.2, -18.5, 31.2, -6.5, 4.67], // 심검당
+  [11.0, -15.4, 17.8, -8.6, 5.25], // 범종각
+  [25.95, -4.9, 29.55, -1.3, 4.18] // 연못 정자
+];
+/** GLSL: float roofCover(vec3 worldPos) → 지붕 밑이면 1 */
+export const ROOF_COVER_GLSL = `float roofCover(vec3 p) {
+  float c = 0.0;
+${ROOF_COVERS.map(([x0, z0, x1, z1, y]) => `  c = max(c, step(${x0.toFixed(2)}, p.x) * step(p.x, ${x1.toFixed(2)}) * step(${z0.toFixed(2)}, p.z) * step(p.z, ${z1.toFixed(2)}) * step(p.y, ${y.toFixed(2)}));`).join('\n')}
+  return c;
+}`;
+
 /* 숲길 높이 — 남쪽 0.0 → 마당 앞 0.5 */
 export function pathY(z) {
   return 0.5 * clamp((46 - z) / 39.4, 0, 1);

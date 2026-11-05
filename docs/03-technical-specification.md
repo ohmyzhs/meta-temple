@@ -25,6 +25,9 @@ meta-temple/
 │           ├── layout.js         # 좌표 계약: terrainHeight / walkHeight / isWalkable / 충돌
 │           ├── templeScene.js    # 렌더러·후처리·하늘·시간대/날씨·카메라·피킹, loadCustomGLBModels()
 │           ├── terrain.js · vegetation.js · architecture.js · temple.js
+│           ├── buddha.js         # 대웅전 삼존 조립: 연화대좌·광배·보관 + 조각 메쉬 (워커에서 받아 붙임)
+│           ├── buddhaSculpt.js   # 삼존 조각(SDF → surface nets → AO 꼭짓점 색), THREE 없이 순수 계산
+│           ├── buddhaWorker.js   # 조각을 메인 스레드 밖에서
 │           ├── avatarManager.js  # 아바타·동석, syncRemotePeers()
 │           └── effects.js · materials.js · textures.js
 └── deploy/ · .github/workflows/  # 오라클 VM 배포 파이프라인

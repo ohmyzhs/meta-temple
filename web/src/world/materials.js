@@ -13,6 +13,7 @@ import {
   graniteTextures,
   floorTexture
 } from './textures.js';
+import { ROOF_COVER_GLSL } from './layout.js';
 
 export const envUniforms = {
   uTime: { value: 0 },
@@ -33,31 +34,35 @@ export function weatherable(mat, { snow = 1, wet = 1 } = {}) {
     shader.uniforms.uSnow = envUniforms.uSnow;
     shader.uniforms.uWet = envUniforms.uWet;
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying float vUpY;')
+      .replace('#include <common>', '#include <common>\nvarying float vUpY;\nvarying float vCover;\n' + ROOF_COVER_GLSL)
       .replace(
         '#include <worldpos_vertex>',
         `#include <worldpos_vertex>
         {
           vec3 wn = normal;
+          vec4 wp = vec4(transformed, 1.0);
           #ifdef USE_INSTANCING
             wn = mat3(instanceMatrix) * wn;
+            wp = instanceMatrix * wp;
           #endif
           vUpY = normalize(mat3(modelMatrix) * wn).y;
+          vCover = roofCover((modelMatrix * wp).xyz);
         }`
       );
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying float vUpY;\nuniform float uSnow;\nuniform float uWet;')
+      .replace('#include <common>', '#include <common>\nvarying float vUpY;\nvarying float vCover;\nuniform float uSnow;\nuniform float uWet;')
       .replace(
         '#include <color_fragment>',
         `#include <color_fragment>
-        float snowMask = uSnow * ${snow.toFixed(2)} * smoothstep(0.25, 0.7, vUpY);
+        float dry = 1.0 - vCover; // 지붕 밑은 젖지도, 눈이 쌓이지도 않는다
+        float snowMask = uSnow * ${snow.toFixed(2)} * smoothstep(0.25, 0.7, vUpY) * dry;
         diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.9, 0.92, 0.96), snowMask);
-        diffuseColor.rgb *= mix(1.0, 0.62, uWet * ${wet.toFixed(2)} * (1.0 - snowMask));`
+        diffuseColor.rgb *= mix(1.0, 0.62, uWet * ${wet.toFixed(2)} * (1.0 - snowMask) * dry);`
       )
       .replace(
         '#include <roughnessmap_fragment>',
         `#include <roughnessmap_fragment>
-        roughnessFactor = mix(roughnessFactor, 0.18, uWet * ${wet.toFixed(2)} * smoothstep(0.5, 0.9, vUpY));
+        roughnessFactor = mix(roughnessFactor, 0.18, uWet * ${wet.toFixed(2)} * smoothstep(0.5, 0.9, vUpY) * dry);
         roughnessFactor = mix(roughnessFactor, 0.85, snowMask);`
       );
   };
