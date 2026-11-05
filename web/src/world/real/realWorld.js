@@ -5,7 +5,9 @@
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+import * as THREE from 'three';
 import { L, addBoxCollider } from '../layout.js';
+import { mats } from '../materials.js';
 
 const BASIS = 'https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/libs/basis/';
 const ASSETS = './assets/world/';
@@ -25,6 +27,15 @@ export const SLOTS = {
   }
 };
 
+// 공용 재질(materials.js mats())의 그림 텍스처를 사진 PBR(Poly Haven CC0, tools/spike/textures.py 로 팔레트 맞춤)로.
+// 기존 UV·반복(repeat)을 그대로 이어받으므로 형상·병합과 무관하다. 화강암·회벽은 상자 UV 에서 결이 늘어져(시험 화면) 빼 둔다.
+export const MATERIALS = {
+  floor: { map: 'floor_diff', normal: 'floor_nor', orm: 'floor_arm' },
+  column: { map: 'column_diff', normal: 'wood_nor', orm: 'wood_arm' },
+  wood: { map: 'wood_diff', normal: 'wood_nor', orm: 'wood_arm' },
+  woodDark: { map: 'wood_diff', normal: 'wood_nor', orm: 'wood_arm' }
+};
+
 /** 정적 병합 전에 부른다: 교체 자리를 병합에서 빼 둔다 */
 export function prepareReal(world) {
   if (world.quality === 'low') return null;
@@ -34,7 +45,9 @@ export function prepareReal(world) {
     if (k && SLOTS[k] && !slots.has(k)) slots.set(k, o);
   });
   for (const o of slots.values()) o.traverse((m) => m.isMesh && (m.userData.noBatch = true));
-  return new RealWorld(world, slots);
+  const real = new RealWorld(world, slots);
+  real.upgradeMaterials().catch((e) => console.warn('[real] 재질 교체 실패, 그림 텍스처 그대로:', e));
+  return real;
 }
 
 class RealWorld {
@@ -47,10 +60,43 @@ class RealWorld {
 
   _loader() {
     if (!this.gltf) {
-      const ktx2 = new KTX2Loader().setTranscoderPath(BASIS).detectSupport(this.world.renderer);
-      this.gltf = new GLTFLoader().setKTX2Loader(ktx2).setMeshoptDecoder(MeshoptDecoder);
+      this.ktx2 = new KTX2Loader().setTranscoderPath(BASIS).detectSupport(this.world.renderer);
+      this.gltf = new GLTFLoader().setKTX2Loader(this.ktx2).setMeshoptDecoder(MeshoptDecoder);
     }
     return this.gltf;
+  }
+
+  async upgradeMaterials() {
+    this._loader();
+    const cache = new Map();
+    const tex = (name) => {
+      if (!cache.has(name)) cache.set(name, this.ktx2.loadAsync(`${ASSETS}tex/${name}.ktx2`));
+      return cache.get(name);
+    };
+    const m = mats();
+    await Promise.all(Object.entries(MATERIALS).map(async ([key, spec]) => {
+      const mat = m[key];
+      const [map, normal, orm] = await Promise.all([tex(spec.map), tex(spec.normal), tex(spec.orm)]);
+      const like = (t) => {
+        const c = t.clone(); // 같은 이미지, 재질마다 반복만 다르게
+        c.wrapS = c.wrapT = THREE.RepeatWrapping;
+        if (mat.map) {
+          c.repeat.copy(mat.map.repeat);
+          c.offset.copy(mat.map.offset);
+        }
+        c.needsUpdate = true;
+        return c;
+      };
+      mat.map = like(map);
+      mat.normalMap = like(normal);
+      mat.roughnessMap = like(orm); // G = 거칠기
+      mat.aoMap = mat.roughnessMap; // R = 틈 그늘
+      mat.aoMapIntensity = 0.8;
+      mat.roughness = 1;
+      mat.color.set(0xffffff);
+      mat.needsUpdate = true;
+    }));
+    this.materialsUpgraded = true;
   }
 
   update(dt, player) {
