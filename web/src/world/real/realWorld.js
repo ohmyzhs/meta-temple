@@ -24,7 +24,12 @@ export const SLOTS = {
     half: 6.5 / 2, // 충돌 상자 반폭 (스캔 m)
     at: () => [L.pagoda.x, L.courtyard.y, L.pagoda.z],
     loadWithin: 90 // 플레이어가 이 거리(m) 안이면 받기 시작 — 첫 입장(숲길) 예산 밖, 입장 뒤 뒤에서
-  }
+  },
+  // 불상은 3D 모델 대신 생성형 사진(배경을 뺀 컷아웃)을 세운 판 — 사용자 결정 2026-11-06 「불상만 이미지로」.
+  // 판 높이·자리는 절차적 불상(대좌·광배 포함)의 경계 상자를 그대로 따른다. 사진은 정면(+z)을 본다.
+  buddha: { card: 'buddha/sakyamuni.webp', at: () => [0, 0, L.altar.z], loadWithin: 60 },
+  bodhiL: { card: 'buddha/bodhisattva_l.webp', at: () => [-3.6, 0, L.altar.z], loadWithin: 60 },
+  bodhiR: { card: 'buddha/bodhisattva_r.webp', at: () => [3.6, 0, L.altar.z], loadWithin: 60 }
 };
 
 // 공용 재질(materials.js mats())의 그림 텍스처를 사진 PBR(Poly Haven CC0, tools/spike/textures.py 로 팔레트 맞춤)로.
@@ -117,6 +122,7 @@ class RealWorld {
 
   async _swap(k, proc) {
     const s = SLOTS[k];
+    if (s.card) return this._card(k, proc);
     const obj = (await this._loader().loadAsync(ASSETS + s.url)).scene;
     const [x, y, z] = s.at();
     obj.scale.setScalar(s.scale);
@@ -134,5 +140,29 @@ class RealWorld {
       addBoxCollider(x - h, z - h, x + h, z + h);
     }
     this.state.set(k, obj);
+  }
+
+  /** 생성형 사진 판으로 바꿔 끼우기: 절차적 물체(조각이 끝난 뒤)의 경계 상자에 맞춘다 */
+  async _card(k, proc) {
+    const s = SLOTS[k];
+    const [map] = await Promise.all([
+      new THREE.TextureLoader().loadAsync(ASSETS + s.card),
+      proc.userData.ready // 절차적 불상 조각(워커)이 끝나야 크기가 정해진다
+    ]);
+    map.colorSpace = THREE.SRGBColorSpace;
+    map.anisotropy = 8;
+    proc.updateWorldMatrix(true, true);
+    const box = new THREE.Box3().setFromObject(proc);
+    const h = box.max.y - box.min.y;
+    const w = (h * map.image.width) / map.image.height;
+    const mat = new THREE.MeshStandardMaterial({ map, alphaTest: 0.5, alphaToCoverage: true, roughness: 0.85, metalness: 0, side: THREE.FrontSide });
+    const card = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
+    card.position.set((box.min.x + box.max.x) / 2, box.min.y + h / 2, (box.min.z + box.max.z) / 2);
+    card.receiveShadow = true;
+    card.userData.noBatch = true;
+    card.layers.enable(1);
+    this.world.scene.add(card);
+    proc.visible = false; // 숨겨도 피킹(레이캐스트)은 그대로 받는다
+    this.state.set(k, card);
   }
 }
