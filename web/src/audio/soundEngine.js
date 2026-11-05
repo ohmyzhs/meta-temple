@@ -545,6 +545,23 @@ export class TempleSoundEngine {
     this._noise(t, { buf: 'crackle', type: 'highpass', f: 2500, Q: 0.5, len, env: env.map(([d, v]) => [d, v * 0.8]) }, this.bus.sfx);
   }
 
+  // 도복(무명 승복)이 스치는 '사락': 한지보다 낮고 부드럽게, 잘게 일렁이며 부풀었다 잦아든다.
+  // 큰절에서 꿇고·엎드리고·일어설 때 (strength 0~1, len 초) — 숨소리처럼 들리던 108배 목탁을 대신한다
+  playRobeRustle(strength = 1, len = 0.6) {
+    if (!this._ready()) return;
+    const t = this.ctx.currentTime + 0.01;
+    const s = Math.max(0.1, Math.min(1, strength));
+    const env = [];
+    const n = Math.max(4, Math.round(len / 0.045));
+    for (let i = 1; i <= n; i++) {
+      const u = i / n;
+      env.push([len * u, s * (0.02 + 0.075 * Math.sin(Math.PI * Math.min(1, u * 1.08)) ** 0.8) * rand(0.55, 1.25)]);
+    }
+    env.push([len + 0.06, 0]);
+    this._noise(t, { buf: 'pink', f: 2300, f2: 1500, Q: 0.6, len: len + 0.06, env }, this.bus.sfx);
+    this._noise(t, { buf: 'pink', type: 'lowpass', f: 650, Q: 0.4, len: len + 0.06, env: env.map(([d, v]) => [d, v * 0.55]) }, this.bus.sfx);
+  }
+
   // 붓끝이 한지를 스치는 짧은 '스윽'
   playBrushStroke() {
     if (!this._ready()) return;

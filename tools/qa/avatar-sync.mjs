@@ -63,13 +63,45 @@ async (page) => {
     const e = pl.eyeWorld(new THREE.Vector3());
     const stand = { hidden: !pl.root.visible, eye: +(e.y - pl.root.position.y).toFixed(3), cam: +W.camera.position.distanceTo(e).toFixed(3) };
     t.gesture('prostrate');
-    step(42); // 1.4초: 이마가 바닥에
+    const { PROSTRATE } = await import('/src/core/avatarMotion.js');
+    step(Math.round(PROSTRATE.forehead * 30)); // 이마가 바닥에 닿는 때
     const e2 = pl.eyeWorld(new THREE.Vector3());
     const low = +(e2.y - pl.root.position.y).toFixed(3);
     W.cam.mode = 'third';
     step(5);
     const ok = stand.hidden && stand.cam < 0.05 && low < 0.15 && pl.root.visible;
-    return `(b) 1인칭 ${ok ? 'PASS' : 'FAIL'}: 서서 몸 숨김 ${stand.hidden}, 눈 높이 ${stand.eye}m, 카메라-눈 ${stand.cam}m | 큰절 1.4초 눈 높이 ${low}m | 3인칭에서 다시 보임 ${pl.root.visible}`;
+    return `(b) 1인칭 ${ok ? 'PASS' : 'FAIL'}: 서서 몸 숨김 ${stand.hidden}, 눈 높이 ${stand.eye}m, 카메라-눈 ${stand.cam}m | 큰절 ${PROSTRATE.forehead}초 눈 높이 ${low}m | 3인칭에서 다시 보임 ${pl.root.visible}`;
+  }));
+  // (d) 자동 108배: 실제 시간으로 30초 — 좌복에서 첫 절은 일어서기까지 9.1초, 그 뒤 8초에 한 번, 목탁 없음, 도복 소리
+  lines.push(await page.evaluate(async () => {
+    const t = window.temple;
+    const loop = () => { t._frame(Math.min(t.clock.getDelta(), 0.1), t.clock.elapsedTime); window.__raf = requestAnimationFrame(loop); };
+    t.clock.getDelta();
+    loop();
+    const A = t.avatars, c = t.temple.cushions[20];
+    A.teleport(c.x, c.z + 0.7, Math.PI);
+    A.sitAt(Object.assign(A.cushionSeat(c), { kind: 'cushion' }), 'sit');
+    t.player.restState = 'sit';
+    await new Promise((r) => setTimeout(r, 2000));
+    const log = [];
+    const T0 = performance.now();
+    const S = t.sound;
+    for (const k of ['playMoktak', 'playRobeRustle']) { const f = S[k].bind(S); S[k] = (...a) => (log.push(`${k === 'playMoktak' ? '목탁' : '사락'}@${((performance.now() - T0) / 1000).toFixed(1)}`), f(...a)); }
+    t.modals.open('practice_108', { mode: 'prostrate' });
+    const before = t.store.stats.bowCount || 0;
+    const bows = [];
+    const add = t.store.addStat.bind(t.store);
+    t.store.addStat = (k, ...a) => (k === 'bowCount' && bows.push(((performance.now() - T0) / 1000).toFixed(1)), add(k, ...a));
+    document.querySelector('[data-act="auto"]').click();
+    await new Promise((r) => setTimeout(r, 30000));
+    const label = document.querySelector('[data-act="auto"]')?.textContent || '';
+    document.querySelector('[data-act="auto"]').click();
+    const label2 = document.querySelector('[data-act="auto"]')?.textContent || '';
+    cancelAnimationFrame(window.__raf);
+    t.modals.close();
+    const gaps = bows.slice(1).map((b, i) => (b - bows[i]).toFixed(1));
+    const ok = bows.length >= 3 && gaps.slice(1).every((g) => Math.abs(g - 8) < 0.3) && gaps[0] >= 7.9 && !log.some((l) => l.startsWith('목탁')) && log.some((l) => l.startsWith('사락'));
+    return `(d) 자동 108배 ${ok ? 'PASS' : 'FAIL'}: 절 ${bows.length}번 @${bows.join(', ')}s (간격 ${gaps.join(', ')}s) | 소리 ${log.join(' ')} | 단추 '${label.trim()}' → '${label2.trim()}'`;
   }));
   // (c) GLB 를 못 받을 때
   const warns = [];

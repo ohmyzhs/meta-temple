@@ -229,10 +229,15 @@ def clip_idle(name, hands):
 
 
 # ───────────────────────── 걷기 (제자리, 실제 이동은 런타임) ─────────────────────────
-WALK_T = 16 / FPS  # 한 주기(두 걸음) 0.533s — 짧은 다리(0.31m)로 종종걸음 3.75걸음/s
+# 게임 이동 1.1m/s 그대로에서 발이 미끄러지지 않게 굽는다 (2026-11-06: 이동은 모두 1.1m/s, 뛰지 않는다).
+# 다리(0.31m)가 짧아 보폭을 내려면 골반을 낮추고(무릎을 굽힌 채 미끄러지듯) 골반을 크게 돌린다.
+WALK_SPEED = 1.1
+WALK_T = 20 / FPS  # 한 주기(두 걸음) 0.667s — 초당 3걸음
 WALK_BETA = 0.55   # 한 발이 땅에 닿아 있는 비율
-WALK_A = 0.085     # 디딤발이 앞뒤로 움직이는 반폭 (m) — 다리 길이 안에서 무릎이 펴지지 않게
-WALK_SPEED = 2 * WALK_A / (WALK_BETA * WALK_T)  # 디딤발이 미끄러지지 않는 몸 속도
+WALK_A = WALK_SPEED * WALK_BETA * WALK_T / 2  # 디딤발이 앞뒤로 움직이는 반폭 0.2m
+WALK_YAW = 12.0    # 골반 돌림° — 엉덩관절이 ±0.016m 앞뒤로 가며 보폭을 보탠다
+_LEG = 0.3105
+WALK_HIP = 0.06 + 0.985 * math.sqrt(_LEG ** 2 - (WALK_A - 0.075 * math.sin(math.radians(WALK_YAW))) ** 2) + 0.03  # 두 발 디딤 때 골반 높이
 
 
 def walk_pose(t, style):
@@ -243,25 +248,25 @@ def walk_pose(t, style):
         if q < WALK_BETA:  # 디딤: 앞(-A)에서 뒤(+A)로 일정한 속도
             u = q / WALK_BETA
             y = -WALK_A + 2 * WALK_A * u
-            lift = 0.025 * smooth((u - 0.62) / 0.38)       # 발뒤꿈치가 들린다
+            lift = 0.02 * smooth((u - 0.62) / 0.38)       # 발뒤꿈치가 들린다
             toe = 30 * smooth((u - 0.62) / 0.38) - 12 * (1 - smooth(u / 0.18))  # 딛을 때 발끝 들림 → 차고 나갈 때 숙임
             z = J['ankle.L'][2] + lift + 0.012 * (1 - smooth(u / 0.18))
         else:  # 흔들기: 뒤에서 앞으로, 들어 올렸다가
             u = (q - WALK_BETA) / (1 - WALK_BETA)
             e = smooth(u)
             y = WALK_A - 2 * WALK_A * e
-            z = J['ankle.L'][2] + 0.025 * (1 - smooth(u / 0.3)) + 0.04 * math.sin(math.pi * min(u * 1.15, 1.0)) + 0.008 * smooth((u - 0.8) / 0.2)
+            z = J['ankle.L'][2] + 0.02 * (1 - smooth(u / 0.3)) + 0.035 * math.sin(math.pi * min(u * 1.15, 1.0)) + 0.008 * smooth((u - 0.8) / 0.2)
             toe = 30 * (1 - smooth(u / 0.45)) - 12 * smooth((u - 0.6) / 0.4)
         d[f'foot.{s}'] = foot(x * 0.07, y + 0.005, z, toe)
         d[f'toe.{s}'] = 25 * smooth(((q / WALK_BETA) - 0.62) / 0.38) * (q < WALK_BETA)  # 차고 나갈 때 발가락이 위로 꺾인다 (+ = 들림)
         d[f'pole_leg.{s}'] = (x * 0.1, -0.5, 0.2)
     c = math.cos(TAU * ph)
     sw = math.sin(TAU * (ph - 0.07))  # 디딤발 쪽으로 몸이 실린다 (뒤뚱)
-    bob = -0.01 * math.cos(2 * TAU * ph)
-    d['hips_loc'] = (0.014 * sw, 0.0, 0.384 + bob)
-    d['hips'] = (3.0, -6.0 * c, 5.0 * sw)
-    d['spine'] = (2.0, 4.0 * c, -2.5 * sw)
-    d['chest'] = (0.0, 5.0 * c, -1.5 * sw)
+    bob = 0.006 * (1 - math.cos(2 * TAU * ph))  # 두 발 디딤에서 가장 낮고 한 발 디딤 가운데서 조금 높다
+    d['hips_loc'] = (0.012 * sw, 0.0, WALK_HIP + bob)
+    d['hips'] = (4.0, -WALK_YAW * c, 4.0 * sw)
+    d['spine'] = (1.0, 7.0 * c, -2.0 * sw)
+    d['chest'] = (0.0, 8.0 * c, -1.5 * sw)
     d['neck'] = (0.0, -2.0 * c, -1.0 * sw)
     d['head'] = (-1.0 - 1.5 * math.cos(2 * TAU * ph), -1.5 * c, -2.5 * sw)
     if style == 'walk':
@@ -283,53 +288,6 @@ def walk_pose(t, style):
             d[k] = (d[k][0], d[k][1] * 0.5, d[k][2] * 0.6)
         d['head'] = (4.0, 0.0, 0.0)
         return P(GASSHO_H, d)
-
-
-# ───────────────────────── 달리기 (숲길에서 빠르게 갈 때 — 걷기와 속도로 섞는다) ─────────────────────────
-RUN_T = 12 / FPS   # 0.4s, 5걸음/s — 짧은 다리로 콩콩 뛴다
-RUN_BETA = 0.32    # 디딤 비율 (두 발이 다 뜨는 순간이 있다)
-RUN_A = 0.14
-RUN_SPEED = 2 * RUN_A / (RUN_BETA * RUN_T)
-
-
-def run_pose(t):
-    ph = (t / RUN_T) % 1.0
-    d = {}
-    for s, x, off in (('L', 1, 0.0), ('R', -1, 0.5)):
-        q = (ph + off) % 1.0
-        if q < RUN_BETA:
-            u = q / RUN_BETA
-            y = -RUN_A + 2 * RUN_A * u
-            z = J['ankle.L'][2] + 0.006 + 0.03 * smooth((u - 0.6) / 0.4)
-            toe = -6 * (1 - smooth(u / 0.25)) + 38 * smooth((u - 0.55) / 0.45)
-        else:
-            u = (q - RUN_BETA) / (1 - RUN_BETA)
-            # 뒤로 차올렸다가(무릎을 접어 발뒤꿈치가 엉덩이 쪽) 앞으로 뻗어 딛는다
-            y = RUN_A - 2 * RUN_A * smooth(u) + 0.035 * math.sin(math.pi * u) * (1 - u)
-            z = J['ankle.L'][2] + 0.006 + 0.11 * math.sin(math.pi * min(u / 0.85, 1.0)) ** 1.3
-            toe = 38 * (1 - smooth(u / 0.4)) - 6 * smooth((u - 0.75) / 0.25)
-        d[f'foot.{s}'] = foot(x * 0.068, y + 0.008, z, toe)
-        d[f'toe.{s}'] = 25 * smooth(((q / RUN_BETA) - 0.55) / 0.45) * (q < RUN_BETA)
-        d[f'pole_leg.{s}'] = (x * 0.1, -0.5, 0.25)
-    c = math.cos(TAU * ph)
-    # 디딤 한가운데서 가장 낮고, 두 발이 뜬 사이에 가장 높다
-    bob = 0.014 * math.cos(2 * TAU * (ph - RUN_BETA / 2) + math.pi)
-    d['hips_loc'] = (0.008 * math.sin(TAU * (ph - 0.05)), 0.0, 0.362 + bob)
-    d['hips'] = (9.0, -9.0 * c, 2.0 * math.sin(TAU * ph))
-    d['spine'] = (3.0, 6.0 * c, -1.0 * math.sin(TAU * ph))
-    d['chest'] = (0.0, 9.0 * c, 0.0)
-    d['neck'] = (-3.0, -3.0 * c, 0.0)
-    d['head'] = (-6.0, -2.0 * c, 0.0)
-    for s, sg in (('L', 1), ('R', -1)):
-        sw = sg * c  # 왼다리 앞일 때 왼팔 뒤
-        x = 0.17 * sg
-        fwd = max(0.0, -sw)
-        d[f'hand.{s}'] = dict(space='chest', pos=(x, -0.06 + 0.08 * sw, 0.5 + 0.04 * fwd - 0.015 * max(0, sw)),
-                              aim=(-0.25 * sg, -0.75, 0.35 - 0.6 * max(0, sw)), palm=(-sg, 0.2, 0))
-        d[f'fingers.{s}'] = 55.0
-        d[f'thumb.{s}'] = (-25, 0, 0)
-        d[f'pole_arm.{s}'] = (0.35 * sg, 0.45, 0.4)
-    return P(d)
 
 
 def clip_walk(name, style):
@@ -369,45 +327,57 @@ def kneel_legs(tucked=True):
     return f
 
 
+PROSTRATE_T = 7.6        # 천천히 한 번 7.6초 — 자동 108배는 8초에 한 번 (web/src/ui/modalManager.js BOW_CYCLE_MS)
+PROSTRATE_FOREHEAD = 3.6  # 이마가 바닥에 닿는 때
+# 도복이 스치는 '사락' — 몸이 크게 움직이는 구간 [시작 s, 길이 s, 세기] (런타임이 이 때에 맞춰 소리를 낸다)
+PROSTRATE_RUSTLE = [[1.25, 0.9, 1.0], [2.85, 0.6, 0.7], [4.15, 0.45, 0.35], [5.05, 0.45, 0.35], [5.45, 0.8, 0.8], [6.3, 0.9, 0.9]]
+
+
 def clip_prostrate():
     up = dict(hips_loc=(0, 0, STAND_Z))
     k = []
     k.append((0.0, P(HANG_H, up, head=(2, 0, 0))))
-    k.append((0.3, P(GASSHO_H, up, head=(6, 0, 0))))
+    k.append((0.7, P(GASSHO_H, up, head=(4, 0, 0))))
+    k.append((1.15, P(GASSHO_H, up, head=(12, 0, 0))))  # 합장하고 고개 숙임 (저두)
     # 허리를 곧게 세운 채 무릎을 굽혀 내려간다 (발뒤꿈치가 들리며 발가락이 꺾인다)
-    k.append((0.62, P(GASSHO_H, kneel_legs(), hips_loc=(0, -0.04, 0.29), hips=(8, 0, 0), spine=(-4, 0, 0), head=(6, 0, 0),
-                      **{'foot.L': foot(0.08, 0.025, 0.085, 40), 'foot.R': foot(-0.08, 0.025, 0.085, 40), 'toe.L': 40.0, 'toe.R': 40.0})))
-    k.append((0.9, P(GASSHO_H, kneel_legs(), hips_loc=(0, -0.1, 0.225), hips=(4, 0, 0), spine=(-2, 0, 0), head=(6, 0, 0))))
+    k.append((1.8, P(GASSHO_H, kneel_legs(), hips_loc=(0, -0.04, 0.29), hips=(8, 0, 0), spine=(-4, 0, 0), head=(8, 0, 0),
+                     **{'foot.L': foot(0.08, 0.025, 0.085, 40), 'foot.R': foot(-0.08, 0.025, 0.085, 40), 'toe.L': 40.0, 'toe.R': 40.0})))
+    k.append((2.3, P(GASSHO_H, kneel_legs(), hips_loc=(0, -0.1, 0.225), hips=(4, 0, 0), spine=(-2, 0, 0), head=(8, 0, 0))))
     # 엉덩이를 발뒤꿈치에
-    k.append((1.02, P(GASSHO_H, kneel_legs(), hips_loc=(0, 0.0, 0.17), hips=(6, 0, 0), head=(6, 0, 0))))
+    k.append((2.65, P(GASSHO_H, kneel_legs(), hips_loc=(0, 0.0, 0.17), hips=(6, 0, 0), head=(8, 0, 0))))
     # 왼손은 가슴에, 오른손부터 짚는다
-    k.append((1.17, P(kneel_legs(False), hips_loc=(0, 0.015, 0.16), hips=(36, 0, 0), spine=(16, 0, 0), chest=(8, 0, 0), neck=(4, 0, 0), head=(10, 0, 0),
-                      **{'hand.L': LEFT_ON_CHEST, 'hand.R': FLOOR_HAND(-0.2, -0.22), 'fingers.L': 5.0, 'fingers.R': 2.0,
-                         'pole_arm.L': (0.36, 0.15, 0.35), 'pole_arm.R': (-0.35, 0.1, 0.2)})))
+    k.append((3.0, P(kneel_legs(), hips_loc=(0, 0.015, 0.165), hips=(36, 0, 0), spine=(16, 0, 0), chest=(8, 0, 0), neck=(4, 0, 0), head=(10, 0, 0),
+                     **{'hand.L': LEFT_ON_CHEST, 'hand.R': FLOOR_HAND(-0.2, -0.22), 'fingers.L': 5.0, 'fingers.R': 2.0,
+                        'pole_arm.L': (0.36, 0.15, 0.35), 'pole_arm.R': (-0.35, 0.1, 0.2)})))
     bowdown = dict(hips_loc=(0, 0.03, 0.16), hips=(62, 0, 0), spine=(28, 0, 0), chest=(18, 0, 0), neck=(6, 0, 0), head=(16, 0, 0))
     floor = {'hand.L': FLOOR_HAND(0.21, -0.22), 'hand.R': FLOOR_HAND(-0.21, -0.22), 'fingers.L': 2.0, 'fingers.R': 2.0,
              'pole_arm.L': (0.45, -0.05, -0.15), 'pole_arm.R': (-0.45, -0.05, -0.15)}
-    # 이마가 바닥에 (1.4s — 108배 목탁이 이 순간에 울린다)
+    # 왼손도 짚으며 왼발을 오른발 위에 포갠다 (발등이 바닥, 발끝은 뒤)
+    near = P(kneel_legs(False), floor, hips_loc=(0, 0.025, 0.16), hips=(30, 0, 0), spine=(22, 0, 0), chest=(13, 0, 0), neck=(5, 0, 0), head=(13, 0, 0))
+    near['_solve'] = {'channel': 'hips', 'axis': 0, 'forehead_z': 0.09, 'local': True}  # 이마가 바닥 9cm 위까지 (뚫고 들어가지 않게)
+    k.append((3.3, near))
+    # 이마가 바닥에
     contact = P(kneel_legs(False), floor, bowdown)
     contact['_solve'] = {'channel': 'hips', 'axis': 0, 'forehead_z': 0.012}  # 이마가 바닥에 닿게 골반 숙임을 맞춘다
-    k.append((1.4, contact))
-    k.append((1.6, contact))
+    k.append((PROSTRATE_FOREHEAD, contact))
+    k.append((4.0, contact))
     # 접족례: 손바닥을 뒤집어 귀 밑 높이까지 — 부처님 발을 받들어 머리에 댄다
     lift = {'hand.L': PALM_UP(0.22, -0.21, 0.1), 'hand.R': PALM_UP(-0.22, -0.21, 0.1), 'fingers.L': 6.0, 'fingers.R': 6.0,
             'pole_arm.L': (0.45, -0.05, -0.15), 'pole_arm.R': (-0.45, -0.05, -0.15)}
-    k.append((1.95, P(kneel_legs(False), lift, bowdown, _same='hips')))
-    k.append((2.2, P(kneel_legs(False), lift, bowdown, _same='hips')))
-    k.append((2.45, P(kneel_legs(False), floor, bowdown, _same='hips')))
+    k.append((4.5, P(kneel_legs(False), lift, bowdown, _same='hips')))
+    k.append((5.0, P(kneel_legs(False), lift, bowdown, _same='hips')))
+    k.append((5.4, P(kneel_legs(False), floor, bowdown, _same='hips')))
     # 손으로 바닥을 밀며 머리를 들고, 발가락을 나란히 꺾어 꿇은 채 합장
-    k.append((2.75, P(kneel_legs(), floor, hips_loc=(0, -0.03, 0.19), hips=(32, 0, 0), spine=(12, 0, 0), chest=(6, 0, 0), head=(4, 0, 0))))
-    k.append((3.05, P(GASSHO_H, kneel_legs(), hips_loc=(0, -0.1, 0.225), hips=(6, 0, 0), head=(6, 0, 0))))
+    k.append((5.95, P(kneel_legs(), floor, hips_loc=(0, -0.03, 0.19), hips=(32, 0, 0), spine=(12, 0, 0), chest=(6, 0, 0), head=(4, 0, 0))))
+    k.append((6.35, P(GASSHO_H, kneel_legs(), hips_loc=(0, -0.1, 0.225), hips=(6, 0, 0), head=(6, 0, 0))))
     # 머리를 앞으로 내미는 탄력으로, 발뒤꿈치를 붙이며 가볍게 일어선다
-    k.append((3.35, P(GASSHO_H, hips_loc=(0, -0.01, 0.30), hips=(24, 0, 0), spine=(6, 0, 0), head=(4, 0, 0),
+    k.append((6.85, P(GASSHO_H, hips_loc=(0, -0.01, 0.30), hips=(24, 0, 0), spine=(6, 0, 0), head=(4, 0, 0),
                       **{'foot.L': foot(0.07, 0.025, 0.075, 25), 'foot.R': foot(-0.07, 0.025, 0.075, 25), 'toe.L': 25.0, 'toe.R': 25.0,
                          'pole_leg.L': (0.1, -0.5, 0.2), 'pole_leg.R': (-0.1, -0.5, 0.2)})))
-    k.append((3.65, P(GASSHO_H, up, head=(6, 0, 0))))
-    k.append((4.0, P(GASSHO_H, up, head=(4, 0, 0))))
-    return {'name': 'prostrate', 'frames': 120, 'keys': k, 'meta': {'foreheadAt': 1.4}}
+    k.append((7.3, P(GASSHO_H, up, head=(6, 0, 0))))
+    k.append((PROSTRATE_T, P(GASSHO_H, up, head=(4, 0, 0))))
+    return {'name': 'prostrate', 'frames': round(PROSTRATE_T * FPS), 'keys': k,
+            'meta': {'foreheadAt': PROSTRATE_FOREHEAD, 'rustle': PROSTRATE_RUSTLE}}
 
 
 # ───────────────────────── 앉기 (반가부좌 · 법계정인) ─────────────────────────
@@ -435,9 +405,43 @@ def clip_sit():
     return {'name': 'sit', 'frames': 150, 'loop': True, 'keys': keys}
 
 
+# ───────────────────────── 일어서기 · 앉기 (반가부좌 ↔ 서기) ─────────────────────────
+# 포갠 다리를 그냥 섞으면 발바닥이 위→아래로 180° 돌며 다리가 꼬여 보인다. 다리를 풀고 → 발을 딛고 → 웅크렸다 → 선다.
+FLAT_FOOT = lambda x, y: foot(x, y, J['ankle.L'][2], 0)
+KNEES_UP = {'pole_leg.L': (0.35, -0.5, 0.25), 'pole_leg.R': (-0.35, -0.5, 0.25)}
+ON_KNEES = {'hand.L': dict(space='root', pos=(0.12, -0.17, 0.2), aim=(0, -1, -0.3), palm=(0, 0, -1)),
+            'hand.R': dict(space='root', pos=(-0.12, -0.17, 0.2), aim=(0, -1, -0.3), palm=(0, 0, -1)),
+            'fingers.L': 20.0, 'fingers.R': 20.0, 'pole_arm.L': (0.4, 0.1, 0.3), 'pole_arm.R': (-0.4, 0.1, 0.3)}
+SITUP_T = 1.5
+SITUP_RUSTLE = [[0.05, 0.8, 0.8], [0.8, 0.6, 0.6]]
+
+
+def seat_poses():
+    sit = P(SIT_LEGS, MUDRA, hips_loc=(0, 0.02, 0.08), hips=(6, 0, 0), spine=(-3, 0, 0), chest=(-2, 0, 0), neck=(4, 0, 0), head=(9, 0, 0))
+    unfold = P(ON_KNEES, KNEES_UP, hips_loc=(0, 0.02, 0.085), hips=(12, 0, 0), head=(6, 0, 0),
+               **{'foot.L': FLAT_FOOT(0.1, -0.1), 'foot.R': FLAT_FOOT(-0.1, -0.1)})
+    squat = P(ON_KNEES, KNEES_UP, hips_loc=(0, -0.02, 0.17), hips=(34, 0, 0), spine=(10, 0, 0), head=(-4, 0, 0),
+              **{'foot.L': FLAT_FOOT(0.085, -0.04), 'foot.R': FLAT_FOOT(-0.085, -0.04)})
+    rise = P(HANG_H, hips_loc=(0, -0.005, 0.32), hips=(14, 0, 0), spine=(3, 0, 0), head=(2, 0, 0),
+             **{'foot.L': FLAT_FOOT(0.08, 0.0), 'foot.R': FLAT_FOOT(-0.08, 0.0), 'pole_leg.L': (0.1, -0.5, 0.2), 'pole_leg.R': (-0.1, -0.5, 0.2)})
+    stand = P(HANG_H, hips_loc=(0, 0, STAND_Z), head=(2, 0, 0))
+    return sit, unfold, squat, rise, stand
+
+
+def clip_stand_up():
+    sit, unfold, squat, rise, stand = seat_poses()
+    keys = [(0.0, sit), (0.45, unfold), (0.85, squat), (1.2, rise), (SITUP_T, stand)]
+    return {'name': 'stand_up', 'frames': round(SITUP_T * FPS), 'keys': keys, 'meta': {'rustle': SITUP_RUSTLE}}
+
+
+def clip_sit_down():
+    sit, unfold, squat, rise, stand = seat_poses()
+    keys = [(0.0, stand), (0.3, rise), (0.65, squat), (1.05, unfold), (SITUP_T, sit)]
+    return {'name': 'sit_down', 'frames': round(SITUP_T * FPS), 'keys': keys, 'meta': {'rustle': SITUP_RUSTLE}}
+
+
 CLIPS = [
     clip_idle('idle', HANG_H), clip_idle('idle_chasu', CHASU),
     clip_walk('walk', 'walk'), clip_walk('walk_chasu', 'chasu'), clip_walk('walk_gassho', 'gassho'),
-    {'name': 'run', 'frames': round(RUN_T * FPS), 'loop': True, 'proc': run_pose, 'meta': {'speed': round(RUN_SPEED, 4), 'cycle': RUN_T}},
-    clip_bow_half(), clip_prostrate(), clip_sit(),
+    clip_bow_half(), clip_prostrate(), clip_sit(), clip_stand_up(), clip_sit_down(),
 ]

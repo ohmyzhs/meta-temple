@@ -13,9 +13,11 @@ import { L, walkHeight, stepMove, zoneAt, pathX, clamp } from './layout.js';
 import { faceTexture, softDotTexture } from './textures.js';
 import { generateDharmaName } from '../data/templeData.js';
 import { RigBody, rigLib, RIG_STYLES } from './avatarRig.js';
-import { pickMotion } from '../core/avatarMotion.js';
+import { pickMotion, MOVING, SEATED, PROSTRATE } from '../core/avatarMotion.js';
 
 const TAU = Math.PI * 2;
+/** 이동 빠르기 (m/s) — 경내·숲길·탑돌이·참배객 모두 같다. 천천히 걷고 뛰지 않는다 (2026-11-06 사용자 결정). */
+export const WALK_SPEED = 1.1;
 const damp = (a, b, k, dt) => a + (b - a) * (1 - Math.exp(-k * dt));
 function angleDamp(a, b, k, dt) {
   let d = ((b - a + Math.PI) % TAU + TAU) % TAU - Math.PI;
@@ -43,7 +45,8 @@ const P = {
 // 동작 시퀀스 [포즈, 지속(초)]
 const SEQ = {
   bow_half: [['gassho', 0.55], ['bow', 0.9], ['gassho', 0.6], ['stand', 0.4]],
-  prostrate: [['gassho', 0.5], ['kneel', 0.8], ['prostrate', 1.1], ['kneel', 0.7], ['gassho', 0.6], ['stand', 0.3]], // 4초 주기 (docs/02 §3.3)
+  // 천천히 7.6초 (자동 108배는 8초에 한 번). 블렌더 몸의 큰절 클립과 길이가 같아야 한다 — core/avatarMotion.js PROSTRATE
+  prostrate: [['gassho', 1.1], ['kneel', 1.5], ['prostrate', 2.3], ['kneel', 1.4], ['gassho', 0.9], ['stand', 0.4]],
   incense: [['gassho', 0.5], ['offerUp', 1.1], ['offerDown', 0.8], ['gassho', 0.7], ['stand', 0.3]]
 };
 
@@ -382,9 +385,12 @@ export class Avatar {
 
   /** 시퀀스 동작 시작. 반환: 총 길이(초) */
   play(name, { hold = null } = {}) {
-    const seq = SEQ[name];
+    let seq = SEQ[name];
     if (!seq) return 0;
-    this.seq = { name, steps: seq, i: 0, t: 0 };
+    // 블렌더 몸이 반가부좌로 앉아 있다 큰절하면: 먼저 일어선다 (그 시간만큼 동작이 길다)
+    const up = name === 'prostrate' && this.rig && SEATED.has(this.rig.name) && this.rig.has('stand_up') ? rigLib().meta.clips.stand_up.duration : 0;
+    if (up) seq = [['stand', up], ...seq];
+    this.seq = { name, steps: seq, i: 0, t: 0, el: 0 };
     this.state = name;
     return seq.reduce((s, [, d]) => s + d, 0);
   }
@@ -508,6 +514,12 @@ export class Avatar {
         this.handLantern.position.set(0.55 + Math.sin(t * 0.9) * 0.05, 0.72 + Math.sin(t * 1.3) * 0.05 + p.rootY * 0.6, 0.2);
       }
     }
+    // 절차식 몸의 큰절에도 같은 때 도복 소리 (블렌더 몸은 클립 시각으로 RigBody 가 낸다)
+    if (!this.rig && this.seq?.name === 'prostrate' && this.onRustle) {
+      const e0 = this.seq.el;
+      this.seq.el += dt;
+      for (const [at, len, s] of PROSTRATE.rustle) if (e0 < at && this.seq.el >= at) this.onRustle(s, len);
+    }
     // 걸음 이벤트 (블렌더 몸은 발이 실제로 닿는 순간에 _updateRig 가 부른다)
     if (moving && !this.rig) {
       const step = Math.floor(this.walkPhase / Math.PI);
@@ -523,9 +535,9 @@ export class Avatar {
     const r = this.rig;
     const p = this.root.position;
     const name = pickMotion({ seq: this.seq?.name, state: this.state, speed: this.speed, zone: zoneAt(p.x, p.z), has: r.has });
-    r.play(name, !!this.seq && this.seq !== this._rigSeq && r.name === name);
+    r.play(name, !!this.seq && this.seq !== this._rigSeq && r.name === name, this.speed > MOVING);
     this._rigSeq = this.seq;
-    r.update(dt, this.speed, this.onStep);
+    r.update(dt, this.speed, this.onStep, this.onRustle);
     this.cup.visible = this.state === 'tea';
     this.stick.visible = this.seq?.name === 'incense' && this.seq.i >= 1 && this.seq.i <= 2;
   }
@@ -588,6 +600,7 @@ export class AvatarManager {
     }
     av.root.rotation.y = av.heading;
     av.onStep = () => this.hooks.onStep?.(this.surfaceAt(av.root.position));
+    av.onRustle = (s, len) => this.hooks.onRustle?.(s, len);
     this.scene.add(av.root);
     this.player = av;
     return av;
@@ -857,7 +870,7 @@ export class AvatarManager {
           if (Math.random() < 0.5) av.play('bow_half');
         }
       } else {
-        speed = 1.1;
+        speed = WALK_SPEED;
         const nx = p.x + (dx / d) * speed * dt, nz = p.z + (dz / d) * speed * dt;
         const m = stepMove(p.x, p.z, nx, nz);
         p.x = m.x;
@@ -867,11 +880,11 @@ export class AvatarManager {
       p.y = damp(p.y, walkHeight(p.x, p.z), 12, dt);
     } else if (v.plan.role === 'circler') {
       const pg = L.pagoda;
-      v.angle += dt * (0.9 / v.r); // 우요 — 탑을 오른쪽에 두고
+      v.angle += dt * (WALK_SPEED / v.r); // 우요 — 탑을 오른쪽에 두고
       const nx = pg.x + Math.cos(v.angle) * v.r, nz = pg.z + Math.sin(v.angle) * v.r;
       av.heading = Math.atan2(nx - p.x, nz - p.z);
       p.set(nx, walkHeight(nx, nz), nz);
-      speed = 0.9;
+      speed = WALK_SPEED;
     } else if (v.plan.role === 'bower') {
       v.next -= dt;
       if (v.next <= 0 && !av.busy) {
@@ -965,7 +978,7 @@ export class AvatarManager {
   }
 
   /**
-   * @param input { x, z } 월드 이동 벡터(-1..1), run
+   * @param input { x, z } 월드 이동 벡터(-1..1)
    */
   update(dt, t, input, night) {
     const pl = this.player;
@@ -977,7 +990,7 @@ export class AvatarManager {
       this.moveTarget = null;
       this.circling = null;
       if (pl.busy) pl.seq = null;
-      const sp = (input.run ? 3.8 : 2.4) * Math.min(len, 1);
+      const sp = WALK_SPEED * Math.min(len, 1);
       const nx = p.x + (input.x / len) * sp * dt * Math.min(len, 1), nz = p.z + (input.z / len) * sp * dt * Math.min(len, 1);
       const m = stepMove(p.x, p.z, nx, nz);
       speed = Math.hypot(m.x - p.x, m.z - p.z) / dt;
@@ -993,7 +1006,7 @@ export class AvatarManager {
         if (mt.keepCircling && this.circling) this.circling.ready = true;
         mt.onArrive?.();
       } else {
-        const sp = Math.min(2.4, d * 3 + 0.4);
+        const sp = Math.min(WALK_SPEED, d * 3 + 0.4);
         const nx = p.x + (dx / d) * sp * dt, nz = p.z + (dz / d) * sp * dt;
         const m = stepMove(p.x, p.z, nx, nz);
         const moved = Math.hypot(m.x - p.x, m.z - p.z);
@@ -1011,7 +1024,7 @@ export class AvatarManager {
     } else if (this.circling?.ready && !pl.busy) {
       const c = this.circling;
       const pg = L.pagoda;
-      const step = dt * (0.95 / pg.radius);
+      const step = dt * (WALK_SPEED / pg.radius);
       c.angle += step; // 우요(右繞): 위에서 보아 시계 방향, 탑이 늘 오른쪽 (+x 동·-z 북 좌표에서는 각도가 늘어나는 쪽)
       c.travelled += step;
       if (c.travelled >= TAU) {
@@ -1023,7 +1036,7 @@ export class AvatarManager {
       pl.heading = Math.atan2(nx - p.x, nz - p.z);
       p.x = nx;
       p.z = nz;
-      speed = 0.95;
+      speed = WALK_SPEED;
       pl.state = 'circumambulate';
     }
     if (!pl.sitting) p.y = damp(p.y, walkHeight(p.x, p.z), 14, dt);

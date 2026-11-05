@@ -16,10 +16,11 @@ async (page) => {
     const CAND = [0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.8];
     const PAIRS = [
       ['idle', 'walk', 1.1], ['walk', 'idle', 1.1], ['idle_chasu', 'walk_chasu', 1.1], ['walk_chasu', 'idle_chasu', 1.1],
-      ['walk', 'walk_chasu', 1.1], ['walk_chasu', 'walk_gassho', 0.95],
+      ['walk', 'walk_chasu', 1.1], ['walk_chasu', 'walk_gassho', 1.1],
       ['idle', 'sit', 0], ['sit', 'idle', 0], ['sit', 'prostrate', 0], ['prostrate', 'sit', 0],
       ['idle_chasu', 'bow_half', 0], ['bow_half', 'idle_chasu', 0], ['idle_chasu', 'prostrate', 0], ['prostrate', 'idle_chasu', 0],
-      ['idle', 'bow_half', 0], ['bow_half', 'idle', 0], ['walk_gassho', 'idle_chasu', 0.95], ['idle_chasu', 'sit', 0], ['sit', 'idle_chasu', 0]
+      ['idle', 'bow_half', 0], ['bow_half', 'idle', 0], ['walk_gassho', 'idle_chasu', 1.1], ['idle_chasu', 'sit', 0], ['sit', 'idle_chasu', 0],
+      ['sit', 'stand_up', 0], ['stand_up', 'prostrate', 0], ['stand_up', 'idle_chasu', 0], ['idle_chasu', 'sit_down', 0], ['sit_down', 'sit', 0], ['prostrate', 'sit_down', 0]
     ];
     // 회전 속도 최댓값 (°/s, 모든 뼈) 과 골반 이동 속도 (m/s)
     const run = (a, b, fade, speed) => {

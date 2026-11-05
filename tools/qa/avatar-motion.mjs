@@ -73,47 +73,48 @@ async (page) => {
   // 서기 (경내: 차수)
   lines.push(await scene('idle_chasu', () => { const t = window.temple; t.avatars.teleport(5, 3, Math.PI); t.player.setState('idle'); for (let i = 0; i < 20; i++) t._frame(1 / 30, (window.__qa.clock += 1 / 30)); }, 30, 6, FRONT34));
   // 걷기 (숲길, 게임 속도 2.4m/s 와 참배객 속도 1.1m/s)
-  // 숲길에서 게임 속도(2.4m/s)로 가면 달리기 클립이 섞인다
-  lines.push(await scene('run', () => { const t = window.temple; t.avatars.teleport(0, 33, Math.PI); t.avatars.moveTo(0.3, 20); }, 44, 2, SIDE));
-  lines.push(await scene('walk', () => {
-    const t = window.temple, A = t.avatars;
-    A.teleport(0, 33, Math.PI);
-    A.moveTarget = null;
-    const orig = A.update.bind(A);
-    A.update = (dt, tt, input, night) => orig(dt, tt, { x: 0, z: -1.1 / 2.4, run: false }, night); // 조이스틱 반쯤 = 1.1m/s (참배객 걸음)
-    window.__qa.restore = () => (A.update = orig);
-  }, 44, 2, SIDE));
-  await page.evaluate(() => window.__qa.restore?.());
-  // 차수 걷기 (마당)
-  lines.push(await scene('walk_chasu', () => {
-    const t = window.temple, A = t.avatars;
-    A.teleport(6, 4, Math.PI);
-    const orig = A.update.bind(A);
-    A.update = (dt, tt, input, night) => orig(dt, tt, { x: 0, z: -1.1 / 2.4, run: false }, night);
-    window.__qa.restore = () => (A.update = orig);
-  }, 44, 2, SIDE));
-  await page.evaluate(() => window.__qa.restore?.());
-  // 차수 걷기 — 게임 그대로의 속도: 바닥을 누르거나 WASD 면 2.4m/s (moveTo). 위의 1.1m/s 는 참배객 속도
-  lines.push(await scene('walk_chasu_game', () => { const t = window.temple; t.avatars.teleport(6, 4, Math.PI); t.avatars.moveTo(6, -8); }, 30, 1, SIDE));
+  // 숲길 걷기 — 게임 그대로 (바닥을 누르거나 WASD, 모든 곳 1.1m/s)
+  lines.push(await scene('walk', () => { const t = window.temple; t.avatars.teleport(0, 33, Math.PI); t.avatars.moveTo(0.3, 20); }, 40, 2, SIDE));
+  // 차수 걷기 — 마당, 게임 그대로 1.1m/s
+  lines.push(await scene('walk_chasu', () => { const t = window.temple; t.avatars.teleport(6, 4, Math.PI); t.avatars.moveTo(6, -8); }, 40, 2, SIDE));
   lines.push(await page.evaluate(() => {
     const r = window.temple.player.rig, a = r?.current;
-    return a ? `  게임 속도 차수 걷기: ${r.name} 빠르기 ${window.temple.player.speed.toFixed(2)}m/s, 클립 배속 ${a.getEffectiveTimeScale().toFixed(2)} → 초당 ${((2 * a.getEffectiveTimeScale()) / a.getClip().duration).toFixed(1)}걸음` : '';
+    return a ? `  차수 걷기: ${r.name} 빠르기 ${window.temple.player.speed.toFixed(2)}m/s, 클립 배속 ${a.getEffectiveTimeScale().toFixed(2)} → 초당 ${((2 * a.getEffectiveTimeScale()) / a.getClip().duration).toFixed(1)}걸음` : '';
   }));
   // 합장 반배
   lines.push(await scene('bow_half', () => { const t = window.temple; t.avatars.teleport(5, 3, Math.PI); t.gesture('bow_half'); }, 78, 3, SIDE));
   // 탑돌이 (합장하고 시계 방향)
   lines.push(await scene('circumambulate', () => { const t = window.temple; t.avatars.teleport(0, 0.2, Math.PI); t.activate('circumambulate'); for (let i = 0; i < 60; i++) t._frame(1 / 30, (window.__qa.clock += 1 / 30)); }, 30, 3, FRONT34));
-  // 큰절 (법당 좌복 위)
-  lines.push(await scene('prostrate', () => {
+  // 좌복에 앉기 (서 있다가 → 앉기 클립 → 반가부좌)
+  lines.push(await scene('sit_down', () => {
     const t = window.temple, A = t.avatars;
     const c = t.temple.cushions[14];
     A.teleport(c.x, c.z + 0.7, Math.PI);
+    for (let i = 0; i < 20; i++) t._frame(1 / 30, (window.__qa.clock += 1 / 30));
     A.sitAt(Object.assign(A.cushionSeat(c), { kind: 'cushion' }), 'sit');
     t.player.restState = 'sit';
-    for (let i = 0; i < 30; i++) t._frame(1 / 30, (window.__qa.clock += 1 / 30));
-    t._doProstration(false);
-  }, 126, 3, [2.2, 0.9, 0.2, 0.4]));
+  }, 60, 3, [2.2, 0.9, 0.2, 0.4]));
+  // 108배 한 번 (좌복에 앉은 채 시작 → 일어서기 → 큰절). 목탁·도복 소리 호출을 기록한다
+  await page.evaluate(() => {
+    const t = window.temple, S = t.sound;
+    window.__qa.sounds = [];
+    const t0 = () => window.__qa.clock;
+    for (const k of ['playMoktak', 'playRobeRustle']) {
+      const f = S[k].bind(S);
+      S[k] = (...a) => { window.__qa.sounds.push(`${k}@${(t0() - window.__qa.bowAt).toFixed(2)}s(${a.map((x) => +(+x).toFixed(2)).join(',')})`); return f(...a); };
+    }
+  });
+  lines.push(await scene('prostrate', () => {
+    const t = window.temple;
+    window.__qa.bowAt = window.__qa.clock;
+    window.__qa.dur = t._doProstration(true);
+  }, 285, 3, [2.2, 0.9, 0.2, 0.4]));
+  lines.push(await page.evaluate(() => `  108배 한 번: 길이 ${window.__qa.dur.toFixed(2)}s · 소리 ${window.__qa.sounds.join(' ')}`));
   // 앉기 (반가부좌)
-  lines.push(await scene('sit', () => { for (let i = 0; i < 30; i++) window.temple._frame(1 / 30, (window.__qa.clock += 1 / 30)); }, 30, 6, [0.8, 0.8, 1.6, 0.4]));
+  lines.push(await scene('sit', () => {
+    const t = window.temple, A = t.avatars, c = t.temple.cushions[14];
+    A.sitAt(Object.assign(A.cushionSeat(c), { kind: 'cushion' }), 'sit');
+    for (let i = 0; i < 75; i++) t._frame(1 / 30, (window.__qa.clock += 1 / 30));
+  }, 30, 6, [0.8, 0.8, 1.6, 0.4]));
   return lines.join('\n');
 }

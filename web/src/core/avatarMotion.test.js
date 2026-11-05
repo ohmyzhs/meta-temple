@@ -47,3 +47,29 @@ test('크로스페이드: 처음은 0, 앉고 서기는 더 길게', () => {
   assert.ok(fadeFor('walk', 'walk_chasu') > 0);
   assert.equal(fadeFor('prostrate', 'sit'), fadeFor('idle', 'sit')); // 큰절은 서서 끝난다
 });
+
+test('반가부좌 ↔ 선 자세 사이에는 일어서기·앉기를 넣는다 (걸어 나갈 때는 빼고)', async () => {
+  const { transitionFor } = await import('./avatarMotion.js');
+  const has = (n) => ['sit', 'idle', 'prostrate', 'stand_up', 'sit_down', 'walk'].includes(n);
+  assert.equal(transitionFor('sit', 'prostrate', false, has), 'stand_up');
+  assert.equal(transitionFor('sit', 'idle', false, has), 'stand_up');
+  assert.equal(transitionFor('idle', 'sit', false, has), 'sit_down');
+  assert.equal(transitionFor('prostrate', 'sit', false, has), 'sit_down');
+  assert.equal(transitionFor('sit', 'walk', true, has), null);
+  assert.equal(transitionFor('stand_up', 'idle', false, has), null);
+  assert.equal(transitionFor('sit', 'idle', false, (n) => n !== 'stand_up'), null); // 클립이 없으면 바로 섞는다
+});
+
+test('큰절 시각이 구운 GLB(monk.json)와 같다', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const { PROSTRATE } = await import('./avatarMotion.js');
+  const meta = JSON.parse(await readFile(new URL('../../assets/avatars/monk.json', import.meta.url), 'utf8'));
+  const c = meta.clips.prostrate;
+  assert.ok(Math.abs(c.duration - PROSTRATE.length) < 1e-6, `${c.duration} ≠ ${PROSTRATE.length}`);
+  assert.equal(c.foreheadAt, PROSTRATE.forehead);
+  assert.deepEqual(c.rustle, PROSTRATE.rustle);
+  assert.ok(Math.abs(c.foreheadMinAt - PROSTRATE.forehead) < 1 / 30 + 1e-6, '이마가 정한 때 바닥에 닿는다');
+  for (const n of ['stand_up', 'sit_down']) assert.ok(meta.clips[n], n);
+  assert.ok(!meta.clips.run, '달리기는 없앴다');
+  assert.ok(Math.abs(meta.clips.walk.speed - 1.1) < 1e-6, '걷기는 게임 이동 속도(1.1m/s)로 굽는다');
+});

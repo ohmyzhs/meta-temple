@@ -1078,7 +1078,8 @@ def solve_keys(arm, clip):
                     lo = mid  # 더 숙여야 이마가 내려간다
                 else:
                     hi = mid
-            solved = (ch, pose[ch])
+            if not sv.get('local'):
+                solved = (ch, pose[ch])
             log(f"solve {clip['name']} t={t}: {ch}={pose[ch][ax]:.2f}° 이마 {forehead_z(arm):.4f}m")
         elif solved and pose.get('_same') == solved[0]:
             pose[solved[0]] = solved[1]
@@ -1105,7 +1106,12 @@ def bake_clips(arm, body):
         m = measure(arm, body, act, clip)
         measured[clip['name']] = m
         meta['clips'][clip['name']] = {'duration': n / AC.FPS, 'loop': bool(clip.get('loop')), **{k: v for k, v in clip.get('meta', {}).items()}, **m}
-        log(f"clip {clip['name']}: {n} frames", json.dumps(m, ensure_ascii=False))
+        log(f"clip {clip['name']}: {n} frames", json.dumps({k: v for k, v in m.items() if k != 'legs'}, ensure_ascii=False))
+        if 'legs' in m:
+            log('legs worst', m['legs']['worst'], 'cross frames', m['legs']['crossFrames'])
+            for r in m['legs']['rows']:
+                log('  ', r)
+            m.pop('legs')
         arm.animation_data.action = None
     return meta
 
@@ -1130,9 +1136,58 @@ def measure(arm, body, act, clip):
             out['foreheadMin'] = fo.z
             contact = f / AC.FPS
     out['foreheadMinAt'] = contact
+    if clip['name'] in ('prostrate', 'stand_up', 'sit_down', 'walk') or '--legs' in A:
+        out['legs'] = leg_report(arm, clip)
     for k in ('eyeMin', 'eyeMax', 'foreheadMin'):
         out[k] = round(out[k], 4)
     return out
+
+
+def leg_report(arm, clip):
+    """다리 꼬임 검사 (프레임마다): 무릎이 앞을 보는지, 발목이 정강이에 대해 비틀렸는지, 두 무릎·발목이 엇갈렸는지.
+    knee: 무릎이 굽는 쪽과 몸 앞(골반이 보는 쪽) 사이 각°, twist: 발이 정강이 축을 두고 돈 각°, cross: 왼무릎 x < 오른무릎 x."""
+    pbs = arm.pose.bones
+    worst = {'knee': (0, 0), 'twist': (0, 0)}
+    rows = []
+    for f in range(0, clip['frames'] + 1):
+        SC.frame_set(f)
+        hm = pbs['hips'].matrix.to_3x3()
+        fwd = (hm @ V((0, 0, 1))).normalized()  # 골반 뼈 Z = 앞(-Y) 쪽
+        row = {'t': round(f / AC.FPS, 2)}
+        knees = {}
+        for s in 'LR':
+            th, sh, ft = pbs[f'thigh.{s}'], pbs[f'shin.{s}'], pbs[f'foot.{s}']
+            hip, knee, ank = th.head, sh.head, sh.tail
+            axis = (ank - hip)
+            mid = hip + axis * ((knee - hip).dot(axis) / max(axis.length_squared, 1e-9))
+            kdir = knee - mid
+            an = axis.normalized()
+            f_h = fwd - an * fwd.dot(an)
+            if f_h.length < 0.35:  # 다리 축이 앞을 향하면(앉아서 발을 앞에 딛음) 기준을 '위'로 — 무릎은 위로 솟아야 한다
+                up = V((0, 0, 1))
+                f_h = up - an * up.dot(an)
+            ang = math.degrees(kdir.angle(f_h)) if kdir.length > 0.004 and f_h.length > 1e-4 else 0.0
+            # 발목 비틀림: 정강이·발의 옆 축(X, 발목이 접히는 경첩 축)을 정강이 축에 수직인 면에 투영해 잰 각 − 쉬는 자세의 같은 각
+            sa = (sh.tail - sh.head).normalized()
+            def proj(v):
+                v = v - sa * v.dot(sa)
+                return v.normalized() if v.length > 1e-6 else v
+            a_now = proj(sh.matrix.to_3x3() @ V((1, 0, 0))).angle(proj(ft.matrix.to_3x3() @ V((1, 0, 0))), 0)
+            rs = (sh.bone.tail_local - sh.bone.head_local).normalized()
+            def projr(v):
+                v = v - rs * v.dot(rs)
+                return v.normalized() if v.length > 1e-6 else v
+            a_rest = projr(sh.bone.matrix_local.to_3x3() @ V((1, 0, 0))).angle(projr(ft.bone.matrix_local.to_3x3() @ V((1, 0, 0))), 0)
+            tw = abs(math.degrees(a_now - a_rest))
+            row[f'knee{s}'] = round(ang)
+            row[f'twist{s}'] = round(tw)
+            knees[s] = knee
+            for key, v in (('knee', ang), ('twist', tw)):
+                if v > worst[key][0]:
+                    worst[key] = (round(v), row['t'])
+        row['cross'] = knees['L'].x < knees['R'].x
+        rows.append(row)
+    return {'worst': worst, 'crossFrames': sum(r['cross'] for r in rows), 'rows': rows[::3]}
 
 
 # ───────────────────────── 미리보기 렌더 ─────────────────────────
@@ -1176,7 +1231,7 @@ def preview(arm, body, shots):
                 pb.location = (0, 0, 0)
                 pb.rotation_euler = (0, 0, 0)
         SC.frame_set(frame)
-        tgt = V((0, 0, 0.62 if el < 60 else 0.3))
+        tgt = V((0, 0, 0.62 if act != 'prostrate' else 0.35))
         a, e = math.radians(az), math.radians(el)
         cam.location = tgt + V((math.sin(a) * math.cos(e), -math.cos(a) * math.cos(e), math.sin(e))) * dist
         cam.rotation_euler = (tgt - cam.location).to_track_quat('-Z', 'Y').to_euler()
@@ -1215,12 +1270,17 @@ for e in eyes:  # 미리보기·쉬는 자세에는 뜬 눈만
     e.hide_render = e.name != 'eyes_open'
 if PREVIEW:
     shots = [('rest_front', None, 0, 0, 8, 3.0), ('rest_34', None, 0, 35, 12, 3.0), ('rest_back', None, 0, 180, 10, 3.0)]
-    TIMES = {'prostrate': [0.3, 0.62, 0.9, 1.02, 1.17, 1.4, 1.95, 2.75, 3.05, 3.35], 'bow_half': [0.5, 1.2, 1.5, 2.0],
-             'walk': [0, 0.13, 0.27, 0.4], 'walk_chasu': [0, 0.13, 0.27, 0.4], 'walk_gassho': [0.1, 0.3], 'sit': [0, 2.5],
-             'idle': [0], 'idle_chasu': [0], 'run': [0, 0.1, 0.2, 0.3]}
+    TIMES = {'prostrate': [round(x * 0.2, 1) for x in range(39)], 'bow_half': [0.5, 1.2, 1.5, 2.0],
+             'stand_up': [0, 0.3, 0.45, 0.65, 0.85, 1.0, 1.2, 1.5], 'sit_down': [0, 0.3, 0.5, 0.65, 0.85, 1.05, 1.3, 1.5],
+             'walk': [0, 0.17, 0.33, 0.5], 'walk_chasu': [0, 0.17, 0.33, 0.5], 'walk_gassho': [0.1, 0.4], 'sit': [0, 2.5],
+             'idle': [0], 'idle_chasu': [0]}
     for c in ([] if ONLY_MODEL else AC.CLIPS):
         for i, tt in enumerate(TIMES.get(c['name'], [0])):
-            az = 90 if c['name'] in ('prostrate', 'bow_half') or c['name'].startswith('walk') else 30
+            if c['name'] == 'prostrate':  # 다리 꼬임 검사: 옆·뒤·앞비스듬히
+                for az in (90, 200, 320):
+                    shots.append((f"prostrate_{az}_{i:02d}", c['name'], round(tt * AC.FPS), az, 18, 2.3))
+                continue
+            az = 90 if c['name'] == 'bow_half' or c['name'].startswith('walk') else 300 if c['name'] in ('stand_up', 'sit_down') else 30
             shots.append((f"{c['name']}_{i:02d}", c['name'], round(tt * AC.FPS), az, 10, 3.0))
             if c['name'] in ('sit', 'idle_chasu', 'walk_gassho') and i == 0:
                 shots.append((f"{c['name']}_{i:02d}f", c['name'], round(tt * AC.FPS), 10, 14, 2.4))

@@ -43,7 +43,7 @@ const STAT_LABELS = [
 ];
 
 const CARD_IDS = new Set(DHARMA_CARDS.map((c) => c.id));
-const BOW_CYCLE_MS = 4000; // docs/02 §3.3 — 108배 연속 모드 4초 주기
+const BOW_CYCLE_MS = 8000; // 108배 연속 모드: 8초에 한 번 천천히 (큰절 한 번 7.6초 — core/avatarMotion.js PROSTRATE)
 const MALA_BEADS = 27; // 27주 단주 네 바퀴 = 108
 
 /* ───────── 작은 도구들 ───────── */
@@ -996,7 +996,7 @@ export class ModalManager {
           <p class="breath" data-breath aria-live="polite">숨을 고르고, 준비되면 시작하세요</p>
           <div class="m-actions practice-actions">
             <button type="button" class="m-btn primary" data-act="bow">절 올리기</button>
-            <button type="button" class="m-btn" data-act="auto" aria-pressed="false">자동 108배 <small>4초에 한 번</small></button>
+            <button type="button" class="m-btn" data-act="auto" aria-pressed="false">자동 108배 <small>8초에 한 번</small></button>
           </div>
           <p class="practice-stat">오늘 <b data-today-bows>0</b>배 · 누적 <b data-life-bows>0</b>배</p>
         </div>
@@ -1051,12 +1051,12 @@ export class ModalManager {
       gen += 1;
       auto = false;
       autoBtn.setAttribute('aria-pressed', 'false');
-      autoBtn.innerHTML = '자동 108배 <small>4초에 한 번</small>';
+      autoBtn.innerHTML = '자동 108배 <small>8초에 한 번</small>';
       bowBtn.disabled = false;
       ring.classList.remove('is-breathing');
     };
 
-    // 목탁은 main.js 가 이마가 닿는 순간에 맞춰 울린다.
+    // 소리는 아바타가 낸다: 꿇고 엎드리고 일어설 때 도복 스치는 소리 (main.js onRustle).
     // onBow 가 false 면 아바타가 아직 앞 절을 마치는 중 — 세지 않는다.
     const bow = () => {
       if (this.cb.onBow?.() === false) return false;
@@ -1080,7 +1080,7 @@ export class ModalManager {
       autoBtn.textContent = '멈추기';
       bowBtn.disabled = true;
       auto = true;
-      // 들숨 2초 → 날숨에 절 → 절이 받아들여진 때부터 다시 2초. 아바타 동작이 4초보다 길어도 절을 건너뛰지 않는다.
+      // 들숨 4초 → 날숨에 절 → 절이 받아들여진 때부터 다시 4초. 아바타 동작이 8초보다 길어도 절을 건너뛰지 않는다.
       const inhale = () => {
         if (my !== gen) return;
         setBreath('들이쉬며 합장');

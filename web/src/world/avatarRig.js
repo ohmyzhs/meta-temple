@@ -8,7 +8,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
-import { fadeFor } from '../core/avatarMotion.js';
+import { fadeFor, transitionFor } from '../core/avatarMotion.js';
 
 export const RIG_URL = './assets/avatars/monk.glb';
 /** 블렌더 몸이 있는 모습 (나머지는 아직 절차식) */
@@ -16,11 +16,8 @@ export const RIG_STYLES = new Set(['monk']);
 
 let lib = null;
 let loading = null;
-/** 이 빠르기(m/s) 사이에서 걷기가 달리기로 바뀐다 — 걷기 클립 0.58m/s, 달리기 2.19m/s (avatar_clips.py) */
-const RUN_FROM = 0.9, RUN_TO = 1.5;
 const BLINK = 0.12; // 사람 눈 깜빡임 0.1~0.15초
 const EYES_SHUT = new Set(['sit', 'tea', 'prostrate', 'bow_half']);
-const smooth = (x) => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x));
 
 /** 블렌더 좌표(Z 위, -Y 앞) → three (Y 위, +Z 앞) */
 const fromBlender = ([x, y, z]) => new THREE.Vector3(x, z, -y);
@@ -101,9 +98,28 @@ export class RigBody {
 
   has = (n) => this.actions.has(n);
 
-  /** 클립으로 바꾼다. restart: 같은 한 번짜리 동작을 처음부터 다시 (번갈아 쓰는 액션으로 섞는다) */
-  play(name, restart = false) {
-    if (!name || (name === this.name && !restart)) return;
+  /**
+   * 클립으로 바꾼다. restart: 같은 한 번짜리 동작을 처음부터 다시 (번갈아 쓰는 액션으로 섞는다).
+   * 앉은 자세 ↔ 선 자세면 일어서기·앉기 클립을 먼저 하고 이어서 (moving 이면 건너뛴다).
+   */
+  play(name, restart = false, moving = false) {
+    if (!name) return;
+    if (this._then) {
+      if (name === this._then) return; // 일어서는(앉는) 중 — 끝나면 그리로
+      this._then = null; // 마음이 바뀌었다: 바로 간다
+    }
+    if (name === this.name && !restart) return;
+    const via = transitionFor(this.name, name, moving, this.has);
+    if (via) {
+      this._start(via, false);
+      this._then = name;
+      this._thenRestart = restart;
+      return;
+    }
+    this._start(name, restart);
+  }
+
+  _start(name, restart) {
     let next = this.actions.get(name);
     if (!next) return;
     if (next === this.current && restart) next = this.spare.get(name) || next;
@@ -120,41 +136,28 @@ export class RigBody {
       if (fade > 0) next.crossFadeFrom(prev, fade, false);
       else prev.stop();
     }
-    // 숲길 걷기에는 달리기가 함께 돈다 (빠르기에 따라 섞는다) — 들어오고 나갈 때 걷기와 같은 길이로 섞는다
-    const run = this.actions.get('run');
-    if (run && name === 'walk' && this.name !== 'walk') {
-      run.reset();
-      run.weight = 0;
-      run.play();
-      if (fade > 0) run.fadeIn(fade);
-    } else if (run && this.name === 'walk' && name !== 'walk') {
-      if (fade > 0) run.fadeOut(fade);
-      else run.stop();
-    }
     this.name = name;
     this.current = next;
   }
 
-  /** speed: 실제 이동 속도(m/s) — 걷기 클립은 구운 걸음 속도에 맞춰 빨리·느리게 (발이 미끄러지지 않게) */
-  update(dt, speed, onStep) {
+  /** speed: 실제 이동 속도(m/s) — 걷기 클립은 1.1m/s 로 구웠고, 그보다 느리면(조이스틱 반쯤) 그만큼 느리게 (발이 미끄러지지 않게) */
+  update(dt, speed, onStep, onRustle) {
+    if (this._then && this.current && this.current.time >= this.current.getClip().duration - 1e-3) {
+      const n = this._then;
+      this._then = null;
+      this._start(n, this._thenRestart);
+    }
     const c = this.current;
-    const run = this.name === 'walk' && this.actions.get('run');
-    if (run) {
-      // 걷기 ↔ 달리기: 빠르기 RUN_FROM~RUN_TO 사이에서 섞고, 두 클립의 걸음 위상을 맞춘다
-      const M = lib.meta.clips, Tw = c.getClip().duration, Tr = run.getClip().duration;
-      const w = smooth((speed - RUN_FROM) / (RUN_TO - RUN_FROM));
-      const f = (1 - w) * (speed / M.walk.speed / Tw) + w * (speed / M.run.speed / Tr); // 1초에 몇 주기
-      c.weight = 1 - w;
-      run.weight = w;
-      c.setEffectiveTimeScale(Math.max(0.35 / Tw, f) * Tw);
-      run.setEffectiveTimeScale(Math.max(0.35 / Tw, f) * Tr);
-      run.time = (c.time / Tw) * Tr;
-    } else if (c && this.name.startsWith('walk')) {
+    const t0 = c ? c.time : 0;
+    if (c && this.name.startsWith('walk')) {
       const ref = lib.meta.clips?.[this.name]?.speed || 1;
       c.setEffectiveTimeScale(Math.max(0.35, speed / ref));
     }
     this.mixer.update(dt);
     this._eyes(dt);
+    // 도복 스치는 소리: 클립에 적힌 시각을 지날 때 (큰절·일어서기·앉기)
+    const R = c && onRustle && lib.meta.clips?.[this.name]?.rustle;
+    if (R) for (const [at, len, s] of R) if (t0 < at && c.time >= at) onRustle(s, len);
     if (c && this.name.startsWith('walk')) {
       const s = Math.floor((c.time / c.getClip().duration) * 2); // 한 주기 두 걸음
       if (s !== this._step) {

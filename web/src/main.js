@@ -33,7 +33,7 @@ const TRAVEL_HOLD = 600; // 가림막이 다 어두워진 뒤(0.55초) 옮긴다
 const ARRIVAL = { pitch: 0.22, dist: 9 }; // 도착 구도: 입장 때와 같은 높이·거리, 방위는 도착해서 바라보는 쪽의 뒤 (법당 안은 실내 규칙이 줄인다)
 const WALK_VEIL = new Set(['COURTYARD|FOREST', 'COURTYARD|DAEUNGJEON']); // 걸어서 넘으면 디졸브: 산문(숲길↔마당 계단), 법당 문턱
 const CROSS_COOLDOWN = 2.0; // 가림막이 내려왔다 걷히는 시간(0.6 + 1.4초) 안에 문턱을 다시 넘어도 깜빡이지 않게
-const CROSS_SETTLE = 0.25; // 새 구역에 이만큼 머물러야 넘은 것으로 (걷는 속도 2.4m/s 로 약 0.6m — 문턱선 위를 따라 걸을 때 깜빡이지 않게)
+const CROSS_SETTLE = 0.25; // 새 구역에 이만큼 머물러야 넘은 것으로 (걷는 속도 1.1m/s 로 약 0.28m — 문턱선 위를 따라 걸을 때 깜빡이지 않게)
 const FP_TURN = 2.0; // 1인칭 A/D·조이스틱 좌우로 도는 빠르기(rad/s)
 // 1인칭 탑돌이: 걷는 방향에서 탑 쪽(오른쪽)으로 57° — 실측: 1000×640 은 탑 중심이 화면 x≈0.8, 375×812 는 탑 기단이 오른쪽 1/3 에 들고 왼쪽엔 앞길
 const FP_CIRCLE_LOOK = -1.0;
@@ -142,6 +142,7 @@ class MetaTempleApp {
     this.temple = temple;
     this.avatars = new AvatarManager(this.world.scene, temple, {
       onStep: (surface) => this.sound.playFootstep(surface),
+      onRustle: (strength, len) => this.sound.playRobeRustle(strength, len), // 큰절·앉고 일어설 때 도복 스치는 소리
       onBowReply: (av) => {
         this.world.ripples.spawn(av.root.position, { color: '#f2c46d', maxR: 2.2, life: 1.8 });
         this.sound.playBlessing();
@@ -402,7 +403,6 @@ class MetaTempleApp {
     if (fromPractice) pl.restState = 'idle';
     const dur = this.avatars.triggerAction('prostrate');
     if (pl.seat?.kind === 'cushion') pl.sitting = true; // 좌복 위에서 절하면 좌복을 떠나지 않는다
-    if (fromPractice) setTimeout(() => this.sound.playMoktak(0.4), 1400); // 108배 박자만 작게
     const unlocked = this.store.addStat('bowCount');
     this._afterUnlock(unlocked);
     this._updateHUD();
@@ -1256,7 +1256,7 @@ class MetaTempleApp {
     const wz = -ix * Math.sin(yaw) + iz * Math.cos(yaw);
     if ((ix || iz) && this.modals.isOpen && this.modals.current === 'practice_108') this.modals.close();
     const night = this.world.env.night;
-    this.avatars.update(dt, t, { x: wx, z: wz, run: this.keys.ShiftLeft || this.keys.ShiftRight, face }, night);
+    this.avatars.update(dt, t, { x: wx, z: wz, face }, night);
     if (fp) cam.yaw = pl.root.rotation.y - Math.PI + this._fp.off;
     this.world.update(dt, t, this.player.root, this.player.items.hand_lantern);
 
