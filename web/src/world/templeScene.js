@@ -28,15 +28,18 @@ const KEYS = [
   { h: 4.4, elev: 30, az: 120, light: '#a9bde6', li: 1.25, top: '#0c1628', hor: '#2c3c5c', fog: '#212c44', fd: 0.011, hemiS: '#5d7099', hemiG: '#1c1a18', hi: 1.0, exp: 1.3, night: 1, stars: 0.9, cloud: '#2a3348' },
   { h: 5.0, elev: -6, az: 80, light: '#7c8fb8', li: 0.18, top: '#141e30', hor: '#55627a', fog: '#47526a', fd: 0.034, hemiS: '#4b5a7a', hemiG: '#1a1814', hi: 0.55, exp: 1.05, night: 0.75, stars: 0.35, cloud: '#56617a' },
   { h: 6.4, elev: 4, az: 82, light: '#ffb07a', li: 1.6, top: '#5b7aa6', hor: '#eab38e', fog: '#b9a596', fd: 0.02, hemiS: '#9fb2cc', hemiG: '#3a3026', hi: 0.6, exp: 1.0, night: 0.2, stars: 0, cloud: '#e8b9a0' },
-  { h: 9, elev: 32, az: 120, light: '#fff1dc', li: 2.7, top: '#5d8fc2', hor: '#c8d7e2', fog: '#bccbd6', fd: 0.0095, hemiS: '#b9cde2', hemiG: '#4a4232', hi: 0.75, exp: 1.0, night: 0, stars: 0, cloud: '#f4f4f2' },
-  { h: 13, elev: 56, az: 180, light: '#fff6e6', li: 3.0, top: '#5a8ec4', hor: '#cfdde6', fog: '#c6d4de', fd: 0.0078, hemiS: '#c4d6e8', hemiG: '#4e4634', hi: 0.8, exp: 0.98, night: 0, stars: 0, cloud: '#ffffff' },
-  { h: 16.4, elev: 24, az: 240, light: '#ffe2b8', li: 2.6, top: '#5c84b4', hor: '#e2d2bc', fog: '#cfc5b6', fd: 0.0095, hemiS: '#c9c6c0', hemiG: '#4e4030', hi: 0.7, exp: 1.0, night: 0, stars: 0, cloud: '#f6e6d2' },
+  { h: 9, elev: 32, az: 120, light: '#fff1dc', li: 3.0, top: '#3270c4', hor: '#a4c6e6', fog: '#b0c7dc', fd: 0.006, hemiS: '#b4cdea', hemiG: '#4a4232', hi: 0.8, exp: 1.08, night: 0, stars: 0, cloud: '#f8f8f6' },
+  { h: 13, elev: 56, az: 180, light: '#fff6e6', li: 3.3, top: '#2c6cc8', hor: '#9ec4e8', fog: '#acc6de', fd: 0.005, hemiS: '#b8d2ee', hemiG: '#4e4634', hi: 0.85, exp: 1.08, night: 0, stars: 0, cloud: '#ffffff' },
+  { h: 16.4, elev: 24, az: 240, light: '#ffe2b8', li: 2.9, top: '#3468b4', hor: '#b2c8e0', fog: '#b8c4ce', fd: 0.006, hemiS: '#c2cad6', hemiG: '#4e4030', hi: 0.75, exp: 1.06, night: 0, stars: 0, cloud: '#f8eadc' },
   { h: 18.0, elev: 3, az: 268, light: '#ff8a4c', li: 2.2, top: '#3a4675', hor: '#e08458', fog: '#a7765f', fd: 0.012, hemiS: '#8a7a8c', hemiG: '#3a2a20', hi: 0.55, exp: 1.06, night: 0.5, stars: 0, cloud: '#f0a070' },
   { h: 19.1, elev: -7, az: 285, light: '#6a6a9a', li: 0.4, top: '#161b36', hor: '#5e4256', fog: '#2e2a3a', fd: 0.014, hemiS: '#4a4c6a', hemiG: '#14100c', hi: 0.55, exp: 1.0, night: 0.9, stars: 0.4, cloud: '#4a3a4c' },
   { h: 22, elev: 40, az: 160, light: '#a9bde6', li: 1.35, top: '#0b1424', hor: '#2a3a5a', fog: '#1f2a42', fd: 0.01, hemiS: '#5d7099', hemiG: '#1c1a18', hi: 1.05, exp: 1.3, night: 1, stars: 1, cloud: '#2a3348' },
   { h: 24, elev: 38, az: 150, light: '#a9bde6', li: 1.35, top: '#0b1424', hor: '#2a3a5a', fog: '#1f2a42', fd: 0.01, hemiS: '#5d7099', hemiG: '#1c1a18', hi: 1.05, exp: 1.3, night: 1, stars: 1, cloud: '#2a3348' }
 ];
 export const PRESET_HOURS = { dawn: 5.0, day: 13, sunset: 18.0, night: 22 };
+
+/* 맑은 낮 색 보정(finalPass) — 1 에 더하는 양. tools/qa/day.mjs 로 재서 맞춘 값 */
+const DAY_GRADE = { sat: 0.18, contrast: 0.06 };
 
 /* 밤하늘 세기 — tools/qa/night.mjs 로 재서 맞춘 값 */
 const NIGHT_SKY = { MW_CORE: 0.006, MW_WIDE: 0.03, MW_GAIN: 0.07, STAR_FAINT: 0.7, STAR_MID: 3.0, STAR_BRIGHT: 5.0, MOON_DISK: 3.0 };
@@ -166,13 +169,17 @@ function skyMaterial() {
 
 /* ───── 최종 패스: 비네팅 + 미세 그레인 + 따뜻한 색감 ───── */
 const FinalShader = {
-  uniforms: { tDiffuse: { value: null }, uTime: { value: 0 }, uVignette: { value: 0.32 }, uFocus: { value: 0 } },
+  uniforms: { tDiffuse: { value: null }, uTime: { value: 0 }, uVignette: { value: 0.32 }, uFocus: { value: 0 }, uSat: { value: 1 }, uContrast: { value: 1 } },
   vertexShader: `varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
   fragmentShader: `
-    uniform sampler2D tDiffuse; uniform float uTime, uVignette, uFocus; varying vec2 vUv;
+    uniform sampler2D tDiffuse; uniform float uTime, uVignette, uFocus, uSat, uContrast; varying vec2 vUv;
     float rnd(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233)) + uTime) * 43758.5453); }
     void main() {
       vec4 c = texture2D(tDiffuse, vUv);
+      // 맑은 낮 색 보정: 채도·대비 (밤에는 1)
+      float y = dot(c.rgb, vec3(0.2126, 0.7152, 0.0722));
+      c.rgb = clamp(mix(vec3(y), c.rgb, uSat), 0.0, 1.0);
+      c.rgb = clamp((c.rgb - 0.5) * uContrast + 0.5, 0.0, 1.0);
       vec2 q = vUv - 0.5;
       float v = 1.0 - dot(q, q) * (uVignette + uFocus * 1.4) * 2.2;
       c.rgb *= clamp(v, 0.0, 1.0);
@@ -520,7 +527,7 @@ export class TempleScene {
     sky.uHorizon.value.copy(hor);
     sky.uBottom.value.copy(fog);
     sky.uCloud.value.set('#' + e.cloud).lerp(grey, overcast * 0.6);
-    sky.uCloudAmt.value = 0.45 + overcast * 0.55;
+    sky.uCloudAmt.value = 0.35 + overcast * 0.65;
     sky.uStars.value = e.stars * (1 - overcast);
     sky.uSunVis.value = 1 - overcast * 0.9;
     // 태양/달 방향 (+x 동쪽, -z 북쪽, +z 남쪽)
@@ -540,6 +547,9 @@ export class TempleScene {
     this.scene.fog.density = e.fd * (1 + overcast * 0.9) * (this.weatherName === 'snow' ? 1.25 : 1);
     this.renderer.toneMappingExposure = Math.max(e.exp, NIGHT_EXPOSURE_FLOOR * e.night);
     envUniforms.uNight.value = e.night;
+    const clearDay = (1 - e.night) * (1 - overcast);
+    this.finalPass.uniforms.uSat.value = 1 + DAY_GRADE.sat * clearDay;
+    this.finalPass.uniforms.uContrast.value = 1 + DAY_GRADE.contrast * clearDay;
     envUniforms.uWind.value = 0.5 + rain * 0.6 + (this.weatherName === 'snow' ? 0.2 : 0);
     // 물·원경
     waterUniforms.uSkyTop.value.copy(top);
@@ -551,7 +561,7 @@ export class TempleScene {
     ridgeUniforms.forEach(({ u, base, li }) => {
       u.uHorizon.value.copy(fog.clone().lerp(hor, 0.5));
       u.uColor.value.copy(base).lerp(new THREE.Color('#0a0e14'), e.night * 0.85).lerp(hor, overcast * 0.35);
-      u.uFade.value = 0.18 + li * 0.24 + overcast * 0.25;
+      u.uFade.value = 0.12 + li * 0.18 + overcast * 0.3;
     });
     this._regenEnv(force);
   }
