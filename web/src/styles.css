@@ -503,6 +503,23 @@ body.listening.l-idle, body.listening.l-idle canvas { cursor: none; }
 
 .l-exit { width: auto; padding: 0 14px 0 10px; border-radius: 999px; gap: 6px; display: flex; align-items: center; font-size: 13px; font-family: var(--font-sans); }
 .l-exit svg { width: 16px; height: 16px; }
+/* 연속 듣기: 켜지면 금빛 */
+.l-loop { width: auto; padding: 0 10px 0 8px; border-radius: 999px; gap: 4px; display: flex; align-items: center; font-size: 12px; font-family: var(--font-sans); color: rgba(243, 236, 220, 0.55); }
+.l-loop svg { width: 17px; height: 17px; }
+.l-loop[aria-pressed='true'] { color: var(--gold); }
+@media (max-width: 520px) {
+  .l-loop span { display: none; }
+  .l-loop { width: auto; aspect-ratio: 1; padding: 0; justify-content: center; } /* 다른 재생 단추와 같은 정사각 */
+}
+/* 폰 세로: 단추 다섯 개(48px) 사이에는 곡 이름이 두세 글자만 남으니, 이름은 재생기 바로 위 한 줄로 올린다 */
+@media (max-width: 430px) {
+  .l-name {
+    position: absolute; left: 12px; right: 12px; bottom: calc(100% + 7px);
+    text-align: center; font-size: 13px; color: var(--hanji-50);
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75), 0 0 10px rgba(0, 0, 0, 0.45);
+    pointer-events: none;
+  }
+}
 
 /* 재생기가 숨어도 남는 머리카락 굵기의 진행선 */
 .listen-line { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: rgba(243, 236, 220, 0.08); }

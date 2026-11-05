@@ -10,6 +10,7 @@ import {
   INITIAL_STONES
 } from '../data/templeData.js';
 import { checkText } from './moderation.js';
+import { CAIRN_ID_RE } from './cairns.js';
 
 // 키 이름은 파일럿 그대로 둔다 (옛 방문자 기록을 그대로 읽으려고). 내용의 판은 schemaVersion 으로 구분한다.
 const STORAGE_KEY = 'meta_temple_cheongyeon_state_v1';
@@ -45,7 +46,7 @@ export function kstHour(d = new Date()) {
   return h + m / 60;
 }
 
-function uuid() {
+export function uuid() {
   if (crypto.randomUUID) return crypto.randomUUID();
   const h = [...crypto.getRandomValues(new Uint8Array(16))].map((b) => b.toString(16).padStart(2, '0')).join('');
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
@@ -136,7 +137,9 @@ export function migrateState(raw) {
     author: s.author || '이름 없는 도반',
     wish: s.wish || '',
     createdAt: s.createdAt || new Date().toISOString(),
-    mine: !!s.mine
+    mine: !!s.mine,
+    // 길가 돌탑의 돌 (요구 8). 없으면 일주문 옆 돌탑
+    ...(CAIRN_ID_RE.test(String(s.cairnId || '')) && Number.isFinite(s.x) && Number.isFinite(s.z) ? { cairnId: s.cairnId, x: s.x, z: s.z } : {})
   }));
   return out;
 }
@@ -297,8 +300,9 @@ export class TempleStore {
     return t;
   }
 
-  addStone(wish, share = true) {
-    const s = { id: `s_${uuid()}`, public: !!share, author: this.profile.dharmaName, wish, createdAt: new Date().toISOString(), mine: true };
+  /** place: { cairnId, x, z } 면 길가 돌탑, 없으면 일주문 옆 돌탑 */
+  addStone(wish, share = true, place = null) {
+    const s = { id: `s_${uuid()}`, public: !!share, author: this.profile.dharmaName, wish, createdAt: new Date().toISOString(), mine: true, ...(place ? { cairnId: place.cairnId, x: place.x, z: place.z } : {}) };
     this.state.stones.push(s);
     this.addStat('stoneCount');
     return s;
@@ -313,7 +317,7 @@ export class TempleStore {
   /**
    * 다른 도반이 공개한 서원(서버의 최근 일부)을 목록에 섞는다. 저장할 때는 빠진다.
    */
-  mergeShared({ lanterns = [], tiles = [], stones = [], stoneTotal = 0 } = {}) {
+  mergeShared({ lanterns = [], tiles = [], stones = [], stoneTotal = 0, gateStones, cairns } = {}) {
     const st = this.state;
     const merge = (key, incoming) => {
       const local = st[key].filter((x) => !x.shared);
@@ -324,7 +328,32 @@ export class TempleStore {
     };
     const n = merge('lanterns', lanterns) + merge('tiles', tiles) + merge('stones', stones);
     this.sharedStoneTotal = stoneTotal;
+    this.sharedGateStones = gateStones; // 옛 서버면 undefined
+    if (Array.isArray(cairns)) this.sharedCairns = cairns;
     return n;
+  }
+
+  /**
+   * 길가 돌탑 목록 [{ id, x, z, n }]: 서버가 알려 준 탑 + 내 돌로 쌓은 탑.
+   * 층 수는 서버 수에 공개하지 않은 내 돌을 더한 값과 내 돌 수 가운데 큰 값 (막 올린 공개 돌은 다음에 받을 때 서버 수에 들어온다).
+   */
+  cairnList() {
+    const by = new Map((this.sharedCairns || []).map((c) => [c.id, { id: c.id, x: c.x, z: c.z, n: c.n, priv: 0, own: 0 }]));
+    for (const s of this.state.stones) {
+      if (!s.cairnId || s.shared) continue;
+      const c = by.get(s.cairnId) || { id: s.cairnId, x: s.x, z: s.z, n: 0, priv: 0, own: 0 };
+      c.own++;
+      if (!s.public) c.priv++;
+      by.set(s.cairnId, c);
+    }
+    return [...by.values()].map(({ priv, own, ...c }) => ({ ...c, n: Math.max(c.n + priv, own) }));
+  }
+
+  /** 일주문 옆 돌탑의 돌 수 (옛 서버는 길가 돌탑을 모르므로 전체 수) */
+  get gateStoneTotal() {
+    const gate = this.state.stones.filter((s) => !s.cairnId);
+    const local = gate.filter((s) => !s.shared && !s.public).length;
+    return Math.max(gate.length, (this.sharedGateStones ?? this.sharedStoneTotal ?? 0) + local);
   }
 
   /** 신고한 남의 글을 내 화면에서 치우고 기억한다 */

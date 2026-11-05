@@ -90,3 +90,57 @@ test('products_disabled_by_default', async () => {
   assert.equal(r.status, 200);
   assert.deepEqual(await r.json(), { enabled: false, products: [] });
 });
+
+/* ───── 돌탑 어디서나 (요구 8): stones 의 선택 필드 cairnId, x, z ───── */
+const cid = () => 'c_' + randomUUID();
+const shared = () => fetch(`${BASE}/api/shared`).then((r) => r.json());
+
+test('stone_cairn_fields', async () => {
+  const c = cid(), id = sid();
+  const r = await post('/api/stones', { id, wish: '계곡 물소리', clientId: 'c-cairn1', cairnId: c, x: -12.34, z: 20.1 }, '10.1.0.1');
+  assert.equal(r.status, 201);
+  assert.deepEqual(await r.json().then(({ cairnId, x, z }) => ({ cairnId, x, z })), { cairnId: c, x: -12.34, z: 20.1 });
+  const s = await shared();
+  assert.deepEqual(s.cairns.find((k) => k.id === c), { id: c, x: -12.34, z: 20.1, n: 1 });
+  assert.equal(s.stones.find((k) => k.id === id).cairnId, c);
+});
+
+test('stone_joins_nearby_cairn', async () => {
+  const first = cid();
+  assert.equal((await post('/api/stones', { id: sid(), wish: '하나', clientId: 'c-join1', cairnId: first, x: 30, z: -40 }, '10.1.0.2')).status, 201);
+  // 다른 사람이 1m 옆에 새 탑을 세우려 해도 → 있던 탑에 한 층 더
+  const r = await post('/api/stones', { id: sid(), wish: '둘', clientId: 'c-join2', cairnId: cid(), x: 30.8, z: -40.6 }, '10.1.0.3');
+  assert.equal(r.status, 201);
+  const b = await r.json();
+  assert.deepEqual([b.cairnId, b.x, b.z], [first, 30, -40]);
+  // 아는 탑 id 로 엉뚱한 자리를 보내도 탑 자리는 그대로
+  const r3 = await post('/api/stones', { id: sid(), wish: '셋', clientId: 'c-join3', cairnId: first, x: 99, z: 99 }, '10.1.0.4');
+  assert.deepEqual(await r3.json().then((j) => [j.x, j.z]), [30, -40]);
+  assert.equal((await shared()).cairns.find((k) => k.id === first).n, 3);
+});
+
+test('stone_area_cap', async () => {
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    const r = await post('/api/stones', { id: sid(), wish: `탑 ${i}`, clientId: `c-area${i}`, cairnId: cid(), x: 60 + 3 * Math.cos(a), z: 60 + 3 * Math.sin(a) }, `10.1.1.${i}`);
+    assert.equal(r.status, 201);
+  }
+  const r = await post('/api/stones', { id: sid(), wish: '일곱째', clientId: 'c-area7', cairnId: cid(), x: 60, z: 60 }, '10.1.1.9');
+  assert.equal(r.status, 422);
+  assert.equal((await r.json()).reason, 'cairn_area_full');
+});
+
+test('stone_bad_cairn_400', async () => {
+  for (const bad of [{ cairnId: 'gate', x: 1, z: 1 }, { cairnId: cid(), x: 'a', z: 1 }, { cairnId: cid(), x: 1 }, { cairnId: cid(), x: 1e7, z: 0 }]) {
+    const r = await post('/api/stones', { id: sid(), wish: '평안', clientId: 'c-bad' + JSON.stringify(bad), ...bad }, '10.1.2.1');
+    assert.equal(r.status, 400, JSON.stringify(bad));
+  }
+});
+
+test('old_stone_still_gate', async () => {
+  const before = (await shared()).gateStones;
+  const r = await post('/api/stones', { id: sid(), wish: '옛 화면의 돌', clientId: 'c-oldstone' }, '10.1.3.1');
+  assert.equal(r.status, 201);
+  assert.equal((await r.json()).cairnId, undefined);
+  assert.equal((await shared()).gateStones, before + 1);
+});

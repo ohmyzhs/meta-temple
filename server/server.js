@@ -9,6 +9,7 @@ import crypto from 'node:crypto';
 import { WebSocketServer } from 'ws';
 import { createStore } from './store.js';
 import { checkText } from './moderation.js';
+import { parsePlace, placeStone, AREA_RADIUS } from './cairns.js';
 import { PRODUCTS, paymentsEnabled } from './products.js';
 
 const PORT = Number(process.env.PORT) || 8080;
@@ -124,11 +125,24 @@ async function api(req, res) {
   if (!ID_RE.test(String(body.id || ''))) return send(res, 400, { error: 'bad id' });
   const v = checkText(body.wish, { kind: 'wish', max: WISH_MAX[kind] });
   if (!v.ok) return send(res, 422, { error: v.message, reason: v.reason });
+  // 돌탑 어디서나: 자리 필드는 선택 (없으면 옛 화면 → 일주문 옆 돌탑)
+  let place = null;
+  if (kind === 'stones') {
+    const p = parsePlace(body);
+    if (p.error) return send(res, 400, { error: p.error });
+    if (p.place) {
+      // 이미 있는 탑이면 그 자리, 아니면 1.5m 안의 탑에 합치고, 구역이 꽉 찼으면 새 탑은 거절
+      const known = await store.cairnById(p.place.cairnId);
+      const at = known ? { id: known.id, x: known.x, z: known.z } : placeStone(await store.cairnsNear(p.place.x, p.place.z, AREA_RADIUS), p.place.x, p.place.z, p.place.cairnId);
+      if (at.full) return send(res, 422, { error: '이 근처에는 돌탑이 이미 많습니다. 가까운 돌탑에 얹어 주세요', reason: 'cairn_area_full' });
+      place = { cairn_id: at.id, x: at.x, z: at.z };
+    }
+  }
   const key = `${clientHash}|${kind}`;
   if (Date.now() - (lastPost.get(key) || 0) < POST_COOLDOWN_MS) return send(res, 429, { error: '잠시 숨을 고른 뒤 다시 올려 주세요' });
   if ((await store.countToday(kind, clientHash)) >= DAILY[kind]) return send(res, 429, { error: '오늘은 충분히 올리셨습니다' });
   lastPost.set(key, Date.now());
-  const item = { id: body.id, author, wish: v.text, client_hash: clientHash };
+  const item = { id: body.id, author, wish: v.text, client_hash: clientHash, ...place };
   if (kind === 'lanterns') {
     if (!COLOR_RE.test(String(body.color || ''))) return send(res, 400, { error: 'bad color' });
     item.color = body.color;

@@ -9,6 +9,7 @@ import * as THREE from 'three';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { L, walkHeight, stepMove, zoneAt, pathX, clamp } from './layout.js';
+import { crossingAt, nearestTrail, deckRiseAt } from './trail.js';
 import { faceTexture, softDotTexture } from './textures.js';
 import { generateDharmaName } from '../data/templeData.js';
 
@@ -550,6 +551,9 @@ export class AvatarManager {
     if (z === 'DAEUNGJEON') return 'wood';
     if (z === 'COURTYARD') return Math.abs(p.x) < 1.8 || Math.hypot(p.x - L.pagoda.x, p.z - L.pagoda.z) < 5.3 ? 'stone' : 'gravel';
     if (Math.abs(p.x - L.bridge.x) < 1.6 && Math.abs(p.z - 15) < 4) return 'stone';
+    const cr = crossingAt(p.x, p.z);
+    if (cr) return cr.kind === 'bridge' ? 'wood' : 'stone';
+    if (deckRiseAt(nearestTrail(p.x, p.z)) > 0.2) return 'wood';
     return 'earth';
   }
 
@@ -558,10 +562,11 @@ export class AvatarManager {
   }
 
   /* ───── 이동 ───── */
-  moveTo(x, z, onArrive) {
+  /** via: 먼저 지날 경유점들 [{x,z}] (산책로를 따라 걷기 — 경유점에서는 멈추지 않고 지나간다) */
+  moveTo(x, z, onArrive, via = null) {
     this.standUp();
     this.circling = null;
-    this.moveTarget = { x, z, onArrive };
+    this.moveTarget = via?.length ? { x: via[0].x, z: via[0].z, via: via.slice(1), final: { x, z }, onArrive } : { x, z, onArrive };
   }
 
   teleport(x, z, ry) {
@@ -931,6 +936,12 @@ export class AvatarManager {
       pl.heading = input.face ?? Math.atan2(input.x, input.z); // 1인칭은 뒤로 걸어도 몸을 돌리지 않는다
     } else if (this.moveTarget && !pl.busy) {
       const mt = this.moveTarget;
+      if (mt.via && Math.hypot(mt.x - p.x, mt.z - p.z) < 0.8) {
+        const next = mt.via.length ? mt.via.shift() : mt.final;
+        mt.x = next.x;
+        mt.z = next.z;
+        if (next === mt.final) mt.via = null;
+      }
       const dx = mt.x - p.x, dz = mt.z - p.z;
       const d = Math.hypot(dx, dz);
       if (d < 0.12) {

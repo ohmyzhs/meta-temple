@@ -6,6 +6,9 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { L, terrainHeight, isClearForTree, addCircleCollider, pathX, noise2, streamZ } from './layout.js';
 import { windSway, weatherable } from './materials.js';
 import { bambooTexture } from './textures.js';
+import { nearestTrail, trail, REST_SPOTS, inLookoutView, DENSE_FOREST } from './trail.js';
+
+const trailDist = (x, z) => nearestTrail(x, z)?.d ?? 99;
 
 function rand(seed) {
   let s = seed;
@@ -129,10 +132,10 @@ export function buildVegetation(scene, quality) {
   const spots = { fir: [], pine: [], maple: [] };
 
   // 숲길 양옆: 촘촘한 전나무 + 소나무
-  const tryPlace = (x, z, kind, margin = 0) => {
+  const tryPlace = (x, z, kind, margin = 0, gap = 2.6) => {
     if (!isClearForTree(x, z, margin)) return false;
     for (const k of Object.keys(spots)) {
-      for (const s of spots[k]) if (Math.hypot(s[0] - x, s[1] - z) < 2.6) return false;
+      for (const s of spots[k]) if (Math.hypot(s[0] - x, s[1] - z) < gap) return false;
     }
     spots[kind].push([x, z, 0.8 + r() * 0.5, r() * Math.PI * 2]);
     return true;
@@ -150,10 +153,21 @@ export function buildVegetation(scene, quality) {
     const kind = r() > 0.7 ? 'pine' : r() > 0.72 ? 'maple' : 'fir';
     tryPlace(x, z, kind, 1);
   }
+  // 순환 산책로의 우거진 숲 구간 (데크 숲·서쪽 굽이길·남동 전나무숲): 길 양옆으로 빽빽이
+  for (const [s0, s1] of DENSE_FOREST) {
+    for (let s = s0; s < s1; s += low ? 1.6 : 0.8) {
+      const a = trail.at(s - 0.5), b = trail.at(s + 0.5), m = trail.at(s);
+      const l = Math.hypot(b.x - a.x, b.z - a.z) || 1;
+      for (const side of [-1, 1]) {
+        const off = 3.6 + Math.pow(r(), 1.6) * 14; // 길 가까이 더 빽빽
+        tryPlace(m.x - ((b.z - a.z) / l) * side * off, m.z + ((b.x - a.x) / l) * side * off, r() > 0.86 ? 'pine' : r() > 0.93 ? 'maple' : 'fir', 0, 2.1);
+      }
+    }
+  }
   // 마당·대웅전 근처 단풍 포인트
   [
     [-24.5, 1], [-25, -10], [-14, -21.5], [14, -22], [16.5, -24], [35, 2], [-27, -18], [7.5, 11.5], [-8, 12.5]
-  ].forEach(([x, z]) => spots.maple.push([x, z, 1 + r() * 0.3, r() * 6]));
+  ].forEach(([x, z]) => trailDist(x, z) > 3.4 && !inLookoutView(x, z) && spots.maple.push([x, z, 1 + r() * 0.3, r() * 6]));
 
   const o = new THREE.Object3D();
   const place = (inst, list, i, yOff = 0) => {
@@ -196,7 +210,7 @@ export function buildVegetation(scene, quality) {
   }
   // 길 가까운 나무만 충돌
   for (const k of ['fir', 'pine', 'maple']) {
-    for (const [x, z, s] of spots[k]) if (Math.abs(x - pathX(z)) < 8 || z < 6) addCircleCollider(x, z, 0.45 * s);
+    for (const [x, z, s] of spots[k]) if (Math.abs(x - pathX(z)) < 8 || z < 6 || trailDist(x, z) < 6) addCircleCollider(x, z, 0.45 * s);
   }
 
   buildBamboo(scene, low);
@@ -213,16 +227,29 @@ export function buildVegetation(scene, quality) {
 
 function buildBamboo(scene, low) {
   const r = rand(555);
+  const open = (x, z) => inLookoutView(x, z); // 쉼터에서 내다보는 쪽은 대나무도 비운다
   const b = L.bamboo;
   const n = low ? 260 : 460;
   const stalks = [];
   for (let i = 0; i < n; i++) {
     const x = b.x0 + r() * (b.x1 - b.x0), z = b.z0 + r() * (b.z1 - b.z0);
-    stalks.push([x, z, 7 + r() * 5, r() * 6]);
+    const h = 7 + r() * 5, rot = r() * 6;
+    if (trailDist(x, z) < 2.3 || REST_SPOTS.some((q) => Math.hypot(q.x - x, q.z - z) < 2.2)) continue; // 대숲 사이 산책로
+    if (open(x, z)) continue;
+    stalks.push([x, z, h, rot]);
   }
   // 다실 뒤 띠
   for (let i = 0; i < (low ? 60 : 110); i++) {
-    stalks.push([20 + r() * 10, -19.5 - r() * 3.5, 6 + r() * 4, r() * 6]);
+    const st = [20 + r() * 10, -19.5 - r() * 3.5, 6 + r() * 4, r() * 6];
+    if (!open(st[0], st[1])) stalks.push(st);
+  }
+  // 순환 산책로 동쪽 대숲 (산책로 자리는 비운다)
+  const e = L.bambooEast;
+  for (let i = 0; i < (low ? 170 : 320); i++) {
+    const x = e.x0 + r() * (e.x1 - e.x0), z = e.z0 + r() * (e.z1 - e.z0);
+    const h = 7 + r() * 5, rot = r() * 6;
+    if (trailDist(x, z) < 2.3 || REST_SPOTS.some((q) => Math.hypot(q.x - x, q.z - z) < 2.2) || open(x, z)) continue;
+    stalks.push([x, z, h, rot]);
   }
   const stalkGeo = new THREE.CylinderGeometry(0.055, 0.07, 1, 6);
   stalkGeo.translate(0, 0.5, 0);
@@ -265,13 +292,23 @@ function buildGrass(scene, low) {
   const r = rand(808);
   const tufts = [];
   const n = low ? 500 : 2200;
-  for (let i = 0; i < n * 3 && tufts.length < n; i++) {
+  // 순환 산책로 가장자리 풀
+  for (let i = 0; i < (low ? 900 : 2600); i++) {
+    const m = trail.at(r() * trail.length);
+    const x = m.x + (r() - 0.5) * 9, z = m.z + (r() - 0.5) * 9;
+    const d = trailDist(x, z);
+    if (d < 1.6 || d > 4.5 || Math.abs(z - streamZ(x)) < 3 || REST_SPOTS.some((q) => Math.hypot(q.x - x, q.z - z) < 1.6)) continue;
+    tufts.push([x, z, 0.3 + r() * 0.36, r() * 6]);
+  }
+  const base = tufts.length;
+  for (let i = 0; i < n * 3 && tufts.length - base < n; i++) {
     const x = -30 + r() * 70, z = -30 + r() * 80;
     const dp = Math.abs(x - pathX(z));
     const nearPath = z > 6 && dp > 1.8 && dp < 9;
     const teaLawn = x > L.teahouseTerrace.x0 && x < L.teahouseTerrace.x1 && z < L.teahouseTerrace.z1 && z > L.teahouseTerrace.z0;
     const bank = Math.abs(z - streamZ(x)) > 1.6 && Math.abs(z - streamZ(x)) < 4.5;
     if (!(nearPath || bank || teaLawn)) continue;
+    if (trailDist(x, z) < 1.5) continue;
     if (teaLawn && Math.hypot((x - L.pond.x) / L.pond.rx, (z - L.pond.z) / L.pond.rz) < 1.15) continue;
     if (teaLawn && x > 24 && x < 30.5 && z < -7.4 && z > -17.6) continue;
     tufts.push([x, z, 0.32 + r() * 0.38, r() * 6]);

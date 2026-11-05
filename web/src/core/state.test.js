@@ -98,3 +98,25 @@ test('reported_shared_stays_hidden', () => {
   assert.equal(st.state.stones.some((s) => s.id === 's_x2'), true);
   assert.deepEqual(JSON.parse(localStorage.getItem(KEY)).reported, ['s_x1']); // 새로고침해도
 });
+
+test('stone_place_survives_reload', () => {
+  const st = new TempleStore();
+  const place = { cairnId: 'c_' + '0'.repeat(8) + '-0000-0000-0000-' + '0'.repeat(12), x: -12.5, z: 20.25 };
+  st.addStone('계곡 물소리', false, place);
+  st.addStone('일주문 옆', false);
+  const again = new TempleStore();
+  const mine = again.state.stones.filter((s) => s.mine);
+  assert.deepEqual(mine.map((s) => s.cairnId ?? null), [place.cairnId, null]);
+  assert.deepEqual(again.cairnList(), [{ id: place.cairnId, x: -12.5, z: 20.25, n: 1 }]);
+});
+
+test('cairn_list_merges_server_and_own', () => {
+  const st = new TempleStore();
+  const a = 'c_' + '1'.repeat(8) + '-0000-0000-0000-' + '0'.repeat(12);
+  st.mergeShared({ cairns: [{ id: a, x: 1, z: 2, n: 4 }], gateStones: 9, stoneTotal: 13 });
+  st.addStone('비공개 한 층', false, { cairnId: a, x: 1, z: 2 });
+  assert.deepEqual(st.cairnList(), [{ id: a, x: 1, z: 2, n: 5 }]);
+  assert.ok(st.gateStoneTotal >= 9);
+  st.mergeShared({ stoneTotal: 13 }); // 옛 서버: 길가 돌탑을 모름 → 목록은 그대로, 일주문 수는 전체 수로
+  assert.equal(st.cairnList().length, 1);
+});

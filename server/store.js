@@ -64,10 +64,15 @@ CREATE INDEX IF NOT EXISTS entitlements_profile ON entitlements (profile_id);
 CREATE INDEX IF NOT EXISTS lanterns_recent ON lanterns (created_at DESC) WHERE NOT hidden;
 CREATE INDEX IF NOT EXISTS tiles_recent ON tiles (created_at DESC) WHERE NOT hidden;
 CREATE INDEX IF NOT EXISTS stones_recent ON stones (created_at DESC) WHERE NOT hidden;
+-- 돌탑 어디서나 (요구 8): 길가 돌탑의 돌은 탑 id 와 탑 자리(처음 돌의 자리)를 함께 둔다. 없으면 일주문 옆 돌탑
+ALTER TABLE stones ADD COLUMN IF NOT EXISTS cairn_id text;
+ALTER TABLE stones ADD COLUMN IF NOT EXISTS x double precision;
+ALTER TABLE stones ADD COLUMN IF NOT EXISTS z double precision;
+CREATE INDEX IF NOT EXISTS stones_cairn ON stones (cairn_id) WHERE cairn_id IS NOT NULL;
 `;
 
-// 한 번에 돌려주는 양 — "일부만" 보이게 (최근 것 위주)
-export const LIMITS = { lanterns: 90, tiles: 24, stones: 20 };
+// 한 번에 돌려주는 양 — "일부만" 보이게 (최근 것 위주). cairns 는 최근에 돌이 얹힌 길가 돌탑
+export const LIMITS = { lanterns: 90, tiles: 24, stones: 20, cairns: 300 };
 
 const row = (r) => ({
   id: r.id,
@@ -75,6 +80,7 @@ const row = (r) => ({
   ...(r.color ? { color: r.color } : {}),
   wish: r.wish,
   ...(r.empathy !== undefined ? { empathy: r.empathy } : {}),
+  ...(r.cairn_id ? { cairnId: r.cairn_id, x: Number(r.x), z: Number(r.z) } : {}),
   createdAt: new Date(r.created_at).toISOString()
 });
 
@@ -95,13 +101,37 @@ export async function createStore(url) {
   return {
     kind: 'postgres',
     async recent() {
-      const [l, t, s, sc] = await Promise.all([
+      const [l, t, s, sc, c] = await Promise.all([
         pool.query('SELECT id, author, color, wish, empathy, created_at FROM lanterns WHERE NOT hidden ORDER BY created_at DESC LIMIT $1', [LIMITS.lanterns]),
         pool.query('SELECT id, author, wish, created_at FROM tiles WHERE NOT hidden ORDER BY created_at DESC LIMIT $1', [LIMITS.tiles]),
-        pool.query('SELECT id, author, wish, created_at FROM stones WHERE NOT hidden ORDER BY created_at DESC LIMIT $1', [LIMITS.stones]),
-        pool.query('SELECT count(*)::int AS n FROM stones WHERE NOT hidden')
+        pool.query('SELECT id, author, wish, cairn_id, x, z, created_at FROM stones WHERE NOT hidden ORDER BY created_at DESC LIMIT $1', [LIMITS.stones]),
+        pool.query('SELECT count(*)::int AS n, (count(*) FILTER (WHERE cairn_id IS NULL))::int AS gate FROM stones WHERE NOT hidden'),
+        pool.query(
+          'SELECT cairn_id, min(x) AS x, min(z) AS z, count(*)::int AS n FROM stones WHERE NOT hidden AND cairn_id IS NOT NULL GROUP BY cairn_id ORDER BY max(created_at) DESC LIMIT $1',
+          [LIMITS.cairns]
+        )
       ]);
-      return { lanterns: l.rows.map(row), tiles: t.rows.map(row), stones: s.rows.map(row), stoneTotal: sc.rows[0].n };
+      return {
+        lanterns: l.rows.map(row),
+        tiles: t.rows.map(row),
+        stones: s.rows.map(row),
+        stoneTotal: sc.rows[0].n,
+        gateStones: sc.rows[0].gate,
+        cairns: c.rows.map((r) => ({ id: r.cairn_id, x: Number(r.x), z: Number(r.z), n: r.n }))
+      };
+    },
+    /** 이 탑 (숨긴 돌만 남았어도 자리는 지킨다) */
+    async cairnById(id) {
+      const r = await pool.query('SELECT x, z FROM stones WHERE cairn_id = $1 LIMIT 1', [id]);
+      return r.rows[0] ? { id, x: Number(r.rows[0].x), z: Number(r.rows[0].z) } : null;
+    },
+    /** (x,z) 반경 r 안의 탑들 */
+    async cairnsNear(x, z, r) {
+      const q = await pool.query(
+        'SELECT cairn_id, min(x) AS x, min(z) AS z FROM stones WHERE cairn_id IS NOT NULL AND x BETWEEN $1 AND $2 AND z BETWEEN $3 AND $4 GROUP BY cairn_id',
+        [x - r, x + r, z - r, z + r]
+      );
+      return q.rows.map((c) => ({ id: c.cairn_id, x: Number(c.x), z: Number(c.z) })).filter((c) => (c.x - x) ** 2 + (c.z - z) ** 2 <= r * r);
     },
     async countToday(table, clientHash) {
       const r = await pool.query(`SELECT count(*)::int AS n FROM ${table} WHERE client_hash = $1 AND created_at > now() - interval '1 day'`, [clientHash]);
@@ -155,7 +185,33 @@ function memoryStore() {
   return {
     kind: 'memory',
     async recent() {
-      return { lanterns: newest(db.lanterns, LIMITS.lanterns), tiles: newest(db.tiles, LIMITS.tiles), stones: newest(db.stones, LIMITS.stones), stoneTotal: db.stones.length };
+      const shown = db.stones.filter((s) => !s.hidden);
+      const by = new Map();
+      for (const s of shown) {
+        if (!s.cairn_id) continue;
+        const c = by.get(s.cairn_id) || { id: s.cairn_id, x: s.x, z: s.z, n: 0, last: 0 };
+        c.n++;
+        c.last = Math.max(c.last, s.created_at);
+        by.set(s.cairn_id, c);
+      }
+      const cairns = [...by.values()].sort((a, b) => b.last - a.last).slice(0, LIMITS.cairns).map(({ last, ...c }) => c);
+      return {
+        lanterns: newest(db.lanterns, LIMITS.lanterns),
+        tiles: newest(db.tiles, LIMITS.tiles),
+        stones: newest(db.stones, LIMITS.stones),
+        stoneTotal: shown.length,
+        gateStones: shown.filter((s) => !s.cairn_id).length,
+        cairns
+      };
+    },
+    async cairnById(id) {
+      const s = db.stones.find((x) => x.cairn_id === id);
+      return s ? { id, x: s.x, z: s.z } : null;
+    },
+    async cairnsNear(x, z, r) {
+      const by = new Map();
+      for (const s of db.stones) if (s.cairn_id && (s.x - x) ** 2 + (s.z - z) ** 2 <= r * r) by.set(s.cairn_id, { id: s.cairn_id, x: s.x, z: s.z });
+      return [...by.values()];
     },
     async countToday(table, clientHash) {
       const day = Date.now() - 86400000;

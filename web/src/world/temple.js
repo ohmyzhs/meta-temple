@@ -29,6 +29,8 @@ import {
 } from './architecture.js';
 import { makeEmitter } from './effects.js';
 import { buildBuddhaStatue } from './buddha.js';
+import { buildTrailProps } from './trailProps.js';
+import { CairnField } from './cairnField.js';
 import { taenghwaTexture, ceilingTexture, sumidanTexture, canopyTexture, valanceTexture, tileWishTexture, softDotTexture, latticeTextures, graniteTextures } from './textures.js';
 
 function rand(seed) {
@@ -65,6 +67,10 @@ export class Temple {
     this._teahouse();
     this.lanterns = new LanternSystem(scene);
     this.cairn = new Cairn(scene, this.cairnPos);
+    // 순환 산책로: 쉼터·작은 다리·갈림목 석등, 그리고 길가 돌탑
+    this.trail = buildTrailProps(scene);
+    this.trail.lanterns.forEach(({ x, z, y }) => this.glowDecals.push({ x, z, y, r: 2.4, i: 0.5 }));
+    this.cairns = new CairnField(scene, quality);
     this._glowDecalsMesh();
   }
 
@@ -75,6 +81,7 @@ export class Temple {
       this.bell.userData.ram,
       this.incense.group,
       this.cairn.group,
+      ...this.trail.dynamic,
       ...this.votives
     ]);
   }
