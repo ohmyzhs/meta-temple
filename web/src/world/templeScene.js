@@ -192,6 +192,15 @@ function batchStatic(scene, exclude) {
   return { before, after };
 }
 
+/**
+ * 세로 시야각. 가로 화면은 55°, 세로로 좁아질수록 넓혀 좌우 시야(약 58°)를 지킨다.
+ * 폰 세로(9:19.5)는 72°에서 멈춘다 — 더 넓히면 가장자리가 늘어나 보인다.
+ */
+function fovFor(aspect) {
+  const v = THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(29)) / aspect));
+  return clamp(v, 55, 72);
+}
+
 export class TempleScene {
   constructor(container, { quality = 'high', onProgress } = {}) {
     this.container = container;
@@ -221,7 +230,7 @@ export class TempleScene {
 
     this.scene = new THREE.Scene();
     this.scene.fog = new THREE.FogExp2(0xc6d4de, 0.008);
-    this.camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.08, 900);
+    this.camera = new THREE.PerspectiveCamera(fovFor(window.innerWidth / window.innerHeight), window.innerWidth / window.innerHeight, 0.08, 900);
     this.camera.position.set(0, 4, 44);
 
     this._initSky();
@@ -417,6 +426,7 @@ export class TempleScene {
   resize() {
     const w = window.innerWidth, h = window.innerHeight;
     this.camera.aspect = w / h;
+    this.camera.fov = fovFor(w / h);
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(w, h);
     this.composer.setSize(w, h);

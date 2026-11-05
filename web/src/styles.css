@@ -29,6 +29,9 @@
   --font-brush: 'Nanum Brush Script', 'Noto Serif KR', cursive;
   --safe-b: env(safe-area-inset-bottom, 0px);
   --safe-t: env(safe-area-inset-top, 0px);
+  --safe-l: env(safe-area-inset-left, 0px);  /* 가로 모드 노치 */
+  --safe-r: env(safe-area-inset-right, 0px);
+  --tool: 40px;                              /* 도구·가람 버튼 한 변 */
   --ease: cubic-bezier(0.22, 0.8, 0.24, 1);
 }
 
@@ -164,7 +167,7 @@ kbd {
 .hud-plaque {
   position: absolute;
   top: calc(14px + var(--safe-t));
-  left: 14px;
+  left: calc(14px + var(--safe-l));
   width: 290px;
   border-radius: var(--radius);
   background: var(--glass);
@@ -197,9 +200,9 @@ kbd {
 .hud-plaque.collapsed .plaque-body { display: none; }
 @keyframes breathe { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
 
-.hud-tools { position: absolute; top: calc(14px + var(--safe-t)); right: 14px; display: flex; gap: 8px; }
+.hud-tools { position: absolute; top: calc(14px + var(--safe-t)); right: calc(14px + var(--safe-r)); display: flex; gap: 8px; }
 .tool-btn {
-  width: 40px; height: 40px; border-radius: 50%;
+  width: var(--tool); height: var(--tool); border-radius: 50%; flex: none;
   background: var(--glass); border: 1px solid var(--line);
   -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
   font-family: var(--font-serif); font-size: 16px; color: var(--hanji-100);
@@ -209,7 +212,8 @@ kbd {
 .tool-btn.muted { color: var(--text-dim); text-decoration: line-through; }
 
 .popover {
-  position: absolute; top: calc(62px + var(--safe-t)); right: 14px; width: 300px;
+  position: absolute; z-index: 5; top: calc(62px + var(--safe-t)); right: calc(14px + var(--safe-r)); width: 300px;
+  max-height: calc(100vh - 76px - var(--safe-t)); max-height: calc(100dvh - 76px - var(--safe-t)); overflow-y: auto;
   padding: 14px 16px 16px; border-radius: var(--radius);
   background: var(--glass-strong); border: 1px solid var(--line);
   -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px);
@@ -235,7 +239,7 @@ kbd {
 .slider input { width: 100%; accent-color: var(--gold); }
 
 .hud-compass {
-  position: absolute; left: 14px; bottom: calc(14px + var(--safe-b));
+  position: absolute; left: calc(14px + var(--safe-l)); bottom: calc(14px + var(--safe-b));
   display: flex; flex-direction: column; gap: 6px;
 }
 .zone-btn {
@@ -292,7 +296,7 @@ kbd {
 .toast-stack {
   position: fixed; top: calc(16px + var(--safe-t)); left: 50%; transform: translateX(-50%);
   display: flex; flex-direction: column; align-items: center; gap: 8px;
-  z-index: 60; pointer-events: none; width: min(520px, calc(100vw - 32px));
+  z-index: 60; pointer-events: none; width: min(520px, calc(100vw - 640px)); /* 현판(~300px)과 도구 줄 사이 */
 }
 .toast {
   padding: 10px 18px; border-radius: 999px; text-align: center;
@@ -308,7 +312,7 @@ kbd {
 
 .joystick {
   display: none;
-  position: absolute; left: 22px; bottom: calc(110px + var(--safe-b));
+  position: absolute; left: calc(22px + var(--safe-l)); bottom: calc(110px + var(--safe-b));
   width: 116px; height: 116px; border-radius: 50%;
   background: rgba(20, 17, 14, 0.35); border: 1px solid var(--line);
   touch-action: none;
@@ -318,50 +322,135 @@ kbd {
   border-radius: 50%; background: rgba(243, 236, 220, 0.18); border: 1px solid var(--gold-soft);
 }
 
-/* ───────── 모바일 ───────── */
-@media (max-width: 760px), (pointer: coarse) and (max-width: 1024px) {
-  .hud-plaque { width: auto; max-width: calc(100vw - 120px); left: 10px; top: calc(10px + var(--safe-t)); }
+/* ───────── 반응형 ─────────
+   세 축을 따로 본다.
+   · 너비  compact < 600px ≤ medium < 1024px ≤ wide(기본 규칙)
+   · 높이  short ≤ 519px (폰 가로)
+   · 입력  pointer: coarse (터치) — 조이스틱·큰 터치 타깃은 너비와 무관하게 터치 기준
+   뒤에 오는 블록이 앞 블록을 덮는다: medium → compact → coarse → short. */
+
+/* medium: 폴드 펼침·태블릿 세로·좁은 창 — 가람 이동은 오른쪽 세로 열(도구 아래)로 */
+@media (max-width: 1023px) {
+  .hud-plaque { width: 260px; }
+  .hud-compass { left: auto; bottom: auto; right: calc(14px + var(--safe-r)); top: calc(66px + var(--safe-t)); }
+  .hud-actions { max-width: calc(100vw - 28px - var(--safe-l) - var(--safe-r)); }
+  /* 위쪽은 현판·도구가 차지하므로 토스트는 하단 버튼 줄 바로 위 (--actions-h: main.js 가 측정) */
+  .toast-stack { top: auto; bottom: calc(var(--actions-h, 160px) + 28px + var(--safe-b)); width: min(440px, calc(100vw - 40px)); }
+}
+
+/* compact: 바형 폰 세로·폴드 커버 */
+@media (max-width: 599px) {
+  .hud-plaque { width: auto; max-width: calc(100vw - 80px - var(--safe-l) - var(--safe-r)); left: calc(10px + var(--safe-l)); top: calc(10px + var(--safe-t)); }
   .plaque-head { padding: 9px 11px; gap: 9px; }
-  .plaque-temple { font-size: 12px; padding: 5px 4px 5px 5px; }
-  .plaque-zone { font-size: 13px; }
+  .plaque-temple { font-size: 12px; padding: 4px 6px; writing-mode: horizontal-tb; letter-spacing: 0.08em; }
+  .plaque-zone { font-size: 13px; min-width: 0; }
+  .plaque-zone span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .plaque-body { padding: 0 11px 10px; }
   .plaque-sub { display: none; }
-  .hud-tools { top: calc(10px + var(--safe-t)); right: 10px; flex-direction: column; gap: 6px; }
-  .tool-btn { width: 38px; height: 38px; font-size: 15px; }
+  .hud-tools { top: calc(10px + var(--safe-t)); right: calc(10px + var(--safe-r)); flex-direction: column; gap: 6px; }
+  .tool-btn { font-size: 15px; }
+  /* 도구 5개(세로) 바로 아래 */
+  .hud-compass { right: calc(10px + var(--safe-r)); top: calc(10px + var(--safe-t) + 5 * var(--tool) + 4 * 6px + 10px); }
+  .zone-btn { padding: 0; width: var(--tool); height: var(--tool); justify-content: center; }
+  .zone-btn span { display: none; }
+  .zone-btn em { width: 26px; height: 26px; font-size: 12px; }
   .popover {
     top: auto; right: 0; left: 0; bottom: 0; width: auto;
+    max-height: 70vh; max-height: 70dvh;
     border-radius: 18px 18px 0 0; padding: 18px 18px calc(22px + var(--safe-b));
     animation: sheet-in 0.3s var(--ease);
   }
-  @keyframes sheet-in { from { transform: translateY(30px); opacity: 0; } to { transform: none; opacity: 1; } }
-  .hud-compass {
-    left: auto; right: 10px; top: calc(232px + var(--safe-t)); bottom: auto;
-    flex-direction: column; gap: 6px;
-  }
+  .toast-stack { top: calc(64px + var(--safe-t)); bottom: auto; width: calc(100vw - 112px); }
+  .toast { font-size: 12.5px; padding: 8px 14px; border-radius: 14px; }
+  .hud-actions { bottom: calc(10px + var(--safe-b)); width: calc(100vw - 20px); max-width: none; }
   .ritual-bar {
     flex-wrap: nowrap; justify-content: flex-start; overflow-x: auto; scrollbar-width: none;
-    width: 100%; padding-left: 132px; padding-right: 4px;
+    width: 100%; padding-right: 4px;
   }
   .ritual-bar::-webkit-scrollbar { display: none; }
-  .ritual { flex: none; }
-  .prompt { margin-left: 120px; }
-  .zone-btn { padding: 5px; }
-  .zone-btn span { display: none; }
-  .zone-btn em { width: 26px; height: 26px; font-size: 12px; }
-  .toast-stack { top: calc(64px + var(--safe-t)); }
-  .toast { font-size: 12.5px; padding: 8px 14px; border-radius: 14px; }
-  .hud-actions { bottom: calc(10px + var(--safe-b)); width: calc(100vw - 20px); }
-  .ritual { padding: 8px 12px; font-size: 12.5px; }
-  .gesture-bar { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
-  .gesture-bar::-webkit-scrollbar { display: none; }
-  .gesture kbd { display: none; }
-  .gesture { padding: 8px 10px; white-space: nowrap; }
-  .joystick { display: block; }
+  .ritual { flex: none; padding: 8px 12px; font-size: 12.5px; }
+  /* 동작 6개는 화면 폭을 나눠 쓴다 (344px 폴드 커버에서도 가로 스크롤 없음) */
+  .gesture-bar { width: 100%; gap: 2px; }
+  .gesture { flex: 1 1 0; min-width: 0; justify-content: center; padding: 8px 2px; white-space: nowrap; font-size: 12px; }
   .intro-avatars { gap: 6px; }
   .avatar-card { padding: 12px 4px 10px; }
 }
+@keyframes sheet-in { from { transform: translateY(30px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* 터치: 폰·폴드·태블릿 모두 — 조이스틱, 단축키 숨김, 44px 터치 타깃 */
 @media (pointer: coarse) {
-  .prompt kbd { display: none; }
+  :root { --tool: 44px; }
+  .joystick { display: block; bottom: calc(28px + var(--safe-b)); }
+  .gesture kbd, .prompt kbd { display: none; }
+  .gesture { min-height: 40px; }
+  .ritual { min-height: 40px; }
+  /* 넓은 터치 화면(태블릿 가로)도 가람 이동을 조이스틱 자리에서 비켜 오른쪽으로 */
+  .hud-compass { left: auto; bottom: auto; right: calc(14px + var(--safe-r)); top: calc(14px + var(--safe-t) + var(--tool) + 12px); }
+}
+@media (pointer: coarse) and (max-width: 599px) {
+  /* 폰 세로: 조이스틱은 의식 버튼 줄 위, 의식 버튼은 조이스틱 오른쪽에서 시작 */
+  .joystick { bottom: calc(110px + var(--safe-b)); }
+  .ritual-bar { padding-left: 132px; }
+  .prompt { margin-left: 120px; }
+  .hud-compass { right: calc(10px + var(--safe-r)); top: calc(10px + var(--safe-t) + 5 * var(--tool) + 4 * 6px + 10px); }
+}
+
+/* short: 폰 가로 — 위는 현판 · 가람 이동 · 도구 한 줄, 아래는 조이스틱 오른쪽에 버튼 줄 */
+@media (max-height: 519px) {
+  :root { --tool: 38px; }
+  .hud-plaque {
+    width: auto; left: calc(10px + var(--safe-l)); top: calc(8px + var(--safe-t));
+    max-width: calc(50vw - 2 * var(--tool) - 34px - var(--safe-l));
+  }
+  .plaque-head { padding: 7px 10px; gap: 8px; }
+  .plaque-temple { font-size: 11px; padding: 3px 5px; writing-mode: horizontal-tb; letter-spacing: 0.06em; }
+  .plaque-zone { font-size: 12.5px; min-width: 0; }
+  .plaque-zone span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .plaque-sub { display: none; }
+  .plaque-body { padding: 0 10px 8px; max-height: calc(100dvh - 120px); overflow-y: auto; }
+  .hud-tools { flex-direction: row; gap: 6px; top: calc(8px + var(--safe-t)); right: calc(10px + var(--safe-r)); }
+  .tool-btn { font-size: 14px; }
+  .hud-compass {
+    flex-direction: row; gap: 6px;
+    left: 50%; right: auto; bottom: auto; top: calc(8px + var(--safe-t)); transform: translateX(-50%);
+  }
+  .zone-btn { padding: 0; width: var(--tool); height: var(--tool); min-height: 0; justify-content: center; }
+  .zone-btn span { display: none; }
+  .zone-btn em { width: 24px; height: 24px; font-size: 11.5px; }
+  .popover {
+    top: calc(8px + var(--safe-t) + var(--tool) + 8px); bottom: calc(8px + var(--safe-b)); left: auto; right: calc(10px + var(--safe-r));
+    width: min(320px, 60vw); max-height: none; border-radius: var(--radius); padding: 12px 14px 14px;
+    animation: pop-in 0.22s var(--ease);
+  }
+  .toast-stack { top: calc(8px + var(--safe-t) + var(--tool) + 10px); bottom: auto; width: min(440px, 60vw); }
+  .toast { font-size: 12px; padding: 7px 14px; border-radius: 14px; }
+  .joystick { width: 96px; height: 96px; left: calc(16px + var(--safe-l)); bottom: calc(10px + var(--safe-b)); }
+  .joy-knob { width: 40px; height: 40px; margin: -20px 0 0 -20px; }
+  .hud-actions {
+    left: calc(10px + var(--safe-l)); right: calc(10px + var(--safe-r)); width: auto; max-width: none; transform: none;
+    bottom: calc(8px + var(--safe-b)); gap: 6px;
+  }
+  .ritual-bar { flex-wrap: nowrap; justify-content: center; overflow-x: auto; scrollbar-width: none; max-width: 100%; padding: 0; }
+  .ritual-bar::-webkit-scrollbar { display: none; }
+  .ritual { flex: none; padding: 6px 12px; font-size: 12px; min-height: 0; }
+  .gesture-bar { width: auto; max-width: 100%; }
+  .gesture { flex: none; padding: 6px 10px; font-size: 12px; min-height: 0; }
+  .prompt { margin-left: 0; padding: 6px 12px; font-size: 12.5px; }
+  /* 기본: 마우스 가로 창 — 중앙 정렬. 터치면 조이스틱 오른쪽으로 비킨다 */
+  .intro { place-items: start center; padding-top: 12px; }
+  .intro-loading { margin-bottom: 10px; }
+  .intro-title { margin-bottom: 6px; flex-direction: row; justify-content: center; align-items: baseline; gap: 14px; }
+  .intro-title .hanja { font-size: 34px; }
+  .intro-lede, .intro-hint { display: none; }
+  .intro-streak { margin-bottom: 8px; }
+  .intro-avatars { margin-bottom: 10px; gap: 8px; }
+  .avatar-card { padding: 7px 4px; flex-direction: row; justify-content: center; gap: 6px; }
+  .avatar-card small { display: none; }
+  .avatar-glyph { font-size: 18px; }
+  .enter-btn { padding: 11px; }
+}
+@media (max-height: 519px) and (pointer: coarse) {
+  .hud-actions { left: calc(120px + var(--safe-l)); }
 }
 
 @media (prefers-reduced-motion: reduce) {

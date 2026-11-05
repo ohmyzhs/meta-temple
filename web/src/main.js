@@ -621,13 +621,21 @@ class MetaTempleApp {
     );
     $('#record-btn').addEventListener('click', () => this.modals.open('profile'));
     $('#help-btn').addEventListener('click', () => this.modals.open('help'));
+    const setPlaque = (collapsed) => {
+      $('#hud-plaque').classList.toggle('collapsed', collapsed);
+      $('#plaque-toggle').setAttribute('aria-expanded', String(!collapsed));
+    };
+    let plaqueByUser = false;
     $('#plaque-toggle').addEventListener('click', () => {
-      const el = $('#hud-plaque');
-      el.classList.toggle('collapsed');
-      $('#plaque-toggle').setAttribute('aria-expanded', String(!el.classList.contains('collapsed')));
+      plaqueByUser = true;
+      setPlaque(!$('#hud-plaque').classList.contains('collapsed'));
     });
-    // 모바일은 처음에 현판을 접어 둔다
-    if (matchMedia('(max-width: 760px)').matches) $('#hud-plaque').classList.add('collapsed');
+    // 좁거나 낮은 화면(폰 세로·가로)은 현판을 접어 둔다. 회전·폴드로 크기가 바뀌면 따라가되, 직접 접고 편 뒤에는 그대로 둔다.
+    const smallQ = matchMedia('(max-width: 599px), (max-height: 519px)');
+    setPlaque(smallQ.matches);
+    smallQ.addEventListener('change', (e) => !plaqueByUser && setPlaque(e.matches));
+    // 중간 너비에서 토스트를 하단 버튼 줄 바로 위에 띄우기 위한 높이
+    new ResizeObserver(([e]) => document.documentElement.style.setProperty('--actions-h', `${Math.round(e.contentRect.height)}px`)).observe($('.hud-actions'));
 
     $$('[data-goto-zone]').forEach((b) =>
       b.addEventListener('click', () => {
@@ -734,7 +742,8 @@ class MetaTempleApp {
         y /= l;
       }
       this.joy = { x, z: y };
-      knob.style.transform = `translate(${x * 34}px, ${y * 34}px)`;
+      const reach = r.width * 0.3; // 조이스틱 크기(116/96px)에 비례
+      knob.style.transform = `translate(${x * reach}px, ${y * reach}px)`;
     };
     joy.addEventListener('pointerdown', (e) => {
       jid = e.pointerId;

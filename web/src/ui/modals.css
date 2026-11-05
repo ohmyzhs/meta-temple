@@ -1157,6 +1157,32 @@
   .giwa-grid { grid-template-columns: 1fr 1fr; }
 }
 
+/* ───────── 폰 가로 (낮은 화면): 위아래 여백을 줄이고, 측면 패널은 오른쪽 세로 전체 ───────── */
+@media (max-height: 519px) {
+  .modal-overlay { padding: calc(8px + var(--safe-t)) calc(8px + var(--safe-r)) calc(8px + var(--safe-b)) calc(8px + var(--safe-l)); align-items: center; }
+  .modal-window, .modal-window.wide { max-height: calc(100vh - 16px); max-height: calc(100dvh - 16px); border-radius: 10px; }
+  .modal-header { padding-top: 12px; padding-bottom: 8px; }
+  .modal-overlay.is-side { padding: calc(8px + var(--safe-t)) calc(8px + var(--safe-r)) calc(8px + var(--safe-b)) 8px; align-items: stretch; justify-content: flex-end; }
+  .modal-window.side { width: min(360px, 46vw); max-height: calc(100vh - 16px); max-height: calc(100dvh - 16px); border-radius: 10px; }
+  .modal-window.side.m-tea-chat { height: calc(100vh - 16px); height: calc(100dvh - 16px); }
+  .modal-window.side .modal-subtitle { display: none; }
+  /* 그림은 작게, 입력과 버튼이 첫 화면에 보이게 */
+  .lantern-stage, .lantern-stage.is-large { height: 76px; margin-bottom: 2px; }
+  .lantern-stage::before, .lantern-stage.is-large::before { width: 76px; height: 76px; }
+  .lantern-sway svg { width: 52px; height: auto; } /* 흔들림 애니메이션이 transform 을 쓰므로 크기는 svg 로 */
+  .practice { flex-direction: row; align-items: center; gap: 12px; text-align: left; }
+  .practice-visual { flex: none; }
+  .bow-ring { width: 96px; height: 96px; margin: 0; }
+  .bow-center b, .mala-center b { font-size: 26px; }
+  .mala { width: 120px; height: 120px; }
+  .breath { font-size: 13.5px; margin-top: 0; }
+  .practice-actions { flex-direction: column; align-items: stretch; gap: 6px; margin: 6px 0 0; }
+  .practice-actions .m-btn { min-height: 36px; padding: 0 12px; font-size: 13px; }
+  .practice-stat { margin-top: 6px; font-size: 11px; }
+  .practice .m-hint { text-align: left; font-size: 11px; margin-top: 4px; }
+  .tea-privacy { display: none; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .lantern-sway, .bow-ring.is-breathing::before, .wg-cell.is-next::after { animation: none !important; }
   .jukbi-card { transition: none; }
