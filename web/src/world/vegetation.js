@@ -137,7 +137,7 @@ export function buildVegetation(scene, quality) {
     spots[kind].push([x, z, 0.8 + r() * 0.5, r() * Math.PI * 2]);
     return true;
   };
-  for (let i = 0; i < (low ? 500 : 900); i++) {
+  for (let i = 0; i < (low ? 380 : 900); i++) {
     const z = 6 + r() * 50;
     const side = r() > 0.5 ? 1 : -1;
     const x = pathX(z) + side * (4.6 + Math.pow(r(), 1.6) * 26);
@@ -145,7 +145,7 @@ export function buildVegetation(scene, quality) {
     tryPlace(x, z, near && r() > 0.65 ? 'pine' : r() > 0.82 ? 'maple' : 'fir');
   }
   // 경내 둘레 산자락
-  for (let i = 0; i < (low ? 700 : 1300); i++) {
+  for (let i = 0; i < (low ? 450 : 1300); i++) {
     const x = -60 + r() * 130, z = -70 + r() * 125;
     const kind = r() > 0.7 ? 'pine' : r() > 0.72 ? 'maple' : 'fir';
     tryPlace(x, z, kind, 1);
@@ -190,7 +190,7 @@ export function buildVegetation(scene, quality) {
   });
   for (const m of [firF, firT, pineF, pineT, mapleF, mapleT]) {
     m.userData.noPick = true;
-    m.castShadow = true;
+    m.castShadow = !low; // 저사양은 나무 그림자를 끈다 (그림자 패스 삼각형 절감)
     m.receiveShadow = true;
     scene.add(m);
   }
@@ -255,8 +255,8 @@ function buildBamboo(scene, low) {
     o.updateMatrix();
     leafInst.setMatrixAt(i, o.matrix);
   });
-  stalkInst.castShadow = true;
-  leafInst.castShadow = true;
+  stalkInst.castShadow = !low;
+  leafInst.castShadow = !low;
   stalkInst.userData.noPick = leafInst.userData.noPick = true;
   scene.add(stalkInst, leafInst);
 }
@@ -264,7 +264,7 @@ function buildBamboo(scene, low) {
 function buildGrass(scene, low) {
   const r = rand(808);
   const tufts = [];
-  const n = low ? 900 : 2200;
+  const n = low ? 500 : 2200;
   for (let i = 0; i < n * 3 && tufts.length < n; i++) {
     const x = -30 + r() * 70, z = -30 + r() * 80;
     const dp = Math.abs(x - pathX(z));

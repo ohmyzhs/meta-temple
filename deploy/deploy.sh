@@ -11,8 +11,9 @@
 # macOS /usr/bin/rsync (openrsync) is refused by rrsync — on the Mac, deploy with the default saju_oci key.
 #
 # Cache busting: Cloudflare caches .js/.css for 4h but never index.html, so web/src/ is published as
-# v/<rev>/ and index.html is rewritten to point there. Old v/ dirs are kept (P filter) so a page that
-# loaded the previous index.html still finds its modules.
+# v/<rev>/ and index.html is rewritten to point there. Upload is two-phase — v/<rev>/ first, then the
+# page — so the live index.html never points at modules that are not there yet. Old v/ dirs are kept
+# (excluded from --delete) so a page that loaded the previous index.html still finds its modules.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 VM="ubuntu@168.110.37.254"
@@ -38,6 +39,9 @@ grep -q "v/$REV/main.js" "$STAGE/index.html"
 # With the CI key the remote path is relative to /srv/temple/dist (rrsync); with saju_oci it is absolute.
 DEST="${TEMPLE_DEPLOY_KEY:+./}"
 DEST="${DEST:-/srv/temple/dist/}"
-rsync -az --delete --filter='P v/' -e "${SSH[*]}" "$STAGE/" "$VM:$DEST"
+DRY="${DEPLOY_DRY_RUN:+-n}"
+rsync -az $DRY -e "${SSH[*]}" "$STAGE/v/" "$VM:${DEST}v/"
+rsync -az $DRY --delete --exclude 'v/' -e "${SSH[*]}" "$STAGE/" "$VM:$DEST"
+[ -n "$DRY" ] && { echo "dry run: staged $STAGE"; exit 0; }
 curl -fsS -o /dev/null -w "temple.lotiony.com %{http_code}\n" https://temple.lotiony.com/
 curl -fsS -o /dev/null -w "v/$REV/main.js %{http_code}\n" "https://temple.lotiony.com/v/$REV/main.js"

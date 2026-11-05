@@ -82,6 +82,15 @@ class MetaTempleApp {
           $('#intro-loading-text').textContent = label;
         }
       });
+      // 현판·기와 글씨는 캔버스에 한 번 그려 캐시하므로, 서체(한자 부분 집합 포함)를 먼저 받아 둔다
+      $('#intro-loading-text').textContent = '현판 글씨를 쓰는 중…';
+      await Promise.race([
+        Promise.all([
+          document.fonts.load('900 64px "Noto Serif KR"', '清蓮山寺大雄殿尋劍堂梵鐘閣'),
+          document.fonts.load('26px "Nanum Brush Script"', '가족건강발원평안')
+        ]),
+        new Promise((r) => setTimeout(r, 2500))
+      ]).catch(() => {});
       await this.world.build();
     } catch (e) {
       console.error(e);
@@ -108,6 +117,7 @@ class MetaTempleApp {
     this._rebuildPlayer();
     this.avatars.spawnAmbientVisitors();
     temple.lanterns.sync(this.store.state.lanterns);
+    await this._brushFont(this.store.state.tiles.map((t) => t.wish).join(''));
     temple.tileRack.sync(this.store.state.tiles);
     temple.cairn.sync(this.store.state.stones.length);
 
@@ -130,6 +140,11 @@ class MetaTempleApp {
     this.world.cam.targetDist = this.world.cam.dist = 9;
     this._loop();
     setInterval(() => this._checkYebul(), 20000);
+  }
+
+  /** 붓글씨 서체는 글자 구간별로 내려받으므로, 캔버스에 쓰기 전에 그 글자들을 받아 둔다 */
+  _brushFont(text) {
+    return Promise.race([document.fonts.load('26px "Nanum Brush Script"', text || '가'), new Promise((r) => setTimeout(r, 2000))]).catch(() => {});
   }
 
   _rebuildPlayer() {
@@ -205,7 +220,7 @@ class MetaTempleApp {
       },
       onAddTile: (wish) => {
         const t = this.store.addTile(wish);
-        this.temple.tileRack.sync(this.store.state.tiles);
+        this._brushFont(wish).then(() => this.temple.tileRack.sync(this.store.state.tiles));
         this._updateHUD();
         this.toast('🀫 기와에 새긴 서원이 불사대에 봉안되었습니다');
         return t;

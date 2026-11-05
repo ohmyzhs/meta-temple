@@ -208,6 +208,9 @@ export class TempleScene {
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    // 저사양: 그림자 맵을 3프레임에 한 번만 다시 그린다
+    if (low) this.renderer.shadowMap.autoUpdate = false;
+    this._shadowTick = 0;
     container.appendChild(this.renderer.domElement);
     setAnisotropy(Math.min(8, this.renderer.capabilities.getMaxAnisotropy()));
 
@@ -636,6 +639,7 @@ export class TempleScene {
     const cx = Math.round(p.x / snap) * snap, cz = Math.round(p.z / snap) * snap;
     this.sun.target.position.set(cx, p.y, cz);
     this.sun.position.set(cx + ld.x * 60, p.y + Math.max(ld.y, 0.15) * 60, cz + ld.z * 60);
+    if (!this.renderer.shadowMap.autoUpdate && this._shadowTick++ % 3 === 0) this.renderer.shadowMap.needsUpdate = true;
 
     // 점광원: 밤엔 세게, 낮엔 거의 끔
     const night = this.env.night;
