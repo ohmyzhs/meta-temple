@@ -3,7 +3,8 @@
 //  (a) 창(모달)을 열고 뒤로 → 창이 닫히고 사이트 안
 //  (b) 시트 + 창이 겹쳐 있을 때 뒤로 두 번 → 창 먼저, 시트 다음
 //  (c) 아무것도 없을 때 뒤로 한 번 → 「한 번 더 누르면 산문을 나섭니다」, 사이트 안
-//  (d) 2초 안에 한 번 더 → 이전 페이지로 나감
+//  (d) 2초 안에 한 번 더 → 산문 앞 첫 화면(입장 전 화면), 사이트 안
+//      → 다시 들어서면 방어가 다시 켜짐 → 첫 화면에서 뒤로 → 이전 페이지로 나감
 //  (e) 창 하나를 연 채 0.2초 간격으로 세 번 연타 → 창만 닫히고 사이트 안
 //  (f) 예불 듣기 중 뒤로 → 듣기에서 일어남   (g) 차담 창도 닫힘
 //  (h) 링크로 바로 들어온 경우(앞 페이지 없음)   (i) 새로고침 뒤 다시 들어온 경우
@@ -50,6 +51,11 @@ const st = () =>
     state: JSON.stringify(history.state)
   }));
 const inSite = () => page.url().startsWith(BASE);
+const INTRO = () => {
+  const i = document.querySelector('#intro');
+  return !i.classList.contains('hidden') && !i.classList.contains('leaving') && document.querySelector('#hud').classList.contains('hidden') && !window.temple.entered;
+};
+const atIntro = (p = page) => p.waitForFunction(INTRO, null, { timeout: 3000 }).then(() => true, () => false);
 const back = () => page.goBack({ waitUntil: 'commit', timeout: 5000 }).catch((e) => console.log('   goBack:', e.message.split('\n')[0]));
 const clearToasts = () => page.evaluate(() => document.querySelectorAll('.toast').forEach((t) => t.remove()));
 const settle = (ms = 900) => page.waitForTimeout(ms); // 닫은 직후의 조용한 구간(0.7초)·토스트 창(2초)이 겹치지 않게
@@ -146,12 +152,33 @@ await page.waitForTimeout(250);
 s = await st();
 check('(d) 준비: 첫 뒤로 → 안내', s.toast.includes(MSG) && inSite(), JSON.stringify(s));
 await page.waitForTimeout(700);
+await back();
+check('(d) 2초 안에 한 번 더 → 산문 앞 첫 화면, 사이트 안', (await atIntro()) && inSite(), page.url().slice(0, 50));
+if (process.env.SHOT) await page.screenshot({ path: process.env.SHOT });
+const sp = await page.evaluate(() => window.temple.avatars.playerPos.toArray().map((v) => +v.toFixed(1)));
+check('(d) 몸은 일주문 앞에 다시 섬', Math.hypot(sp[0], sp[2] - 36) < 1, JSON.stringify(sp));
+
+// 다시 들어서면 방어가 다시 켜진다
+await page.waitForTimeout(500);
+await page.click('#intro-enter', { timeout: 5000 });
+await page.waitForFunction(() => document.querySelector('#intro').classList.contains('hidden') && window.temple.entered, null, { timeout: 4000 }).catch(() => {});
+await settle(1600); // 「다시 산문에 들어섰습니다」 안내까지
+await clearToasts();
+await back();
+await page.waitForTimeout(250);
+s = await st();
+check('(d) 다시 들어서서 뒤로 → 다시 안내, 사이트 안', s.toast.includes(MSG) && inSite() && (await page.evaluate(() => window.temple.entered)), JSON.stringify(s));
+await page.waitForTimeout(700);
+await back();
+check('(d) 한 번 더 → 다시 첫 화면', (await atIntro()) && inSite());
+
+await page.waitForTimeout(700);
 const pushes = await page.evaluate(() => window.__pushes); // 떠나기 전에
 const bad = pushes.filter((p) => !p.ok);
 check(`pushState ${pushes.length}번 모두 '뒤로가기 뒤 새 사용자 동작' 안에서`, pushes.length > 0 && !bad.length, bad.map((p) => p.state).join(', '));
 await back();
 await page.waitForURL((u) => !String(u).startsWith(BASE), { timeout: 4000 }).catch(() => {});
-check('(d) 2초 안에 한 번 더 → 이전 페이지로 나감', page.url().startsWith('data:'), page.url().slice(0, 50));
+check('(d) 첫 화면에서 뒤로 → 이전 페이지로 나감', page.url().startsWith('data:'), page.url().slice(0, 50));
 
 } catch (e) {
   check(`진행 중 멈춤 (사이트를 벗어났을 수 있음: ${page.url().slice(0, 30)})`, false, e.message.split('\n')[0]);
@@ -187,9 +214,12 @@ await ctx.close();
   await page.waitForTimeout(250);
   await page.waitForTimeout(500);
   await goBack();
+  check('(h) 앞 페이지 없이 들어와 두 번 → 첫 화면, 사이트 안', (await atIntro(page)) && page.url().startsWith(BASE), `history.length ${len}`);
+  await page.waitForTimeout(700);
+  await goBack();
   await page.waitForTimeout(500);
-  const at = await page.evaluate(() => ({ state: history.state, entered: document.querySelector('#intro').classList.contains('hidden') }));
-  check('(h) 앞 페이지 없이 들어와 두 번 → 원래 항목에 섬(새로고침 없음, 사이트 안)', at.state === null && at.entered && page.url().startsWith(BASE), `history.length ${len} · ${JSON.stringify(at)}`);
+  const at = await page.evaluate(() => ({ state: history.state, intro: !document.querySelector('#intro').classList.contains('hidden') }));
+  check('(h) 첫 화면에서 뒤로 → 원래 항목에 섬(새로고침 없음, 첫 화면 그대로)', at.state === null && at.intro && page.url().startsWith(BASE), JSON.stringify(at));
   const more = await goBack().catch(() => 'err');
   check('(h) 그다음 뒤로가기는 갈 곳 없음 (안드로이드는 탭을 닫음)', more === null, String(more));
   await ctx.close();
@@ -205,13 +235,28 @@ await ctx.close();
   await page.waitForTimeout(1600);
   const st0 = await page.evaluate(() => JSON.stringify(history.state));
   const goBack = () => page.goBack({ waitUntil: 'commit', timeout: 5000 }).catch(() => {});
+  // 새로고침 뒤에도 쓴 칸을 다시 채운다 (창을 닫느라 한 칸 쓰고 → 빈 곳 누르기)
+  await page.click('#menu-btn', { timeout: 5000 });
+  await page.click('#help-btn', { timeout: 5000 });
+  await page.waitForTimeout(200);
+  await goBack();
+  await page.waitForTimeout(900);
+  const used = await page.evaluate(() => JSON.stringify(history.state));
+  await page.mouse.click(195, 300);
+  await page.waitForTimeout(200);
+  const refilled = await page.evaluate(() => JSON.stringify(history.state));
+  check('(i) 새로고침 뒤에도 쓴 칸을 다시 채움', used !== st0 && refilled === st0, `${st0} → ${used} → ${refilled}`);
+  await page.waitForTimeout(800);
   await goBack();
   await page.waitForTimeout(250);
   const t = await page.evaluate(() => [...document.querySelectorAll('.toast')].map((x) => x.textContent).join(' / '));
   await page.waitForTimeout(500);
   await goBack();
+  const intro = await atIntro(page);
+  await page.waitForTimeout(700);
+  await goBack();
   await page.waitForURL((u) => !String(u).startsWith(BASE), { timeout: 4000 }).catch(() => {});
-  check('(i) 새로고침 뒤 다시 들어와 두 번 → 이전 페이지로', t.includes(MSG) && page.url().startsWith('data:'), `들어온 칸 ${st0} · ${page.url().slice(0, 40)}`);
+  check('(i) 새로고침 뒤 다시 들어와: 안내 → 첫 화면 → 이전 페이지로', t.includes(MSG) && intro && page.url().startsWith('data:'), `들어온 칸 ${st0} · ${page.url().slice(0, 40)}`);
   await ctx.close();
 }
 

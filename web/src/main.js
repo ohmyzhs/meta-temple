@@ -239,15 +239,19 @@ class MetaTempleApp {
   _enter() {
     if (this.entered) return;
     this.entered = true;
+    $('#intro').classList.add('leaving');
+    this._introTimer = setTimeout(() => $('#intro').classList.add('hidden'), 1500);
+    $('#hud').classList.remove('hidden');
+    this.zone = null;
+    this.enteredAt = performance.now();
+    if (this.backGuard) return this._reenter();
     this.sound.init();
     this.sound.setEmitters(this._emitters());
     this.sound.loadRecordings('./assets/audio/'); // 실제 녹음 — 받는 동안은 합성음
     this.sound.setWeather(this.world.weatherName);
     this.sound.setTimeOfDay(this.world.phase);
-    $('#intro').classList.add('leaving');
-    setTimeout(() => $('#intro').classList.add('hidden'), 1500);
-    $('#hud').classList.remove('hidden');
-    installBackGuard({ closeTop: () => this._closeTop(), toast: (m) => this.toast(m) }); // 입장 클릭 안에서 (사용자 동작)
+    // 입장 클릭 안에서 (사용자 동작)
+    this.backGuard = installBackGuard({ closeTop: () => this._closeTop(), toast: (m) => this.toast(m), onExit: () => this._toIntro() });
     this._syncSoundButton();
     const { streak, isNewDay } = this.store.checkIn();
     this._applyItems();
@@ -255,8 +259,6 @@ class MetaTempleApp {
       this.toast('산문에 들어섰습니다. 천천히 걸어 보세요 · WASD 또는 바닥을 눌러 이동');
       if (isNewDay && streak > 1) setTimeout(() => this.toast(`🍃 ${streak}일째 이어진 발걸음입니다`), 2600);
     }, 900);
-    this.zone = null;
-    this.enteredAt = performance.now();
     this.live = new LiveLink({
       onPeers: (peers, count) => {
         this.avatars.syncRemotePeers(peers);
@@ -265,6 +267,32 @@ class MetaTempleApp {
       onBow: (from) => this._onPeerBow(from)
     });
     this.live.start(this.store.profile.dharmaName, this.store.profile.avatarStyle);
+  }
+
+  /** 산문을 나섰다가 다시 들어설 때 — 방어와 소리만 되살린다 (실시간 연결·녹음·출석은 첫 입장 그대로) */
+  _reenter() {
+    this.backGuard.enter();
+    if (this._soundBeforeIntro && !this.sound.isEnabled) this.sound.toggleAudio();
+    this._syncSoundButton();
+    setTimeout(() => this.toast('다시 산문에 들어섰습니다'), 900);
+  }
+
+  /** 뒤로가기로 산문을 나섬: 입장 전 첫 화면으로 돌아가고, 몸은 일주문 앞에 다시 선다 */
+  _toIntro() {
+    this.entered = false;
+    clearTimeout(this._introTimer);
+    closeAll();
+    document.querySelectorAll('.toast').forEach((t) => t.remove());
+    this.avatars.teleport(L.spawn.x, L.spawn.z, Math.PI);
+    Object.assign(this.world.cam, { yaw: 0, pitch: 0.22, targetDist: 9, dist: 9 });
+    this._soundBeforeIntro = this.sound.isEnabled;
+    if (this._soundBeforeIntro) this.sound.toggleAudio(); // 첫 화면은 입장 전처럼 조용히
+    this._syncSoundButton();
+    $('#hud').classList.add('hidden');
+    const intro = $('#intro');
+    intro.classList.remove('hidden');
+    void intro.offsetWidth; // display:none 에서 막 돌아왔으니 한 번 그린 뒤 페이드인
+    intro.classList.remove('leaving');
   }
 
   _emitters() {

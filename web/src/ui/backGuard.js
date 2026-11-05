@@ -1,6 +1,7 @@
 /**
  * 안드로이드 뒤로가기 방어 — 열린 것을 위에서부터 하나씩 닫고, 닫을 것이 없으면 「한 번 더 누르면 산문을 나섭니다」.
- * 그 안내 뒤 2초 안에 한 번 더 누르면 산사를 떠난다.
+ * 그 안내 뒤 2초 안에 한 번 더 누르면 산문을 나서 입장 전 첫 화면으로 돌아간다(onExit). 첫 화면에서 뒤로가기를 누르면 그때 사이트를 떠난다.
+ * 첫 화면에서 다시 「산문에 들어서기」를 누르면 돌려받은 enter() 로 방어를 다시 켠다.
  *
  * 크롬 history manipulation intervention (chromium docs/history_manipulation_intervention.md):
  * 뒤로가기 뒤에는 새 사용자 동작이 있기 전까지 pushState 가 '사용자 동작 없이 만든 항목'이 되고, 그러면 이 문서의
@@ -17,11 +18,12 @@ export const EXIT_MSG = '한 번 더 누르면 산문을 나섭니다';
 const KEY = 'templeBack';
 
 /** 입장 클릭 처리 안에서 한 번 부른다 */
-export function installBackGuard({ closeTop, toast, depth = 5, exitMs = 2000, quietMs = 700 }) {
+export function installBackGuard({ closeTop, toast, onExit, depth = 5, exitMs = 2000, quietMs = 700 }) {
   const h = history;
   const base = h.state?.[KEY] ?? 0; // 새로고침 뒤라면 옛 칸 번호
   let level = base, top = base; // 지금 서 있는 칸, 쌓인 맨 위 칸
   let armedUntil = 0, quietUntil = 0, ignoreUntil = 0;
+  let inside = true; // false = 산문을 나서 첫 화면에 있음
   const fill = () => {
     while (level < base + depth) h.pushState({ [KEY]: ++level }, '');
     top = level;
@@ -32,17 +34,25 @@ export function installBackGuard({ closeTop, toast, depth = 5, exitMs = 2000, qu
     level = e.state?.[KEY] ?? 0;
     const now = performance.now();
     if (now < ignoreUntil) return; // 나가려고 스스로 옮긴 것
+    if (!inside) {
+      if (now < quietUntil) return; // 첫 화면으로 막 나온 직후의 연타는 삼킨다
+      // 첫 화면에서 뒤로 → 사이트를 떠난다.
+      // pushState 는 앞쪽 항목을 지우므로 맨 위 칸 위에는 아무것도 없다 → 원래 항목 앞에 있는 페이지 수 = length - 1 - top
+      const away = h.length - 1 - top > 0 ? level + 1 : level;
+      ignoreUntil = now + 600;
+      if (away) h.go(-away);
+      return;
+    }
     if (closeTop()) {
       quietUntil = now + quietMs;
       armedUntil = 0;
     } else if (now < quietUntil) {
       quietUntil = now + quietMs;
     } else if (now < armedUntil) {
-      // pushState 는 앞쪽 항목을 지우므로 맨 위 칸 위에는 아무것도 없다 → 원래 항목 앞에 있는 페이지 수 = length - 1 - top
-      const away = h.length - 1 - top > 0 ? level + 1 : level;
       armedUntil = 0;
-      ignoreUntil = now + 600;
-      if (away) h.go(-away);
+      quietUntil = now + quietMs;
+      inside = false;
+      onExit();
     } else {
       armedUntil = now + exitMs;
       toast(EXIT_MSG);
@@ -52,10 +62,19 @@ export function installBackGuard({ closeTop, toast, depth = 5, exitMs = 2000, qu
   // 진짜 사용자 동작(손가락을 뗌·클릭·Esc 아닌 키) 안에서만 채운다. navigator.userActivation.isActive 는 동작 뒤 몇 초 동안
   // 참으로 남아 '뒤로가기 뒤의 새 동작'을 가려내지 못하므로, 스크립트가 만든 클릭 같은 가짜 이벤트(isTrusted 아님)는 받지 않는다
   const refill = (e) => {
-    if (level >= depth || !e.isTrusted) return;
+    if (level >= base + depth || !e.isTrusted) return;
     if (e.type === 'keydown' ? e.key === 'Escape' : e.type === 'pointerup' && e.pointerType === 'mouse') return;
     if (navigator.userActivation && !navigator.userActivation.isActive) return;
     fill();
   };
   for (const t of ['click', 'pointerup', 'keydown']) addEventListener(t, refill, { capture: true, passive: true });
+
+  return {
+    /** 첫 화면에서 다시 들어설 때 (입장 클릭 안에서) */
+    enter() {
+      inside = true;
+      armedUntil = quietUntil = 0;
+      fill();
+    }
+  };
 }
