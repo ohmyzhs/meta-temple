@@ -1,0 +1,17 @@
+{
+ "source": "qwantani_noon_puresky_2k",
+ "exposure": 0.8,
+ "bgGain": 2.2,
+ "bgSat": 1.6,
+ "sunU": 0.600341796875,
+ "sunV": 0.22314453125,
+ "sunElevDeg": 49.833984375,
+ "sunIrradiance": 7.351836316985266,
+ "sunColor": [
+  1.0,
+  0.9695645668817544,
+  0.9350747974334743
+ ],
+ "skyIrradianceHorizontal": 0.4718384945423013,
+ "sunPixels": 149
+}
