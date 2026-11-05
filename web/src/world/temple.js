@@ -227,6 +227,7 @@ export class Temple {
 
     // 삼층석탑
     const pg = buildPagoda();
+    pg.userData.realSlot = 'pagoda'; // 실사 세계(world/real)가 스캔으로 바꿔 끼우는 자리
     pg.position.set(L.pagoda.x, c.y, L.pagoda.z);
     this.scene.add(pg);
     addBoxCollider(L.pagoda.x - 1.75, L.pagoda.z - 1.75, L.pagoda.x + 1.75, L.pagoda.z + 1.75);

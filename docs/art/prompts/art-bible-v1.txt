@@ -1,0 +1,13 @@
+Image to generate (landscape 3:2, high quality, photoreal, the most detailed setting available):
+An ART BIBLE reference sheet for a photoreal Korean Buddhist mountain temple ("Cheongyeonsansa"), laid out as a clean art-direction board on a warm off-white paper background with thin dark gray grid lines and small, clean English sans-serif labels.
+
+TOP LEFT, large panel labeled "CLEAR DAY": a photoreal wide view of a Korean Joseon-era mountain temple courtyard at about 1 pm on a crisp, perfectly clear autumn day. Main hall with a hip-and-gable (paljak) roof, dark gray clay roof tiles, deep eaves with painted dancheong brackets (green-blue and vermilion), red-brown sokganju columns, latticed paper doors. A weathered granite three-story stone pagoda in a pale decomposed-granite (masato) sand courtyard. Pine trees and layered blue mountain ridges behind. Saturated deep blue sky, sharp clean shadows, high clarity, almost no haze, natural color like a real DSLR photo.
+
+TOP RIGHT, large panel labeled "MOONLIT NIGHT": the same temple and pagoda from a similar angle at midnight. A very bright Milky Way band arching across the sky with thousands of stars, a bright full moon with a soft halo, silver-blue moonlight casting soft shadows. Roof lines, pagoda and tree trunks are all clearly readable as silhouettes and forms (not pitch black). Warm amber glow from paper doors and a stone lantern as small warm points. Horizon fades to light indigo. Photoreal long-exposure night photograph look.
+
+BOTTOM ROW, left to right, small square swatches each with a label:
+1) "PALETTE" - 10 flat color chips: sky blue, deep pine green, dancheong green-blue (noerok), dancheong vermilion, ochre yellow, sokganju red-brown, roof tile charcoal, granite gray, masato beige, moonlight silver-blue.
+2) "MATERIALS" - photoreal close-up swatches: aged unpainted pine wood floor planks (maru), sokganju-painted wooden column with visible grain, earthen clay wall (heuk-byeok) with straw fibers, hanji paper on a wooden lattice door, weathered granite with lichen, dark gray giwa roof tiles, dancheong painted beam band.
+3) "LIGHT" - three small photoreal thumbnails of the hall interior: noon light streaming through open lattice doors onto the wooden floor; night interior lit by candles and moonlight through paper doors; soft ambient occlusion in the corners under the ceiling.
+
+Overall: one consistent photographic look, realistic materials, high dynamic range, no fantasy, no cartoon, no people, no text other than the short labels.
