@@ -556,7 +556,12 @@ class MetaTempleApp {
     if (!from || z === from || !WALK_VEIL.has([from, z].sort().join('|'))) return;
     if (this._listening || veiling() || this.world.cam.mode === 'first' || t - (this._crossT ?? -99) < CROSS_COOLDOWN) return;
     this._crossT = t;
-    veil(() => this.world.snapCameraTo(this.player.heading - Math.PI, ARRIVAL.pitch, ARRIVAL.dist), { hold: TRAVEL_HOLD });
+    veil(() => {
+      // 키·조이스틱은 카메라 기준이라, 누른 채 넘을 때 방위를 돌리면 같은 키가 반대로 걸린다 → 그때는 방위를 둔다
+      const k = this.keys;
+      const steering = k.KeyW || k.KeyS || k.KeyA || k.KeyD || k.ArrowUp || k.ArrowDown || k.ArrowLeft || k.ArrowRight || this.joy.x || this.joy.z;
+      this.world.snapCameraTo(steering ? this.world.cam.yaw : this.player.heading - Math.PI, ARRIVAL.pitch, ARRIVAL.dist);
+    }, { hold: TRAVEL_HOLD });
   }
 
   /** 장면들: 좌복(c) 기준. 세로 화면은 삼존불이 다 들어오지 않으니 더 가깝고 높게 잡는다 */
