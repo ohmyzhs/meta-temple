@@ -403,6 +403,7 @@ export class ModalManager {
           <span class="m-counter" data-counter>0 / 80</span>
         </div>
         <p class="m-sign"><span data-name></span> 합장</p>
+        <label class="m-share"><input type="checkbox" data-share checked /> 다른 도반에게도 보이기 <small>법명과 이 글만 함께 보입니다</small></label>
         <div class="m-actions"><button type="button" class="m-btn primary" data-act="add">연등 밝히기</button></div>
         <p class="m-live" data-live aria-live="polite"></p>
       </section>
@@ -481,7 +482,7 @@ export class ModalManager {
         ta.focus();
         return;
       }
-      const res = this.cb.onAddLantern?.(wish, color);
+      const res = this.cb.onAddLantern?.(wish, color, root.querySelector('[data-share]')?.checked !== false);
       ta.value = '';
       counter.textContent = '0 / 80';
       newId = res?.lantern?.id || null;
@@ -543,6 +544,7 @@ export class ModalManager {
         <input id="tile-wish" type="text" maxlength="24" autocomplete="off" placeholder="예) 부모님 무병장수 발원" />
         <span class="m-counter" data-counter>0 / 24</span>
       </div>
+      <label class="m-share"><input type="checkbox" data-share checked /> 다른 도반에게도 보이기 <small>법명과 이 글만 함께 보입니다</small></label>
       <div class="m-actions"><button type="button" class="m-btn primary" data-act="add">기와 올리기</button></div>
       <p class="m-live" data-live aria-live="polite"></p>
       <h3 class="m-sub">봉안된 기와</h3>
@@ -580,7 +582,7 @@ export class ModalManager {
         input.focus();
         return;
       }
-      this.cb.onAddTile?.(wish);
+      this.cb.onAddTile?.(wish, root.querySelector('[data-share]')?.checked !== false);
       this._sfx('playBrushStroke');
       const giwa = root.querySelector('.giwa.is-preview');
       giwa.classList.remove('is-offered');
@@ -616,6 +618,7 @@ export class ModalManager {
         <input id="stone-wish" type="text" maxlength="30" autocomplete="off" placeholder="예) 천천히, 그러나 멈추지 않기" />
         <span class="m-counter" data-counter>0 / 30</span>
       </div>
+      <label class="m-share"><input type="checkbox" data-share checked /> 다른 도반에게도 보이기 <small>법명과 이 글만 함께 보입니다</small></label>
       <div class="m-actions"><button type="button" class="m-btn primary" data-act="add">조약돌 얹기</button></div>
       <p class="m-live" data-live aria-live="polite"></p>
       <h3 class="m-sub">최근에 얹은 돌</h3>
@@ -627,7 +630,7 @@ export class ModalManager {
 
     const render = () => {
       const stones = this.store.state.stones;
-      root.querySelector('[data-total]').textContent = stones.length.toLocaleString('ko-KR');
+      root.querySelector('[data-total]').textContent = (this.store.stoneTotal ?? stones.length).toLocaleString('ko-KR');
       root.querySelector('[data-list]').innerHTML = byNewest(stones)
         .slice(0, 12)
         .map(
@@ -646,7 +649,7 @@ export class ModalManager {
         input.focus();
         return;
       }
-      this.cb.onAddStone?.(wish);
+      this.cb.onAddStone?.(wish, root.querySelector('[data-share]')?.checked !== false);
       const g = root.querySelector('[data-new]');
       g.classList.remove('is-drop');
       void g.getBoundingClientRect();

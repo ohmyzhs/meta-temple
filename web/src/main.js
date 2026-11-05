@@ -10,6 +10,7 @@ import { TempleScene } from './world/templeScene.js';
 import { AvatarManager } from './world/avatarManager.js';
 import { L, isWalkable, zoneAt, streamZ, walkHeight } from './world/layout.js';
 import { ModalManager } from './ui/modalManager.js';
+import { LiveLink, sharedApi } from './core/live.js';
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
@@ -140,11 +141,35 @@ class MetaTempleApp {
     this.world.cam.targetDist = this.world.cam.dist = 9;
     this._loop();
     setInterval(() => this._checkYebul(), 20000);
+    this._pullShared();
+    setInterval(() => this._pullShared(), 180000);
   }
 
   /** 붓글씨 서체는 글자 구간별로 내려받으므로, 캔버스에 쓰기 전에 그 글자들을 받아 둔다 */
   _brushFont(text) {
     return Promise.race([document.fonts.load('26px "Nanum Brush Script"', text || '가'), new Promise((r) => setTimeout(r, 2000))]).catch(() => {});
+  }
+
+  /** 다른 도반이 공개한 연등·기와·돌탑(최근 일부)을 받아 경내에 섞는다 */
+  async _pullShared() {
+    const d = await sharedApi.recent();
+    if (d.error) return;
+    this.store.mergeShared(d);
+    this.temple.lanterns.sync(this.store.state.lanterns);
+    this.temple.cairn.sync(Math.min(this.store.stoneTotal, 40));
+    await this._brushFont(this.store.state.tiles.map((t) => t.wish).join(''));
+    this.temple.tileRack.sync(this.store.state.tiles);
+    this.modals?.refresh();
+  }
+
+  /** 공개를 고른 서원을 서버에 올린다. 거절되면(링크·욕설·하루 한도) 이 브라우저에만 남긴다 */
+  _publish(kind, item, label) {
+    sharedApi.publish(kind, item, this.store.profile.userId).then((r) => {
+      if (!r.error) return;
+      item.public = false;
+      this.store.save();
+      if (r.error !== 'offline' && r.error !== 'timeout') this.toast(`${label}은 나만 보도록 두었습니다 · ${r.error}`);
+    });
   }
 
   _rebuildPlayer() {
@@ -174,6 +199,14 @@ class MetaTempleApp {
     }, 900);
     this.zone = null;
     this.enteredAt = performance.now();
+    this.live = new LiveLink({
+      onPeers: (peers, count) => {
+        this.avatars.syncRemotePeers(peers);
+        this.avatars.setNpcBudget(Math.max(4, 11 - count)); // 실제 도반이 늘면 NPC 참배객을 줄인다
+      },
+      onBow: (from) => this._onPeerBow(from)
+    });
+    this.live.start(this.store.profile.dharmaName, this.store.profile.avatarStyle);
   }
 
   _emitters() {
@@ -204,8 +237,9 @@ class MetaTempleApp {
   /* ───────── 신행 콜백 ───────── */
   _modalCallbacks() {
     return {
-      onAddLantern: (wish, color) => {
-        const res = this.store.addLantern(wish, color);
+      onAddLantern: (wish, color, share = true) => {
+        const res = this.store.addLantern(wish, color, share);
+        if (share) this._publish('lanterns', res.lantern, '연등');
         this.temple.lanterns.sync(this.store.state.lanterns);
         const from = this.player.root.position.clone().add(new THREE.Vector3(0, 1.2, 0));
         this.temple.lanterns.launch(res.lantern.id, from);
@@ -218,20 +252,31 @@ class MetaTempleApp {
       onEmpathize: (id) => {
         const ok = this.store.empathize(id);
         if (ok) this.sound.playWindChime(0.7);
+        const l = this.store.state.lanterns.find((x) => x.id === id);
+        if (ok && l && (l.shared || l.public)) {
+          sharedApi.empathize(id, this.store.profile.userId).then((r) => {
+            if (r.empathy == null) return;
+            l.empathy = r.empathy;
+            this.store.save();
+            this.modals.refresh();
+          });
+        }
         return ok;
       },
-      onAddTile: (wish) => {
-        const t = this.store.addTile(wish);
+      onAddTile: (wish, share = true) => {
+        const t = this.store.addTile(wish, share);
+        if (share) this._publish('tiles', t, '기와');
         this._brushFont(wish).then(() => this.temple.tileRack.sync(this.store.state.tiles));
         this._updateHUD();
         this.toast('🀫 기와에 새긴 서원이 불사대에 봉안되었습니다');
         return t;
       },
-      onAddStone: (wish) => {
-        const s = this.store.addStone(wish);
+      onAddStone: (wish, share = true) => {
+        const s = this.store.addStone(wish, share);
+        if (share) this._publish('stones', s, '돌탑의 돌');
         this.temple.cairn.addStone(() => this.sound.playStoneDrop());
         this._updateHUD();
-        this.toast(`⛰️ 돌탑에 조약돌 하나를 얹었습니다 · 지금까지 ${this.store.state.stones.length}개`);
+        this.toast(`⛰️ 돌탑에 조약돌 하나를 얹었습니다 · 지금까지 ${this.store.stoneTotal}개`);
         return s;
       },
       onBurnWorry: () => {
@@ -264,6 +309,7 @@ class MetaTempleApp {
         const n = generateDharmaName(this.store.profile.dharmaName);
         this.store.setDharmaName(n);
         this.player.setName(n);
+        this.live?.setIdentity(n, this.store.profile.avatarStyle);
         this._updateHUD();
         return n;
       },
@@ -275,6 +321,15 @@ class MetaTempleApp {
         this.world.setFocusVignette(false);
       }
     };
+  }
+
+  /** 실제 도반의 합장: 내가 막 합장했으면 '답례', 아니면 '인사' */
+  _onPeerBow({ id, name }) {
+    const r = this.avatars.remote.get(id);
+    if (r) this.world.ripples.spawn(r.av.root.position, { color: '#f2c46d', maxR: 2.4, life: 1.8 });
+    this.sound.playBlessing();
+    const replied = performance.now() - (this._lastBowAt || 0) < 6000;
+    this.toast(replied ? `『${name}』 도반이 합장으로 답례합니다` : `『${name}』 도반이 합장으로 인사합니다 · 1 을 눌러 답례`);
   }
 
   _afterUnlock(list = []) {
@@ -439,6 +494,8 @@ class MetaTempleApp {
       case 'bow_half': {
         const d = this.avatars.triggerAction('bow_half');
         if (d) {
+          this.live?.bow();
+          this._lastBowAt = performance.now();
           this.world.ripples.spawn(p, { maxR: 3.2, life: 2 });
         }
         break;
@@ -514,7 +571,10 @@ class MetaTempleApp {
     const p = this.store.profile, s = p.stats;
     $('#hud-dharma-name').textContent = p.dharmaName;
     $('#hud-merit-summary').textContent = `절 ${s.bowCount}배 · 염주 ${s.malaCount}알 · 연등 ${s.lanternCount}등`;
-    if (this.avatars) $('#hud-presence').textContent = `도반 ${this.avatars.presenceCount}명 말없이 동석 중`;
+    if (this.avatars) {
+      const real = this.live?.count || 0;
+      $('#hud-presence').textContent = real > 0 ? `지금 도반 ${real}명이 말없이 함께 머무는 중` : `지금은 홀로 머무는 중 · 산사 식구 ${this.avatars.npcCount}명`;
+    }
   }
 
   _onZoneChange(force = false) {
@@ -604,6 +664,7 @@ class MetaTempleApp {
         this.store.setAvatarStyle(b.dataset.avatar);
         this._rebuildPlayer();
         this._applyItems();
+        this.live?.setIdentity(this.store.profile.dharmaName, b.dataset.avatar);
         this._syncChips();
       })
     );
@@ -875,6 +936,15 @@ class MetaTempleApp {
         this.sound.setTimeOfDay(ph);
       }
       this._adaptQuality(dt);
+      if (this.live) {
+        const pl = this.player;
+        if (pl.seq && pl.seq !== this._seqRef) {
+          this._seqRef = pl.seq;
+          this._actSeq = (this._actSeq || 0) + 1;
+        }
+        const p = pl.root.position;
+        this.live.update({ x: p.x, y: p.y, z: p.z, ry: pl.root.rotation.y, a: pl.seq?.name || pl.state || 'idle', n: this._actSeq || 0 });
+      }
     }
     this.world.render();
   }

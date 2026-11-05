@@ -44,7 +44,9 @@ export function kstHour(d = new Date()) {
 }
 
 function uuid() {
-  return crypto.randomUUID ? crypto.randomUUID() : `u_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  if (crypto.randomUUID) return crypto.randomUUID();
+  const h = [...crypto.getRandomValues(new Uint8Array(16))].map((b) => b.toString(16).padStart(2, '0')).join('');
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
 }
 
 function fresh() {
@@ -101,6 +103,7 @@ function normalize(raw) {
     wish: l.wish || '',
     empathy: l.empathy || 0,
     createdAt: l.createdAt || base.lanterns[0].createdAt,
+    public: !!l.public,
     mine: !!l.mine || (l.author === p.dharmaName && !String(l.id).startsWith('lantern_init'))
   }));
   out.tiles = (Array.isArray(raw.tiles) ? raw.tiles : base.tiles).map((t, i) => ({
@@ -108,9 +111,12 @@ function normalize(raw) {
     author: t.author || '이름 없는 도반',
     wish: t.wish || '',
     createdAt: t.createdAt || base.tiles[0].createdAt,
+    public: !!t.public,
     mine: !!t.mine
   }));
-  out.stones = (Array.isArray(raw.stones) ? raw.stones : base.stones).map((s) => ({
+  out.stones = (Array.isArray(raw.stones) ? raw.stones : base.stones).map((s, i) => ({
+    id: s.id || `stone_m_${i}`,
+    public: !!s.public,
     author: s.author || '이름 없는 도반',
     wish: s.wish || '',
     createdAt: s.createdAt || new Date().toISOString(),
@@ -200,9 +206,10 @@ export class TempleStore {
     this.save();
   }
 
-  addLantern(wish, color) {
+  addLantern(wish, color, share = true) {
     const l = {
-      id: `lantern_${Date.now()}`,
+      id: `l_${uuid()}`, // 서버와 같은 형식 — 공유해도 같은 ID
+      public: !!share,
       author: this.profile.dharmaName,
       color,
       wish,
@@ -226,9 +233,10 @@ export class TempleStore {
     return true;
   }
 
-  addTile(wish) {
+  addTile(wish, share = true) {
     const t = {
-      id: `tile_${Date.now()}`,
+      id: `t_${uuid()}`,
+      public: !!share,
       author: this.profile.dharmaName,
       wish,
       createdAt: new Date().toISOString(),
@@ -239,8 +247,8 @@ export class TempleStore {
     return t;
   }
 
-  addStone(wish) {
-    const s = { author: this.profile.dharmaName, wish, createdAt: new Date().toISOString(), mine: true };
+  addStone(wish, share = true) {
+    const s = { id: `s_${uuid()}`, public: !!share, author: this.profile.dharmaName, wish, createdAt: new Date().toISOString(), mine: true };
     this.state.stones.push(s);
     this.addStat('stoneCount');
     return s;
@@ -252,6 +260,29 @@ export class TempleStore {
     this.save();
   }
 
+  /**
+   * 다른 도반이 공개한 서원(서버의 최근 일부)을 목록에 섞는다. 저장할 때는 빠진다.
+   */
+  mergeShared({ lanterns = [], tiles = [], stones = [], stoneTotal = 0 } = {}) {
+    const st = this.state;
+    const merge = (key, incoming) => {
+      const local = st[key].filter((x) => !x.shared);
+      const have = new Set(local.map((x) => x.id));
+      const add = incoming.filter((x) => !have.has(x.id)).map((x) => ({ ...x, shared: true, mine: false }));
+      st[key] = [...local, ...add].sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
+      return add.length;
+    };
+    const n = merge('lanterns', lanterns) + merge('tiles', tiles) + merge('stones', stones);
+    this.sharedStoneTotal = stoneTotal;
+    return n;
+  }
+
+  /** 돌탑 전체 개수: 공유 총계 + 공개하지 않은 내 돌 + 처음 받은 예시 돌 */
+  get stoneTotal() {
+    const local = this.state.stones.filter((s) => !s.shared && !s.public).length;
+    return Math.max(this.state.stones.length, (this.sharedStoneTotal || 0) + local);
+  }
+
   onChange(fn) {
     this._listeners.add(fn);
     return () => this._listeners.delete(fn);
@@ -259,7 +290,9 @@ export class TempleStore {
 
   save() {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.state));
+      const own = (a) => a.filter((x) => !x.shared);
+      const st = this.state;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...st, lanterns: own(st.lanterns), tiles: own(st.tiles), stones: own(st.stones) }));
     } catch (e) {
       console.warn('[store] save failed', e);
     }

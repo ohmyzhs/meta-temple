@@ -672,7 +672,7 @@ export class AvatarManager {
   _bowReplies() {
     const p = this.player.root.position;
     const near = this.visitors
-      .filter((v) => !v.av.busy && v.av.root.position.distanceTo(p) < 6)
+      .filter((v) => !v.hidden && !v.av.busy && v.av.root.position.distanceTo(p) < 6)
       .sort((a, b) => a.av.root.position.distanceTo(p) - b.av.root.position.distanceTo(p))
       .slice(0, 2);
     near.forEach((v, i) => {
@@ -835,18 +835,23 @@ export class AvatarManager {
       if (!r || r.av.style !== peer.avatarStyle) {
         r?.av.dispose();
         const av = new Avatar(peer.avatarStyle || 'monk', { name: peer.dharmaName || '도반' });
+        av.labelEl.classList.add('peer'); // 실제 접속한 도반은 이름 빛깔을 달리한다
         av.root.position.set(peer.x, peer.y, peer.z);
         this.scene.add(av.root);
-        r = { av, target: new THREE.Vector3(), ry: 0, action: null };
+        r = { av, target: new THREE.Vector3(), ry: 0, action: null, seq: null };
         this.remote.set(peer.id, r);
       }
+      if (peer.dharmaName && r.av.name !== peer.dharmaName) r.av.setName(peer.dharmaName);
       r.target.set(peer.x, peer.y, peer.z);
       r.ry = peer.ry ?? 0;
-      if (peer.actionState && peer.actionState !== r.action) {
+      // 같은 동작을 거듭해도(큰절 연속) 순번(actionSeq)이 바뀌면 다시 재생
+      if (peer.actionState && (peer.actionState !== r.action || peer.actionSeq !== r.seq)) {
         r.action = peer.actionState;
+        r.seq = peer.actionSeq;
+        r.av.sitting = ['sit', 'meditate', 'tea'].includes(peer.actionState);
+        r.av.restState = r.av.sitting ? peer.actionState : null;
         if (SEQ[peer.actionState]) r.av.play(peer.actionState);
         else r.av.setState(peer.actionState);
-        r.av.sitting = ['sit', 'meditate', 'tea'].includes(peer.actionState);
       }
     }
     for (const [id, r] of this.remote) {
@@ -855,6 +860,36 @@ export class AvatarManager {
         this.remote.delete(id);
       }
     }
+    // 실제 도반이 앉은 좌복은 비어 있지 않다
+    for (const c of this.temple.cushions) if (c.occupant?.remotePeer) c.occupant = null;
+    for (const r of this.remote.values()) {
+      if (!r.av.sitting) continue;
+      const c = this.temple.cushions.find((k) => !k.occupant && Math.hypot(k.x - r.target.x, k.z - r.target.z) < 0.45);
+      if (c) {
+        r.av.remotePeer = true;
+        c.occupant = r.av;
+      }
+    }
+  }
+
+  /** 실제 도반이 많아지면 NPC 참배객을 그만큼 줄인다 (상주 스님은 남긴다) */
+  setNpcBudget(n) {
+    let left = n;
+    for (const v of this.visitors) {
+      if (v.plan.role === 'resident') continue;
+      const on = left-- > 0;
+      v.hidden = !on;
+      v.av.root.visible = on;
+      if (!on) for (const c of this.temple.cushions) if (c.occupant === v.av) c.occupant = null;
+    }
+  }
+
+  get npcCount() {
+    return this.visitors.filter((v) => !v.hidden).length;
+  }
+
+  get remotePeers() {
+    return [...this.remote.entries()].map(([id, r]) => ({ id, name: r.av.name, position: r.av.root.position }));
   }
 
   /** 지금 함께 머무는 도반 수 */
@@ -931,6 +966,7 @@ export class AvatarManager {
     pl.update(dt, t, night);
 
     for (const v of this.visitors) {
+      if (v.hidden) continue;
       if (v.plan.role !== 'resident') this._updateVisitor(v, dt, t);
       v.av.update(dt, t, night);
       const dist = v.av.root.position.distanceTo(p);
@@ -941,6 +977,8 @@ export class AvatarManager {
       r.av.speed = damp(r.av.speed, r.av.root.position.distanceTo(r.target) > 0.05 ? 1.5 : 0, 6, dt);
       r.av.root.rotation.y = angleDamp(r.av.root.rotation.y, r.ry, 8, dt);
       r.av.update(dt, t, night);
+      const d = r.av.root.position.distanceTo(p);
+      r.av.labelEl.style.opacity = d < 14 ? String(clamp((14 - d) / 4, 0, 0.95)) : '0';
     }
     pl.labelEl.style.opacity = pl.speed > 0.3 ? '0' : '0.75';
   }

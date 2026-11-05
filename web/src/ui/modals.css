@@ -1207,3 +1207,19 @@
 .yebul-bar { height: 3px; margin-top: 6px; border-radius: 3px; background: rgba(120, 95, 60, 0.15); overflow: hidden; }
 .yebul-bar span { display: block; height: 100%; width: 0; background: var(--gold); transition: width 0.25s linear; }
 .yebul-time { font-size: 11.5px; color: var(--muk-soft); font-variant-numeric: tabular-nums; }
+
+/* 공개 여부 */
+.m-share { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: 4px 0 12px; font-size: 13px; color: var(--muk); cursor: pointer; }
+.m-share input { width: 16px; height: 16px; accent-color: var(--gold); }
+.m-share small { flex-basis: 100%; padding-left: 22px; font-size: 11.5px; color: var(--muk-soft); }
+
+/* 측면 패널: 뒤의 법당·아바타가 비쳐 보이게 (글자는 읽히도록 약한 블러만) */
+.modal-window.side {
+  background-color: rgba(248, 243, 231, 0.66);
+  background-image: linear-gradient(180deg, rgba(251, 248, 239, 0.55), rgba(240, 232, 214, 0.45));
+  -webkit-backdrop-filter: blur(5px) saturate(1.1);
+  backdrop-filter: blur(5px) saturate(1.1);
+  box-shadow: 0 0 0 1px rgba(120, 95, 60, 0.22), 0 12px 36px rgba(0, 0, 0, 0.22);
+}
+.modal-window.side .yebul-item,
+.modal-window.side .m-tabs { background-color: rgba(255, 252, 244, 0.5); }
