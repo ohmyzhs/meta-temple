@@ -1187,3 +1187,23 @@
   .lantern-sway, .bow-ring.is-breathing::before, .wg-cell.is-next::after { animation: none !important; }
   .jukbi-card { transition: none; }
 }
+
+/* ───────── 예불 듣기 ───────── */
+.yebul-list { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.yebul-item {
+  display: grid; grid-template-columns: 44px 1fr auto; align-items: center; gap: 12px;
+  padding: 12px 14px; border-radius: 10px;
+  background: rgba(255, 252, 244, 0.7); box-shadow: 0 0 0 1px rgba(120, 95, 60, 0.14);
+}
+.yebul-item.is-on { box-shadow: 0 0 0 1px var(--gold), 0 4px 14px rgba(120, 90, 40, 0.12); }
+.yebul-play {
+  width: 44px; height: 44px; border-radius: 50%; border: 1px solid rgba(120, 95, 60, 0.35);
+  background: var(--muk); color: var(--hanji-50); font-size: 14px; line-height: 1;
+}
+.yebul-item.is-on .yebul-play { background: var(--gold); color: var(--ink-900); border-color: var(--gold); }
+.yebul-meta { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.yebul-meta b { font-family: var(--font-serif); font-weight: 600; font-size: 15px; }
+.yebul-meta small { font-size: 12px; color: var(--muk-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.yebul-bar { height: 3px; margin-top: 6px; border-radius: 3px; background: rgba(120, 95, 60, 0.15); overflow: hidden; }
+.yebul-bar span { display: block; height: 100%; width: 0; background: var(--gold); transition: width 0.25s linear; }
+.yebul-time { font-size: 11.5px; color: var(--muk-soft); font-variant-numeric: tabular-nums; }

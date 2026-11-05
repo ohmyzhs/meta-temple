@@ -159,6 +159,7 @@ class MetaTempleApp {
     this.entered = true;
     this.sound.init();
     this.sound.setEmitters(this._emitters());
+    this.sound.loadRecordings('./assets/audio/'); // 실제 녹음 — 받는 동안은 합성음
     this.sound.setWeather(this.world.weatherName);
     this.sound.setTimeOfDay(this.world.phase);
     $('#intro').classList.add('leaving');
@@ -195,7 +196,8 @@ class MetaTempleApp {
       brazier: { x: L.brazier.x, y: 2, z: L.brazier.z },
       kettle: { x: L.teahouse.x - L.teahouse.halfW - 0.9, y: 2, z: L.teahouse.z + 0.75 },
       bamboo: { x: 34, y: 4, z: -12 },
-      bell: { x: L.bell.x, y: 4, z: L.bell.z }
+      bell: { x: L.bell.x, y: 4, z: L.bell.z },
+      pond: { x: L.pond.x, y: L.pond.waterY + 0.3, z: L.pond.z }
     };
   }
 
@@ -264,6 +266,9 @@ class MetaTempleApp {
         this.player.setName(n);
         this._updateHUD();
         return n;
+      },
+      onYebul: () => {
+        if (this.player.state !== 'meditate') this.gesture('meditate');
       },
       onPracticeEnd: () => {
         this.avatars.standUp();
@@ -356,6 +361,8 @@ class MetaTempleApp {
         });
       case 'tea_chat':
         return this._goAndDo(def, () => this._sitTea());
+      case 'yebul':
+        return this.modals.open('yebul');
     }
   }
 
@@ -533,6 +540,7 @@ class MetaTempleApp {
       bar.appendChild(b);
     });
     if (this.entered) this.sound.setZone(z);
+    if (z !== 'DAEUNGJEON') this.sound.stopTrack(); // 예불 듣기는 법당 안에서만
   }
 
   _syncChips() {

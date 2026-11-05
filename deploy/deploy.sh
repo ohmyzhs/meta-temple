@@ -34,6 +34,8 @@ trap 'rm -rf "$STAGE"' EXIT
 mkdir -p "$STAGE/v"
 rsync -a --exclude .DS_Store "$ROOT/web/src/" "$STAGE/v/$REV/"
 sed "s#\./src/#./v/$REV/#g" "$ROOT/web/index.html" > "$STAGE/index.html"
+# 녹음 등 큰 정적 파일은 버전 경로 밖 assets/ 에 둔다 (매 배포마다 다시 올리지 않게). 바꿀 땐 파일명을 바꿀 것.
+[ -d "$ROOT/web/assets" ] && rsync -a --exclude .DS_Store "$ROOT/web/assets/" "$STAGE/assets/"
 grep -q "v/$REV/main.js" "$STAGE/index.html"
 
 # With the CI key the remote path is relative to /srv/temple/dist (rrsync); with saju_oci it is absolute.
@@ -41,6 +43,7 @@ DEST="${TEMPLE_DEPLOY_KEY:+./}"
 DEST="${DEST:-/srv/temple/dist/}"
 DRY="${DEPLOY_DRY_RUN:+-n}"
 rsync -az $DRY -e "${SSH[*]}" "$STAGE/v/" "$VM:${DEST}v/"
+[ -d "$STAGE/assets" ] && rsync -az $DRY -e "${SSH[*]}" "$STAGE/assets/" "$VM:${DEST}assets/"
 rsync -az $DRY --delete --exclude 'v/' -e "${SSH[*]}" "$STAGE/" "$VM:$DEST"
 [ -n "$DRY" ] && { echo "dry run: staged $STAGE"; exit 0; }
 curl -fsS -o /dev/null -w "temple.lotiony.com %{http_code}\n" https://temple.lotiony.com/

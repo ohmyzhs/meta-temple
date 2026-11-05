@@ -8,6 +8,7 @@
  * 게임 로직은 main.js 콜백이 맡고, 여기서는 보여 주고 콜백을 부르기만 한다.
  * 번뇌 소각 글은 어디에도 저장·기록·전송하지 않는다.
  */
+import { SOUND_CREDITS, SOUND_CREDIT_NOTE, YEBUL_TRACKS } from '../data/soundCredits.js';
 import { SUTRA_VERSES, DHARMA_CARDS, localMonkResponse, isCrisisText } from '../data/dharmaTexts.js';
 import { LANTERN_COLORS, ZONES, RITUALS } from '../data/templeData.js';
 import { kstDateString } from '../core/state.js';
@@ -20,6 +21,7 @@ const VIEWS = {
   practice_108: { title: '108배 · 염주', hanja: '百八', sub: '숨에 맞추어, 천천히.', render: '_practice', variant: 'side' },
   sutra_copy: { title: '사경', hanja: '寫經', sub: '한 글자씩 따라 쓰며 흩어진 마음을 고릅니다.', render: '_sutra', variant: 'wide' },
   tea_chat: { title: '심검당 차담', hanja: '茶談', sub: '차 한 잔 사이에 두고, 편히 이야기하세요.', render: '_tea', variant: 'side' },
+  yebul: { title: '예불 듣기', hanja: '禮佛', sub: '산사에서 실제로 올린 예불을 처음부터 끝까지.', render: '_yebul', variant: 'side' },
   dharma_card: { title: '오늘의 죽비', hanja: '竹篦', sub: '지금 내 걸음에 닿는 경전 한 구절.', render: '_card' },
   profile: { title: '수행 기록', hanja: '修行', sub: '견주지 않는, 나만의 조용한 흔적.', render: '_profile' },
   help: { title: '산사 안내', hanja: '案內', sub: '천천히 둘러보세요. 서두를 곳이 없습니다.', render: '_help' }
@@ -1444,6 +1446,61 @@ export class ModalManager {
   }
 
   /* ═════════ 8. 오늘의 죽비 ═════════ */
+  /* ───── 예불 듣기 ───── */
+  _yebul() {
+    const base = './assets/audio/';
+    const fmt = (s) => (Number.isFinite(s) ? `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}` : '–:––');
+    const root = this._root(`
+      <ul class="yebul-list">${YEBUL_TRACKS.map((t) => `
+        <li class="yebul-item" data-id="${esc(t.id)}">
+          <button type="button" class="yebul-play" data-act="toggle" data-id="${esc(t.id)}" aria-label="${esc(t.title)} 듣기"><span aria-hidden="true">▶</span></button>
+          <div class="yebul-meta">
+            <b>${esc(t.title)}</b>
+            <small>${esc(t.place)} · ${esc(t.note)}</small>
+            <div class="yebul-bar" aria-hidden="true"><span></span></div>
+          </div>
+          <span class="yebul-time"></span>
+        </li>`).join('')}
+      </ul>
+      <p class="m-hint">닫아도 계속 들리고, 법당을 나서면 잦아듭니다. 국립공원공단 「자연의소리」 · 공공누리 제1유형</p>`);
+    const trackOf = (id) => YEBUL_TRACKS.find((x) => x.id === id);
+    const sync = () => {
+      const cur = this.sound?.currentTrack;
+      root.querySelectorAll('.yebul-item').forEach((li) => {
+        const el = cur && cur.url.endsWith(trackOf(li.dataset.id).file) ? cur.el : null;
+        li.classList.toggle('is-on', !!el);
+        li.querySelector('.yebul-play span').textContent = el && !el.paused ? '❚❚' : '▶';
+        li.querySelector('.yebul-bar span').style.width = el && el.duration ? `${(el.currentTime / el.duration) * 100}%` : '0%';
+        li.querySelector('.yebul-time').textContent = el ? `${fmt(el.currentTime)} / ${fmt(el.duration)}` : '';
+      });
+    };
+    let bound = null;
+    const bind = () => {
+      const cur = this.sound?.currentTrack;
+      if (!cur || bound === cur.el) return;
+      bound = cur.el;
+      for (const ev of ['timeupdate', 'play', 'pause', 'ended', 'loadedmetadata']) this._on(cur.el, ev, sync);
+    };
+    this._on(root, 'click', (e) => {
+      const b = e.target.closest('[data-act="toggle"]');
+      if (!b) return;
+      const t = trackOf(b.dataset.id);
+      const cur = this.sound?.currentTrack;
+      if (cur && cur.url.endsWith(t.file)) {
+        if (cur.el.paused) cur.el.play();
+        else cur.el.pause();
+      } else {
+        this.sound?.playTrack(base + t.file);
+        this.cb.onYebul?.(t);
+      }
+      bind();
+      sync();
+    });
+    bind();
+    sync();
+    return { refresh: sync };
+  }
+
   _card() {
     const root = this._root('<div data-deck></div>');
     const deck = this._deck(root.querySelector('[data-deck]'), false);
@@ -1666,6 +1723,11 @@ export class ModalManager {
         <p class="help-p">법명, 쌓인 수행, 연등·기와·돌탑, 간직한 죽비는 <b>이 브라우저에만</b> 저장됩니다. 회원가입도, 서버 계정도 없습니다.</p>
         <p class="help-p"><b>번뇌 소각</b>에 적은 글은 어디에도 저장되거나 보내지지 않으며, 태우는 순간 화면에서도 사라집니다.</p>
         <p class="help-p">${remote ? '차담은 선사의 답을 받기 위해 전해지지만 이 브라우저에 남지 않습니다.' : '차담 내용도 저장되지 않습니다.'} 기도와 고민은 광고에 쓰이지 않습니다.</p>
+      </section>
+      <section class="help-sec">
+        <h3 class="m-sub">소리의 출처</h3>
+        <p class="help-p">${esc(SOUND_CREDIT_NOTE)} <a href="https://www.kogl.or.kr/info/licenseType1.do" target="_blank" rel="noopener">공공누리 제1유형</a></p>
+        <ul class="help-credits">${SOUND_CREDITS.map((c) => `<li>${esc(c.use)} — 국립공원공단, <a href="${esc(c.url)}" target="_blank" rel="noopener">${esc(c.title)}</a></li>`).join('')}</ul>
       </section>`);
     return {};
   }
