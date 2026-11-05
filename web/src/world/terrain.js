@@ -383,6 +383,7 @@ function buildRocks(scene) {
   });
   inst.castShadow = true;
   inst.receiveShadow = true;
+  inst.userData.rocks = true; // 바깥 실사(world/real/outdoor.js)가 사진 질감으로 바꿔 끼우는 바위
   scene.add(inst);
 }
 

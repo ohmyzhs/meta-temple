@@ -375,6 +375,7 @@ export class TempleScene {
     if (REAL_WORLD) this.real = (await import('./real/realWorld.js')).prepareReal(this); // 정적 병합 전에 교체 자리를 빼 둔다
     this._buildCrownGrid(this.veg.crowns);
     this.occluders = this._collectOccluders(); // 정적 병합 전에: 합친 뒤에는 지붕·벽과 나머지가 한 메쉬가 된다
+    if (new URLSearchParams(location.search).get('world') === 'real') this.outdoor = (await import('./real/outdoor.js')).prepareOutdoor(this); // 바깥 실사: 소품 재질을 병합 전에 바꿔 둔다
     this.batchStats = batchStatic(this.scene, this.temple.dynamicRoots());
     await step(0.85, '등불을 켜는 중…', () => {
       this._placeLights();
@@ -919,6 +920,7 @@ export class TempleScene {
       hand.intensity = night * 2.4 * flick(7);
     } else hand.intensity = 0;
 
+    this.outdoor?.update(dt, player);
     this.temple.update(dt, t, night);
     this.ripples.update(dt);
     this.sky.position.copy(this.camera.position);

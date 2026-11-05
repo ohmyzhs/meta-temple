@@ -1,0 +1,104 @@
+{
+ "_note": "바깥 실사(?world=real) 자료 출처. tools/outdoor/build.py 가 만든 KTX2. 출처 모아보기(web/src/data/credits.js)로 옮길 때 분류는 textures·generated.",
+ "textures": [
+  {
+   "title": "brown_mud_leaves_01",
+   "source": "Poly Haven",
+   "url": "https://polyhaven.com/a/brown_mud_leaves_01",
+   "license": "CC0",
+   "use": "숲 바닥 (이끼·진흙·낙엽)"
+  },
+  {
+   "title": "dry_decay_leaves",
+   "source": "Poly Haven",
+   "url": "https://polyhaven.com/a/dry_decay_leaves",
+   "license": "CC0",
+   "use": "낙엽"
+  },
+  {
+   "title": "forest_ground_04",
+   "source": "Poly Haven",
+   "url": "https://polyhaven.com/a/forest_ground_04",
+   "license": "CC0",
+   "use": "흙길"
+  },
+  {
+   "title": "gravel_floor",
+   "source": "Poly Haven",
+   "url": "https://polyhaven.com/a/gravel_floor",
+   "license": "CC0",
+   "use": "마당 마사토 (아트 바이블 베이지로 고침)"
+  },
+  {
+   "title": "leafy_grass",
+   "source": "Poly Haven",
+   "url": "https://polyhaven.com/a/leafy_grass",
+   "license": "CC0",
+   "use": "다실 마당 잔디"
+  },
+  {
+   "title": "river_small_rocks",
+   "source": "Poly Haven",
+   "url": "https://polyhaven.com/a/river_small_rocks",
+   "license": "CC0",
+   "use": "계곡 바닥·바위 비탈"
+  },
+  {
+   "title": "pine_bark",
+   "source": "Poly Haven",
+   "url": "https://polyhaven.com/a/pine_bark",
+   "license": "CC0",
+   "use": "소나무 껍질"
+  },
+  {
+   "title": "jolcham_oak_bark_01",
+   "source": "Poly Haven",
+   "url": "https://polyhaven.com/a/jolcham_oak_bark_01",
+   "license": "CC0",
+   "use": "전나무 껍질 (졸참나무 사진)"
+  },
+  {
+   "title": "trident_maple_bark",
+   "source": "Poly Haven",
+   "url": "https://polyhaven.com/a/trident_maple_bark",
+   "license": "CC0",
+   "use": "단풍나무 껍질"
+  },
+  {
+   "title": "weathered_brown_planks",
+   "source": "Poly Haven",
+   "url": "https://polyhaven.com/a/weathered_brown_planks",
+   "license": "CC0",
+   "use": "데크·다리 판재"
+  },
+  {
+   "title": "weathered_planks",
+   "source": "Poly Haven",
+   "url": "https://polyhaven.com/a/weathered_planks",
+   "license": "CC0",
+   "use": "데크 기둥·난간"
+  },
+  {
+   "title": "rock_boulder_dry",
+   "source": "Poly Haven",
+   "url": "https://polyhaven.com/a/rock_boulder_dry",
+   "license": "CC0",
+   "use": "쉼터 화강암 (아트 바이블 회색으로 고침)"
+  },
+  {
+   "title": "mossy_rock",
+   "source": "Poly Haven",
+   "url": "https://polyhaven.com/a/mossy_rock",
+   "license": "CC0",
+   "use": "이끼 낀 돌"
+  }
+ ],
+ "generated": [
+  {
+   "title": "원경 능선 3겹(낮·해질녘·밤), 쉼터 경치 4종(낮·해질녘·밤), 잎 아틀라스(전나무·소나무·단풍·대나무), 원경 나무(전나무·소나무·단풍)",
+   "tool": "gpt-image (OpenAI, Codex CLI 내장 이미지 생성), 아트 바이블 docs/art/art-bible-v1.jpg 를 참조 이미지로",
+   "prompts": "tools/outdoor/prompts/",
+   "note": "해질녘·밤은 낮 그림을 편집해 능선 모양을 맞춤. 능선 띠는 tools/outdoor/build.py 가 3장 + 뒤집은 3장을 360° 로 이어 붙임"
+  }
+ ]
+}
