@@ -589,7 +589,7 @@ class Outdoor {
       this._trees(sm),
       this._props()
     ]);
-    this._ridgeRest = Promise.all(['day', 'dusk', 'night'].filter((v) => v !== first).map((v) => this._ridgeVariant(v)));
+    this._ridgeWant = new Set([first]); // 다른 시각 띠는 그 시각이 다가올 때 받는다 (update) — 첫 입장 예산 밖
   }
 
   /* 지면 */
@@ -622,6 +622,7 @@ class Outdoor {
   }
 
   async _ridgeVariant(v) {
+    this._ridgeWant.add(v);
     const sm = this.small ? '_lo' : '';
     const ts = await Promise.all(RIDGE_LAYERS.map((Lr) => this.tex(`ridge_${Lr.key}_${v}${sm}`)));
     ts.forEach((t, i) => {
@@ -831,6 +832,7 @@ class Outdoor {
     const overcast = Math.max(W.weather.rainU.uAmount.value, W.weather.snowU.uAmount.value * 0.8);
     // 밤엔 그림이 이미 어두우니 노출만 조금 맞춘다 (재서 정한 값은 보고서 참고)
     const gain = 1 - 0.12 * w[2];
+    if (this._ridgeWant) ['day', 'dusk', 'night'].forEach((v, i) => w[i] > 0.001 && !this._ridgeWant.has(v) && this._ridgeVariant(v).catch((e) => console.warn('[outdoor] 원경 띠', v, e)));
     this.ridgeU.forEach(({ u, loaded }, i) => {
       if (!loaded) return;
       this._setPhoto(u, loaded, w);

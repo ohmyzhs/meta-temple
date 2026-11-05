@@ -159,6 +159,11 @@ async function shots(browser) {
     for (const [n, v] of Object.entries(views)) {
       if (time !== 'day' && !/t02|t07|t10|g01/.test(n)) continue; // 해질녘·밤은 몇 장만 (시각 이름은 PRESET_HOURS: dawn·day·sunset·night)
       await page.evaluate((v) => window.__view({ ...v, frames: 60 }), { ...v, time });
+      if (time !== 'day') {
+        // 해질녘·밤 원경 그림은 그 시각이 되어야 받는다 (outdoor.js) — 도착할 틈
+        await page.waitForTimeout(500);
+        await page.evaluate((v) => window.__view({ ...v, frames: 10 }), { ...v, time });
+      }
       await page.screenshot({ path: `${OUT}/${n}_${time}.png` });
     }
   }
