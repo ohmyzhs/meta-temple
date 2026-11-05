@@ -1,0 +1,41 @@
+# main 에 push → temple.lotiony.com 배포. 실제 일은 deploy/deploy.sh 가 한다(맥 수동 배포와 같은 파일).
+# 비밀 TEMPLE_DEPLOY_KEY(전용 키, VM authorized_keys 에서 rrsync /srv/temple/dist 로만 묶음)가 없으면 건너뛴다.
+name: deploy
+
+on:
+  push:
+    branches: [main]
+    paths: ["index.html", "src/**", "deploy/**", ".github/workflows/deploy.yml"]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - id: key
+        env:
+          KEY: ${{ secrets.TEMPLE_DEPLOY_KEY }}
+        run: |
+          if [ -z "$KEY" ]; then
+            echo "::notice::TEMPLE_DEPLOY_KEY 비밀이 없어 배포를 건너뜁니다."
+            echo "ready=0" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=1" >> "$GITHUB_OUTPUT"
+          fi
+
+      - if: steps.key.outputs.ready == '1'
+        uses: actions/checkout@v4
+
+      - if: steps.key.outputs.ready == '1'
+        env:
+          KEY: ${{ secrets.TEMPLE_DEPLOY_KEY }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/temple_deploy
+          chmod 600 ~/.ssh/temple_deploy
+          TEMPLE_DEPLOY_KEY=~/.ssh/temple_deploy deploy/deploy.sh
