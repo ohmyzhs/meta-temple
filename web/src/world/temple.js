@@ -1068,7 +1068,7 @@ class LanternSystem {
   }
 
   update(dt, t, night) {
-    this.uGlow.value = 0.35 + night * 3.2;
+    this.uGlow.value = 0.35 + night * 1.6;
     const o = this._o;
     for (let i = 0; i < this.list.length; i++) {
       const l = this.list[i];

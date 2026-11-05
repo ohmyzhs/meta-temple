@@ -24,8 +24,8 @@ import { kstHour } from '../core/state.js';
 
 /* ───── 시간대 키프레임 (KST 시각) ───── */
 const KEYS = [
-  { h: 0, elev: 38, az: 150, light: '#8ea4d6', li: 0.55, top: '#060a14', hor: '#1a2234', fog: '#121827', fd: 0.014, hemiS: '#3a4a6a', hemiG: '#12100c', hi: 0.6, exp: 1.12, night: 1, stars: 1, cloud: '#1a1f2c' },
-  { h: 4.4, elev: 30, az: 120, light: '#8ea4d6', li: 0.5, top: '#080c18', hor: '#1e2638', fog: '#141a2a', fd: 0.016, hemiS: '#3a4a6a', hemiG: '#12100c', hi: 0.58, exp: 1.12, night: 1, stars: 0.9, cloud: '#1a1f2c' },
+  { h: 0, elev: 38, az: 150, light: '#a9bde6', li: 1.35, top: '#0b1424', hor: '#2a3a5a', fog: '#1f2a42', fd: 0.01, hemiS: '#5d7099', hemiG: '#1c1a18', hi: 1.05, exp: 1.3, night: 1, stars: 1, cloud: '#2a3348' },
+  { h: 4.4, elev: 30, az: 120, light: '#a9bde6', li: 1.25, top: '#0c1628', hor: '#2c3c5c', fog: '#212c44', fd: 0.011, hemiS: '#5d7099', hemiG: '#1c1a18', hi: 1.0, exp: 1.3, night: 1, stars: 0.9, cloud: '#2a3348' },
   { h: 5.0, elev: -6, az: 80, light: '#7c8fb8', li: 0.18, top: '#141e30', hor: '#55627a', fog: '#47526a', fd: 0.034, hemiS: '#4b5a7a', hemiG: '#1a1814', hi: 0.55, exp: 1.05, night: 0.75, stars: 0.35, cloud: '#56617a' },
   { h: 6.4, elev: 4, az: 82, light: '#ffb07a', li: 1.6, top: '#5b7aa6', hor: '#eab38e', fog: '#b9a596', fd: 0.02, hemiS: '#9fb2cc', hemiG: '#3a3026', hi: 0.6, exp: 1.0, night: 0.2, stars: 0, cloud: '#e8b9a0' },
   { h: 9, elev: 32, az: 120, light: '#fff1dc', li: 2.7, top: '#5d8fc2', hor: '#c8d7e2', fog: '#bccbd6', fd: 0.0095, hemiS: '#b9cde2', hemiG: '#4a4232', hi: 0.75, exp: 1.0, night: 0, stars: 0, cloud: '#f4f4f2' },
@@ -33,10 +33,21 @@ const KEYS = [
   { h: 16.4, elev: 24, az: 240, light: '#ffe2b8', li: 2.6, top: '#5c84b4', hor: '#e2d2bc', fog: '#cfc5b6', fd: 0.0095, hemiS: '#c9c6c0', hemiG: '#4e4030', hi: 0.7, exp: 1.0, night: 0, stars: 0, cloud: '#f6e6d2' },
   { h: 18.0, elev: 3, az: 268, light: '#ff8a4c', li: 2.2, top: '#3a4675', hor: '#e08458', fog: '#a7765f', fd: 0.012, hemiS: '#8a7a8c', hemiG: '#3a2a20', hi: 0.55, exp: 1.06, night: 0.5, stars: 0, cloud: '#f0a070' },
   { h: 19.1, elev: -7, az: 285, light: '#6a6a9a', li: 0.4, top: '#161b36', hor: '#5e4256', fog: '#2e2a3a', fd: 0.014, hemiS: '#4a4c6a', hemiG: '#14100c', hi: 0.55, exp: 1.0, night: 0.9, stars: 0.4, cloud: '#4a3a4c' },
-  { h: 22, elev: 40, az: 160, light: '#8ea4d6', li: 0.58, top: '#070b15', hor: '#1a2234', fog: '#121827', fd: 0.013, hemiS: '#3a4a6a', hemiG: '#12100c', hi: 0.62, exp: 1.12, night: 1, stars: 1, cloud: '#1a1f2c' },
-  { h: 24, elev: 38, az: 150, light: '#8ea4d6', li: 0.55, top: '#060a14', hor: '#1a2234', fog: '#121827', fd: 0.014, hemiS: '#3a4a6a', hemiG: '#12100c', hi: 0.6, exp: 1.12, night: 1, stars: 1, cloud: '#1a1f2c' }
+  { h: 22, elev: 40, az: 160, light: '#a9bde6', li: 1.35, top: '#0b1424', hor: '#2a3a5a', fog: '#1f2a42', fd: 0.01, hemiS: '#5d7099', hemiG: '#1c1a18', hi: 1.05, exp: 1.3, night: 1, stars: 1, cloud: '#2a3348' },
+  { h: 24, elev: 38, az: 150, light: '#a9bde6', li: 1.35, top: '#0b1424', hor: '#2a3a5a', fog: '#1f2a42', fd: 0.01, hemiS: '#5d7099', hemiG: '#1c1a18', hi: 1.05, exp: 1.3, night: 1, stars: 1, cloud: '#2a3348' }
 ];
 export const PRESET_HOURS = { dawn: 5.0, day: 13, sunset: 18.0, night: 22 };
+
+/* 밤하늘 세기 — tools/qa/night.mjs 로 재서 맞춘 값 */
+const NIGHT_SKY = { MW_CORE: 0.006, MW_WIDE: 0.03, MW_GAIN: 0.07, STAR_FAINT: 0.7, STAR_MID: 3.0, STAR_BRIGHT: 5.0, MOON_DISK: 3.0 };
+// 은하수 대원의 극 — 띠는 북북동(방위 15°) 지평선에서 가파르게 솟아 서북서 하늘 79° 를 지나 남남서로 진다
+// (산문·마당에서 북쪽을 보면 오른쪽 하늘에 비스듬히 선 띠)
+const MILKY_POLE = new THREE.Vector3(0.966, 0.2, 0.259).normalize();
+/**
+ * 밤 노출 하한 (밤 정도 e.night 에 비례). 해 진 뒤 달빛이 오르기 전(19~20시)이 가장 어둡다:
+ * 숲길 산문 구도 평균 루마가 낮(13시)의 18.3%(키값만) → 20.6%(하한 1.3)로, 밤 내내 20% 아래로 내려가지 않는다.
+ */
+export const NIGHT_EXPOSURE_FLOOR = 1.3;
 
 const _ca = new THREE.Color(), _cb = new THREE.Color();
 function sampleKeys(hour) {
@@ -60,6 +71,7 @@ function skyMaterial() {
     side: THREE.BackSide,
     depthWrite: false,
     fog: false,
+    defines: Object.fromEntries(Object.entries(NIGHT_SKY).map(([k, v]) => [k, v.toFixed(4)])),
     uniforms: {
       uTop: { value: new THREE.Color() },
       uHorizon: { value: new THREE.Color() },
@@ -69,6 +81,8 @@ function skyMaterial() {
       uSunVis: { value: 1 },
       uMoonDir: { value: new THREE.Vector3(0.3, 0.6, -0.7).normalize() },
       uStars: { value: 0 },
+      uMilkyPole: { value: MILKY_POLE },
+      uMilky: { value: 1 },
       uCloud: { value: new THREE.Color() },
       uCloudAmt: { value: 0.5 },
       uTime: envUniforms.uTime
@@ -82,14 +96,27 @@ function skyMaterial() {
       }`,
     fragmentShader: `
       uniform vec3 uTop, uHorizon, uBottom, uSunColor, uCloud;
-      uniform vec3 uSunDir, uMoonDir;
-      uniform float uSunVis, uStars, uCloudAmt, uTime;
+      uniform vec3 uSunDir, uMoonDir, uMilkyPole;
+      uniform float uSunVis, uStars, uCloudAmt, uTime, uMilky;
       varying vec3 vDir;
       float hash(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
       float n2(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
         float a = hash(vec3(i, 1.0)), b = hash(vec3(i + vec2(1, 0), 1.0)), c = hash(vec3(i + vec2(0, 1), 1.0)), d = hash(vec3(i + vec2(1, 1), 1.0));
         return mix(mix(a, b, f.x), mix(c, d, f.x), f.y); }
       float fbm(vec2 p) { float s = 0.0, a = 0.5; for (int i = 0; i < 5; i++) { s += a * n2(p); p *= 2.03; a *= 0.5; } return s; }
+      float n3(vec3 p) { vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+        return mix(mix(mix(hash(i), hash(i + vec3(1, 0, 0)), f.x), mix(hash(i + vec3(0, 1, 0)), hash(i + vec3(1, 1, 0)), f.x), f.y),
+                   mix(mix(hash(i + vec3(0, 0, 1)), hash(i + vec3(1, 0, 1)), f.x), mix(hash(i + vec3(0, 1, 1)), hash(i + vec3(1, 1, 1)), f.x), f.y), f.z); }
+      float fbm3(vec3 p) { float s = 0.0, a = 0.5; for (int i = 0; i < 3; i++) { s += a * n3(p); p *= 2.07; a *= 0.5; } return s / 0.875; }
+      // 별 한 겹: 방향을 N 격자로 나눠 칸마다 문턱을 넘으면 칸 안 임의 위치에 둥근 별 하나
+      float stars(vec3 d, float N, float thr) {
+        vec3 q = d * N, g = floor(q);
+        float s = hash(g);
+        if (s < thr) return 0.0;
+        vec3 c = g + 0.5 + (vec3(hash(g + 3.1), hash(g + 7.7), hash(g + 1.3)) - 0.5) * 0.5;
+        float b = (s - thr) / (1.0 - thr);
+        return smoothstep(0.6, 0.0, length(q - c)) * (0.3 + 0.7 * b * b);
+      }
       void main() {
         vec3 d = normalize(vDir);
         float h = d.y;
@@ -99,16 +126,29 @@ function skyMaterial() {
         float sd = max(dot(d, normalize(uSunDir)), 0.0);
         col += uSunColor * (pow(sd, 6.0) * 0.28 + pow(sd, 64.0) * 0.6) * uSunVis;
         col += uSunColor * smoothstep(0.9993, 0.9997, sd) * 6.0 * uSunVis * step(0.0, uSunDir.y + 0.02);
-        // 별
-        if (uStars > 0.01 && h > 0.0) {
-          vec3 g = floor(d * 380.0);
-          float s = hash(g);
-          float tw = 0.6 + 0.4 * sin(uTime * (1.0 + s * 3.0) + s * 40.0);
-          col += vec3(0.9, 0.93, 1.0) * step(0.9965, s) * tw * uStars * smoothstep(0.0, 0.25, h) * 1.4;
+        // 밤하늘: 은하수 띠 + 세 겹의 별 + 달·달무리
+        if (uStars > 0.01 && h > -0.05) {
+          float hz = smoothstep(-0.02, 0.2, h) * uStars; // 지평선 쪽은 옅은 남빛에 묻힌다
+          float lat = dot(d, uMilkyPole); // 띠 중심선에서 벗어난 정도 (sin 위도)
+          float nb = fbm3(d * 5.0), nf = fbm3(d * 14.0 + 7.0);
+          float core = exp(-lat * lat / MW_CORE), wide = exp(-lat * lat / MW_WIDE);
+          float mw = (core * (0.45 + 1.1 * nb) + wide * 0.3) * (0.7 + 0.6 * nf);
+          // 가운데를 가르는 검은 먼지 띠
+          float rift = exp(-pow((lat - 0.012 + 0.05 * (nb - 0.5)) / 0.032, 2.0)) * smoothstep(0.4, 0.65, n3(d * 7.0 + 3.0));
+          mw *= 1.0 - 0.7 * rift;
+          col += vec3(0.6, 0.66, 0.84) * mw * MW_GAIN * uMilky * hz;
+          float tw = 0.75 + 0.25 * sin(uTime * (1.3 + nf * 3.0) + nf * 60.0);
+          float dens = core * 0.025; // 띠 안은 별이 더 촘촘하다
+          float st = stars(d, 600.0, 0.972 - dens) * STAR_FAINT + stars(d, 320.0, 0.982 - dens * 0.4) * STAR_MID + stars(d, 150.0, 0.995) * STAR_BRIGHT;
+          col += vec3(0.92, 0.95, 1.0) * st * tw * hz;
         }
-        // 달
-        float md = max(dot(d, normalize(uMoonDir)), 0.0);
-        col += vec3(0.85, 0.88, 1.0) * (smoothstep(0.99955, 0.9997, md) * 2.4 + pow(md, 300.0) * 0.35) * uStars;
+        // 달 원반(바다 무늬) + 달빛 번짐 + 22° 달무리
+        float md = dot(d, normalize(uMoonDir));
+        float disk = smoothstep(0.99962, 0.99972, md);
+        if (disk > 0.0) disk *= 0.82 + 0.18 * n3(d * 900.0);
+        float glow = pow(max(md, 0.0), 900.0) * 0.6 + pow(max(md, 0.0), 40.0) * 0.12;
+        float ring = exp(-pow((acos(clamp(md, -1.0, 1.0)) - 0.384) / 0.018, 2.0)) * 0.035;
+        col += vec3(0.88, 0.91, 1.0) * (disk * MOON_DISK + glow + ring) * uStars * step(-0.02, uMoonDir.y);
         // 구름 (낮게 깔린 층운)
         if (h > -0.02) {
           vec2 cp = d.xz / (h + 0.12) * 0.9 + vec2(uTime * 0.004, 0.0);
@@ -498,7 +538,7 @@ export class TempleScene {
     this.hemi.intensity = e.hi * (1 + overcast * 0.25);
     this.scene.fog.color.copy(fog);
     this.scene.fog.density = e.fd * (1 + overcast * 0.9) * (this.weatherName === 'snow' ? 1.25 : 1);
-    this.renderer.toneMappingExposure = e.exp;
+    this.renderer.toneMappingExposure = Math.max(e.exp, NIGHT_EXPOSURE_FLOOR * e.night);
     envUniforms.uNight.value = e.night;
     envUniforms.uWind.value = 0.5 + rain * 0.6 + (this.weatherName === 'snow' ? 0.2 : 0);
     // 물·원경
