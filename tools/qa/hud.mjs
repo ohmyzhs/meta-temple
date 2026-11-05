@@ -125,7 +125,9 @@ for (const vp of VIEWPORTS) {
   // 신행이 둘인 구역(독이 가장 붐빔)에서도 크기·겹침·화면 밖
   for (const z of ['COURTYARD', 'DAEUNGJEON', 'TEAHOUSE']) {
     await page.evaluate((id) => document.querySelector(`#place-list [data-goto-zone="${id}"]`)?.click(), z);
-    await page.waitForTimeout(400);
+    // 장소 이동이 가림막 뒤에서 일어나면(묶음 C) 도착이 늦다 — 도착한 뒤에 잰다
+    await page.waitForFunction((id) => window.temple.zone === id, z, { timeout: 4000 }).catch(() => {});
+    await page.waitForTimeout(300);
     const zl = await page.evaluate(controls, '#hud');
     const zs = small(zl), zo = overlaps(zl), zf = zl.filter((c) => c.off).map((c) => c.name);
     console.log(`  ${z.padEnd(10)} 단추 ${zl.length} · 최소 ${minOf(zl)} ${fail(zs.length)} 48미만 ${zs.length} · 겹침 ${zo.length} ${fail(zo.length)}${zo.length ? ' [' + zo.join(', ') + ']' : ''} · 화면 밖 ${zf.length} ${fail(zf.length)}`);
