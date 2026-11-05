@@ -9,9 +9,11 @@ import {
   INITIAL_TILES,
   INITIAL_STONES
 } from '../data/templeData.js';
+import { checkText } from './moderation.js';
 
+// 키 이름은 파일럿 그대로 둔다 (옛 방문자 기록을 그대로 읽으려고). 내용의 판은 schemaVersion 으로 구분한다.
 const STORAGE_KEY = 'meta_temple_cheongyeon_state_v1';
-const VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 const DEFAULT_STATS = {
   bowCount: 0,
@@ -51,10 +53,13 @@ function uuid() {
 
 function fresh() {
   return {
-    version: VERSION,
+    schemaVersion: SCHEMA_VERSION,
+    // profileId: 이 브라우저의 도반을 가리키는 영구 ID. 나중에 카카오 로그인 등 계정이 생기면 이 ID 에 묶어 기록을 옮긴다
+    profileId: uuid(),
+    updatedAt: null,
     profile: {
-      userId: uuid(),
       dharmaName: generateDharmaName(),
+      nameIsCustom: false,
       avatarStyle: 'monk',
       stats: { ...DEFAULT_STATS },
       unlockedItems: [],
@@ -74,17 +79,26 @@ function fresh() {
   };
 }
 
-function normalize(raw) {
+/**
+ * 저장된 기록을 지금 판(v3)으로. v1·v2 는 profile.userId 를 profileId 로 옮긴다.
+ * 모르는 값·빠진 값은 기본값으로 채워, 이미 쌓인 기록이 사라지지 않게 한다.
+ */
+export function migrateState(raw) {
   const base = fresh();
   if (!raw || typeof raw !== 'object' || !raw.profile) return base;
   const p = raw.profile;
+  const { version: _v, ...rest } = raw;
+  const { userId, ...pRest } = p;
   const out = {
     ...base,
-    ...raw,
-    version: VERSION,
+    ...rest,
+    schemaVersion: SCHEMA_VERSION,
+    profileId: typeof raw.profileId === 'string' && raw.profileId ? raw.profileId : typeof userId === 'string' && userId ? userId : base.profileId,
+    updatedAt: raw.updatedAt || null,
     profile: {
       ...base.profile,
-      ...p,
+      ...pRest,
+      nameIsCustom: !!p.nameIsCustom,
       stats: { ...DEFAULT_STATS, ...(p.stats || {}) },
       attendance: { ...base.profile.attendance, ...(p.attendance || {}) },
       unlockedItems: Array.isArray(p.unlockedItems) ? p.unlockedItems : [],
@@ -134,13 +148,16 @@ export class TempleStore {
       console.warn('[store] load failed, starting fresh', e);
     }
     this.isReturning = !!(raw && raw.profile);
-    this.state = normalize(raw);
+    this.state = migrateState(raw);
     this._listeners = new Set();
     this.save();
   }
 
   get profile() {
     return this.state.profile;
+  }
+  get profileId() {
+    return this.state.profileId;
   }
   get stats() {
     return this.state.profile.stats;
@@ -191,9 +208,40 @@ export class TempleStore {
     return this.state.profile.unlockedItems.includes(item);
   }
 
-  setDharmaName(name) {
-    this.state.profile.dharmaName = name;
+  /**
+   * 법명 바꾸기. custom = 사람이 직접 지은 이름 → 다른 도반에게 보이므로 거름(checkText)을 통과해야 한다.
+   * 반환: { ok: true, text } | { ok: false, reason, message }
+   */
+  setDharmaName(name, { custom = false } = {}) {
+    let text = name;
+    if (custom) {
+      const r = checkText(name, { kind: 'name' });
+      if (!r.ok) return r;
+      text = r.text;
+    }
+    this.state.profile.dharmaName = text;
+    this.state.profile.nameIsCustom = !!custom;
     this.save();
+    return { ok: true, text };
+  }
+
+  /** 기록 백업 (공유받은 남의 글은 빼고) */
+  exportState() {
+    return JSON.stringify(this._ownState(), null, 2);
+  }
+
+  /** 백업 되살리기. 실패하면 지금 기록을 건드리지 않는다 */
+  importState(json) {
+    let raw;
+    try {
+      raw = JSON.parse(json);
+    } catch {
+      return { ok: false, message: '기록 파일을 읽을 수 없습니다' };
+    }
+    if (!raw || typeof raw !== 'object' || !raw.profile || typeof raw.profile !== 'object') return { ok: false, message: '청연산사 기록 파일이 아닙니다' };
+    this.state = migrateState(raw);
+    this.save();
+    return { ok: true };
   }
 
   setAvatarStyle(style) {
@@ -288,11 +336,17 @@ export class TempleStore {
     return () => this._listeners.delete(fn);
   }
 
+  _ownState() {
+    const own = (a) => a.filter((x) => !x.shared);
+    const st = this.state;
+    // profile.userId: 캐시에 남은 옛 화면(v2 코드)이 같은 ID 를 쓰도록 남겨 두는 별칭
+    return { ...st, profile: { ...st.profile, userId: st.profileId }, lanterns: own(st.lanterns), tiles: own(st.tiles), stones: own(st.stones) };
+  }
+
   save() {
+    this.state.updatedAt = new Date().toISOString();
     try {
-      const own = (a) => a.filter((x) => !x.shared);
-      const st = this.state;
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...st, lanterns: own(st.lanterns), tiles: own(st.tiles), stones: own(st.stones) }));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(this._ownState()));
     } catch (e) {
       console.warn('[store] save failed', e);
     }

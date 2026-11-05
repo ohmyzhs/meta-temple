@@ -35,7 +35,7 @@ trap 'rm -rf "$STAGE"' EXIT
 chmod 755 "$STAGE"
 mkdir -p "$STAGE/v"
 # -L: web/src/core/moderation.js 는 server/moderation.js 로 가는 링크 — 실제 파일로 올린다 (서버·화면 공용 거름)
-rsync -aL --exclude .DS_Store "$ROOT/web/src/" "$STAGE/v/$REV/"
+rsync -aL --exclude .DS_Store --exclude "*.test.js" "$ROOT/web/src/" "$STAGE/v/$REV/"
 sed "s#\./src/#./v/$REV/#g" "$ROOT/web/index.html" > "$STAGE/index.html"
 # 녹음 등 큰 정적 파일은 버전 경로 밖 assets/ 에 둔다 (매 배포마다 다시 올리지 않게). 바꿀 땐 파일명을 바꿀 것.
 [ -d "$ROOT/web/assets" ] && rsync -a --exclude .DS_Store "$ROOT/web/assets/" "$STAGE/assets/"

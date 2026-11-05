@@ -117,6 +117,25 @@ kbd {
 .intro-label { font-size: 12px; color: var(--text-dim); }
 .intro-name strong { font-family: var(--font-serif); font-size: 20px; font-weight: 600; color: #f6dfa5; }
 .link-btn { background: none; border: none; color: var(--gold); font-size: 12px; text-decoration: underline; text-underline-offset: 3px; padding: 4px; }
+/* 입장 화면이 떠 있는 동안 뒤 장면의 이름표가 글자 사이로 비치지 않게 */
+body:has(#intro:not(.leaving):not(.hidden)) .name-label { visibility: hidden; }
+
+/* 법명 직접 짓기 (입장 화면 · 수행 기록 창 공용) */
+.name-form { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 6px auto 4px; max-width: 340px; }
+.name-form input {
+  flex: 1 1 180px; min-width: 0; height: 44px; padding: 0 14px; border-radius: 10px;
+  border: 1px solid var(--gold-soft); background: rgba(255, 255, 255, 0.06); color: var(--hanji-50);
+  font-family: var(--font-serif); font-size: 16px; /* 16px 미만이면 iOS 가 확대한다 */
+}
+.name-form input:focus { outline: none; border-color: var(--gold); }
+.name-form .name-ok {
+  height: 44px; padding: 0 16px; border-radius: 10px; border: 1px solid var(--gold);
+  background: rgba(201, 163, 90, 0.16); color: #f6dfa5; font-family: var(--font-serif); font-size: 15px;
+  -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none;
+}
+.name-form .name-hint { flex-basis: 100%; margin: 0; min-height: 1.3em; font-size: 12.5px; color: var(--text-dim); text-align: center; }
+.name-form.is-bad .name-hint { color: #f0a08a; }
+.name-form.is-bad input { border-color: #c9735a; }
 .intro-streak { min-height: 18px; font-size: 12px; color: var(--text-dim); margin: 0 0 18px; }
 .intro-avatars { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 22px; }
 .avatar-card {

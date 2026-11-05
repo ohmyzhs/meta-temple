@@ -39,7 +39,13 @@
         <span class="intro-label">오늘의 법명</span>
         <strong id="intro-dharma-name">—</strong>
         <button id="intro-rename" class="link-btn" type="button">다시 받기</button>
+        <button id="intro-custom" class="link-btn" type="button" aria-expanded="false" aria-controls="intro-name-form">직접 짓기</button>
       </div>
+      <form id="intro-name-form" class="name-form hidden" autocomplete="off">
+        <input id="intro-name-input" type="text" aria-label="법명 직접 짓기" enterkeyhint="done" />
+        <button type="submit" class="name-ok">정하기</button>
+        <p class="name-hint" data-hint aria-live="polite"></p>
+      </form>
       <p id="intro-streak" class="intro-streak"></p>
       <div class="intro-avatars" role="radiogroup" aria-label="모습 고르기">
         <button class="avatar-card" data-avatar="monk" role="radio"><span class="avatar-glyph">🧘</span><b>목각 동자승</b><small>백자·회색 장삼</small></button>

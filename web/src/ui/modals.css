@@ -1224,3 +1224,13 @@
 }
 .modal-window.side .yebul-item,
 .modal-window.side .m-tabs { background-color: rgba(255, 252, 244, 0.5); }
+
+/* 수행 기록: 법명 직접 짓기 · 백업 */
+.pf-name-acts { display: flex; justify-content: center; gap: 14px; flex-wrap: wrap; }
+.modal-window .name-form input { background: #fffdf7; color: var(--muk); border-color: rgba(120, 95, 60, 0.35); }
+.modal-window .name-form input:focus { border-color: var(--gold); }
+.modal-window .name-form .name-ok { color: var(--muk); background: rgba(201, 163, 90, 0.2); border-color: rgba(160, 120, 50, 0.6); }
+.modal-window .name-form .name-hint { color: var(--muk-soft); }
+.modal-window .name-form.is-bad .name-hint { color: #a3432b; }
+.pf-backup { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 6px; }
+.pf-backup .m-btn { min-height: 44px; }

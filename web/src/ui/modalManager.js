@@ -8,6 +8,8 @@
  * 게임 로직은 main.js 콜백이 맡고, 여기서는 보여 주고 콜백을 부르기만 한다.
  * 번뇌 소각 글은 어디에도 저장·기록·전송하지 않는다.
  */
+import { nameFeedback, NAME_PLACEHOLDER } from './nameField.js';
+import { NAME_MAX } from '../core/moderation.js';
 import { SOUND_CREDITS, SOUND_CREDIT_NOTE, YEBUL_TRACKS } from '../data/soundCredits.js';
 import { SUTRA_VERSES, DHARMA_CARDS, localMonkResponse, isCrisisText } from '../data/dharmaTexts.js';
 import { LANTERN_COLORS, ZONES, RITUALS } from '../data/templeData.js';
@@ -1599,7 +1601,15 @@ export class ModalManager {
         <section class="pf-name">
           <p class="m-label">나의 법명</p>
           <p class="pf-dharma" data-name>${esc(p.dharmaName)}</p>
-          <button type="button" class="m-link" data-act="rename">법명 다시 받기</button>
+          <div class="pf-name-acts">
+            <button type="button" class="m-link" data-act="rename">법명 다시 받기</button>
+            <button type="button" class="m-link" data-act="custom-name" aria-expanded="false">직접 짓기</button>
+          </div>
+          <form class="name-form pf-name-form hidden" data-name-form autocomplete="off">
+            <input type="text" data-name-input maxlength="${NAME_MAX + 4}" placeholder="${esc(NAME_PLACEHOLDER)}" aria-label="법명 직접 짓기" enterkeyhint="done" />
+            <button type="submit" class="name-ok">정하기</button>
+            <p class="name-hint" data-hint aria-live="polite"></p>
+          </form>
         </section>
         <section class="pf-att">
           <div><b>${att.streak || 0}</b><span>일째 이어 오는 걸음</span></div>
@@ -1630,9 +1640,73 @@ export class ModalManager {
             ? `<ul class="pf-cards">${kept.map((c) => `<li><span class="jk-quote">${esc(c.quote)}</span><span class="jk-source">${esc(c.source)}</span></li>`).join('')}</ul>`
             : '<p class="m-hint">후원 다실의 죽비에서 마음에 닿는 구절을 간직해 보세요.</p>'
         }
-        <p class="m-hint pf-privacy">이 기록은 이 브라우저에만 남습니다.</p>`;
+        <p class="m-hint pf-privacy">이 기록은 이 브라우저에만 남습니다. 다른 기기로 옮기거나 지켜 두려면 백업 파일로 내려받으세요.</p>
+        <div class="pf-backup">
+          <button type="button" class="m-btn" data-act="export">기록 내보내기</button>
+          <button type="button" class="m-btn" data-act="import">기록 가져오기</button>
+          <input type="file" accept="application/json,.json" data-import-file hidden />
+        </div>
+        <p class="m-live" data-backup-live aria-live="polite"></p>`;
     };
+    const flash = (msg) => {
+      const el = root.querySelector('[data-backup-live]');
+      if (el) el.textContent = msg;
+    };
+    this._on(root, 'input', (e) => {
+      if (!e.target.matches('[data-name-input]')) return;
+      const f = e.target.closest('[data-name-form]');
+      const r = nameFeedback(e.target.value);
+      f.querySelector('[data-hint]').textContent = r ? r.message : '';
+      f.classList.toggle('is-bad', !!r && !r.ok);
+    });
+    this._on(root, 'submit', (e) => {
+      const f = e.target.closest('[data-name-form]');
+      if (!f) return;
+      e.preventDefault();
+      const input = f.querySelector('[data-name-input]');
+      const r = nameFeedback(input.value);
+      const res = r?.ok ? this.cb.onSetName?.(r.text) : r;
+      if (!res || !res.ok) {
+        f.querySelector('[data-hint]').textContent = res?.message || '';
+        f.classList.add('is-bad');
+        return input.focus();
+      }
+      this._sfx('playUIClick');
+      render();
+      root.querySelector('[data-name]')?.classList.add('is-new');
+    });
+    this._on(root, 'change', async (e) => {
+      if (!e.target.matches('[data-import-file]')) return;
+      const file = e.target.files?.[0];
+      e.target.value = '';
+      if (!file) return;
+      if (!window.confirm('백업 파일의 기록으로 바꿉니다. 지금 이 브라우저의 기록은 백업 파일 내용으로 덮어씁니다. 계속할까요?')) return;
+      const res = this.cb.onImport?.(await file.text());
+      if (!res?.ok) return flash(res?.message || '가져오지 못했습니다');
+      flash('기록을 가져왔습니다. 산문을 다시 엽니다…');
+      setTimeout(() => location.reload(), 900);
+    });
     this._on(root, 'click', (e) => {
+      if (e.target.closest('[data-act="custom-name"]')) {
+        const b = e.target.closest('[data-act="custom-name"]');
+        const f = root.querySelector('[data-name-form]');
+        const open = f.classList.toggle('hidden') === false;
+        b.setAttribute('aria-expanded', String(open));
+        if (open) f.querySelector('input').focus({ preventScroll: true });
+        return;
+      }
+      if (e.target.closest('[data-act="export"]')) {
+        const json = this.cb.onExport?.();
+        if (!json) return;
+        const day = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+        a.download = `청연산사-수행기록-${day}.json`;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+        return flash('기록 파일을 내려받았습니다');
+      }
+      if (e.target.closest('[data-act="import"]')) return root.querySelector('[data-import-file]').click();
       if (!e.target.closest('[data-act="rename"]')) return;
       const name = this.cb.onRename?.();
       this._sfx('playUIClick');

@@ -12,6 +12,7 @@ import { L, isWalkable, zoneAt, streamZ, walkHeight } from './world/layout.js';
 import { ModalManager } from './ui/modalManager.js';
 import { LiveLink, sharedApi } from './core/live.js';
 import { YEBUL_TRACKS } from './data/soundCredits.js';
+import { bindNameForm } from './ui/nameField.js';
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
@@ -72,13 +73,34 @@ class MetaTempleApp {
         if (this.avatars) this._rebuildPlayer();
       })
     );
-    $('#intro-rename').addEventListener('click', () => {
-      const n = generateDharmaName(p.dharmaName);
-      this.store.setDharmaName(n);
-      $('#intro-dharma-name').textContent = n;
-      this.avatars?.player.setName(n);
+    $('#intro-rename').addEventListener('click', () => this._setName(generateDharmaName(this.store.profile.dharmaName), false));
+    const form = $('#intro-name-form');
+    const field = bindNameForm(form, (text) => {
+      const r = this._setName(text, true);
+      if (r.ok) {
+        form.classList.add('hidden');
+        $('#intro-custom').setAttribute('aria-expanded', 'false');
+        field.reset();
+      }
+      return r;
+    });
+    $('#intro-custom').addEventListener('click', () => {
+      const open = form.classList.toggle('hidden') === false;
+      $('#intro-custom').setAttribute('aria-expanded', String(open));
+      if (open) field.input.focus();
     });
     $('#intro-enter').addEventListener('click', () => this._enter());
+  }
+
+  /** 법명 바꾸기 (custom = 직접 지은 이름 → 거름 통과 필요). 화면·내 아바타·실시간 동석에 함께 반영 */
+  _setName(name, custom) {
+    const r = this.store.setDharmaName(name, { custom });
+    if (!r.ok) return r;
+    $('#intro-dharma-name').textContent = r.text;
+    this.avatars?.player.setName(r.text);
+    this.live?.setIdentity(r.text, this.store.profile.avatarStyle);
+    if (this.entered) this._updateHUD();
+    return r;
   }
 
   async _boot() {
@@ -173,7 +195,7 @@ class MetaTempleApp {
 
   /** 공개를 고른 서원을 서버에 올린다. 거절되면(링크·욕설·하루 한도) 이 브라우저에만 남긴다 */
   _publish(kind, item, label) {
-    sharedApi.publish(kind, item, this.store.profile.userId).then((r) => {
+    sharedApi.publish(kind, item, this.store.profileId).then((r) => {
       if (!r.error) return;
       item.public = false;
       this.store.save();
@@ -263,7 +285,7 @@ class MetaTempleApp {
         if (ok) this.sound.playWindChime(0.7);
         const l = this.store.state.lanterns.find((x) => x.id === id);
         if (ok && l && (l.shared || l.public)) {
-          sharedApi.empathize(id, this.store.profile.userId).then((r) => {
+          sharedApi.empathize(id, this.store.profileId).then((r) => {
             if (r.empathy == null) return;
             l.empathy = r.empathy;
             this.store.save();
@@ -314,14 +336,10 @@ class MetaTempleApp {
         this.store.keepDharmaCard(card);
         this.sound.playChukbi();
       },
-      onRename: () => {
-        const n = generateDharmaName(this.store.profile.dharmaName);
-        this.store.setDharmaName(n);
-        this.player.setName(n);
-        this.live?.setIdentity(n, this.store.profile.avatarStyle);
-        this._updateHUD();
-        return n;
-      },
+      onRename: () => this._setName(generateDharmaName(this.store.profile.dharmaName), false).text,
+      onSetName: (text) => this._setName(text, true),
+      onExport: () => this.store.exportState(),
+      onImport: (json) => this.store.importState(json),
       onYebul: (track) => this.listen(track),
       onPracticeEnd: () => {
         // 좌복에서 하던 수행을 닫으면 그 좌복에 그대로 앉아 있는다 (일어나려면 움직이면 된다)
