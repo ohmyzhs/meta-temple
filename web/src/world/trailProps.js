@@ -1,11 +1,12 @@
 /**
- * 순환 산책로의 소품 — 쉼터 6종(돌 쉼터·그루터기·돗자리·전망 바위·작은 다리·약수터)과 갈림목 석등.
+ * 순환 산책로의 소품 — 쉼터 6종(돌 쉼터·그루터기·돗자리·전망 바위·작은 다리·약수터), 건너는 곳(나무다리·징검다리),
+ * 전나무숲 데크, 갈림목 석등.
  * 종류마다 빌더 하나(BUILDERS[kind])가 앉는 자리를 원점, 바라보는 쪽을 +z 로 둔 Group 을 돌려준다.
  * 실사 GLB 로 바꿀 때는 그 빌더만 갈아 끼우면 된다. 재질은 mats() 공용이라 batchStatic 이 기존 묶음에 합친다.
  */
 import * as THREE from 'three';
 import { terrainHeight, walkHeight, addCircleCollider, noise2 } from './layout.js';
-import { trail, REST_SPOTS, SMALL_BRIDGE, smallBridgeY } from './trail.js';
+import { trail, REST_SPOTS, CROSSINGS, crossingY, DECK, deckRise } from './trail.js';
 import { buildStoneLantern } from './architecture.js';
 import { mats } from './materials.js';
 
@@ -128,9 +129,9 @@ const BUILDERS = {
     g.add(seat);
     return g;
   },
-  /** 작은 나무다리: 판재 + 양옆 보 + 난간 (다리 자체가 쉼터) */
-  bridge(m) {
-    const b = SMALL_BRIDGE;
+  /** 작은 나무다리: 판재 + 양옆 보 + 난간 (다리 자체가 쉼터). b: CROSSINGS 의 한 칸, 원점은 다리 중심선 x */
+  bridge(m, b) {
+    const smallBridgeY = (z) => crossingY(b, z);
     const g = new THREE.Group();
     const n = 18, len = b.z1 - b.z0;
     for (let i = 0; i < n; i++) {
@@ -162,8 +163,61 @@ const BUILDERS = {
       g.add(st);
     }
     return g;
+  },
+  /** 징검다리: 물 위로 납작한 돌을 한 줄로 (걷는 면 b.deckY) */
+  stones(m, b) {
+    const g = new THREE.Group();
+    const n = Math.round((b.z1 - b.z0) / 0.62);
+    for (let i = 0; i <= n; i++) {
+      const z = b.z0 + ((b.z1 - b.z0) * i) / n;
+      const st = mesh(rockGeo(i * 3.1 + 7, 0.25), m.granite, (i % 2 ? 0.12 : -0.12) + Math.sin(i * 2.3) * 0.05, b.deckY - 0.28, z);
+      st.scale.set(0.34, 0.3, 0.27);
+      st.rotation.y = i * 0.7;
+      g.add(st);
+    }
+    return g;
   }
 };
+
+/**
+ * 전나무숲 데크: 순환로 DECK 구간에 판재(0.3m 간격) + 받침 기둥 + 양옆 낮은 난간. 판 높이 = 땅 + deckRise(s).
+ * 모두 공용 재질의 정적 메쉬라 batchStatic 이 기존 나무 묶음에 합친다.
+ */
+function buildDeck(scene, m) {
+  const d = DECK;
+  const g = new THREE.Group();
+  const top = (s) => {
+    const p = trail.at(s);
+    return { x: p.x, z: p.z, y: terrainHeight(p.x, p.z) + deckRise(s) };
+  };
+  const plankGeo = new THREE.BoxGeometry(d.halfW * 2 + 0.1, 0.05, 0.27);
+  for (let s = d.s0 + 0.15; s < d.s1; s += 0.3) {
+    const a = top(s - 0.15), b = top(s + 0.15), c = top(s);
+    const pl = mesh(plankGeo, m.woodLight, c.x, c.y - 0.025, c.z);
+    pl.rotation.order = 'YXZ';
+    pl.rotation.y = Math.atan2(b.x - a.x, b.z - a.z);
+    pl.rotation.x = -Math.atan2(b.y - a.y, Math.hypot(b.x - a.x, b.z - a.z));
+    g.add(pl);
+  }
+  const postGeo = new THREE.BoxGeometry(0.1, 1, 0.1);
+  for (const side of [-1, 1]) {
+    const rail = [], beam = [];
+    for (let s = d.s0 + 1.2; s < d.s1 - 0.5; s += 2.4) {
+      const a = trail.at(s - 0.5), b = trail.at(s + 0.5), c = top(s);
+      const l = Math.hypot(b.x - a.x, b.z - a.z) || 1, nx = -(b.z - a.z) / l, nz = (b.x - a.x) / l;
+      const x = c.x + nx * side * (d.halfW + 0.02), z = c.z + nz * side * (d.halfW + 0.02);
+      const ground = terrainHeight(x, z);
+      const h = c.y + 0.5 - ground + 0.1;
+      const post = mesh(postGeo, m.woodDark, x, ground - 0.1 + h / 2, z);
+      post.scale.y = h;
+      g.add(post);
+      rail.push(new THREE.Vector3(x, c.y + 0.5, z));
+      beam.push(new THREE.Vector3(x, c.y - 0.1, z));
+    }
+    for (const [pts, r] of [[rail, 0.035], [beam, 0.06]]) g.add(mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), pts.length * 3, r, 5), m.woodDark));
+  }
+  scene.add(g);
+}
 
 let SPRING_WATER;
 
@@ -173,23 +227,25 @@ let SPRING_WATER;
 export function buildTrailProps(scene) {
   const m = mats();
   SPRING_WATER ||= new THREE.MeshStandardMaterial({ color: 0x2e4a48, roughness: 0.06, metalness: 0.35 });
-  const spots = REST_SPOTS.map((s) => ({ ...s, y: s.kind === 'bridge' ? smallBridgeY(s.z) : terrainHeight(s.x, s.z) + s.seatH, occupant: null }));
+  const spots = REST_SPOTS.map((s) => ({ ...s, y: s.kind === 'bridge' ? crossingY(CROSSINGS[0], s.z) : walkHeight(s.x, s.z) + s.seatH, occupant: null }));
+
+  for (const c of CROSSINGS) {
+    const g = BUILDERS[c.kind](m, c);
+    g.position.set(c.x, 0, 0);
+    scene.add(g);
+  }
+  buildDeck(scene, m);
 
   for (const s of spots) {
-    if (s.kind === 'bridge') {
-      const g = BUILDERS.bridge(m);
-      g.position.set(SMALL_BRIDGE.x, 0, 0);
-      scene.add(g);
-      continue;
-    }
-    const gy = terrainHeight(s.x, s.z);
+    if (s.kind === 'bridge') continue; // 다리 자체가 쉼터
+    const gy = walkHeight(s.x, s.z); // 데크 위 벤치는 판 높이에
     // 빌더가 쓰는 땅 높이: 쉼터 기준 (앞 lz, 옆 lx) 자리의 지형 높이 − 쉼터 땅 높이
     const ground = (lx, lz) => terrainHeight(s.x + Math.cos(s.ry) * lx + Math.sin(s.ry) * lz, s.z - Math.sin(s.ry) * lx + Math.cos(s.ry) * lz) - gy;
     const g = BUILDERS[s.kind](m, s, ground);
     g.position.set(s.x, gy, s.z);
     g.rotation.y = s.ry;
     scene.add(g);
-    if (s.kind === 'bench') addCircleCollider(s.x + Math.sin(s.ry) * 0.05, s.z + Math.cos(s.ry) * 0.05, 0.5);
+    if (s.kind === 'bench') addCircleCollider(s.x + Math.sin(s.ry) * 0.05, s.z + Math.cos(s.ry) * 0.05, s.onDeck ? 0.32 : 0.5);
     else if (s.kind === 'stump') addCircleCollider(s.x, s.z, 0.38);
     else if (s.kind === 'lookout') addCircleCollider(s.x - Math.sin(s.ry) * 0.45, s.z - Math.cos(s.ry) * 0.45, 0.95);
     else if (s.kind === 'spring') addCircleCollider(s.x + Math.sin(s.ry) * 1.6, s.z + Math.cos(s.ry) * 1.6, 0.9);
@@ -224,7 +280,7 @@ export function buildTrailProps(scene) {
 
   // 갈림목·다리·전망 바위 석등 (밤길 표시) — 산책로 바깥쪽 2.3m
   const lanterns = [];
-  for (const sAt of [3, 26, 116, 178, 212]) {
+  for (const sAt of [3, 93, 214, 288, 330, 344, 432]) {
     const a = trail.at(sAt - 0.5), c = trail.at(sAt + 0.5), p = trail.at(sAt);
     const l = Math.hypot(c.x - a.x, c.z - a.z) || 1;
     const x = p.x + ((c.z - a.z) / l) * 2.3, z = p.z - ((c.x - a.x) / l) * 2.3;

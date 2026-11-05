@@ -124,7 +124,7 @@ export function buildTerrain(scene, quality) {
     );
   };
   // 가까운 경내: 촘촘한 격자
-  const IN = { x0: -42, x1: 62, z0: -56, z1: 58 };
+  const IN = { x0: -62, x1: 62, z0: -58, z1: 62 }; // 순환 산책로(서쪽 x -51, 남쪽 z 52)와 그 둘레 6.5m 가 0.45m 격자 안에 들게
   const res = quality === 'low' ? 0.7 : 0.45;
   const inner = new THREE.Mesh(buildGroundMesh(IN.x0, IN.x1, IN.z0, IN.z1, res), mkMat(52));
   inner.receiveShadow = true;
@@ -366,7 +366,7 @@ function buildRocks(scene) {
     items.push([p.x + Math.cos(a) * (p.rx + 0.35), p.z + Math.sin(a) * (p.rz + 0.35), 0.25 + r() * 0.3, false]);
   }
   // 산책로를 막는 큰 바위는 뺀다 (길가 작은 돌은 위에서 일부러 둔 것)
-  const keep = items.filter(([x, z, s]) => (nearestTrail(x, z)?.d ?? 99) > Math.max(1.7, s * 0.9 + 1.3) || s < 0.45);
+  const keep = items.filter(([x, z, s]) => (nearestTrail(x, z)?.d ?? 99) > (s < 0.45 ? 1.6 : Math.max(1.7, s * 0.9 + 1.3))); // 징검다리 줄·다리 밑에도 돌을 두지 않는다
   items.length = 0;
   items.push(...keep);
   const gr = graniteTextures();

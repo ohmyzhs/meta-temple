@@ -20,48 +20,99 @@ export function forestPathX(z) {
   return t * (1.3 * Math.sin(z * 0.11) + 0.9 * Math.sin(z * 0.23 + 1.1) * smooth(30, 44, z));
 }
 
-export const J1 = { x: forestPathX(22.5), z: 22.5 };
-export const J2 = { x: forestPathX(8.0), z: 8.0 }; // 숲길 석등 쌍(z 9.6)과 마당 계단(z 7) 사이
+export const J1 = { x: forestPathX(30), z: 30 }; // 일주문(z 27)과 숲길 석등 쌍(z 33) 사이에서 서쪽으로
+export const J3 = { x: forestPathX(43), z: 43 }; // 남동 전나무숲을 돌아 산문 앞(스폰 z 36 남쪽) 숲길로 돌아온다
+export const J2 = { x: forestPathX(8.0), z: 8.0 }; // 마당 갈림길 끝: 숲길 석등 쌍(z 9.6)과 마당 계단(z 7) 사이
 
-/** 작은 나무다리: 계곡(서쪽 x≈-28)을 남북으로 건넌다. 양 끝이 계곡 파임 밖(중심에서 4m)에 닿게 8m */
-export const SMALL_BRIDGE = { x: -27.9, z0: 10.55, z1: 18.55, halfW: 0.85, deckY: 0.32, rise: 0.22 };
+/**
+ * 계곡을 건너는 곳 둘: 서쪽 작은 나무다리, 동쪽 징검다리. 양 끝이 계곡 파임 밖(중심에서 4m)에 닿는다.
+ * deckY: 걷는 면 높이(끝), rise: 가운데가 더 솟는 만큼.
+ */
+export const CROSSINGS = [
+  { id: 'bridge', kind: 'bridge', x: -42, z0: 10.95, z1: 18.95, halfW: 0.85, deckY: 0.32, rise: 0.22 },
+  { id: 'stones', kind: 'stones', x: 21.3, z0: 11.8, z1: 19.8, halfW: 0.75, deckY: 0.04, rise: 0 }
+];
+export const SMALL_BRIDGE = CROSSINGS[0];
 
-/** 산책로 조절점 (Catmull-Rom 으로 0.5m 간격 표본) */
+/**
+ * 산책로 조절점 (Catmull-Rom 으로 0.5m 간격 표본). 시계 반대 방향:
+ * J1 → 남서 전나무숲 데크 → 서쪽 작은 나무다리 → 서쪽 산자락 우거진 숲(굽이길) → 뒷산 능선(전망 바위)
+ * → 동쪽 대숲 → 계곡 북쪽 기슭 → 징검다리 → 남동 전나무숲 → J3
+ */
 export const TRAIL_CTRL = [
   [J1.x, J1.z],
-  [-4, 21.9],
-  [-11, 20.9],
-  [-18, 20.1],
-  [-24.2, 19.6],
-  [-27.4, 19.3],
-  [SMALL_BRIDGE.x, 18.0], // 다리 남단
-  [SMALL_BRIDGE.x, 11.1], // 다리 북단
-  [-28.6, 7.6],
-  [-30.6, 1.0],
-  [-31.6, -8],
-  [-31.4, -17],
-  [-30.2, -26],
-  [-26.6, -35],
-  [-19, -42.2],
-  [-9, -47.2],
-  [3, -49],
-  [14, -47.6],
-  [24, -43],
-  [31.6, -36],
-  [36.2, -27],
-  [36.6, -17],
-  [36.2, -7],
-  [35.2, 1.5],
-  [31.4, 6.4],
-  [23.5, 9.2],
+  [-5, 30.6],
+  [-11, 33],
+  [-17, 38.5],
+  [-22, 45],
+  [-29, 51.5],
+  [-38, 54.5],
+  [-46.5, 52.5],
+  [-51.5, 45.5],
+  [-52.5, 36.5],
+  [-50, 28],
+  [-46, 22.6],
+  [-42.6, 20.2],
+  [-42, 18.4], // 나무다리 남단
+  [-42, 11.5], // 나무다리 북단
+  [-43.5, 8],
+  [-48, 3.5],
+  [-51, -3],
+  [-46.5, -9],
+  [-41.5, -14.5],
+  [-44, -21],
+  [-50, -25.5],
+  [-50.5, -32.5],
+  [-42.5, -38],
+  [-35, -42.5],
+  [-26, -46.5],
+  [-15, -49.5],
+  [-4, -51],
+  [6, -51],
+  [16, -49.5],
+  [26, -46],
+  [35, -41],
+  [42, -35],
+  [49, -29],
+  [46.5, -21.5],
+  [51, -14],
+  [48.6, -6],
+  [50.5, 1.5],
+  [46, 7.5],
+  [38, 8.6],
+  [30, 8.2],
+  [24, 9.4],
+  [21.3, 12.3], // 징검다리 북단
+  [21.3, 19.3], // 징검다리 남단
+  [22.5, 23],
+  [26, 28.5],
+  [32.5, 30.5],
+  [39, 34],
+  [45, 39.5],
+  [44.5, 47],
+  [39, 51.5],
+  [31, 50.5],
+  [26, 53.8],
+  [18, 54.3],
+  [11, 51.5],
+  [6.5, 46.5],
+  [J3.x + 2.6, J3.z],
+  [J3.x, J3.z]
+];
+
+/** 마당 갈림길: 계곡 북쪽 기슭 → 마당 계단 앞 숲길 */
+export const COURT_BRANCH_CTRL = [
+  [24, 9.4],
   [13, 8.6],
   [J2.x + 2.4, J2.z],
   [J2.x, J2.z]
 ];
 
-/** 다실 갈림길: 대숲 구간 → 심검당 동쪽 마당(연못 정자 북쪽) */
+/** 다실 갈림길: 동쪽 대숲 → 옛 대숲 사이 → 심검당 동쪽 마당(연못 정자 북쪽) */
 export const TEA_BRANCH_CTRL = [
-  [36.4, -9.5],
+  [48.6, -8],
+  [42, -9.5],
+  [36.4, -9.6],
   [33.6, -9.2],
   [31.0, -8.8]
 ];
@@ -194,8 +245,9 @@ export class Polyline {
 }
 
 export const trail = new Polyline(sampleCurve(TRAIL_CTRL));
+export const courtBranch = new Polyline(sampleCurve(COURT_BRANCH_CTRL));
 export const teaBranch = new Polyline(sampleCurve(TEA_BRANCH_CTRL));
-const PATHS = [trail, teaBranch];
+export const PATHS = [trail, courtBranch, teaBranch];
 
 /** 두 길(순환로·다실 갈림길) 중 가장 가까운 점 { d, h(높이 단면, setProfile 뒤), path, ... } */
 export function nearestTrail(x, z) {
@@ -211,29 +263,70 @@ export function nearestTrail(x, z) {
   return best;
 }
 
+/** 건너는 곳 위인가 → 그 건너는 곳(아니면 null) */
+export function crossingAt(x, z, pad = 0) {
+  for (const c of CROSSINGS) if (Math.abs(x - c.x) <= c.halfW + pad && z >= c.z0 - pad && z <= c.z1 + pad) return c;
+  return null;
+}
+
+/** 건너는 곳 위 걷는 높이 (나무다리는 가운데가 살짝 솟는다) */
+export function crossingY(c, z) {
+  const u = clamp((z - (c.z0 + c.z1) / 2) / ((c.z1 - c.z0) / 2), -1, 1);
+  return c.deckY + c.rise * Math.cos((u * Math.PI) / 2);
+}
+
+/**
+ * 전나무숲 데크: 순환로 s0..s1 구간은 땅에서 rise 만큼 떠 있는 나무 데크 (양 끝 ramp m 는 경사로).
+ * 데크 위 걸을 수 있는 반폭은 halfW (판재 폭과 같다 — 판 밖 허공을 딛지 않게).
+ */
+export const DECK = { s0: 11, s1: 92, rise: 0.42, ramp: 2.5, halfW: 1.25 };
+export function deckRise(s) {
+  const d = DECK;
+  if (s <= d.s0 || s >= d.s1) return 0;
+  return d.rise * Math.min(1, (s - d.s0) / d.ramp, (d.s1 - s) / d.ramp);
+}
+
+/** 이 자리가 데크 위면 그 높이(땅 위로 얼마나), 아니면 0 — nearestTrail 결과로 */
+export function deckRiseAt(nr) {
+  return nr && nr.path === trail && nr.d <= DECK.halfW + 0.05 ? deckRise(nr.s) : 0;
+}
+
+/** 우거진 숲 구간 (나무를 빽빽이 심는 순환로 s 범위) — 데크 숲, 서쪽 굽이길, 남동 전나무숲 */
+export const DENSE_FOREST = [
+  [8, 95],
+  [104, 168],
+  [346, 436]
+];
+
+export const MAX_GRADE = 0.18; // 산책로 기울기 상한 (18%) — 넘는 곳은 비탈을 깎거나 북돋운다
+
 export function setTrailProfile(heightFn) {
   PATHS.forEach((p) => p.setProfile(heightFn));
-  // 작은 다리: 판 끝 높이에 길을 잇는다 (양쪽 6m 에 걸쳐 이어 붙임)
-  const sOn = trail.s.filter((_, i) => onSmallBridge(trail.pts[i].x, trail.pts[i].z, 0.3));
-  const s0 = Math.min(...sOn), s1 = Math.max(...sOn);
-  trail.h = trail.h.map((h, i) => {
-    const s = trail.s[i];
-    const d = s < s0 ? s0 - s : s > s1 ? s - s1 : 0;
-    const k = smooth(0, 6, d);
-    return SMALL_BRIDGE.deckY * (1 - k) + h * k;
-  });
-}
-
-export function onSmallBridge(x, z, pad = 0) {
-  const b = SMALL_BRIDGE;
-  return Math.abs(x - b.x) <= b.halfW + pad && z >= b.z0 - pad && z <= b.z1 + pad;
-}
-
-/** 다리 위 걷는 높이 (가운데가 살짝 솟은 판재) */
-export function smallBridgeY(z) {
-  const b = SMALL_BRIDGE;
-  const u = clamp((z - (b.z0 + b.z1) / 2) / ((b.z1 - b.z0) / 2), -1, 1);
-  return b.deckY + b.rise * Math.cos((u * Math.PI) / 2);
+  for (const P of PATHS) {
+    // 건너는 곳: 판 끝 높이에 길을 잇는다 (양쪽 6m 에 걸쳐 이어 붙임)
+    const lock = new Array(P.pts.length).fill(false);
+    for (const c of CROSSINGS) {
+      const sOn = P.s.filter((_, i) => crossingAt(P.pts[i].x, P.pts[i].z, 0.3) === c);
+      if (!sOn.length) continue;
+      const s0 = Math.min(...sOn), s1 = Math.max(...sOn);
+      P.h = P.h.map((h, i) => {
+        const s = P.s[i];
+        const d = s < s0 ? s0 - s : s > s1 ? s - s1 : 0;
+        if (d === 0) lock[i] = true;
+        const k = smooth(0, 6, d);
+        return c.deckY * (1 - k) + h * k;
+      });
+    }
+    // 기울기 상한: 앞뒤로 한 번씩 이웃과의 높이 차를 MAX_GRADE·거리 안으로 (다리 위는 그대로)
+    const h = P.h;
+    for (const dir of [1, -1]) {
+      for (let k = dir > 0 ? 1 : h.length - 2; k >= 0 && k < h.length; k += dir) {
+        if (lock[k]) continue;
+        const j = k - dir, lim = MAX_GRADE * Math.abs(P.s[k] - P.s[j]);
+        h[k] = clamp(h[k], h[j] - lim, h[j] + lim);
+      }
+    }
+  }
 }
 
 /* ───── 길 중간의 쉼 (요구 5) ─────
@@ -242,15 +335,17 @@ export function smallBridgeY(z) {
  * 예불 듣기(1인칭)는 vista 쪽을(없으면 look 쪽을) listenPitch 만큼 내려다본다. view: 그 쪽으로 나무를 비우는 거리(m).
  */
 const REST_DEFS = [
-  { id: 'bench_stream', kind: 'bench', s: 14, side: 1, off: 2.3, look: [-13, 12.5], seatH: 0.46 },
-  { id: 'bridge', kind: 'bridge', s: 34, side: 0, off: 0, look: [-18, 14.6] },
-  { id: 'stump_a', kind: 'stump', s: 52, side: -1, off: 2.2, look: [-18, -4], seatH: 0.42, view: 16 },
-  { id: 'stump_b', kind: 'stump', s: 55, side: -1, off: 2.5, look: [-18, -7], seatH: 0.36, view: 16 },
-  { id: 'spring', kind: 'spring', s: 69, side: -1, off: 2.3, look: [-40, -20.5], seatH: 0.36, vista: [-12, -16], view: 18 },
-  { id: 'lookout', kind: 'lookout', s: 121, side: 1, off: 3.2, look: [4, -10], seatH: 0.95, view: 34, vista: [17, -6], listenPitch: 0.1 },
-  { id: 'mat_ridge', kind: 'mat', s: 134, side: 1, off: 2.4, look: [10, -10], seatH: 0.03, view: 22, listenPitch: 0.1 },
-  { id: 'bench_bamboo', kind: 'bench', s: 172, side: -1, off: 2.1, look: [28, -15], seatH: 0.46, vista: [35, -40] },
-  { id: 'mat_stream', kind: 'mat', s: 204, side: -1, off: 2.4, look: [25, 16], seatH: 0.03 }
+  { id: 'deck_bench', kind: 'bench', s: 38, side: -1, off: 0.85, look: [-24, 40], seatH: 0.46, onDeck: true, listenPitch: -0.06 },
+  { id: 'bridge', kind: 'bridge', s: 98.8, side: 0, off: 0, look: [-20, 14.6] },
+  { id: 'stump_a', kind: 'stump', s: 117, side: -1, off: 2.2, look: [-30, 0], seatH: 0.42, view: 14, listenPitch: -0.04 },
+  { id: 'stump_b', kind: 'stump', s: 120.5, side: -1, off: 2.5, look: [-30, -4], seatH: 0.36, view: 14, listenPitch: -0.06 },
+  { id: 'spring', kind: 'spring', s: 147, side: -1, off: 2.3, look: [-60, -26], seatH: 0.36, vista: [-30, -12], view: 18, listenPitch: -0.03 },
+  { id: 'lookout', kind: 'lookout', s: 221, side: 1, off: 3.2, look: [6, -10], seatH: 0.95, view: 34, vista: [20, -6], listenPitch: 0.1 },
+  { id: 'mat_ridge', kind: 'mat', s: 241, side: 1, off: 2.4, look: [12, -10], seatH: 0.03, view: 24, listenPitch: 0.1 },
+  { id: 'bench_bamboo', kind: 'bench', s: 282, side: 1, off: 2.1, look: [30, -14], seatH: 0.46, view: 22, listenPitch: 0.02 },
+  { id: 'mat_stream', kind: 'mat', s: 322, side: -1, off: 2.4, look: [33, 16], seatH: 0.03 },
+  { id: 'bench_stream', kind: 'bench', s: 347, side: 1, off: 2.2, look: [10, 12], seatH: 0.46, view: 12 },
+  { id: 'stump_c', kind: 'stump', s: 408, side: 1, off: 2.3, look: [12, 36], seatH: 0.4, view: 12, listenPitch: -0.05 }
 ];
 
 export const REST_LABEL = {
@@ -288,8 +383,9 @@ export const REST_SPOTS = REST_DEFS.map((d) => {
     x = SMALL_BRIDGE.x + SMALL_BRIDGE.halfW - 0.3;
     z = c.z;
   }
-  // 일어설 자리: 중심선에서 쉼터 쪽으로 0.5m (산책로 반폭 안)
-  const stand = { x: c.x + n.x * d.side * Math.min(0.5, d.off), z: c.z + n.z * d.side * Math.min(0.5, d.off) };
+  // 일어설 자리: 중심선에서 쉼터 쪽으로 0.5m (산책로 반폭 안). 데크 위 벤치는 벤치 맞은편 판 위로
+  const so = d.onDeck ? -0.35 : Math.min(0.5, d.off);
+  const stand = { x: c.x + n.x * d.side * so, z: c.z + n.z * d.side * so };
   const ry = Math.atan2(d.look[0] - x, d.look[1] - z);
   return { ...d, x, z, ry, stand, label: REST_LABEL[d.kind] };
 });

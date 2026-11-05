@@ -9,7 +9,7 @@ import * as THREE from 'three';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { L, walkHeight, stepMove, zoneAt, pathX, clamp } from './layout.js';
-import { onSmallBridge } from './trail.js';
+import { crossingAt, nearestTrail, deckRiseAt } from './trail.js';
 import { faceTexture, softDotTexture } from './textures.js';
 import { generateDharmaName } from '../data/templeData.js';
 
@@ -551,7 +551,9 @@ export class AvatarManager {
     if (z === 'DAEUNGJEON') return 'wood';
     if (z === 'COURTYARD') return Math.abs(p.x) < 1.8 || Math.hypot(p.x - L.pagoda.x, p.z - L.pagoda.z) < 5.3 ? 'stone' : 'gravel';
     if (Math.abs(p.x - L.bridge.x) < 1.6 && Math.abs(p.z - 15) < 4) return 'stone';
-    if (onSmallBridge(p.x, p.z)) return 'wood';
+    const cr = crossingAt(p.x, p.z);
+    if (cr) return cr.kind === 'bridge' ? 'wood' : 'stone';
+    if (deckRiseAt(nearestTrail(p.x, p.z)) > 0.2) return 'wood';
     return 'earth';
   }
 

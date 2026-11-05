@@ -553,9 +553,14 @@ body.listening.l-idle, body.listening.l-idle canvas { cursor: none; }
   .l-loop span { display: none; }
   .l-loop { width: auto; aspect-ratio: 1; padding: 0; justify-content: center; } /* 다른 재생 단추와 같은 정사각 */
 }
-/* 폰 세로: 단추 다섯 개(48px)에 곡 이름이 두세 글자만 남으니 이름은 빼고 시간만 (곡 이름은 시작할 때 위에 크게 뜬다) */
+/* 폰 세로: 단추 다섯 개(48px) 사이에는 곡 이름이 두세 글자만 남으니, 이름은 재생기 바로 위 한 줄로 올린다 */
 @media (max-width: 430px) {
-  .l-name { display: none; }
+  .l-name {
+    position: absolute; left: 12px; right: 12px; bottom: calc(100% + 7px);
+    text-align: center; font-size: 13px; color: var(--hanji-50);
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75), 0 0 10px rgba(0, 0, 0, 0.45);
+    pointer-events: none;
+  }
 }
 
 /* 재생기가 숨어도 남는 머리카락 굵기의 진행선 */

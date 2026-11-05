@@ -4,7 +4,7 @@
  * 단위 m, +Y 위, -Z 북쪽(산 쪽). 스폰은 (0, 0, 34) 일주문 남쪽.
  */
 import { ImprovedNoise } from 'three/addons/math/ImprovedNoise.js';
-import { forestPathX, nearestTrail, setTrailProfile, onSmallBridge, smallBridgeY, TRAIL_HALF, REST_SPOTS, inLookoutView } from './trail.js';
+import { forestPathX, nearestTrail, setTrailProfile, crossingAt, crossingY, deckRise, deckRiseAt, DECK, trail, TRAIL_HALF, REST_SPOTS, inLookoutView } from './trail.js';
 
 const perlin = new ImprovedNoise();
 export const noise2 = (x, z) => perlin.noise(x, 0.37, z);
@@ -50,6 +50,7 @@ export const L = {
   teahouse: { x: 27.2, z: -12.5, halfW: 2.6, halfD: 4.6 },    // 심검당 (서쪽을 봄, 긴 축은 z)
   teaSeat: { x: 23.75, z: -12.5, y: 1.72 },
   bamboo: { x0: 30.5, x1: 40, z0: -24, z1: 0 },
+  bambooEast: { x0: 43, x1: 56, z0: -37, z1: -1 }, // 순환 산책로 동쪽 대숲
   spawn: { x: 0, z: 36 }
 };
 
@@ -92,8 +93,9 @@ export const STREAM_HALF = 3.2;
 
 /* 사찰 경내(평탄부) 바깥으로 갈수록 산이 솟는다 */
 function coreDistance(x, z) {
-  // 둥근 사각형 [-26,40]×[-40,52]
-  const cx = 7, cz = 6, hx = 33, hz = 46, r = 14;
+  // 둥근 사각형 [-42,40]×[-40,58] — 서쪽·남쪽만 넓혀 순환 산책로(서쪽 굽이길·남서 데크)가 산자락 발치를 지나게
+  const X0 = -42, X1 = 40, Z0 = -40, Z1 = 58, r = 14;
+  const cx = (X0 + X1) / 2, cz = (Z0 + Z1) / 2, hx = (X1 - X0) / 2, hz = (Z1 - Z0) / 2;
   const qx = Math.abs(x - cx) - (hx - r);
   const qz = Math.abs(z - cz) - (hz - r);
   const outside = Math.hypot(Math.max(qx, 0), Math.max(qz, 0));
@@ -191,9 +193,10 @@ export function terrainHeight(x, z) {
   return h;
 }
 
-/* 걷는 높이 — 지형 + 다리 아치 + 작은 나무다리 + 법당 마루 */
+/* 걷는 높이 — 지형 + 다리 아치 + 산책로 건너는 곳(나무다리·징검다리) + 전나무숲 데크 + 법당 마루 */
 export function walkHeight(x, z) {
-  if (onSmallBridge(x, z, 0.05)) return smallBridgeY(z);
+  const cr = crossingAt(x, z, 0.05);
+  if (cr) return crossingY(cr, z);
   const b = L.bridge;
   const sz = streamZ(x);
   if (Math.abs(x - b.x) <= b.halfWidth + 0.2 && Math.abs(z - sz) <= b.halfLen) {
@@ -203,7 +206,7 @@ export function walkHeight(x, z) {
   }
   const hl = L.hall;
   if (x > hl.x0 && x < hl.x1 && z > hl.z0 && z < hl.z1) return hl.floorY;
-  return terrainHeight(x, z);
+  return terrainHeight(x, z) + deckRiseAt(nearestTrail(x, z));
 }
 
 /* ───── 이동 가능 영역 ───── */
@@ -225,7 +228,10 @@ function inRect(x, z, x0, x1, z0, z1) {
 export function isWalkable(x, z) {
   // 순환 산책로 (계곡은 작은 나무다리로만 건넌다)
   const tr = nearestTrail(x, z);
-  if (tr && tr.d <= TRAIL_HALF) return Math.abs(z - streamZ(x)) >= 2.6 || onSmallBridge(x, z);
+  if (tr && tr.d <= TRAIL_HALF) {
+    if (tr.path === trail && deckRise(tr.s) > 0 && tr.d > DECK.halfW) return false; // 데크 판 밖은 허공
+    return Math.abs(z - streamZ(x)) >= 2.6 || !!crossingAt(x, z);
+  }
   // 숲길 (계곡은 다리로만 건넌다)
   if (z > L.courtStairs.z1 - 0.2 && z < 47) {
     if (Math.abs(x - pathX(z)) > 6.5) return false;
@@ -319,8 +325,7 @@ export function isClearForTree(x, z, margin = 0) {
   if (inRect(x, z, s.x0 - 3 - margin, s.x1 + 3 + margin, s.z0 - 3 - margin, s.z1 + 2)) return false;
   const t = L.teahouseTerrace;
   if (inRect(x, z, t.x0 - 1 - margin, t.x1 + margin, t.z0 - 2 - margin, t.z1 + 2 + margin)) return false;
-  const b = L.bamboo;
-  if (inRect(x, z, b.x0 - 1, b.x1 + 1, b.z0 - 1, b.z1 + 1)) return false;
+  for (const b of [L.bamboo, L.bambooEast]) if (inRect(x, z, b.x0 - 1, b.x1 + 1, b.z0 - 1, b.z1 + 1)) return false;
   return true;
 }
 
@@ -330,7 +335,9 @@ export function isClearForTree(x, z, margin = 0) {
  */
 export function canBuildCairn(x, z) {
   if (!isWalkable(x, z) || zoneAt(x, z) !== 'FOREST') return false;
-  if (onSmallBridge(x, z, 0.5)) return false;
+  if (crossingAt(x, z, 0.5)) return false;
+  const tr = nearestTrail(x, z);
+  if (tr?.path === trail && tr.s > DECK.s0 - 1 && tr.s < DECK.s1 + 1) return false; // 데크 위 (돌탑이 판 밑에 묻힌다)
   const b = L.bridge;
   if (Math.abs(x - b.x) <= b.halfWidth + 0.5 && Math.abs(z - streamZ(x)) <= b.halfLen + 0.5) return false;
   for (const s of REST_SPOTS) if (Math.hypot(x - s.x, z - s.z) < 1.8) return false;
