@@ -1672,6 +1672,7 @@ export class ModalManager {
         <ul class="help-list">
           <li><span class="help-keys"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> · <kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd></span>걷기</li>
           <li><span class="help-keys">땅 누르기</span>그 자리까지 천천히 걸어갑니다</li>
+          <li><span class="help-keys">좌복 누르기</span>고른 좌복에 가서 그냥 앉습니다 · 108배·염주는 서 있는 그 자리에서</li>
           <li><span class="help-keys">끌기</span>고개를 돌려 둘러보기</li>
           <li><span class="help-keys">휠 · 두 손가락</span>가까이, 멀리</li>
           <li><span class="help-keys">휴대폰</span>왼쪽 아래 조이스틱으로 걷기</li>

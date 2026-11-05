@@ -320,7 +320,12 @@ class MetaTempleApp {
       },
       onYebul: (track) => this.listen(track),
       onPracticeEnd: () => {
-        this.avatars.standUp();
+        // 좌복에서 하던 수행을 닫으면 그 좌복에 그대로 앉아 있는다 (일어나려면 움직이면 된다)
+        const pl = this.player;
+        if (pl.seat?.kind === 'cushion') {
+          pl.restState = 'sit';
+          if (!pl.busy) pl.setState('sit');
+        } else this.avatars.standUp();
         this.world.setFocusVignette(false);
       }
     };
@@ -354,7 +359,7 @@ class MetaTempleApp {
     if (pl.busy) return false;
     if (fromPractice) pl.restState = 'idle';
     const dur = this.avatars.triggerAction('prostrate');
-    if (fromPractice && pl.seat) pl.sitting = true;
+    if (pl.seat?.kind === 'cushion') pl.sitting = true; // 좌복 위에서 절하면 좌복을 떠나지 않는다
     if (fromPractice) setTimeout(() => this.sound.playMoktak(0.4), 1400); // 108배 박자만 작게
     const unlocked = this.store.addStat('bowCount');
     this._afterUnlock(unlocked);
@@ -409,8 +414,12 @@ class MetaTempleApp {
         return this.toast('🙏 두 손을 모으고 석탑을 오른쪽으로 돕니다 · 움직이면 멈춥니다');
       case 'incense':
         return this._goAndDo(def, () => this._offerIncense());
-      case 'practice_108':
-        return this._sitCushion(payload?.cushion, payload?.mode || 'prostrate');
+      case 'practice_108': {
+        // 좌복을 고른 경우에만 그 자리로 가서 앉은 뒤, 아니면 지금 선(앉은) 자리에서 그대로
+        const mode = payload?.mode || 'prostrate';
+        if (payload?.cushion != null) return this._sitCushion(payload.cushion, () => this._practiceHere(mode));
+        return this._practiceHere(mode);
+      }
       case 'sutra_copy':
         return this._goAndDo(def, () => {
           const s = this.temple.sutraSeat;
@@ -679,22 +688,23 @@ class MetaTempleApp {
     this.toast('🕯️ 불단 앞에 향 한 대와 초 한 자루를 공손히 올립니다');
   }
 
-  _sitCushion(index, mode) {
+  /** 고른 좌복으로 걸어가 그냥 앉는다 (아무 수행도 열지 않음). then 이 있으면 앉은 뒤 이어서 */
+  _sitCushion(index, then) {
     const p = this.player.root.position;
-    let c = index != null ? this.temple.cushions[index] : this.avatars.freeCushionNear(p.x, p.z);
+    const c = index != null ? this.temple.cushions[index] : this.avatars.freeCushionNear(p.x, p.z);
     if (!c) return;
     if (c.occupant && c.occupant !== this.player) {
       this.toast('다른 도반이 앉아 있는 좌복입니다. 빈 좌복을 골라 주세요');
       return;
     }
+    if (this.player.seat?._ref === c) return then?.(); // 이미 이 좌복에 앉아 있다
     const seat = this.avatars.cushionSeat(c); // 전개(...)하면 occupant setter 가 사라진다
     seat.kind = 'cushion';
     const go = () => {
-      this.avatars.sitAt(seat, mode === 'mala' ? 'meditate' : 'idle');
-      this.player.restState = mode === 'mala' ? 'meditate' : 'idle';
-      if (mode !== 'mala') this.player.setState('idle');
-      this.world.setFocusVignette(mode === 'mala');
-      this.modals.open('practice_108', { mode });
+      this.avatars.sitAt(seat, 'sit');
+      this.player.restState = 'sit';
+      if (then) then();
+      else this.toast('🪷 좌복에 앉았습니다 · 2 큰절 · 3 가부좌 · 움직이면 일어납니다');
     };
     if (zoneAt(p.x, p.z) !== 'DAEUNGJEON') {
       this.avatars.teleport(c.x, c.z + 0.8, Math.PI);
@@ -702,6 +712,19 @@ class MetaTempleApp {
       return setTimeout(go, 200);
     }
     this.avatars.moveTo(c.x, c.z + 0.75, go);
+  }
+
+  /** 108배·염주: 자리를 옮기지 않고 지금 그 자리에서 (좌복 위든 마루 위든) */
+  _practiceHere(mode) {
+    const pl = this.player;
+    if (mode === 'mala') {
+      if (pl.state !== 'meditate') {
+        this.avatars.triggerAction('meditate');
+        pl.restState = 'meditate';
+      }
+      this.world.setFocusVignette(true);
+    }
+    this.modals.open('practice_108', { mode });
   }
 
   _sitTea() {
@@ -1073,7 +1096,7 @@ class MetaTempleApp {
     const hit = this.world.pick(x, y);
     if (!hit) return;
     if (hit.kind === 'lantern' && hit.id) return this.activate('wish_lantern', { lanternId: hit.id });
-    if (hit.kind === 'cushion') return this._sitCushion(hit.index, 'prostrate');
+    if (hit.kind === 'cushion') return this._sitCushion(hit.index);
     const pt = hit.point;
     // 클릭한 곳 근처의 상호작용 대상
     let best = null, bd = Infinity;
@@ -1107,9 +1130,11 @@ class MetaTempleApp {
         bd = d;
       }
     }
-    if (!best && zone === 'DAEUNGJEON' && !this.player.sitting) {
+    // 좌복(1.1m 안)과 겨룰 때는 각자 닿는 거리에 견준 가까움으로 — 범위가 넓은 헌향이 앞줄 좌복을 덮지 않게
+    if (zone === 'DAEUNGJEON' && !this.player.sitting) {
       const c = this.avatars.freeCushionNear(p.x, p.z);
-      if (c && Math.hypot(c.x - p.x, c.z - p.z) < 1.1) best = { id: 'practice_108', label: '좌복에 앉기 · 108배 · 염주', cushionIndex: c.index };
+      const dc = c ? Math.hypot(c.x - p.x, c.z - p.z) : Infinity;
+      if (dc < 1.1 && (!best || dc / 1.1 < bd / best.radius)) best = { id: 'cushion', label: '좌복에 앉기', cushionIndex: c.index };
     }
     return best;
   }
@@ -1117,7 +1142,7 @@ class MetaTempleApp {
   _activateNearby() {
     const n = this.nearby;
     if (!n) return;
-    if (n.id === 'practice_108') return this._sitCushion(n.cushionIndex, 'prostrate');
+    if (n.id === 'cushion') return this._sitCushion(n.cushionIndex);
     this.activate(n.id);
   }
 
@@ -1157,7 +1182,7 @@ class MetaTempleApp {
       if (this._promptTimer > 0.2) {
         this._promptTimer = 0;
         const n = this.modals.isOpen ? null : this._findNearby();
-        if (n?.id !== this.nearby?.id) {
+        if (n?.id !== this.nearby?.id || n?.cushionIndex !== this.nearby?.cushionIndex) {
           this.nearby = n;
           $('#prompt').classList.toggle('hidden', !n);
           if (n) $('#prompt-text').textContent = n.label;
