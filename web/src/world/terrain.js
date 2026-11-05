@@ -16,6 +16,7 @@ import {
   clamp,
   addCircleCollider
 } from './layout.js';
+import { nearestTrail, trail, REST_SPOTS } from './trail.js';
 import { groundDetailTexture, waterNormalTexture, graniteTextures } from './textures.js';
 import { weatherable, envUniforms, mats } from './materials.js';
 
@@ -54,6 +55,9 @@ function groundColor(x, z, h, slope, out) {
     const pathMask = (1 - smooth(1.3, 2.4, dp + n2 * 0.4)) * smooth(52, 46, z);
     out.lerp(n2 > 0 ? COL.dirt : COL.dirtDark, pathMask);
   }
+  // 순환 산책로 흙길
+  const tr = nearestTrail(x, z);
+  if (tr) out.lerp(n2 > 0 ? COL.dirt : COL.dirtDark, (1 - smooth(1.1, 2.1, tr.d + n2 * 0.35)) * 0.92);
   // 계곡 바닥
   const sd = Math.abs(z - streamZ(x));
   out.lerp(COL.bed, (1 - smooth(1.4, STREAM_HALF + 0.6, sd)) * 0.9);
@@ -120,7 +124,7 @@ export function buildTerrain(scene, quality) {
     );
   };
   // 가까운 경내: 촘촘한 격자
-  const IN = { x0: -42, x1: 62, z0: -56, z1: 58 };
+  const IN = { x0: -62, x1: 62, z0: -58, z1: 62 }; // 순환 산책로(서쪽 x -51, 남쪽 z 52)와 그 둘레 6.5m 가 0.45m 격자 안에 들게
   const res = quality === 'low' ? 0.7 : 0.45;
   const inner = new THREE.Mesh(buildGroundMesh(IN.x0, IN.x1, IN.z0, IN.z1, res), mkMat(52));
   inner.receiveShadow = true;
@@ -345,12 +349,26 @@ function buildRocks(scene) {
     const a = r() * Math.PI * 2, d = 45 + r() * 50;
     items.push([8 + Math.cos(a) * d, Math.sin(a) * d, 1.2 + r() * 2.8, false]);
   }
+  // 순환 산책로 가장자리 (충돌 없음 — 길을 막지 않게)
+  for (let s = 3; s < trail.length - 3; s += 2.6 + r() * 3) {
+    const a = trail.at(s - 0.5), c = trail.at(s + 0.5), m = trail.at(s);
+    const l = Math.hypot(c.x - a.x, c.z - a.z) || 1;
+    const side = r() > 0.5 ? 1 : -1, off = 1.9 + r() * 1.4;
+    const x = m.x - ((c.z - a.z) / l) * side * off, z = m.z + ((c.x - a.x) / l) * side * off;
+    if (REST_SPOTS.some((q) => Math.hypot(q.x - x, q.z - z) < 2.6) || Math.abs(z - streamZ(x)) < 3.2) continue;
+    if ((nearestTrail(x, z)?.d ?? 0) < 1.7) continue;
+    items.push([x, z, 0.18 + r() * 0.42, false]);
+  }
   // 연못 둘레
   const p = L.pond;
   for (let i = 0; i < 22; i++) {
     const a = (i / 22) * Math.PI * 2 + r() * 0.2;
     items.push([p.x + Math.cos(a) * (p.rx + 0.35), p.z + Math.sin(a) * (p.rz + 0.35), 0.25 + r() * 0.3, false]);
   }
+  // 산책로를 막는 큰 바위는 뺀다 (길가 작은 돌은 위에서 일부러 둔 것)
+  const keep = items.filter(([x, z, s]) => (nearestTrail(x, z)?.d ?? 99) > (s < 0.45 ? 1.6 : Math.max(1.7, s * 0.9 + 1.3))); // 징검다리 줄·다리 밑에도 돌을 두지 않는다
+  items.length = 0;
+  items.push(...keep);
   const gr = graniteTextures();
   const mat = weatherable(new THREE.MeshStandardMaterial({ map: gr.color, normalMap: gr.normal, color: 0x9a978c, roughness: 0.9 }), { snow: 1, wet: 1 });
   const inst = new THREE.InstancedMesh(rockGeometry(), mat, items.length);

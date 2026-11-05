@@ -4,18 +4,24 @@
  */
 import * as THREE from 'three';
 import { ZONES, RITUALS, generateDharmaName } from './data/templeData.js';
-import { TempleStore, kstHour } from './core/state.js';
+import { TempleStore, kstHour, uuid } from './core/state.js';
 import { TempleSoundEngine } from './audio/soundEngine.js';
 import { TempleScene } from './world/templeScene.js';
 import { AvatarManager } from './world/avatarManager.js';
 import { loadRig } from './world/avatarRig.js';
 import { wireState } from './core/avatarMotion.js';
-import { L, isWalkable, zoneAt, streamZ, walkHeight } from './world/layout.js';
+import { L, isWalkable, zoneAt, streamZ, walkHeight, canBuildCairn } from './world/layout.js';
+import { trail, REST_SIT_MSG } from './world/trail.js';
+import { placeStone, findJoinable, areaCount, AREA_CAP, AREA_RADIUS, GATE_ID } from './core/cairns.js';
 import { ModalManager } from './ui/modalManager.js';
 import { LiveLink, sharedApi } from './core/live.js';
-import { YEBUL_TRACKS } from './data/soundCredits.js';
+import { YEBUL_TRACKS } from './data/credits.js';
 import { bindNameForm } from './ui/nameField.js';
 import { veil, veiling } from './ui/veil.js';
+import { DOCK_RITUALS } from './data/templeData.js';
+import { icon, ZONE_ICONS } from './ui/icons.js';
+import { toggleSheet, closeTop, closeAll } from './ui/sheets.js';
+import { installBackGuard } from './ui/backGuard.js';
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
@@ -154,7 +160,10 @@ class MetaTempleApp {
         this.sound.playWindChime(0.8);
         this.toast(`🔄 석탑을 ${n}바퀴 돌았습니다 · 누적 ${this.store.stats.circumambulationLoops}바퀴`);
       },
-      onStandUp: () => this.world.setFocusVignette(false)
+      onStandUp: () => {
+        this.world.setFocusVignette(false);
+        this.temple?.trail.hideMat(); // 돗자리는 일어서면 걷는다
+      }
     });
     this._rebuildPlayer();
     this.avatars.spawnAmbientVisitors();
@@ -164,7 +173,8 @@ class MetaTempleApp {
     temple.lanterns.sync(this.store.state.lanterns);
     await this._brushFont(this.store.state.tiles.map((t) => t.wish).join(''));
     temple.tileRack.sync(this.store.state.tiles);
-    temple.cairn.sync(this.store.state.stones.length);
+    temple.cairn.sync(this.store.gateStoneTotal);
+    temple.cairns.setCairns(this.store.cairnList());
 
     const s = this.store.state.settings;
     this.world.setTimeOfDay(s.time || 'realtime');
@@ -201,7 +211,8 @@ class MetaTempleApp {
     if (d.error) return;
     this.store.mergeShared(d);
     this.temple.lanterns.sync(this.store.state.lanterns);
-    this.temple.cairn.sync(Math.min(this.store.stoneTotal, 40));
+    this.temple.cairn.sync(Math.min(this.store.gateStoneTotal, 40));
+    this.temple.cairns.setCairns(this.store.cairnList());
     await this._brushFont(this.store.state.tiles.map((t) => t.wish).join(''));
     this.temple.tileRack.sync(this.store.state.tiles);
     this.modals?.refresh();
@@ -210,7 +221,15 @@ class MetaTempleApp {
   /** 공개를 고른 서원을 서버에 올린다. 거절되면(링크·욕설·하루 한도) 이 브라우저에만 남긴다 */
   _publish(kind, item, label) {
     sharedApi.publish(kind, item, this.store.profileId).then((r) => {
-      if (!r.error) return;
+      if (!r.error) {
+        // 서버가 1.5m 안의 다른 탑에 합쳤으면 그 탑으로 고쳐 둔다
+        if (kind === 'stones' && r.cairnId && r.cairnId !== item.cairnId) {
+          Object.assign(item, { cairnId: r.cairnId, x: r.x, z: r.z });
+          this.store.save();
+          this.temple.cairns.setCairns(this.store.cairnList());
+        }
+        return;
+      }
       item.public = false;
       this.store.save();
       if (r.error !== 'offline' && r.error !== 'timeout') this.toast(`${label}은 나만 보도록 두었습니다 · ${r.error}`);
@@ -227,14 +246,19 @@ class MetaTempleApp {
   _enter() {
     if (this.entered) return;
     this.entered = true;
+    $('#intro').classList.add('leaving');
+    this._introTimer = setTimeout(() => $('#intro').classList.add('hidden'), 1500);
+    $('#hud').classList.remove('hidden');
+    this.zone = null;
+    this.enteredAt = performance.now();
+    if (this.backGuard) return this._reenter();
     this.sound.init();
     this.sound.setEmitters(this._emitters());
     this.sound.loadRecordings('./assets/audio/'); // 실제 녹음 — 받는 동안은 합성음
     this.sound.setWeather(this.world.weatherName);
     this.sound.setTimeOfDay(this.world.phase);
-    $('#intro').classList.add('leaving');
-    setTimeout(() => $('#intro').classList.add('hidden'), 1500);
-    $('#hud').classList.remove('hidden');
+    // 입장 클릭 안에서 (사용자 동작)
+    this.backGuard = installBackGuard({ closeTop: () => this._closeTop(), toast: (m) => this.toast(m), onExit: () => this._toIntro() });
     this._syncSoundButton();
     const { streak, isNewDay } = this.store.checkIn();
     this._applyItems();
@@ -242,8 +266,6 @@ class MetaTempleApp {
       this.toast('산문에 들어섰습니다. 천천히 걸어 보세요 · WASD 또는 바닥을 눌러 이동');
       if (isNewDay && streak > 1) setTimeout(() => this.toast(`🍃 ${streak}일째 이어진 발걸음입니다`), 2600);
     }, 900);
-    this.zone = null;
-    this.enteredAt = performance.now();
     this.live = new LiveLink({
       onPeers: (peers, count) => {
         this.avatars.syncRemotePeers(peers);
@@ -252,6 +274,32 @@ class MetaTempleApp {
       onBow: (from) => this._onPeerBow(from)
     });
     this.live.start(this.store.profile.dharmaName, this.store.profile.avatarStyle);
+  }
+
+  /** 산문을 나섰다가 다시 들어설 때 — 방어와 소리만 되살린다 (실시간 연결·녹음·출석은 첫 입장 그대로) */
+  _reenter() {
+    this.backGuard.enter();
+    if (this._soundBeforeIntro && !this.sound.isEnabled) this.sound.toggleAudio();
+    this._syncSoundButton();
+    setTimeout(() => this.toast('다시 산문에 들어섰습니다'), 900);
+  }
+
+  /** 뒤로가기로 산문을 나섬: 입장 전 첫 화면으로 돌아가고, 몸은 일주문 앞에 다시 선다 */
+  _toIntro() {
+    this.entered = false;
+    clearTimeout(this._introTimer);
+    closeAll();
+    document.querySelectorAll('.toast').forEach((t) => t.remove());
+    this.avatars.teleport(L.spawn.x, L.spawn.z, Math.PI);
+    Object.assign(this.world.cam, { yaw: 0, pitch: 0.22, targetDist: 9, dist: 9 });
+    this._soundBeforeIntro = this.sound.isEnabled;
+    if (this._soundBeforeIntro) this.sound.toggleAudio(); // 첫 화면은 입장 전처럼 조용히
+    this._syncSoundButton();
+    $('#hud').classList.add('hidden');
+    const intro = $('#intro');
+    intro.classList.remove('hidden');
+    void intro.offsetWidth; // display:none 에서 막 돌아왔으니 한 번 그린 뒤 페이드인
+    intro.classList.remove('leaving');
   }
 
   _emitters() {
@@ -331,11 +379,18 @@ class MetaTempleApp {
         return t;
       },
       onAddStone: (wish, share = true) => {
-        const s = this.store.addStone(wish, share);
+        const place = this._stonePlace();
+        const s = this.store.addStone(wish, share, place);
         if (share) this._publish('stones', s, '돌탑의 돌');
-        this.temple.cairn.addStone(() => this.sound.playStoneDrop());
+        const drop = () => this.sound.playStoneDrop();
+        if (place) {
+          const c = this.temple.cairns.addStone({ id: place.cairnId, x: place.x, z: place.z }, drop);
+          this.toast(c.n === 1 ? '⛰️ 길가에 새 돌탑을 세웠습니다 · 첫 층' : `⛰️ 길가 돌탑에 돌을 얹었습니다 · ${c.n}층`);
+        } else {
+          this.temple.cairn.addStone(drop);
+          this.toast(`⛰️ 돌탑에 조약돌 하나를 얹었습니다 · 지금까지 ${this.store.stoneTotal}개`);
+        }
         this._updateHUD();
-        this.toast(`⛰️ 돌탑에 조약돌 하나를 얹었습니다 · 지금까지 ${this.store.stoneTotal}개`);
         return s;
       },
       onBurnWorry: () => {
@@ -370,7 +425,8 @@ class MetaTempleApp {
         this.store.hideReported(id);
         this.temple.lanterns.sync(this.store.state.lanterns);
         this.temple.tileRack.sync(this.store.state.tiles);
-        this.temple.cairn.sync(Math.min(this.store.stoneTotal, 40));
+        this.temple.cairn.sync(Math.min(this.store.gateStoneTotal, 40));
+        this.temple.cairns.setCairns(this.store.cairnList());
         sharedApi.report(kind, id, this.store.profileId).then((r) =>
           this.toast(r.error ? '신고를 보내지 못했습니다 · 내 화면에서는 가렸습니다' : '신고했습니다 · 이 글은 이제 내 화면에 보이지 않습니다')
         );
@@ -379,9 +435,9 @@ class MetaTempleApp {
       onImport: (json) => this.store.importState(json),
       onYebul: (track) => this.listen(track),
       onPracticeEnd: () => {
-        // 좌복에서 하던 수행을 닫으면 그 좌복에 그대로 앉아 있는다 (일어나려면 움직이면 된다)
+        // 좌복·쉼터에서 하던 수행을 닫으면 그 자리에 그대로 앉아 있는다 (일어나려면 움직이면 된다)
         const pl = this.player;
-        if (pl.seat?.kind === 'cushion') {
+        if (pl.seat?.kind === 'cushion' || pl.seat?.kind === 'rest') {
           pl.restState = 'sit';
           if (!pl.busy) pl.setState('sit');
         } else this.avatars.standUp();
@@ -448,6 +504,7 @@ class MetaTempleApp {
 
   activate(id, payload) {
     this.sound.init();
+    if (id === 'stone_pagoda') this._stoneSpot = null; // 일주문 옆 돌탑
     const def = this._interactable(id);
     switch (id) {
       case 'stone_pagoda':
@@ -503,14 +560,17 @@ class MetaTempleApp {
       this._listenPlay(track);
       return veil(() => this._listening && this._listenScene(), { hold: 380 });
     }
+    const rest = this.player.seat?.kind === 'rest' ? this.player.seat._ref : null; // 산문 밖 쉼터에 앉아 있으면 그 자리에서 듣는다
     this.modals.close();
     const cam = this.world.cam;
-    const ls = (this._listening = { track, saved: { mode: cam.mode, pitch: cam.pitch, dist: cam.targetDist } });
+    const loop = this.store.state.settings.listenLoop ?? !!rest; // 연속 듣기: 고른 값이 없으면 쉼터에서는 켜고 법당에서는 끈다
+    const ls = (this._listening = { track, rest, loop, saved: { mode: cam.mode, yaw: cam.yaw, pitch: cam.pitch, dist: cam.targetDist } });
     this.joy = { x: 0, z: 0 };
     this.keys = {};
     this._listenPlay(track);
     veil(() => {
       if (this._listening !== ls) return;
+      if (rest) return this._listenOutdoor(ls);
       const c = this.avatars.freeCushionNear(0.75, -24.7); // 둘째 줄 가운데: 불단과 삼존불이 한눈에 들어오는 자리
       const seat = this.avatars.cushionSeat(c);
       seat.kind = 'cushion';
@@ -559,8 +619,8 @@ class MetaTempleApp {
       this.avatars.solo = false;
       this.avatars.standUp();
       this.world.setShot(null);
-      // 일어서면 불단을 바라보는 뒷모습에서 다시 시작
-      Object.assign(this.world.cam, { mode: ls.saved.mode, yaw: 0, pitch: ls.saved.pitch, targetDist: ls.saved.dist });
+      // 일어서면 불단을 바라보는 뒷모습에서 다시 시작 (쉼터면 듣기 전에 보던 구도로)
+      Object.assign(this.world.cam, { mode: ls.saved.mode, yaw: ls.rest ? ls.saved.yaw : 0, pitch: ls.saved.pitch, targetDist: ls.saved.dist });
       document.body.classList.remove('listening', 'l-idle');
       $('#listen').classList.add('hidden');
       $('#listen-title').classList.remove('show');
@@ -613,6 +673,7 @@ class MetaTempleApp {
 
   /** 장면들: 좌복(c) 기준. 세로 화면은 삼존불이 다 들어오지 않으니 더 가깝고 높게 잡는다 */
   _listenShot(i) {
+    if (this._listening.rest) return null; // 산문 밖은 장면을 끊지 않고 1인칭으로 그 자리 경치를
     const c = this._listening.cushion, fy = L.hall.floorY;
     const V = (x, y, z) => new THREE.Vector3(x, y, z);
     const tall = innerWidth / innerHeight < 0.85;
@@ -645,14 +706,15 @@ class MetaTempleApp {
 
   _listenTick(dt) {
     const ls = this._listening;
-    if (!ls.ready || ls.leaving || !ls.cushion) return;
+    if (!ls.ready || ls.leaving || !(ls.cushion || ls.rest)) return;
     if (!this.sound.currentTrack) {
-      // 끝까지 들었다: 잠깐 고요히 머문 뒤 일어난다
-      if ((ls.gone += dt) > 2.5) this.exitListening();
+      // 끝까지 들었다: 잠깐 고요히 머문 뒤 일어난다 (연속 듣기면 다음 예불로)
+      if ((ls.gone += dt) > 2.5) ls.loop ? this._listenStep(1) : this.exitListening();
       return;
     }
+    if (ls.rest) this._listenDrift(dt);
     ls.shotT += dt;
-    if (ls.shotT > LISTEN_SHOT_SEC && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    if (ls.shotT > LISTEN_SHOT_SEC && !ls.rest && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
       ls.shotT = 0;
       const n = ++ls.shot;
       veil(() => this._listening === ls && this.world.setShot(this._listenShot(n), true), { hold: 450 });
@@ -671,12 +733,55 @@ class MetaTempleApp {
     const t = el ? el.currentTime : 0;
     const paused = !!el && el.paused;
     $('#listen').classList.toggle('paused', paused);
+    $('#listen [data-l="loop"]')?.setAttribute('aria-pressed', String(!!ls.loop));
     $('#listen .l-main').setAttribute('aria-label', paused ? '이어 듣기' : '일시정지');
     $('#listen-time').textContent = `${fmtTime(t)} / ${fmtTime(d)}`;
     const seek = $('#listen-seek');
     if (!ls.seeking) seek.value = Math.round((t / d) * 1000);
     seek.style.setProperty('--p', `${seek.value / 10}%`);
     $('#listen-line').style.width = `${(t / d) * 100}%`;
+  }
+
+  /** 쉼터에서 듣기: 그 자리에 앉은 채 1인칭으로 경치를 본다 (다른 도반은 잠시 보이지 않는다) */
+  _listenOutdoor(ls) {
+    const cam = this.world.cam, pl = this.player, s = ls.rest;
+    this.avatars.solo = true;
+    pl.restState = 'meditate';
+    pl.setState('meditate');
+    document.body.classList.add('listening');
+    $('#listen').classList.remove('hidden');
+    cam.mode = 'first';
+    this._fp = null; // 다음 프레임에 지금 yaw 로 1인칭 시선을 다시 잡는다
+    const v = s.vista || null;
+    cam.yaw = (v ? Math.atan2(v[0] - s.x, v[1] - s.z) : pl.heading) - Math.PI;
+    cam.pitch = s.listenPitch ?? 0.05;
+    ls.drift = 0;
+    ls.t = 0;
+    this._listenScene();
+  }
+
+  /** 쉼터 1인칭: 아주 천천히 좌우로 둘러본다 (70초에 한 번, ±10°). 끌어서 돌아본 만큼은 그대로 더해진다 */
+  _listenDrift(dt) {
+    const ls = this._listening;
+    if (!this._fp || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    ls.t += dt;
+    const k = 0.18 * Math.sin((ls.t * Math.PI * 2) / 70);
+    this._fp.off += k - ls.drift;
+    ls.drift = k;
+  }
+
+  /** 연속 듣기 켜고 끄기 (고른 값은 저장해 다음에도 그대로) */
+  _listenLoop() {
+    const ls = this._listening;
+    ls.loop = !ls.loop;
+    this.store.setSetting('listenLoop', ls.loop);
+    // 듣는 동안은 알림이 숨으므로 제목 자리에 잠깐 띄운다
+    const tt = $('#listen-title');
+    tt.querySelector('b').textContent = ls.loop ? '연속 듣기' : '한 곡만 듣기';
+    tt.querySelector('small').textContent = ls.loop ? '이 예불이 끝나면 다음 예불이 이어집니다' : '이 예불이 끝나면 일어납니다';
+    tt.classList.add('show');
+    clearTimeout(this._titleT);
+    this._titleT = setTimeout(() => tt.classList.remove('show'), 3000);
   }
 
   _listenToggle() {
@@ -730,6 +835,7 @@ class MetaTempleApp {
       if (act === 'play') this._listenToggle();
       else if (act === 'prev') this._listenStep(-1);
       else if (act === 'next') this._listenStep(1);
+      else if (act === 'loop') this._listenLoop();
       else if (act === 'exit') this.exitListening();
       this._listenSync();
       this._listenWake();
@@ -796,6 +902,83 @@ class MetaTempleApp {
     this.avatars.moveTo(c.x, c.z + 0.75, go);
   }
 
+  /* ───────── 순환 산책로: 쉼터에 앉기 · 돌탑 어디서나 ───────── */
+  /** 다른 구역·먼 곳으로 옮길 때 (장소 이동 가림막이 있으면 그것으로) */
+  _jump(x, z, ry, then) {
+    if (this._veilTeleport) return this._veilTeleport(x, z, ry, () => setTimeout(then, 200));
+    this.avatars.teleport(x, z, ry);
+    this._onZoneChange(true);
+    setTimeout(then, 200);
+  }
+
+  /** 고른 쉼터로 걸어가 앉는다: 가까우면 곧장, 산책로 위면 길을 따라(60m 안), 아니면 옮겨 간다 */
+  _sitRest(s) {
+    const pl = this.player, p = pl.root.position;
+    if (pl.seat?._ref === s) return;
+    if (s.occupant && s.occupant !== pl) return this.toast('다른 도반이 쉬고 있는 자리입니다');
+    const tr = this.temple.trail;
+    const go = () => {
+      this.avatars.sitAt(tr.seat(s), 'sit');
+      pl.restState = 'sit';
+      if (s.kind === 'mat') tr.showMat(s);
+      this.toast(REST_SIT_MSG[s.kind]);
+      if (!this._restHinted) {
+        this._restHinted = true; // 처음 앉았을 때 한 번만
+        setTimeout(() => pl.seat?.kind === 'rest' && this.toast('🎧 아래 「예불 들으며 쉬기」를 누르면 이 자리에서 경치를 보며 예불을 듣습니다'), 2600);
+      }
+    };
+    const st = s.stand;
+    const d = Math.hypot(p.x - st.x, p.z - st.z);
+    if (d < 0.6) return go();
+    let clear = d < 8;
+    for (let k = 1; clear && k * 0.5 < d; k++) clear = isWalkable(p.x + ((st.x - p.x) * k * 0.5) / d, p.z + ((st.z - p.z) * k * 0.5) / d);
+    if (clear) return this.avatars.moveTo(st.x, st.z, go);
+    const here = trail.nearest(p.x, p.z), there = trail.nearest(st.x, st.z);
+    if (here && there && here.d < 2 && Math.abs(there.s - here.s) < 60) return this.avatars.moveTo(st.x, st.z, go, trail.route(here.s, there.s, 3));
+    this._jump(st.x, st.z, s.ry, go);
+  }
+
+  /** 지금 알려진 길가 돌탑 + 일주문 옆 돌탑 */
+  _cairnsWithGate() {
+    const g = this.temple.cairnPos;
+    return [...this.temple.cairns.all, { id: GATE_ID, x: g.x, z: g.z, n: this.store.gateStoneTotal }];
+  }
+
+  /** 돌 올리기 창을 이 자리 기준으로 연다 (돌 하나하나는 얹을 때 1.5m 규칙으로 탑을 고른다) */
+  _stoneHere(at) {
+    this._stoneSpot = { x: at.x, z: at.z };
+    this.modals.open('stone_pagoda');
+  }
+
+  /** 돌을 얹을 자리 → { cairnId, x, z } (길가 돌탑) 또는 null (일주문 옆 돌탑) */
+  _stonePlace() {
+    const at = this._stoneSpot, p = this.player.root.position;
+    if (!at || Math.hypot(p.x - at.x, p.z - at.z) > 4) return null; // 그 자리를 떠났으면(다른 데서 연 창) 일주문 옆 돌탑
+    const list = this._cairnsWithGate();
+    let r = placeStone(list, at.x, at.z, `c_${uuid()}`);
+    if (r.full) r = findJoinable(list, at.x, at.z, AREA_RADIUS); // 구역이 꽉 찼으면 가장 가까운 탑에
+    if (!r || r.id === GATE_ID) return null;
+    return { cairnId: r.id, x: r.x, z: r.z };
+  }
+
+  /** 멈춰 선 자리에서 돌탑을 쌓을 수 있으면 알약 하나 (걷는 동안에는 띄우지 않는다) */
+  _cairnPrompt(p) {
+    const pl = this.player, now = performance.now();
+    const s = this._still;
+    if (!s || Math.hypot(p.x - s.x, p.z - s.z) > 0.05 || this.avatars.moveTarget || pl.busy) this._still = { x: p.x, z: p.z, t: now };
+    if (now - this._still.t < 600 || pl.sitting) return null;
+    // 몸 앞 0.9m 에 쌓는다 (그 자리가 안 되면 발밑)
+    const fx = p.x + Math.sin(pl.heading) * 0.9, fz = p.z + Math.cos(pl.heading) * 0.9;
+    const at = canBuildCairn(fx, fz) ? { x: fx, z: fz } : canBuildCairn(p.x, p.z) ? { x: p.x, z: p.z } : null;
+    if (!at) return null;
+    const list = this._cairnsWithGate();
+    const c = findJoinable(list, at.x, at.z);
+    if (c?.id === GATE_ID) return null; // 일주문 옆 돌탑은 원래 알약이 맡는다
+    if (c) return { id: `cairn:${c.id}`, label: `돌탑에 돌 얹기 · ${c.n}층`, at: { x: c.x, z: c.z } };
+    if (areaCount(list, at.x, at.z) >= AREA_CAP) return null;
+    return { id: 'cairn:new', label: '여기에 돌탑 쌓기', at };
+  }
+
   /** 108배·염주: 자리를 옮기지 않고 지금 그 자리에서 (좌복 위든 마루 위든) */
   _practiceHere(mode) {
     const pl = this.player;
@@ -812,7 +995,8 @@ class MetaTempleApp {
   _sitTea() {
     const s = L.teaSeat;
     const def = this._interactable('tea_chat');
-    this.avatars.sitAt({ x: s.x, y: s.y, z: s.z, ry: Math.PI / 2, standAt: { x: def.approach.x, z: def.approach.z } }, 'sit');
+    const seat = { x: s.x, y: s.y, z: s.z, ry: Math.PI / 2, standAt: { x: def.approach.x, z: def.approach.z } };
+    this.avatars.sitAt(seat, 'sit');
     this.player.restState = null;
     const monk = this.avatars.teaMonk;
     monk.restState = 'sit';
@@ -821,7 +1005,7 @@ class MetaTempleApp {
       this.sound.playTeaPour();
       this.temple.teaSteam.userData.uniforms.uIntensity.value = 1;
     }, 900);
-    setTimeout(() => this.player.setState('tea'), 2400);
+    setTimeout(() => this.player.seat === seat && this.player.setState('tea'), 2400); // 그새 일어나 걸어갔으면 찻잔을 들지 않는다
     this.modals.open('tea_chat');
   }
 
@@ -914,6 +1098,7 @@ class MetaTempleApp {
     if (this.avatars) {
       const real = this.live?.count || 0;
       $('#hud-presence').textContent = real > 0 ? `지금 도반 ${real}명이 말없이 함께 머무는 중` : `지금은 홀로 머무는 중 · 산사 식구 ${this.avatars.npcCount}명`;
+      $('#hud-presence-count').textContent = real > 0 ? real : '';
     }
   }
 
@@ -923,21 +1108,10 @@ class MetaTempleApp {
     if (z === this.zone && !force) return;
     this.zone = z;
     const info = ZONES[z];
-    $('#hud-zone-index').textContent = info.index;
     $('#hud-zone-name').textContent = info.name;
     $('#hud-zone-subtitle').textContent = info.subtitle;
     $$('[data-goto-zone]').forEach((b) => b.classList.toggle('active', b.dataset.gotoZone === z));
-    const bar = $('#ritual-bar');
-    bar.innerHTML = '';
-    info.rituals.forEach((id, i) => {
-      const r = RITUALS[id];
-      const b = document.createElement('button');
-      b.className = 'ritual';
-      b.style.animationDelay = `${i * 60}ms`;
-      b.innerHTML = `<span>${r.icon}</span><span>${r.label}</span>`;
-      b.addEventListener('click', () => this.activate(id));
-      bar.appendChild(b);
-    });
+    this._zoneRituals(z);
     if (this.entered) this.sound.setZone(z);
     if (z !== 'DAEUNGJEON') this.sound.stopTrack(); // 예불 듣기는 법당 안에서만
   }
@@ -961,27 +1135,63 @@ class MetaTempleApp {
     $('#sound-tool').classList.toggle('muted', !on);
   }
 
+  /** 지금 구역의 신행: 주 신행 1~2개는 하단 독에, 나머지는 「더보기」에. 몸짓 단추와 같은 것(헌향·탑돌이)은 몸짓이 맡는다 */
+  _zoneRituals(z) {
+    const dock = DOCK_RITUALS[z] || [];
+    const rest = ZONES[z].rituals.filter((id) => !dock.includes(id) && id !== 'incense' && id !== 'circumambulate');
+    const btn = (id, cls, text) => `<button class="ctl ${cls}" type="button" data-ritual="${id}" title="${RITUALS[id].label}">${icon(id)}<span class="lbl">${text}</span></button>`;
+    $('#dock-rituals').innerHTML = dock.map((id) => btn(id, 'dock-btn ritual', RITUALS[id].short)).join('');
+    $('#more-rituals').innerHTML = rest.map((id) => btn(id, 'tile', RITUALS[id].label)).join('');
+    $('#more-rituals-wrap').classList.toggle('hidden', !rest.length);
+    $('#place-btn .i')?.remove();
+    $('#place-btn').insertAdjacentHTML('afterbegin', icon(ZONE_ICONS[z]));
+    $('#place-name').textContent = ZONES[z].short;
+  }
+
+  /** 뒤로가기가 닫는 순서: 예불 듣기 → 열린 창(차담 포함) → 시트 → 펼친 현판. 닫은 것이 있으면 true */
+  _closeTop() {
+    if (this._listening) {
+      this.exitListening();
+      return true;
+    }
+    if (this.modals.isOpen) {
+      this.modals.close();
+      return true;
+    }
+    if (closeTop()) return true;
+    if ($('#hud-plaque').classList.contains('collapsed')) return false;
+    $('#plaque-toggle').click();
+    return true;
+  }
+
   _bindHUD() {
-    // 팝오버
-    const closePops = (except) => {
-      $$('.popover').forEach((p) => p !== except && p.classList.add('hidden'));
-      $$('[data-pop]').forEach((b) => b.classList.toggle('active', except && b.dataset.pop === except.id));
-    };
-    $$('[data-pop]').forEach((b) =>
-      b.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const pop = $('#' + b.dataset.pop);
-        const open = pop.classList.contains('hidden');
-        closePops(open ? pop : null);
-        if (open) {
-          pop.classList.remove('hidden');
-          this._syncChips();
-        }
+    // 그림 아이콘을 채우고 장소 목록을 만든다
+    $$('[data-icon]').forEach((el) => el.insertAdjacentHTML('afterbegin', icon(el.dataset.icon)));
+    $('#place-list').innerHTML = Object.values(ZONES)
+      .map(
+        (z) => `<li><button class="ctl place-item" type="button" data-goto-zone="${z.id}">${icon(ZONE_ICONS[z.id])}
+          <span class="place-txt"><b>${z.short}</b><small>${z.subtitle}</small></span><em class="here">지금 여기</em></button></li>`
+      )
+      .join('');
+
+    // 시트: 단추로 여닫고, 하위 시트는 ‹ 로 메뉴에 돌아가며, 바깥을 누르거나 Esc 로 닫는다
+    $$('[data-sheet]').forEach((b) =>
+      b.addEventListener('click', () => {
+        toggleSheet(b.dataset.sheet);
+        this._syncChips();
         this.sound.playUIClick();
       })
     );
-    $$('.popover').forEach((p) => p.addEventListener('pointerdown', (e) => e.stopPropagation()));
-    document.addEventListener('pointerdown', () => closePops(null));
+    $$('[data-sheet-back]').forEach((b) => b.addEventListener('click', () => closeTop()));
+    $$('[data-sheet-close]').forEach((b) => b.addEventListener('click', () => closeAll()));
+    document.addEventListener('pointerdown', (e) => !e.target.closest?.('.sheet, [data-sheet], #modal-overlay') && closeAll());
+    window.addEventListener('keydown', (e) => e.key === 'Escape' && !this.modals.isOpen && !this._listening && closeTop() && e.preventDefault(), true);
+    // 장소 이동·몸짓·신행을 고르면 그 시트는 닫는다
+    $$('#place-sheet, #more-sheet').forEach((s) => s.addEventListener('click', (e) => e.target.closest('[data-goto-zone], [data-gesture], [data-ritual]') && closeAll()));
+    $('#hud').addEventListener('click', (e) => {
+      const r = e.target.closest('[data-ritual]');
+      if (r) this.activate(r.dataset.ritual);
+    });
 
     $$('[data-time]').forEach((b) =>
       b.addEventListener('click', () => {
@@ -1027,23 +1237,17 @@ class MetaTempleApp {
         this.store.setSetting('volumes', { ...this.store.state.settings.volumes, [ch]: v });
       })
     );
-    $('#record-btn').addEventListener('click', () => this.modals.open('profile'));
-    $('#help-btn').addEventListener('click', () => this.modals.open('help'));
-    const setPlaque = (collapsed) => {
-      $('#hud-plaque').classList.toggle('collapsed', collapsed);
-      $('#plaque-toggle').setAttribute('aria-expanded', String(!collapsed));
-    };
-    let plaqueByUser = false;
+    [['#record-btn', 'profile'], ['#help-btn', 'help'], ['#credits-btn', 'credits']].forEach(([sel, view]) =>
+      $(sel).addEventListener('click', () => {
+        closeAll();
+        this.modals.open(view);
+      })
+    );
+    // 현판은 접어 둔다 (펼치면 이곳 안내·내 법명·수행·동석)
     $('#plaque-toggle').addEventListener('click', () => {
-      plaqueByUser = true;
-      setPlaque(!$('#hud-plaque').classList.contains('collapsed'));
+      const open = $('#hud-plaque').classList.toggle('collapsed') === false;
+      $('#plaque-toggle').setAttribute('aria-expanded', String(open));
     });
-    // 좁거나 낮은 화면(폰 세로·가로)은 현판을 접어 둔다. 회전·폴드로 크기가 바뀌면 따라가되, 직접 접고 편 뒤에는 그대로 둔다.
-    const smallQ = matchMedia('(max-width: 599px), (max-height: 519px)');
-    setPlaque(smallQ.matches);
-    smallQ.addEventListener('change', (e) => !plaqueByUser && setPlaque(e.matches));
-    // 중간 너비에서 토스트를 하단 버튼 줄 바로 위에 띄우기 위한 높이
-    new ResizeObserver(([e]) => document.documentElement.style.setProperty('--actions-h', `${Math.round(e.contentRect.height)}px`)).observe($('.hud-actions'));
 
     $$('[data-goto-zone]').forEach((b) =>
       b.addEventListener('click', () => this.travelTo(b.dataset.gotoZone))
@@ -1186,6 +1390,18 @@ class MetaTempleApp {
     }
     if (best) return this.activate(best.id);
     if (Math.hypot(pt.x - L.pagoda.x, pt.z - L.pagoda.z) < 2 && pt.y > L.courtyard.y + 0.4) return this.activate('circumambulate');
+    const rest = this.temple.trail.spots.find((s) => Math.hypot(pt.x - s.x, pt.z - s.z) < (s.kind === 'lookout' ? 1.6 : 1.1));
+    if (rest) return this._sitRest(rest);
+    const cn = findJoinable(this.temple.cairns.shown, pt.x, pt.z, 0.6);
+    if (cn) {
+      // 돌탑을 누르면 그 앞까지 걸어가 돌 올리기
+      const p = this.player.root.position, d = Math.hypot(p.x - cn.x, p.z - cn.z) || 1;
+      const ax = cn.x + ((p.x - cn.x) / d) * 0.9, az = cn.z + ((p.z - cn.z) / d) * 0.9;
+      return this.avatars.moveTo(ax, az, () => {
+        this.player.heading = Math.atan2(cn.x - ax, cn.z - az);
+        this._stoneHere(cn);
+      });
+    }
     if (isWalkable(pt.x, pt.z)) {
       this.avatars.moveTo(pt.x, pt.z);
       this.world.ripples.spawn(new THREE.Vector3(pt.x, walkHeight(pt.x, pt.z), pt.z), { color: '#f3ecdc', maxR: 0.6, life: 0.7 });
@@ -1205,6 +1421,19 @@ class MetaTempleApp {
         bd = d;
       }
     }
+    // 쉼터에 앉아 있으면 그 자리에서 예불 듣기 (알약 → 예불 목록)
+    if (!best && this.player.seat?.kind === 'rest') best = { id: 'yebul', label: '예불 들으며 쉬기' };
+    // 순환 산책로: 쉼터(1.4m 안), 없으면 멈춰 선 자리의 돌탑
+    if (!best && zone === 'FOREST' && !this.player.sitting) {
+      for (const s of this.temple.trail.spots) {
+        const d = Math.min(Math.hypot(p.x - s.stand.x, p.z - s.stand.z), Math.hypot(p.x - s.x, p.z - s.z));
+        if (d < 1.4 && (!best || d < bd)) {
+          best = { id: `rest:${s.id}`, label: s.label, spot: s };
+          bd = d;
+        }
+      }
+      if (!best) best = this._cairnPrompt(p);
+    }
     // 좌복(1.1m 안)과 겨룰 때는 각자 닿는 거리에 견준 가까움으로 — 범위가 넓은 헌향이 앞줄 좌복을 덮지 않게
     if (zone === 'DAEUNGJEON' && !this.player.sitting) {
       const c = this.avatars.freeCushionNear(p.x, p.z);
@@ -1218,6 +1447,8 @@ class MetaTempleApp {
     const n = this.nearby;
     if (!n) return;
     if (n.id === 'cushion') return this._sitCushion(n.cushionIndex);
+    if (n.spot) return this._sitRest(n.spot);
+    if (n.at) return this._stoneHere(n.at);
     this.activate(n.id);
   }
 
@@ -1245,7 +1476,7 @@ class MetaTempleApp {
     // 1인칭: 시선과 몸이 함께 돈다. 좌우 키·조이스틱·끌기는 돌아보기(게걸음 없음),
     // 걷기·탑돌이·좌복에 앉기처럼 몸이 스스로 돌면 시선도 따라 돈다. 앉아 있거나 걸어가는 중에 끌면 고개만 돌린다.
     const cam = this.world.cam, pl = this.player, A = this.avatars;
-    const fp = this.entered && cam.mode === 'first' && !this._listening;
+    const fp = this.entered && cam.mode === 'first' && (!this._listening || !!this._listening.rest); // 쉼터 예불 듣기는 1인칭 그대로 (끌어서 둘러보기)
     let face;
     if (fp) {
       this._fp ||= { off: wrapAngle(cam.yaw - (pl.heading - Math.PI)) };
@@ -1272,7 +1503,8 @@ class MetaTempleApp {
     const wz = -ix * Math.sin(yaw) + iz * Math.cos(yaw);
     if ((ix || iz) && this.modals.isOpen && this.modals.current === 'practice_108') this.modals.close();
     const night = this.world.env.night;
-    this.avatars.update(dt, t, { x: wx, z: wz, face }, night);
+    this.avatars.update(dt, t, { x: wx, z: wz, face }, night); // 뛰지 않는다 (Shift 달리기 없앰 — WALK_SPEED 1.1m/s)
+    this.temple.cairns.update(dt, pl.root.position.x, pl.root.position.z);
     if (fp) cam.yaw = pl.root.rotation.y - Math.PI + this._fp.off;
     this.world.update(dt, t, this.player.root, this.player.items.hand_lantern);
 

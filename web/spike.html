@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover" />
+  <meta name="robots" content="noindex" />
+  <title>청연산사 에셋 스파이크</title>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+      }
+    }
+  </script>
+  <style>
+    html, body { margin: 0; height: 100%; background: #0d0c0b; overflow: hidden; font-family: 'Noto Sans KR', system-ui, sans-serif; }
+    canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+    #ui { position: fixed; left: 12px; right: 12px; bottom: max(12px, env(safe-area-inset-bottom)); display: flex; flex-wrap: wrap; gap: 8px; align-items: center; pointer-events: none; }
+    #ui button { pointer-events: auto; min-width: 48px; min-height: 44px; padding: 0 14px; border-radius: 22px; border: 1px solid rgba(255,255,255,.25);
+      background: rgba(20,17,14,.62); color: #f3ebdd; font-size: 15px; -webkit-tap-highlight-color: transparent; user-select: none; touch-action: manipulation; }
+    #ui button[aria-pressed='true'] { background: rgba(232,168,68,.85); color: #14110e; border-color: transparent; }
+    #credit { flex-basis: 100%; color: rgba(243,235,221,.7); font-size: 11px; text-shadow: 0 1px 2px #000; pointer-events: auto; }
+    #credit a { color: inherit; }
+    #info { flex-basis: 100%; color: rgba(243,235,221,.85); font-size: 12px; text-shadow: 0 1px 2px #000; }
+    #load { position: fixed; inset: 0; display: grid; place-items: center; color: #f3ebdd; font-size: 15px; }
+    body.hud-off #ui, body.ready #load { display: none; }
+  </style>
+</head>
+<body>
+  <canvas id="c"></canvas>
+  <div id="load">에셋을 받는 중…</div>
+  <div id="ui">
+    <button data-view="hall" aria-pressed="true">법당 안</button>
+    <button data-view="court">마당 석탑</button>
+    <button data-time="day" aria-pressed="true">낮</button>
+    <button data-time="night">밤</button>
+    <div id="info"></div>
+    <div id="credit">석탑 3D: <a href="https://digital.khs.go.kr/record/recordDetail3D.do?ichDataUid=13921661843230600369&amp;bizId=20210000011" target="_blank" rel="noopener">국가유산청 「경주 고선사지 삼층석탑」 3D 데이터</a>(공공누리 제1유형) · 하늘·질감: Poly Haven(CC0) · <a href="./assets/spike/credits.json" target="_blank">자료 출처</a></div>
+  </div>
+  <script type="module" src="./src/spike/spike.js"></script>
+</body>
+</html>

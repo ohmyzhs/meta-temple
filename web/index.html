@@ -58,13 +58,15 @@
   </section>
 
   <!-- HUD -->
+  <!-- 누르는 것은 모두 <button class="ctl"> — 그림 아이콘(data-icon, main.js 가 채움) + 짧은 글자, 48px 이상 -->
   <div id="hud" class="hud hidden">
-    <header class="hud-plaque" id="hud-plaque">
-      <button class="plaque-head" id="plaque-toggle" type="button" aria-expanded="true">
+    <header class="hud-plaque collapsed" id="hud-plaque">
+      <button class="ctl plaque-head" id="plaque-toggle" type="button" aria-expanded="false" aria-controls="plaque-body" aria-label="이곳 안내와 내 기록">
         <span class="plaque-temple">清蓮山寺</span>
-        <span class="plaque-zone"><em id="hud-zone-index">1</em><span id="hud-zone-name">일주문 & 전나무 숲길</span></span>
+        <span class="plaque-count"><span class="dot"></span><span id="hud-presence-count"></span></span>
       </button>
-      <div class="plaque-body">
+      <div class="plaque-body" id="plaque-body">
+        <p class="plaque-zone" id="hud-zone-name"></p>
         <p id="hud-zone-subtitle" class="plaque-sub"></p>
         <p class="plaque-me"><span id="hud-dharma-name"></span></p>
         <p id="hud-merit-summary" class="plaque-merit"></p>
@@ -72,77 +74,99 @@
       </div>
     </header>
 
-    <nav class="hud-tools" aria-label="설정">
-      <button class="tool-btn" data-pop="pop-env" title="시간·날씨" type="button">☾</button>
-      <button class="tool-btn" data-pop="pop-sound" id="sound-tool" title="소리" type="button">♫</button>
-      <button class="tool-btn" data-pop="pop-self" title="모습·시점" type="button">◎</button>
-      <button class="tool-btn" id="record-btn" title="수행 기록" type="button">卍</button>
-      <button class="tool-btn" id="help-btn" title="도움말" type="button">?</button>
+    <nav class="hud-top" aria-label="장소와 메뉴">
+      <button class="ctl" id="place-btn" type="button" data-sheet="place-sheet" aria-controls="place-sheet" aria-expanded="false" title="장소 옮기기"><span class="lbl" id="place-name"></span></button>
+      <button class="ctl" id="menu-btn" type="button" data-sheet="menu-sheet" aria-controls="menu-sheet" aria-expanded="false" data-icon="menu" aria-label="메뉴"></button>
     </nav>
 
-    <div class="popover hidden" id="pop-env">
-      <h3>시간</h3>
-      <div class="chip-row" data-group="time">
-        <button class="chip" data-time="realtime">실시간</button>
-        <button class="chip" data-time="dawn">새벽 05시</button>
-        <button class="chip" data-time="day">한낮 13시</button>
-        <button class="chip" data-time="sunset">노을 18시</button>
-        <button class="chip" data-time="night">밤 22시</button>
+    <button id="prompt" class="ctl prompt hidden" type="button"><kbd>E</kbd><span id="prompt-text"></span></button>
+
+    <nav class="dock" id="dock" aria-label="몸짓과 신행">
+      <div class="dock-rituals" id="dock-rituals"></div>
+      <button class="ctl dock-btn" type="button" data-gesture="bow_half" data-icon="bow_half" title="합장 반배"><span class="lbl">합장</span><kbd>1</kbd></button>
+      <button class="ctl dock-btn" type="button" data-gesture="prostrate" data-icon="prostrate" title="큰절"><span class="lbl">큰절</span><kbd>2</kbd></button>
+      <button class="ctl dock-btn" type="button" data-gesture="meditate" data-icon="meditate" title="가부좌 · 염주"><span class="lbl">가부좌</span><kbd>3</kbd></button>
+      <button class="ctl dock-btn" type="button" data-gesture="incense" data-icon="incense" title="헌향 · 헌촉"><span class="lbl">헌향</span><kbd>4</kbd></button>
+      <button class="ctl dock-btn" type="button" id="more-btn" data-sheet="more-sheet" aria-controls="more-sheet" aria-expanded="false" data-icon="more"><span class="lbl">더보기</span></button>
+    </nav>
+
+    <div id="joystick" class="joystick" aria-hidden="true"><div class="joy-knob"></div></div>
+
+    <!-- 시트: 한 번에 하나만 보인다 (ui/sheets.js). 하위 시트(data-parent)는 위에 쌓여 뒤로가기로 하나씩 닫힌다 -->
+    <section class="sheet hidden" id="menu-sheet" aria-label="메뉴">
+      <header class="sheet-head"><h2>메뉴</h2><button class="ctl" type="button" data-sheet-close data-icon="close" aria-label="닫기"></button></header>
+      <div class="sheet-grid">
+        <button class="ctl tile" type="button" data-sheet="pop-env" data-icon="time_weather"><span class="lbl">시간·날씨</span></button>
+        <button class="ctl tile" type="button" data-sheet="pop-sound" id="sound-tool" data-icon="sound"><span class="lbl">소리</span></button>
+        <button class="ctl tile" type="button" data-sheet="pop-self" data-icon="self"><span class="lbl">내 모습</span></button>
+        <button class="ctl tile" type="button" id="record-btn" data-icon="record"><span class="lbl">수행 기록</span></button>
+        <button class="ctl tile" type="button" id="help-btn" data-icon="help"><span class="lbl">도움말</span></button>
+        <button class="ctl tile" type="button" id="credits-btn" data-icon="credits"><span class="lbl">자료 출처</span></button>
       </div>
-      <h3>날씨</h3>
+    </section>
+
+    <section class="sheet hidden" id="place-sheet" aria-label="장소 옮기기">
+      <header class="sheet-head"><h2>어디로 걸음을 옮길까요</h2><button class="ctl" type="button" data-sheet-close data-icon="close" aria-label="닫기"></button></header>
+      <ul class="place-list" id="place-list"></ul>
+    </section>
+
+    <section class="sheet hidden" id="more-sheet" data-anchor="bottom" aria-label="더보기">
+      <header class="sheet-head"><h2>더보기</h2><button class="ctl" type="button" data-sheet-close data-icon="close" aria-label="닫기"></button></header>
+      <div id="more-rituals-wrap">
+        <h3 class="sheet-sub">이곳의 신행</h3>
+        <div class="sheet-grid" id="more-rituals"></div>
+      </div>
+      <h3 class="sheet-sub">몸짓</h3>
+      <div class="sheet-grid">
+        <button class="ctl tile" type="button" data-gesture="circumambulate" data-icon="circumambulate" title="탑돌이"><span class="lbl">탑돌이</span><kbd>5</kbd></button>
+        <button class="ctl tile" type="button" data-gesture="tea" data-icon="tea" title="차 마시기"><span class="lbl">다선</span><kbd>6</kbd></button>
+      </div>
+    </section>
+
+    <section class="sheet hidden" id="pop-env" data-parent="menu-sheet" aria-label="시간·날씨">
+      <header class="sheet-head"><button class="ctl" type="button" data-sheet-back data-icon="back" aria-label="메뉴로"></button><h2>시간·날씨</h2><button class="ctl" type="button" data-sheet-close data-icon="close" aria-label="닫기"></button></header>
+      <h3 class="sheet-sub">시간</h3>
+      <div class="chip-row" data-group="time">
+        <button class="ctl chip" type="button" data-time="realtime">실시간</button>
+        <button class="ctl chip" type="button" data-time="dawn">새벽 05시</button>
+        <button class="ctl chip" type="button" data-time="day">한낮 13시</button>
+        <button class="ctl chip" type="button" data-time="sunset">노을 18시</button>
+        <button class="ctl chip" type="button" data-time="night">밤 22시</button>
+      </div>
+      <h3 class="sheet-sub">날씨</h3>
       <div class="chip-row" data-group="weather">
-        <button class="chip" data-weather="clear">맑음</button>
-        <button class="chip" data-weather="rain">산사 봄비</button>
-        <button class="chip" data-weather="snow">겨울 설경</button>
+        <button class="ctl chip" type="button" data-weather="clear">맑음</button>
+        <button class="ctl chip" type="button" data-weather="rain">산사 봄비</button>
+        <button class="ctl chip" type="button" data-weather="snow">겨울 설경</button>
       </div>
       <p class="pop-note" id="realtime-note"></p>
-    </div>
+    </section>
 
-    <div class="popover hidden" id="pop-sound">
+    <section class="sheet hidden" id="pop-sound" data-parent="menu-sheet" aria-label="소리">
+      <header class="sheet-head"><button class="ctl" type="button" data-sheet-back data-icon="back" aria-label="메뉴로"></button><h2>소리</h2><button class="ctl" type="button" data-sheet-close data-icon="close" aria-label="닫기"></button></header>
       <div class="pop-row">
-        <h3>입체 ASMR</h3>
-        <button class="chip" id="audio-toggle-btn">켜기</button>
+        <h3 class="sheet-sub">입체 ASMR</h3>
+        <button class="ctl chip" type="button" id="audio-toggle-btn">켜기</button>
       </div>
       <label class="slider"><span>자연 환경음 <small>계곡·솔바람·산새·빗소리</small></span><input id="vol-nature" type="range" min="0" max="1" step="0.05" /></label>
       <label class="slider"><span>사찰 공간음 <small>풍경·독송·범종</small></span><input id="vol-temple" type="range" min="0" max="1" step="0.05" /></label>
       <label class="slider"><span>수행 효과음 <small>목탁·죽비·염주·발걸음</small></span><input id="vol-sfx" type="range" min="0" max="1" step="0.05" /></label>
-    </div>
-
-    <div class="popover hidden" id="pop-self">
-      <h3>모습</h3>
-      <div class="chip-row" data-group="avatar">
-        <button class="chip" data-avatar="monk">목각 동자승</button>
-        <button class="chip" data-avatar="ink_wanderer">삿갓 행자</button>
-        <button class="chip" data-avatar="lantern_spirit">등불 정령</button>
-      </div>
-      <h3>시점 <small>V</small></h3>
-      <div class="chip-row" data-group="camera">
-        <button class="chip" data-camera="third">3인칭 동석</button>
-        <button class="chip" data-camera="first">1인칭 몰입</button>
-      </div>
-    </div>
-
-    <nav class="hud-compass" aria-label="가람 이동">
-      <button class="zone-btn" data-goto-zone="FOREST"><em>1</em><span>일주문 숲길</span></button>
-      <button class="zone-btn" data-goto-zone="COURTYARD"><em>2</em><span>앞마당</span></button>
-      <button class="zone-btn" data-goto-zone="DAEUNGJEON"><em>3</em><span>대웅전</span></button>
-      <button class="zone-btn" data-goto-zone="TEAHOUSE"><em>4</em><span>후원 다실</span></button>
-    </nav>
-
-    <section class="hud-actions">
-      <div id="prompt" class="prompt hidden"><kbd>E</kbd><span id="prompt-text"></span></div>
-      <div class="ritual-bar" id="ritual-bar"></div>
-      <div class="gesture-bar">
-        <button class="gesture" data-gesture="bow_half" title="합장 반배"><kbd>1</kbd><span>합장</span></button>
-        <button class="gesture" data-gesture="prostrate" title="큰절"><kbd>2</kbd><span>큰절</span></button>
-        <button class="gesture" data-gesture="meditate" title="가부좌·염주"><kbd>3</kbd><span>가부좌</span></button>
-        <button class="gesture" data-gesture="incense" title="헌향·헌촉"><kbd>4</kbd><span>헌향</span></button>
-        <button class="gesture" data-gesture="circumambulate" title="탑돌이"><kbd>5</kbd><span>탑돌이</span></button>
-        <button class="gesture" data-gesture="tea" title="차 마시기"><kbd>6</kbd><span>다선</span></button>
-      </div>
     </section>
 
-    <div id="joystick" class="joystick" aria-hidden="true"><div class="joy-knob"></div></div>
+    <section class="sheet hidden" id="pop-self" data-parent="menu-sheet" aria-label="내 모습">
+      <header class="sheet-head"><button class="ctl" type="button" data-sheet-back data-icon="back" aria-label="메뉴로"></button><h2>내 모습</h2><button class="ctl" type="button" data-sheet-close data-icon="close" aria-label="닫기"></button></header>
+      <h3 class="sheet-sub">모습</h3>
+      <div class="chip-row" data-group="avatar">
+        <button class="ctl chip" type="button" data-avatar="monk">목각 동자승</button>
+        <button class="ctl chip" type="button" data-avatar="ink_wanderer">삿갓 행자</button>
+        <button class="ctl chip" type="button" data-avatar="lantern_spirit">등불 정령</button>
+      </div>
+      <h3 class="sheet-sub">시점 <kbd>V</kbd></h3>
+      <div class="chip-row" data-group="camera">
+        <button class="ctl chip" type="button" data-camera="third">3인칭 동석</button>
+        <button class="ctl chip" type="button" data-camera="first">1인칭 몰입</button>
+      </div>
+    </section>
   </div>
 
   <div id="toast-stack" class="toast-stack" aria-live="polite"></div>
@@ -159,6 +183,7 @@
         <div class="l-row"><span class="l-name" id="listen-name"></span><span class="l-time" id="listen-time">0:00 / 0:00</span></div>
         <input type="range" class="l-seek" id="listen-seek" min="0" max="1000" value="0" step="1" aria-label="재생 위치" />
       </div>
+      <button type="button" class="l-btn l-loop" data-l="loop" aria-pressed="false" aria-label="연속 듣기"><svg viewBox="0 0 24 24"><path d="M7 7h10v3l4-4-4-4v3H5v6h2zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2z"/></svg><span>연속</span></button>
       <button type="button" class="l-btn l-exit" data-l="exit" aria-label="일어나기"><svg viewBox="0 0 24 24"><path d="M6.4 5 5 6.4 10.6 12 5 17.6 6.4 19l5.6-5.6 5.6 5.6 1.4-1.4-5.6-5.6L19 6.4 17.6 5 12 10.6z"/></svg><span>일어나기</span></button>
     </div>
     <div class="listen-line" aria-hidden="true"><span id="listen-line"></span></div>
@@ -172,7 +197,7 @@
           <h2 id="modal-title"></h2>
           <p id="modal-subtitle" class="modal-subtitle"></p>
         </div>
-        <button id="modal-close-btn" class="modal-close" type="button" aria-label="닫기">&times;</button>
+        <button id="modal-close-btn" class="modal-close" type="button" aria-label="닫기" data-icon="close"></button>
       </div>
       <div id="modal-body" class="modal-body"></div>
     </div>

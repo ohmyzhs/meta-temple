@@ -22,6 +22,10 @@ import { Temple } from './temple.js';
 import { Weather, Ripples } from './effects.js';
 import { kstHour } from '../core/state.js';
 
+// 실사 세계 기능 플래그 — 롤백은 맨 끝 기본값 하나(false = 절차적 세계). 방문별로 ?world=real | ?world=classic
+// 켜지면 build() 가 ./real/realWorld.js 를 동적으로 받는다 (계획: docs/superpowers/plans/2026-11-05-launch-stage3-real.md)
+const REAL_WORLD = ((w) => (w === 'real' ? true : w === 'classic' ? false : false))(new URLSearchParams(location.search).get('world'));
+
 /* ───── 시간대 키프레임 (KST 시각) ───── */
 const KEYS = [
   { h: 0, elev: 38, az: 150, light: '#a9bde6', li: 1.35, top: '#101b2f', hor: '#2a3a5a', fog: '#1f2a42', fd: 0.01, hemiS: '#5d7099', hemiG: '#1c1a18', hi: 1.05, exp: 1.3, night: 1, stars: 1, cloud: '#2a3348' },
@@ -368,6 +372,7 @@ export class TempleScene {
     this.terrain = await step(0.15, '산자락을 다지는 중…', () => buildTerrain(this.scene, this.quality));
     this.veg = await step(0.45, '숲길에 나무를 심는 중…', () => buildVegetation(this.scene, this.quality));
     this.temple = await step(0.7, '전각을 세우는 중…', () => new Temple(this.scene, this.quality));
+    if (REAL_WORLD) this.real = (await import('./real/realWorld.js')).prepareReal(this); // 정적 병합 전에 교체 자리를 빼 둔다
     this._buildCrownGrid(this.veg.crowns);
     this.occluders = this._collectOccluders(); // 정적 병합 전에: 합친 뒤에는 지붕·벽과 나머지가 한 메쉬가 된다
     this.batchStats = batchStatic(this.scene, this.temple.dynamicRoots());
@@ -866,6 +871,7 @@ export class TempleScene {
 
   /* ───── 프레임 ───── */
   update(dt, t, player, nightLanternOn) {
+    this.real?.update(dt, player);
     envUniforms.uTime.value = t;
     this.finalPass.uniforms.uTime.value = t % 10;
     // 시간 보간

@@ -31,7 +31,7 @@
   --safe-t: env(safe-area-inset-top, 0px);
   --safe-l: env(safe-area-inset-left, 0px);  /* 가로 모드 노치 */
   --safe-r: env(safe-area-inset-right, 0px);
-  --tool: 40px;                              /* 도구·가람 버튼 한 변 */
+  --dock-h: 60px;                            /* 하단 독 높이 (단추 + 안쪽 여백) */
   --ease: cubic-bezier(0.22, 0.8, 0.24, 1);
 }
 
@@ -172,8 +172,14 @@ body:has(#intro:not(.leaving):not(.hidden)) .name-label { visibility: hidden; }
 .intro-loading p { font-size: 11px; color: var(--text-dim); margin: 8px 0 0; }
 .intro-loading.done { visibility: hidden; }
 
-/* ───────── HUD ───────── */
-.hud { position: fixed; inset: 0; pointer-events: none; z-index: 10; }
+/* ───────── HUD ─────────
+   위: 왼쪽 현판(접힘) · 오른쪽 장소 단추와 메뉴(≡). 아래: 하단 독(주 신행 1~2 + 몸짓 4 + 더보기), 터치면 조이스틱.
+   메뉴·장소·더보기는 시트로 열고 닫는다 (ui/sheets.js). 기본은 모두 접힘. */
+.hud {
+  position: fixed; inset: 0; pointer-events: none; z-index: 10;
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+  --gap: 10px;
+}
 .hud > * { pointer-events: auto; }
 .glass {
   background: var(--glass);
@@ -183,156 +189,98 @@ body:has(#intro:not(.leaving):not(.hidden)) .name-label { visibility: hidden; }
   box-shadow: var(--shadow);
 }
 
-.hud-plaque {
-  position: absolute;
-  top: calc(14px + var(--safe-t));
-  left: calc(14px + var(--safe-l));
-  width: 290px;
-  border-radius: var(--radius);
-  background: var(--glass);
-  -webkit-backdrop-filter: blur(14px);
-  backdrop-filter: blur(14px);
-  border: 1px solid var(--line);
-  box-shadow: var(--shadow);
-  overflow: hidden;
+/* 누르는 것은 모두 .ctl — 아이콘·글자 위 어디를 눌러도 단추가 받고, 글자 선택·길게 누르기 메뉴·탭 강조·두 번 눌러 확대가 없다. 한 변 48px 이상 */
+.ctl {
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+  min-width: 48px; min-height: 48px; margin: 0; padding: 0; border: 0; background: none;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  color: var(--hanji-100); line-height: 1.15; cursor: pointer;
+  transition: background 0.2s, box-shadow 0.2s, color 0.2s;
 }
-.plaque-head {
-  display: flex; align-items: center; gap: 12px; width: 100%;
-  background: none; border: none; padding: 12px 14px 10px; text-align: left;
+.ctl > * { pointer-events: none; }
+.ctl:focus-visible { outline: 2px solid var(--gold); outline-offset: -3px; }
+.ctl .lbl { white-space: nowrap; }
+.i { width: 24px; height: 24px; flex: none; overflow: visible; }
+.ctl kbd { display: none; }
+@media (hover: hover) and (pointer: fine) { .ctl kbd { display: inline-block; } }
+
+/* 현판: 접힌 머리(산사 이름 · 동석 표시)만, 누르면 이곳 안내·법명·수행·동석이 펼쳐진다 */
+.hud-plaque { position: absolute; top: calc(var(--gap) + var(--safe-t)); left: calc(var(--gap) + var(--safe-l)); z-index: 6; }
+.plaque-head, .plaque-body {
+  background: var(--glass); box-shadow: inset 0 0 0 1px var(--line), var(--shadow);
+  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
 }
+.plaque-head { height: 48px; gap: 10px; padding: 0 16px 0 7px; border-radius: 24px; }
+.plaque-head[aria-expanded='true'] { box-shadow: inset 0 0 0 1px var(--gold), var(--shadow); }
 .plaque-temple {
-  font-family: var(--font-serif); font-weight: 900; font-size: 15px; letter-spacing: 0.16em;
-  color: var(--ink-900); background: var(--gold); padding: 6px 5px 6px 7px; border-radius: 4px;
-  writing-mode: vertical-rl; line-height: 1; flex: none;
+  flex: none; padding: 7px 6px 7px 8px; border-radius: 17px 6px 6px 17px; line-height: 1;
+  font-family: var(--font-serif); font-weight: 900; font-size: 12.5px; letter-spacing: 0.1em;
+  color: var(--ink-900); background: var(--gold);
 }
-.plaque-zone { display: flex; align-items: center; gap: 8px; font-family: var(--font-serif); font-size: 15px; font-weight: 600; }
-.plaque-zone em {
-  font-style: normal; font-size: 11px; width: 20px; height: 20px; border-radius: 50%;
-  display: grid; place-items: center; border: 1px solid var(--gold); color: var(--gold); flex: none;
+.plaque-count { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.dot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: #e9b766; box-shadow: 0 0 8px #e9b766; animation: breathe 3.4s ease-in-out infinite; }
+/* 펼친 내용은 윗줄(현판·장소·메뉴) 아래 카드로 — 장소 단추를 가리지 않게 */
+.plaque-body {
+  position: absolute; top: calc(100% + 8px); left: 0; width: min(300px, calc(100vw - 2 * var(--gap) - var(--safe-l) - var(--safe-r)));
+  padding: 12px 14px; border-radius: var(--radius);
 }
-.plaque-body { padding: 0 14px 12px; }
+.plaque-zone { margin: 2px 0 4px; font-family: var(--font-serif); font-size: 14px; font-weight: 600; color: var(--hanji-50); }
 .plaque-sub { margin: 0 0 10px; font-size: 12px; line-height: 1.55; color: var(--text-dim); }
 .plaque-me { margin: 0 0 3px; font-family: var(--font-serif); font-size: 13px; color: #f6dfa5; }
 .plaque-merit { margin: 0 0 8px; font-size: 11.5px; color: var(--text-dim); }
 .plaque-presence { margin: 0; font-size: 11.5px; color: var(--text-dim); display: flex; align-items: center; gap: 7px; }
-.plaque-presence .dot { width: 6px; height: 6px; border-radius: 50%; background: #e9b766; box-shadow: 0 0 8px #e9b766; animation: breathe 3.4s ease-in-out infinite; }
 .hud-plaque.collapsed .plaque-body { display: none; }
 @keyframes breathe { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
 
-.hud-tools { position: absolute; top: calc(14px + var(--safe-t)); right: calc(14px + var(--safe-r)); display: flex; gap: 8px; }
-.tool-btn {
-  width: var(--tool); height: var(--tool); border-radius: 50%; flex: none;
-  background: var(--glass); border: 1px solid var(--line);
+/* 오른쪽 위: 장소(지금 장소 그림 + 이름) · 메뉴 */
+.hud-top { position: absolute; top: calc(var(--gap) + var(--safe-t)); right: calc(var(--gap) + var(--safe-r)); display: flex; gap: 8px; }
+.hud-top .ctl {
+  height: 48px; border-radius: 24px;
+  background: var(--glass); box-shadow: inset 0 0 0 1px var(--line), var(--shadow);
   -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
-  font-family: var(--font-serif); font-size: 16px; color: var(--hanji-100);
-  transition: border-color 0.2s, background 0.2s;
 }
-.tool-btn:hover, .tool-btn.active { border-color: var(--gold); background: var(--glass-strong); }
-.tool-btn.muted { color: var(--text-dim); text-decoration: line-through; }
+.hud-top .ctl[aria-expanded='true'] { background: var(--glass-strong); box-shadow: inset 0 0 0 1px var(--gold), var(--shadow); }
+#place-btn { padding: 0 17px 0 13px; gap: 8px; font-family: var(--font-serif); font-size: 13.5px; font-weight: 600; color: var(--hanji-50); }
+#place-btn .i { color: var(--gold); }
 
-.popover {
-  position: absolute; z-index: 5; top: calc(62px + var(--safe-t)); right: calc(14px + var(--safe-r)); width: 300px;
-  max-height: calc(100vh - 76px - var(--safe-t)); max-height: calc(100dvh - 76px - var(--safe-t)); overflow-y: auto;
-  padding: 14px 16px 16px; border-radius: var(--radius);
-  background: rgba(20, 17, 14, 0.5); border: 1px solid var(--line);
-  -webkit-backdrop-filter: blur(8px) saturate(1.15); backdrop-filter: blur(8px) saturate(1.15);
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
-  box-shadow: var(--shadow);
-  animation: pop-in 0.22s var(--ease);
-}
-@keyframes pop-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
-.popover h3 { font-family: var(--font-serif); font-weight: 600; font-size: 13px; margin: 4px 0 8px; color: var(--hanji-100); }
-.popover h3 small { color: var(--text-dim); font-weight: 400; margin-left: 4px; }
-.popover h3 + .chip-row { margin-bottom: 12px; }
-.pop-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-.pop-note { font-size: 11px; color: var(--text-dim); margin: 4px 0 0; }
-.chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
-.chip {
-  padding: 7px 11px; border-radius: 999px; font-size: 12px;
-  background: rgba(243, 236, 220, 0.06); border: 1px solid var(--line); color: var(--text);
-  transition: border-color 0.2s, background 0.2s;
-}
-.chip:hover { border-color: var(--gold-soft); }
-.chip.active { border-color: var(--gold); background: rgba(201, 163, 90, 0.18); color: #f6dfa5; }
-.slider { display: flex; flex-direction: column; gap: 6px; margin: 12px 0 0; font-size: 12.5px; }
-.slider small { color: var(--text-dim); font-size: 11px; margin-left: 4px; }
-.slider input { width: 100%; accent-color: var(--gold); }
-
-.hud-compass {
-  position: absolute; left: calc(14px + var(--safe-l)); bottom: calc(14px + var(--safe-b));
-  display: flex; flex-direction: column; gap: 6px;
-}
-.zone-btn {
-  display: flex; align-items: center; gap: 9px; padding: 8px 14px 8px 8px;
-  border-radius: 999px; background: var(--glass); border: 1px solid var(--line);
+/* 하단 독 */
+.dock {
+  position: absolute; left: 50%; translate: -50% 0; bottom: calc(var(--gap) + var(--safe-b));
+  display: flex; padding: 3px; border-radius: 24px;
+  max-width: calc(100vw - 2 * var(--gap) - var(--safe-l) - var(--safe-r));
+  background: var(--glass); box-shadow: inset 0 0 0 1px var(--line), var(--shadow);
   -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
-  font-family: var(--font-serif); font-size: 12.5px; text-align: left;
-  transition: border-color 0.2s, background 0.2s;
 }
-.zone-btn em {
-  font-style: normal; font-size: 11px; width: 22px; height: 22px; border-radius: 50%;
-  display: grid; place-items: center; border: 1px solid var(--line); color: var(--text-dim);
+.dock-rituals { display: contents; }
+.dock-btn {
+  position: relative; flex-direction: column; gap: 3px;
+  min-width: 60px; height: calc(var(--dock-h) - 6px); padding: 0 8px; border-radius: 21px;
+  font-size: 11.5px; letter-spacing: -0.01em;
 }
-.zone-btn:hover { border-color: var(--gold-soft); }
-.zone-btn.active { border-color: var(--gold); }
-.zone-btn.active em { background: var(--gold); color: var(--ink-900); border-color: var(--gold); }
+.dock-btn.ritual { color: #f6dfa5; background: linear-gradient(180deg, rgba(201, 163, 90, 0.26), rgba(201, 163, 90, 0.09)); }
+.dock-rituals:not(:empty) + .dock-btn::before { content: ''; position: absolute; left: 0; top: 13px; bottom: 13px; width: 1px; background: var(--line); pointer-events: none; }
+.dock-btn.active { background: rgba(201, 163, 90, 0.16); box-shadow: inset 0 0 0 1px var(--gold-soft); color: #f6dfa5; }
+.dock-btn kbd, .tile kbd { position: absolute; top: 5px; right: 7px; font-size: 9px; padding: 1px 3px; }
+@media (hover: hover) {
+  .dock-btn:hover, .tile:hover, .chip:hover, .place-item:hover { background-color: rgba(243, 236, 220, 0.08); }
+  .hud-top .ctl:hover { background: var(--glass-strong); }
+}
 
-.hud-actions {
-  position: absolute; left: 50%; bottom: calc(14px + var(--safe-b)); transform: translateX(-50%);
-  display: flex; flex-direction: column; align-items: center; gap: 8px;
-  max-width: calc(100vw - 28px);
-}
+/* 가까이 있는 신행 안내 (E) */
 .prompt {
-  display: flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 999px;
-  background: var(--glass-strong); border: 1px solid var(--gold-soft);
-  font-family: var(--font-serif); font-size: 13px; cursor: pointer;
+  position: absolute; left: 50%; translate: -50% 0; bottom: calc(var(--gap) + var(--safe-b) + var(--dock-h) + 10px);
+  max-width: calc(100vw - 2 * var(--gap)); padding: 0 18px; gap: 8px; border-radius: 24px;
+  background: var(--glass-strong); box-shadow: inset 0 0 0 1px var(--gold-soft), var(--shadow);
+  font-family: var(--font-serif); font-size: 13.5px; color: var(--hanji-50);
   animation: pop-in 0.25s var(--ease);
 }
 .prompt kbd { color: var(--gold); border-color: var(--gold-soft); }
-.ritual-bar { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
-.ritual {
-  display: flex; align-items: center; gap: 7px; padding: 9px 15px; border-radius: 999px;
-  background: linear-gradient(180deg, rgba(201, 163, 90, 0.22), rgba(201, 163, 90, 0.08)), var(--glass);
-  border: 1px solid var(--gold-soft);
-  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
-  font-family: var(--font-serif); font-size: 13px; color: var(--hanji-50);
-  transition: border-color 0.2s, transform 0.2s var(--ease);
-  animation: pop-in 0.3s var(--ease) both;
-}
-.ritual:hover { border-color: var(--gold); transform: translateY(-1px); }
-.gesture-bar {
-  display: flex; gap: 4px; padding: 5px; border-radius: 999px;
-  background: var(--glass); border: 1px solid var(--line);
-  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
-}
-.gesture {
-  display: flex; align-items: center; gap: 6px; padding: 7px 11px; border-radius: 999px;
-  background: none; border: 1px solid transparent; font-size: 12.5px; color: var(--hanji-100);
-  transition: background 0.2s, border-color 0.2s;
-}
-.gesture:hover { background: rgba(243, 236, 220, 0.07); }
-.gesture.active { border-color: var(--gold); background: rgba(201, 163, 90, 0.15); }
-
-.toast-stack {
-  position: fixed; top: calc(16px + var(--safe-t)); left: 50%; transform: translateX(-50%);
-  display: flex; flex-direction: column; align-items: center; gap: 8px;
-  z-index: 60; pointer-events: none; width: min(520px, calc(100vw - 640px)); /* 현판(~300px)과 도구 줄 사이 */
-}
-.toast {
-  padding: 10px 18px; border-radius: 999px; text-align: center;
-  background: var(--glass-strong); border: 1px solid var(--gold-soft);
-  -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
-  font-family: var(--font-serif); font-size: 13.5px; line-height: 1.5; color: var(--hanji-50);
-  box-shadow: var(--shadow);
-  animation: toast-in 0.5s var(--ease) both;
-}
-.toast.out { animation: toast-out 0.6s var(--ease) both; }
-@keyframes toast-in { from { opacity: 0; transform: translateY(-8px) scale(0.98); } to { opacity: 1; transform: none; } }
-@keyframes toast-out { to { opacity: 0; transform: translateY(-6px); } }
+#prompt-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .joystick {
   display: none;
-  position: absolute; left: calc(22px + var(--safe-l)); bottom: calc(110px + var(--safe-b));
+  position: absolute; left: calc(22px + var(--safe-l)); bottom: calc(var(--gap) + var(--safe-b));
   width: 116px; height: 116px; border-radius: 50%;
   background: rgba(20, 17, 14, 0.35); border: 1px solid var(--line);
   touch-action: none;
@@ -342,120 +290,128 @@ body:has(#intro:not(.leaving):not(.hidden)) .name-label { visibility: hidden; }
   border-radius: 50%; background: rgba(243, 236, 220, 0.18); border: 1px solid var(--gold-soft);
 }
 
-/* ───────── 반응형 ─────────
-   세 축을 따로 본다.
-   · 너비  compact < 600px ≤ medium < 1024px ≤ wide(기본 규칙)
-   · 높이  short ≤ 519px (폰 가로)
-   · 입력  pointer: coarse (터치) — 조이스틱·큰 터치 타깃은 너비와 무관하게 터치 기준
-   뒤에 오는 블록이 앞 블록을 덮는다: medium → compact → coarse → short. */
-
-/* medium: 폴드 펼침·태블릿 세로·좁은 창 — 가람 이동은 오른쪽 세로 열(도구 아래)로 */
-@media (max-width: 1023px) {
-  .hud-plaque { width: 260px; }
-  .hud-compass { left: auto; bottom: auto; right: calc(14px + var(--safe-r)); top: calc(66px + var(--safe-t)); }
-  .hud-actions { max-width: calc(100vw - 28px - var(--safe-l) - var(--safe-r)); }
-  /* 위쪽은 현판·도구가 차지하므로 토스트는 하단 버튼 줄 바로 위 (--actions-h: main.js 가 측정) */
-  .toast-stack { top: auto; bottom: calc(var(--actions-h, 160px) + 28px + var(--safe-b)); width: min(440px, calc(100vw - 40px)); }
+/* 시트 — 넓은 화면은 오른쪽 위 단추 아래 패널(더보기는 독 위), 폰 세로는 아래에서 올라오는 시트 */
+.sheet {
+  position: absolute; z-index: 20;
+  top: calc(var(--gap) + var(--safe-t) + 56px); right: calc(var(--gap) + var(--safe-r));
+  width: 340px; max-height: calc(100dvh - 66px - var(--gap) - var(--safe-t) - var(--safe-b));
+  overflow-y: auto; overscroll-behavior: contain;
+  padding: 4px 12px 14px; border-radius: 20px;
+  background: rgba(20, 17, 14, 0.84); box-shadow: inset 0 0 0 1px var(--line), var(--shadow);
+  -webkit-backdrop-filter: blur(16px) saturate(1.15); backdrop-filter: blur(16px) saturate(1.15);
+  animation: pop-in 0.22s var(--ease);
 }
+.sheet[data-anchor='bottom'] {
+  top: auto; right: auto; left: 50%; translate: -50% 0;
+  bottom: calc(var(--gap) + var(--safe-b) + var(--dock-h) + 10px);
+  max-height: calc(100dvh - var(--dock-h) - 76px - 2 * var(--gap) - var(--safe-t) - var(--safe-b));
+}
+@keyframes pop-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+.sheet input { -webkit-user-select: none; user-select: none; }
+.sheet-head { display: flex; align-items: center; margin: 0 -8px 2px; }
+.sheet-head h2 { flex: 1; min-width: 0; margin: 0 8px; font-family: var(--font-serif); font-size: 15px; font-weight: 600; color: var(--hanji-50); }
+.sheet-head .ctl { border-radius: 50%; color: var(--text-dim); }
+.sheet-sub { margin: 12px 2px 8px; font-family: var(--font-serif); font-weight: 600; font-size: 13px; color: var(--hanji-100); }
+@media (pointer: coarse) { .sheet-sub kbd { display: none; } }
+.sheet-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.tile {
+  position: relative; flex-direction: column; gap: 7px; min-height: 78px; padding: 8px 4px; border-radius: 16px;
+  background: rgba(243, 236, 220, 0.06); box-shadow: inset 0 0 0 1px var(--line); font-size: 12.5px;
+}
+.tile .i { width: 26px; height: 26px; }
+.tile .lbl { white-space: normal; text-align: center; }
+.tile.active { background: rgba(201, 163, 90, 0.15); box-shadow: inset 0 0 0 1px var(--gold); color: #f6dfa5; }
+.tile.muted .i { opacity: 0.4; }
+.place-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.place-item {
+  width: 100%; min-height: 64px; justify-content: flex-start; gap: 12px; padding: 8px 12px 8px 10px; border-radius: 16px; text-align: left;
+  background: rgba(243, 236, 220, 0.05); box-shadow: inset 0 0 0 1px var(--line);
+}
+.place-item .i { width: 32px; height: 32px; color: var(--gold); }
+.place-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.place-txt b { font-family: var(--font-serif); font-size: 14.5px; font-weight: 600; color: var(--hanji-50); }
+.place-txt small { font-size: 11.5px; line-height: 1.45; color: var(--text-dim); }
+.place-item .here { display: none; flex: none; padding: 3px 8px; border-radius: 999px; font-style: normal; font-size: 11px; color: var(--ink-900); background: var(--gold); }
+.place-item.active { background: rgba(201, 163, 90, 0.13); box-shadow: inset 0 0 0 1px var(--gold); }
+.place-item.active .here { display: inline-block; }
+.chip-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 6px; }
+.chip {
+  padding: 0 12px; border-radius: 999px; font-size: 13px; color: var(--text);
+  background: rgba(243, 236, 220, 0.06); box-shadow: inset 0 0 0 1px var(--line);
+}
+.chip.active { background: rgba(201, 163, 90, 0.18); box-shadow: inset 0 0 0 1px var(--gold); color: #f6dfa5; }
+.pop-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 4px; }
+.pop-row .sheet-sub { margin: 0 2px; }
+.pop-row .chip { min-width: 92px; }
+.pop-note { margin: 10px 2px 0; font-size: 11.5px; line-height: 1.6; color: var(--text-dim); }
+.slider { display: flex; flex-direction: column; margin: 8px 2px 0; font-size: 12.5px; }
+.slider small { color: var(--text-dim); font-size: 11px; margin-left: 4px; }
+.slider input { width: 100%; height: 48px; margin: 0; accent-color: var(--gold); }
 
-/* compact: 바형 폰 세로·폴드 커버 */
-@media (max-width: 599px) {
-  .hud-plaque { width: auto; max-width: calc(100vw - 80px - var(--safe-l) - var(--safe-r)); left: calc(10px + var(--safe-l)); top: calc(10px + var(--safe-t)); }
-  .plaque-head { padding: 9px 11px; gap: 9px; }
-  .plaque-temple { font-size: 12px; padding: 4px 6px; writing-mode: horizontal-tb; letter-spacing: 0.08em; }
-  .plaque-zone { font-size: 13px; min-width: 0; }
-  .plaque-zone span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .plaque-body { padding: 0 11px 10px; }
-  .plaque-sub { display: none; }
-  .hud-tools { top: calc(10px + var(--safe-t)); right: calc(10px + var(--safe-r)); flex-direction: column; gap: 6px; }
-  .tool-btn { font-size: 15px; }
-  /* 도구 5개(세로) 바로 아래 */
-  .hud-compass { right: calc(10px + var(--safe-r)); top: calc(10px + var(--safe-t) + 5 * var(--tool) + 4 * 6px + 10px); }
-  .zone-btn { padding: 0; width: var(--tool); height: var(--tool); justify-content: center; }
-  .zone-btn span { display: none; }
-  .zone-btn em { width: 26px; height: 26px; font-size: 12px; }
-  .popover {
-    top: auto; right: 0; left: 0; bottom: 0; width: auto;
-    max-height: 70vh; max-height: 70dvh;
-    border-radius: 18px 18px 0 0; padding: 18px 18px calc(22px + var(--safe-b));
+.toast-stack {
+  position: fixed; top: calc(68px + var(--safe-t)); left: 50%; transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  z-index: 60; pointer-events: none; width: min(520px, calc(100vw - 20px));
+}
+.toast {
+  padding: 10px 18px; border-radius: 999px; text-align: center;
+  background: var(--glass-strong); border: 1px solid var(--gold-soft);
+  -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
+  font-family: var(--font-serif); font-size: 13.5px; line-height: 1.5; color: var(--hanji-50);
+  box-shadow: var(--shadow);
+  animation: toast-in 0.5s var(--ease) both;
+  -webkit-user-select: none; user-select: none;
+}
+.toast.out { animation: toast-out 0.6s var(--ease) both; }
+@keyframes toast-in { from { opacity: 0; transform: translateY(-8px) scale(0.98); } to { opacity: 1; transform: none; } }
+@keyframes toast-out { to { opacity: 0; transform: translateY(-6px); } }
+
+/* ───────── 반응형 ─────────
+   · 폰 세로(너비 < 600, 높이 ≥ 520): 독은 화면 폭을 나눠 쓰고, 시트는 아래에서 올라온다
+   · 폰 가로(높이 ≤ 519): 낮은 독, 시트는 오른쪽에 위아래로
+   · 터치(pointer: coarse): 조이스틱 — 폰 세로는 독 위 왼쪽, 그 밖에는 왼쪽 아래 */
+@media (max-width: 599px) and (min-height: 520px) {
+  .hud { --gap: 8px; }
+  .dock { left: calc(var(--gap) + var(--safe-l)); right: calc(var(--gap) + var(--safe-r)); translate: none; max-width: none; padding: 2px; }
+  .dock-btn { flex: 1 1 0; min-width: 48px; height: calc(var(--dock-h) - 4px); padding: 0; }
+  .sheet, .sheet[data-anchor='bottom'] {
+    top: auto; left: 0; right: 0; bottom: 0; translate: none; width: auto; max-height: 76dvh;
+    border-radius: 22px 22px 0 0; padding: 4px 14px calc(16px + var(--safe-b));
     animation: sheet-in 0.3s var(--ease);
   }
-  .toast-stack { top: calc(64px + var(--safe-t)); bottom: auto; width: calc(100vw - 112px); }
+  .toast-stack { top: calc(64px + var(--safe-t)); width: calc(100vw - 16px); }
   .toast { font-size: 12.5px; padding: 8px 14px; border-radius: 14px; }
-  .hud-actions { bottom: calc(10px + var(--safe-b)); width: calc(100vw - 20px); max-width: none; }
-  .ritual-bar {
-    flex-wrap: nowrap; justify-content: flex-start; overflow-x: auto; scrollbar-width: none;
-    width: 100%; padding-right: 4px;
-  }
-  .ritual-bar::-webkit-scrollbar { display: none; }
-  .ritual { flex: none; padding: 8px 12px; font-size: 12.5px; }
-  /* 동작 6개는 화면 폭을 나눠 쓴다 (344px 폴드 커버에서도 가로 스크롤 없음) */
-  .gesture-bar { width: 100%; gap: 2px; }
-  .gesture { flex: 1 1 0; min-width: 0; justify-content: center; padding: 8px 2px; white-space: nowrap; font-size: 12px; }
+}
+
+@media (max-width: 599px) {
   .intro-avatars { gap: 6px; }
   .avatar-card { padding: 12px 4px 10px; }
 }
 @keyframes sheet-in { from { transform: translateY(30px); opacity: 0; } to { transform: none; opacity: 1; } }
 
-/* 터치: 폰·폴드·태블릿 모두 — 조이스틱, 단축키 숨김, 44px 터치 타깃 */
 @media (pointer: coarse) {
-  :root { --tool: 44px; }
-  .joystick { display: block; bottom: calc(28px + var(--safe-b)); }
-  .gesture kbd, .prompt kbd { display: none; }
-  .gesture { min-height: 40px; }
-  .ritual { min-height: 40px; }
-  /* 넓은 터치 화면(태블릿 가로)도 가람 이동을 조이스틱 자리에서 비켜 오른쪽으로 */
-  .hud-compass { left: auto; bottom: auto; right: calc(14px + var(--safe-r)); top: calc(14px + var(--safe-t) + var(--tool) + 12px); }
+  .joystick { display: block; }
 }
-@media (pointer: coarse) and (max-width: 599px) {
-  /* 폰 세로: 조이스틱은 의식 버튼 줄 위, 의식 버튼은 조이스틱 오른쪽에서 시작 */
-  .joystick { bottom: calc(110px + var(--safe-b)); }
-  .ritual-bar { padding-left: 132px; }
-  .prompt { margin-left: 120px; }
-  .hud-compass { right: calc(10px + var(--safe-r)); top: calc(10px + var(--safe-t) + 5 * var(--tool) + 4 * 6px + 10px); }
+@media (pointer: coarse) and (max-width: 599px) and (min-height: 520px) {
+  /* 폰 세로: 조이스틱은 독 위 왼쪽, 신행 안내는 그 오른쪽 */
+  .joystick { bottom: calc(var(--gap) + var(--safe-b) + var(--dock-h) + 12px); }
+  .prompt { left: auto; right: calc(var(--gap) + var(--safe-r)); translate: none; bottom: calc(var(--gap) + var(--safe-b) + var(--dock-h) + 12px); max-width: calc(100vw - 166px - var(--safe-l)); }
 }
 
-/* short: 폰 가로 — 위는 현판 · 가람 이동 · 도구 한 줄, 아래는 조이스틱 오른쪽에 버튼 줄 */
+/* short: 폰 가로 — 위는 현판 · 장소 · 메뉴, 아래는 낮은 독 */
 @media (max-height: 519px) {
-  :root { --tool: 38px; }
-  .hud-plaque {
-    width: auto; left: calc(10px + var(--safe-l)); top: calc(8px + var(--safe-t));
-    max-width: calc(50vw - 2 * var(--tool) - 34px - var(--safe-l));
-  }
-  .plaque-head { padding: 7px 10px; gap: 8px; }
-  .plaque-temple { font-size: 11px; padding: 3px 5px; writing-mode: horizontal-tb; letter-spacing: 0.06em; }
-  .plaque-zone { font-size: 12.5px; min-width: 0; }
-  .plaque-zone span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .plaque-sub { display: none; }
-  .plaque-body { padding: 0 10px 8px; max-height: calc(100dvh - 120px); overflow-y: auto; }
-  .hud-tools { flex-direction: row; gap: 6px; top: calc(8px + var(--safe-t)); right: calc(10px + var(--safe-r)); }
-  .tool-btn { font-size: 14px; }
-  .hud-compass {
-    flex-direction: row; gap: 6px;
-    left: 50%; right: auto; bottom: auto; top: calc(8px + var(--safe-t)); transform: translateX(-50%);
-  }
-  .zone-btn { padding: 0; width: var(--tool); height: var(--tool); min-height: 0; justify-content: center; }
-  .zone-btn span { display: none; }
-  .zone-btn em { width: 24px; height: 24px; font-size: 11.5px; }
-  .popover {
-    top: calc(8px + var(--safe-t) + var(--tool) + 8px); bottom: calc(8px + var(--safe-b)); left: auto; right: calc(10px + var(--safe-r));
-    width: min(320px, 60vw); max-height: none; border-radius: var(--radius); padding: 12px 14px 14px;
-    animation: pop-in 0.22s var(--ease);
-  }
-  .toast-stack { top: calc(8px + var(--safe-t) + var(--tool) + 10px); bottom: auto; width: min(440px, 60vw); }
+  :root { --dock-h: 56px; }
+  .hud { --gap: 8px; }
+  .dock-btn { min-width: 54px; }
+  .sheet { width: min(380px, 56vw); max-height: calc(100dvh - 64px - var(--gap) - var(--safe-t) - var(--safe-b)); }
+  .sheet[data-anchor='bottom'] { max-height: calc(100dvh - var(--dock-h) - 72px - 2 * var(--gap) - var(--safe-t) - var(--safe-b)); }
+  .sheet-grid { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); }
+  .tile { min-height: 60px; gap: 4px; padding: 6px 4px; }
+  .sheet-sub { margin: 6px 2px 6px; }
+  .toast-stack { top: calc(64px + var(--safe-t)); width: min(440px, 60vw); }
   .toast { font-size: 12px; padding: 7px 14px; border-radius: 14px; }
-  .joystick { width: 96px; height: 96px; left: calc(16px + var(--safe-l)); bottom: calc(10px + var(--safe-b)); }
+  .joystick { width: 96px; height: 96px; left: calc(16px + var(--safe-l)); }
   .joy-knob { width: 40px; height: 40px; margin: -20px 0 0 -20px; }
-  .hud-actions {
-    left: calc(10px + var(--safe-l)); right: calc(10px + var(--safe-r)); width: auto; max-width: none; transform: none;
-    bottom: calc(8px + var(--safe-b)); gap: 6px;
-  }
-  .ritual-bar { flex-wrap: nowrap; justify-content: center; overflow-x: auto; scrollbar-width: none; max-width: 100%; padding: 0; }
-  .ritual-bar::-webkit-scrollbar { display: none; }
-  .ritual { flex: none; padding: 6px 12px; font-size: 12px; min-height: 0; }
-  .gesture-bar { width: auto; max-width: 100%; }
-  .gesture { flex: none; padding: 6px 10px; font-size: 12px; min-height: 0; }
-  .prompt { margin-left: 0; padding: 6px 12px; font-size: 12.5px; }
   /* 기본: 마우스 가로 창 — 중앙 정렬. 터치면 조이스틱 오른쪽으로 비킨다 */
   .intro { place-items: start center; padding-top: 12px; }
   .intro-loading { margin-bottom: 10px; }
@@ -470,7 +426,7 @@ body:has(#intro:not(.leaving):not(.hidden)) .name-label { visibility: hidden; }
   .enter-btn { padding: 11px; }
 }
 @media (max-height: 519px) and (pointer: coarse) {
-  .hud-actions { left: calc(120px + var(--safe-l)); }
+  .dock, .prompt, .sheet[data-anchor='bottom'] { left: calc(50% + 58px + var(--safe-l) / 2); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -519,10 +475,12 @@ body.listening.l-idle, body.listening.l-idle canvas { cursor: none; }
 .listen.l-idle .listen-ctl { opacity: 0; transform: translate(-50%, 10px); }
 
 .l-btn {
-  flex: none; width: 44px; height: 44px; border-radius: 50%; border: 0; padding: 0;
+  flex: none; width: 48px; height: 48px; border-radius: 50%; border: 0; padding: 0;
   display: grid; place-items: center; background: transparent; color: inherit; cursor: pointer;
   transition: background 0.2s;
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; touch-action: manipulation;
 }
+.l-btn > * { pointer-events: none; }
 .l-btn:hover, .l-btn:focus-visible { background: rgba(243, 236, 220, 0.1); outline: none; }
 .l-btn svg { width: 20px; height: 20px; fill: currentColor; }
 .l-main { background: rgba(201, 163, 90, 0.9); color: var(--ink-900); }
@@ -545,6 +503,23 @@ body.listening.l-idle, body.listening.l-idle canvas { cursor: none; }
 
 .l-exit { width: auto; padding: 0 14px 0 10px; border-radius: 999px; gap: 6px; display: flex; align-items: center; font-size: 13px; font-family: var(--font-sans); }
 .l-exit svg { width: 16px; height: 16px; }
+/* 연속 듣기: 켜지면 금빛 */
+.l-loop { width: auto; padding: 0 10px 0 8px; border-radius: 999px; gap: 4px; display: flex; align-items: center; font-size: 12px; font-family: var(--font-sans); color: rgba(243, 236, 220, 0.55); }
+.l-loop svg { width: 17px; height: 17px; }
+.l-loop[aria-pressed='true'] { color: var(--gold); }
+@media (max-width: 520px) {
+  .l-loop span { display: none; }
+  .l-loop { width: auto; aspect-ratio: 1; padding: 0; justify-content: center; } /* 다른 재생 단추와 같은 정사각 */
+}
+/* 폰 세로: 단추 다섯 개(48px) 사이에는 곡 이름이 두세 글자만 남으니, 이름은 재생기 바로 위 한 줄로 올린다 */
+@media (max-width: 430px) {
+  .l-name {
+    position: absolute; left: 12px; right: 12px; bottom: calc(100% + 7px);
+    text-align: center; font-size: 13px; color: var(--hanji-50);
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75), 0 0 10px rgba(0, 0, 0, 0.45);
+    pointer-events: none;
+  }
+}
 
 /* 재생기가 숨어도 남는 머리카락 굵기의 진행선 */
 .listen-line { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: rgba(243, 236, 220, 0.08); }
@@ -552,9 +527,8 @@ body.listening.l-idle, body.listening.l-idle canvas { cursor: none; }
 
 @media (max-width: 520px) {
   .listen-ctl { gap: 0; padding: 5px 6px; }
-  .l-btn[data-l='prev'], .l-btn[data-l='next'] { width: 36px; }
   .l-exit span { display: none; }
-  .l-exit { width: 44px; padding: 0; justify-content: center; }
+  .l-exit { width: 48px; padding: 0; justify-content: center; }
   .listen-title b { font-size: 19px; }
 }
 @media (prefers-reduced-motion: reduce) {

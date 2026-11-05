@@ -385,19 +385,29 @@ export class TempleSoundEngine {
    * 법당 예불 듣기: 긴 녹음을 <audio> 로 스트리밍해 처음부터 끝까지 (사찰음 버스·볼륨을 따른다).
    * 재생 중에는 배경 독송을 내린다. 반환: 재생 중인 <audio> 요소
    */
+  /**
+   * 예불은 소리 요소 하나를 계속 다시 쓴다 — iOS 는 사용자가 한 번 누른 요소만 소리를 내게 하므로,
+   * 연속 듣기에서 저절로 넘어가는 다음 예불도 같은 요소여야 재생된다. 곡을 바꿀 때는 앞 곡을 바로 끊는다.
+   */
   playTrack(url) {
     this.init();
     if (!this.ctx) return null;
-    this.stopTrack(0.4);
-    const el = new Audio(url);
+    const prev = this._track;
+    if (prev) {
+      this._track = null;
+      [prev.g, prev.wet].forEach((n) => n.disconnect());
+    }
+    const el = (this._trackEl ||= new Audio());
+    const src = (this._trackSrc ||= this.ctx.createMediaElementSource(el));
+    src.disconnect();
     el.preload = 'auto';
-    const src = this.ctx.createMediaElementSource(el);
+    el.src = url;
     const g = this._gain(0, this.bus.temple);
     const wet = this._gain(0.15, this.reverb);
     src.connect(g);
     g.connect(wet);
     const tr = (this._track = { url, el, src, g, wet });
-    el.addEventListener('ended', () => this._track === tr && this.stopTrack(0.1));
+    el.onended = () => this._track === tr && this.stopTrack(0.1);
     el.play().catch((err) => console.warn('[soundEngine] 예불 재생 실패', err));
     this._ramp(g.gain, 1, 1.5);
     this._mix(2);
@@ -410,8 +420,8 @@ export class TempleSoundEngine {
     this._track = null;
     this._ramp(tr.g.gain, 0, fade);
     setTimeout(() => {
-      tr.el.pause();
-      [tr.src, tr.g, tr.wet].forEach((n) => n.disconnect());
+      if (!this._track) tr.el.pause(); // 그새 다음 곡이 같은 요소로 시작했으면 두고, 이 곡의 소리 길만 거둔다
+      [tr.g, tr.wet].forEach((n) => n.disconnect());
     }, fade * 1000 + 100);
     this._mix(2);
   }

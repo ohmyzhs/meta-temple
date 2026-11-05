@@ -1,0 +1,29 @@
+{
+  "_note": "에셋 스파이크(2026-11-05) 자료 출처. 출처 모아보기 화면(묶음 B, web/src/data/credits.js)의 분류에 맞춰 옮겨 쓴다.",
+  "scans": [
+    {
+      "title": "경주 고선사지 삼층석탑 3D 데이터 (국보, 2021년 문화유산 원형기록 통합DB 구축)",
+      "file": "국보_제38호_경주_고선사지_삼층석탑_00001_모델링.zip (OBJ, 약 200만 삼각형, 16K 텍스처)",
+      "source": "국가유산청 · 국가유산 디지털서비스",
+      "url": "https://digital.khs.go.kr/record/recordDetail3D.do?ichDataUid=13921661843230600369&bizId=20210000011",
+      "license": "공공누리 제1유형 (출처표시)",
+      "attribution": "본 저작물은 국가유산청에서 개발한 '경주 고선사지 삼층석탑 3D 데이터'를 이용하였으며, 해당 저작물은 국가유산청 국가유산 디지털서비스(digital.khs.go.kr)에서 무료로 내려받을 수 있습니다.",
+      "changes": "지면 조각 제거, 4만 삼각형으로 줄임, 색·노멀·AO 를 다시 구움, 텍스처 1024 KTX2 압축"
+    }
+  ],
+  "hdri": [
+    { "title": "Qwantani Noon (Pure Sky)", "by": "Greg Zaal (촬영), Jarod Guest (처리)", "source": "Poly Haven", "url": "https://polyhaven.com/a/qwantani_noon_puresky", "license": "CC0", "use": "맑은 낮 하늘·주변광" },
+    { "title": "Rogland Clear Night", "by": "Greg Zaal", "source": "Poly Haven", "url": "https://polyhaven.com/a/rogland_clear_night", "license": "CC0", "use": "은하수 밤하늘 (지평선 아래·광해는 남빛으로 덮음)" }
+  ],
+  "textures": [
+    { "title": "Wood Floor Worn", "by": "Dimitrios Savva", "source": "Poly Haven", "url": "https://polyhaven.com/a/wood_floor_worn", "license": "CC0", "use": "마루" },
+    { "title": "Fine Grained Wood", "by": "Rob Tuytel", "source": "Poly Haven", "url": "https://polyhaven.com/a/fine_grained_wood", "license": "CC0", "use": "기둥(석간주 색으로 고침)·창호·귀틀" },
+    { "title": "Rocky Trail 02", "by": "Amal Kumar", "source": "Poly Haven", "url": "https://polyhaven.com/a/rocky_trail_02", "license": "CC0", "use": "마당 흙(마사토 색으로 고침)·기단 돌" }
+  ],
+  "generated": [
+    { "title": "아트 바이블 v1, 흙벽, 단청 띠, 우물반자 연화문", "tool": "gpt-image (OpenAI, Codex CLI 내장 이미지 생성)", "prompts": "docs/art/prompts/", "note": "흙벽·단청 띠는 tools/spike/seamless.py 로 이음새 없이 다듬음" }
+  ],
+  "procedural": [
+    { "title": "한지 결", "tool": "tools/spike/textures.py (절차적 생성)" }
+  ]
+}

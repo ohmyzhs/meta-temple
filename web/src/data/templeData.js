@@ -70,18 +70,26 @@ export const ZONES = {
 };
 
 export const RITUALS = {
-  stone_pagoda: { icon: '⛰️', label: '소원 돌탑' },
-  wish_lantern: { icon: '🏮', label: '소원 연등' },
-  wish_tile: { icon: '🀫', label: '기와 불사' },
-  burn_worry: { icon: '🔥', label: '번뇌 소각' },
-  bell_strike: { icon: '🔔', label: '범종 타종' },
-  circumambulate: { icon: '🔄', label: '탑돌이' },
-  practice_108: { icon: '🙇', label: '108배 · 염주' },
-  incense: { icon: '🕯️', label: '헌향 · 헌촉' },
-  sutra_copy: { icon: '🖌️', label: '사경' },
-  yebul: { icon: '🪷', label: '예불 듣기' },
-  tea_chat: { icon: '🍵', label: '선사 차담' },
-  dharma_card: { icon: '🎋', label: '오늘의 죽비' }
+  stone_pagoda: { short: '돌탑', label: '소원 돌탑' },
+  wish_lantern: { short: '연등', label: '소원 연등' },
+  wish_tile: { short: '기와', label: '기와 불사' },
+  burn_worry: { short: '소각', label: '번뇌 소각' },
+  bell_strike: { short: '범종', label: '범종 타종' },
+  circumambulate: { short: '탑돌이', label: '탑돌이' },
+  practice_108: { short: '108배', label: '108배 · 염주' },
+  incense: { short: '헌향', label: '헌향 · 헌촉' },
+  sutra_copy: { short: '사경', label: '사경' },
+  yebul: { short: '예불', label: '예불 듣기' },
+  tea_chat: { short: '차담', label: '선사 차담' },
+  dharma_card: { short: '죽비', label: '오늘의 죽비' }
+};
+
+/** 하단 독에 바로 꺼내 두는 구역별 주 신행 (나머지는 「더보기」). 그림은 신행 id 와 같은 이름의 아이콘 */
+export const DOCK_RITUALS = {
+  FOREST: ['stone_pagoda'],
+  COURTYARD: ['wish_lantern', 'bell_strike'],
+  DAEUNGJEON: ['practice_108', 'yebul'],
+  TEAHOUSE: ['tea_chat', 'dharma_card']
 };
 
 // 연등 4색 (docs/02 §2 Zone 2)

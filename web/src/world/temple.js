@@ -29,6 +29,8 @@ import {
 } from './architecture.js';
 import { makeEmitter } from './effects.js';
 import { buildBuddhaStatue } from './buddha.js';
+import { buildTrailProps } from './trailProps.js';
+import { CairnField } from './cairnField.js';
 import { taenghwaTexture, ceilingTexture, sumidanTexture, canopyTexture, valanceTexture, tileWishTexture, softDotTexture, latticeTextures, graniteTextures } from './textures.js';
 
 function rand(seed) {
@@ -65,6 +67,10 @@ export class Temple {
     this._teahouse();
     this.lanterns = new LanternSystem(scene);
     this.cairn = new Cairn(scene, this.cairnPos);
+    // 순환 산책로: 쉼터·작은 다리·갈림목 석등, 그리고 길가 돌탑
+    this.trail = buildTrailProps(scene);
+    this.trail.lanterns.forEach(({ x, z, y }) => this.glowDecals.push({ x, z, y, r: 2.4, i: 0.5 }));
+    this.cairns = new CairnField(scene, quality);
     this._glowDecalsMesh();
   }
 
@@ -75,6 +81,7 @@ export class Temple {
       this.bell.userData.ram,
       this.incense.group,
       this.cairn.group,
+      ...this.trail.dynamic,
       ...this.votives
     ]);
   }
@@ -220,6 +227,7 @@ export class Temple {
 
     // 삼층석탑
     const pg = buildPagoda();
+    pg.userData.realSlot = 'pagoda'; // 실사 세계(world/real)가 스캔으로 바꿔 끼우는 자리
     pg.position.set(L.pagoda.x, c.y, L.pagoda.z);
     this.scene.add(pg);
     addBoxCollider(L.pagoda.x - 1.75, L.pagoda.z - 1.75, L.pagoda.x + 1.75, L.pagoda.z + 1.75);
@@ -443,11 +451,13 @@ export class Temple {
     // 삼존: 본존 석가모니불(항마촉지인)과 합장한 협시보살 (world/buddha.js 에서 조각)
     const buddha = buildBuddhaStatue('buddha', { quality: this.quality });
     buddha.scale.setScalar(0.95);
+    buddha.userData.realSlot = 'buddha'; // 실사 세계(world/real)가 생성형 불상 사진으로 바꿔 끼우는 자리
     buddha.position.set(0, ay, altarZ - 1.0);
     this.scene.add(buddha);
     for (const sx of [-1, 1]) {
       const bod = buildBuddhaStatue('bodhisattva', { quality: this.quality });
       bod.scale.setScalar(0.78);
+      bod.userData.realSlot = sx < 0 ? 'bodhiL' : 'bodhiR';
       bod.position.set(sx * 3.6, ay, altarZ - 0.9);
       this.scene.add(bod);
     }
