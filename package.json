@@ -1,0 +1,12 @@
+{
+  "name": "meta-temple-cheongyeonsansa",
+  "version": "0.1.0",
+  "private": true,
+  "description": "무설치 웹 3D 메타버스 온라인 사찰 (청연산사) 프로토타입",
+  "type": "module",
+  "scripts": {
+    "start": "python3 -m http.server 8080",
+    "dev": "npx vite --port 8080",
+    "serve": "npx serve -l 8080"
+  }
+}
