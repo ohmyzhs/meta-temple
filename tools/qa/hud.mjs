@@ -43,10 +43,12 @@ function controls(scope) {
     });
 }
 
-function coverage() {
+/** skipPrompt: 근처 신행 안내(#prompt)는 빼고 잰다 — 닫힌 상태의 기준용 (산문 밖에서 멈춰 서면 「여기에 돌탑 쌓기」가 뜨기 때문) */
+function coverage(skipPrompt = false) {
   const vw = innerWidth, vh = innerHeight;
   const rects = [];
   for (const el of document.querySelectorAll('#hud, #hud *')) {
+    if (skipPrompt && el.closest('#prompt')) continue;
     const r = el.getBoundingClientRect();
     if (r.width < 1 || r.height < 1) continue;
     const cs = getComputedStyle(el);
@@ -103,7 +105,7 @@ for (const vp of VIEWPORTS) {
 
   // 닫힌 상태
   const list = await page.evaluate(controls, '#hud');
-  const cover = await page.evaluate(coverage);
+  const cover = await page.evaluate(coverage, true);
   const sm = small(list), ov = overlaps(list), off = list.filter((c) => c.off).map((c) => c.name), st = list.filter((c) => c.style.length).map((c) => `${c.name}(${c.style})`);
   console.log(`  닫힘  단추 ${list.length} · 최소 ${minOf(list)} ${fail(sm.length)} 48미만 ${sm.length}${sm.length ? ' [' + sm.join(', ') + ']' : ''}`);
   console.log(`        겹침 ${ov.length} ${fail(ov.length)}${ov.length ? ' [' + ov.join(', ') + ']' : ''} · 화면 밖 ${off.length} ${fail(off.length)}${off.length ? ' [' + off.join(', ') + ']' : ''} · 스타일 누락 ${st.length} ${fail(st.length)}${st.length ? ' [' + st.slice(0, 6).join(', ') + ']' : ''}`);

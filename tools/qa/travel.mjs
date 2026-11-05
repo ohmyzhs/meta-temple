@@ -6,6 +6,7 @@
 //       그 뒤 0.6초 안에 카메라가 도착 구도(방위 = 바라보는 쪽 뒤, 높이각 0.22 — 실내 규칙 뒤 값) ±0.05 rad
 //   (b) 걸어서 법당 문턱·산문(마당 계단)을 넘으면 가림막이 한 번 내려오고, 같은 기준으로 진행 방향 뒤 구도
 //   (b') 키를 누른 채 넘으면 카메라 방위를 그대로 두어, 2초 뒤에도 가던 쪽으로 계속 가 있다
+//        (넘은 자리에서 1.5m 이상 더 — 걷기 1.1m/s × 2초 = 2.2m, 되돌아 걸으면 음수)
 //   (c) 예불 듣기 들어가기·나오기가 그대로 된다 (가림막 뒤에서 좌복에 앉고, 나오면 HUD·카메라가 돌아옴)
 async (page) => {
   await page.setViewportSize({ width: 1280, height: 800 });
@@ -18,7 +19,7 @@ async (page) => {
     const t = window.temple, W = t.world;
     t._loop = () => {};
     const { ZONES } = await import('/src/data/templeData.js');
-    const { YEBUL_TRACKS } = await import('/src/data/soundCredits.js');
+    const { YEBUL_TRACKS } = await import('/src/data/credits.js');
     const veilEl = document.querySelector('#listen-veil');
     let clock = 80;
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -26,7 +27,7 @@ async (page) => {
     // 카메라를 옮기는 순간의 가림막 불투명도를 잡는다
     let atSnap = null;
     const snap = W.snapCameraTo.bind(W);
-    W.snapCameraTo = (...a) => { atSnap = { opacity: +getComputedStyle(veilEl).opacity, target: a }; snap(...a); };
+    W.snapCameraTo = (...a) => { atSnap = { opacity: +getComputedStyle(veilEl).opacity, target: a, pz: t.player.root.position.z }; snap(...a); };
     const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
     const framing = () => {
       const o = W.camera.position.clone().sub(W.cam.focus);
@@ -88,14 +89,14 @@ async (page) => {
       frames(60); // 디졸브 뒤 2초
       const p = t.player.root.position;
       t.keys = {};
-      const pass = !!atSnap && ok(p);
-      lines.push(`${pass ? 'PASS' : 'FAIL'} ${label}: 디졸브 ${atSnap ? 'O' : 'X'} | 2초 뒤 z ${p.z.toFixed(2)} 구역 ${zone(p)}`);
+      const pass = !!atSnap && ok(p, atSnap);
+      lines.push(`${pass ? 'PASS' : 'FAIL'} ${label}: 디졸브 ${atSnap ? 'O' : 'X'} | 넘은 z ${atSnap ? atSnap.pz.toFixed(2) : '-'} → 2초 뒤 z ${p.z.toFixed(2)} 구역 ${zone(p)}`);
       await sleep(1500);
     };
     const { zoneAt } = await import('/src/world/layout.js');
     const zn = (p) => zoneAt(p.x, p.z);
-    await held([0, -24], 'KeyS', 'S 누른 채 법당 → 마당', zn, (p) => p.z > -17 && zn(p) === 'COURTYARD');
-    await held([0, 2], 'KeyS', 'S 누른 채 마당 → 숲길', zn, (p) => p.z > 9 && zn(p) === 'FOREST');
+    await held([0, -24], 'KeyS', 'S 누른 채 법당 → 마당', zn, (p, s) => p.z - s.pz > 1.5 && zn(p) === 'COURTYARD');
+    await held([0, 2], 'KeyS', 'S 누른 채 마당 → 숲길', zn, (p, s) => p.z - s.pz > 1.5 && zn(p) === 'FOREST');
     // (c) 예불 듣기 들어가기·나오기
     W.snapCameraTo = snap;
     t.avatars.teleport(0, 1, Math.PI);
