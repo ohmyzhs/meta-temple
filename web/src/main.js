@@ -11,7 +11,7 @@ import { AvatarManager } from './world/avatarManager.js';
 import { L, isWalkable, zoneAt, streamZ, walkHeight } from './world/layout.js';
 import { ModalManager } from './ui/modalManager.js';
 import { LiveLink, sharedApi } from './core/live.js';
-import { YEBUL_TRACKS } from './data/soundCredits.js';
+import { YEBUL_TRACKS } from './data/credits.js';
 import { DOCK_RITUALS } from './data/templeData.js';
 import { icon, ZONE_ICONS } from './ui/icons.js';
 import { toggleSheet, closeTop, closeAll } from './ui/sheets.js';
