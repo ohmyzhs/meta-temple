@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 출시판 1단계 세 묶음 — A 안전·계정, B 모바일 UI, C 렌더·카메라 — 를 서로 다른 브랜치에서 동시에 만들고 `launch` 통합 브랜치에서 합친다.
+**Goal:** 출시판 1단계 세 묶음 — A 안전·계정, B 모바일 UI, C 렌더·카메라 — 를 서로 다른 브랜치에서 동시에 만들고 `integration/launch` 통합 브랜치에서 합친다.
 
 **Architecture:** 정적 Three.js 사이트(web/, 빌드 없음)와 Node 실시간 서버(server/, ws + pg). 욕설 규칙은 서버와 화면이 한 파일을 공유한다. UI 는 HUD 를 하단 독·메뉴 시트·장소 시트로 다시 짜고, 렌더는 시간대 키와 하늘 셰이더·카메라 규칙을 고친다.
 
@@ -143,7 +143,7 @@
 ### Task A5: 묶음 A 배포 준비
 
 - [ ] 로컬 전체 확인: `node --test server/ web/src/core/` PASS, 헤드리스에서 금지어 돌탑 등록 시 안내, 정상 등록·신고 3회 숨김 동작.
-- [ ] 사용자에게 보고 후 확인받으면: `launch` 에 병합 → `deploy/live.sh`(서버) → main 푸시(화면). 실서버에서 `/api/health`, 금지어 POST 422 확인.
+- [ ] 사용자에게 보고 후 확인받으면: `integration/launch` 에 병합 → `deploy/live.sh`(서버) → main 푸시(화면). 실서버에서 `/api/health`, 금지어 POST 422 확인.
 
 ---
 
