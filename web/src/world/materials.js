@@ -48,8 +48,8 @@ export function weatherable(mat, { snow = 1, wet = 1 } = {}) {
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', '#include <common>\nvarying float vUpY;\nuniform float uSnow;\nuniform float uWet;')
       .replace(
-        '#include <map_fragment>',
-        `#include <map_fragment>
+        '#include <color_fragment>',
+        `#include <color_fragment>
         float snowMask = uSnow * ${snow.toFixed(2)} * smoothstep(0.25, 0.7, vUpY);
         diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.9, 0.92, 0.96), snowMask);
         diffuseColor.rgb *= mix(1.0, 0.62, uWet * ${wet.toFixed(2)} * (1.0 - snowMask));`
