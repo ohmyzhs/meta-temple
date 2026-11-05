@@ -90,7 +90,7 @@ const BUILDERS = {
   /** 전망 바위: 위가 평평한 큰 바위 (앉는 면 seatH) — 비탈 아래쪽으로 몸통이 내려간다 */
   lookout(m, spot, ground) {
     const g = new THREE.Group();
-    const r = mesh(rockGeo(11, 0.62), m.granite, 0, spot.seatH - 0.62 * 1.15, 0.35);
+    const r = mesh(rockGeo(11, 0.62), m.granite, 0, spot.seatH - 0.62 * 1.15, -0.55); // 앉는 자리는 바위 앞머리 (내려다볼 때 바위가 덜 가리게)
     r.scale.set(1.35, 1.15, 1.25);
     g.add(r);
     const r2 = mesh(rockGeo(5, 0.4), m.stoneDark, -1.5, ground(-1.5, 0.9) - 0.1, 0.9);
@@ -145,13 +145,13 @@ const BUILDERS = {
       for (let i = 0; i <= 12; i++) {
         const z = b.z0 + (len * i) / 12, y = smallBridgeY(z);
         beamPts.push(new THREE.Vector3(sx * (b.halfW - 0.05), y - 0.14, z));
-        railPts.push(new THREE.Vector3(sx * (b.halfW + 0.02), y + 0.72, z));
+        railPts.push(new THREE.Vector3(sx * (b.halfW + 0.02), y + 0.5, z)); // 낮은 난간: 앉아서 내다보는 눈높이(0.8m)보다 아래
       }
       g.add(mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(beamPts), 12, 0.09, 5), m.woodDark));
       g.add(mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(railPts), 12, 0.04, 5), m.woodDark));
       for (let i = 0; i <= 4; i++) {
         const z = b.z0 + 0.15 + ((len - 0.3) * i) / 4, y = smallBridgeY(z);
-        g.add(mesh(new THREE.BoxGeometry(0.09, 0.78, 0.09), m.woodDark, sx * (b.halfW + 0.02), y + 0.33, z));
+        g.add(mesh(new THREE.BoxGeometry(0.09, 0.56, 0.09), m.woodDark, sx * (b.halfW + 0.02), y + 0.22, z));
       }
       // 물속 기둥 (가운데 둘)
       for (const z of [b.z0 + len * 0.36, b.z0 + len * 0.64]) g.add(mesh(new THREE.CylinderGeometry(0.08, 0.1, 1.4, 6), m.woodDark, sx * (b.halfW - 0.1), smallBridgeY(z) - 0.82, z));
@@ -191,7 +191,7 @@ export function buildTrailProps(scene) {
     scene.add(g);
     if (s.kind === 'bench') addCircleCollider(s.x + Math.sin(s.ry) * 0.05, s.z + Math.cos(s.ry) * 0.05, 0.5);
     else if (s.kind === 'stump') addCircleCollider(s.x, s.z, 0.38);
-    else if (s.kind === 'lookout') addCircleCollider(s.x + Math.sin(s.ry) * 0.4, s.z + Math.cos(s.ry) * 0.4, 1.1);
+    else if (s.kind === 'lookout') addCircleCollider(s.x - Math.sin(s.ry) * 0.45, s.z - Math.cos(s.ry) * 0.45, 0.95);
     else if (s.kind === 'spring') addCircleCollider(s.x + Math.sin(s.ry) * 1.6, s.z + Math.cos(s.ry) * 1.6, 0.9);
   }
 

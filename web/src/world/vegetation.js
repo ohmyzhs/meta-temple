@@ -6,7 +6,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { L, terrainHeight, isClearForTree, addCircleCollider, pathX, noise2, streamZ } from './layout.js';
 import { windSway, weatherable } from './materials.js';
 import { bambooTexture } from './textures.js';
-import { nearestTrail, trail, REST_SPOTS } from './trail.js';
+import { nearestTrail, trail, REST_SPOTS, inLookoutView } from './trail.js';
 
 const trailDist = (x, z) => nearestTrail(x, z)?.d ?? 99;
 
@@ -156,7 +156,7 @@ export function buildVegetation(scene, quality) {
   // 마당·대웅전 근처 단풍 포인트
   [
     [-24.5, 1], [-25, -10], [-14, -21.5], [14, -22], [16.5, -24], [35, 2], [-27, -18], [7.5, 11.5], [-8, 12.5]
-  ].forEach(([x, z]) => trailDist(x, z) > 3.4 && spots.maple.push([x, z, 1 + r() * 0.3, r() * 6]));
+  ].forEach(([x, z]) => trailDist(x, z) > 3.4 && !inLookoutView(x, z) && spots.maple.push([x, z, 1 + r() * 0.3, r() * 6]));
 
   const o = new THREE.Object3D();
   const place = (inst, list, i, yOff = 0) => {

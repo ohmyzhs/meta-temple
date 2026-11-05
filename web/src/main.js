@@ -374,9 +374,9 @@ class MetaTempleApp {
       onImport: (json) => this.store.importState(json),
       onYebul: (track) => this.listen(track),
       onPracticeEnd: () => {
-        // 좌복에서 하던 수행을 닫으면 그 좌복에 그대로 앉아 있는다 (일어나려면 움직이면 된다)
+        // 좌복·쉼터에서 하던 수행을 닫으면 그 자리에 그대로 앉아 있는다 (일어나려면 움직이면 된다)
         const pl = this.player;
-        if (pl.seat?.kind === 'cushion') {
+        if (pl.seat?.kind === 'cushion' || pl.seat?.kind === 'rest') {
           pl.restState = 'sit';
           if (!pl.busy) pl.setState('sit');
         } else this.avatars.standUp();
@@ -503,14 +503,17 @@ class MetaTempleApp {
       this._listenPlay(track);
       return this._veil(() => this._listening && this._listenScene(), 380);
     }
+    const rest = this.player.seat?.kind === 'rest' ? this.player.seat._ref : null; // 산문 밖 쉼터에 앉아 있으면 그 자리에서 듣는다
     this.modals.close();
     const cam = this.world.cam;
-    const ls = (this._listening = { track, saved: { mode: cam.mode, pitch: cam.pitch, dist: cam.targetDist } });
+    const loop = this.store.state.settings.listenLoop ?? !!rest; // 연속 듣기: 고른 값이 없으면 쉼터에서는 켜고 법당에서는 끈다
+    const ls = (this._listening = { track, rest, loop, saved: { mode: cam.mode, yaw: cam.yaw, pitch: cam.pitch, dist: cam.targetDist } });
     this.joy = { x: 0, z: 0 };
     this.keys = {};
     this._listenPlay(track);
     this._veil(() => {
       if (this._listening !== ls) return;
+      if (rest) return this._listenOutdoor(ls);
       const c = this.avatars.freeCushionNear(0.75, -24.7); // 둘째 줄 가운데: 불단과 삼존불이 한눈에 들어오는 자리
       const seat = this.avatars.cushionSeat(c);
       seat.kind = 'cushion';
@@ -559,8 +562,8 @@ class MetaTempleApp {
       this.avatars.solo = false;
       this.avatars.standUp();
       this.world.setShot(null);
-      // 일어서면 불단을 바라보는 뒷모습에서 다시 시작
-      Object.assign(this.world.cam, { mode: ls.saved.mode, yaw: 0, pitch: ls.saved.pitch, targetDist: ls.saved.dist });
+      // 일어서면 불단을 바라보는 뒷모습에서 다시 시작 (쉼터면 듣기 전에 보던 구도로)
+      Object.assign(this.world.cam, { mode: ls.saved.mode, yaw: ls.rest ? ls.saved.yaw : 0, pitch: ls.saved.pitch, targetDist: ls.saved.dist });
       document.body.classList.remove('listening', 'l-idle');
       $('#listen').classList.add('hidden');
       $('#listen-title').classList.remove('show');
@@ -582,6 +585,7 @@ class MetaTempleApp {
 
   /** 장면들: 좌복(c) 기준. 세로 화면은 삼존불이 다 들어오지 않으니 더 가깝고 높게 잡는다 */
   _listenShot(i) {
+    if (this._listening.rest) return null; // 산문 밖은 장면을 끊지 않고 1인칭으로 그 자리 경치를
     const c = this._listening.cushion, fy = L.hall.floorY;
     const V = (x, y, z) => new THREE.Vector3(x, y, z);
     const tall = innerWidth / innerHeight < 0.85;
@@ -614,14 +618,15 @@ class MetaTempleApp {
 
   _listenTick(dt) {
     const ls = this._listening;
-    if (!ls.ready || ls.leaving || !ls.cushion) return;
+    if (!ls.ready || ls.leaving || !(ls.cushion || ls.rest)) return;
     if (!this.sound.currentTrack) {
-      // 끝까지 들었다: 잠깐 고요히 머문 뒤 일어난다
-      if ((ls.gone += dt) > 2.5) this.exitListening();
+      // 끝까지 들었다: 잠깐 고요히 머문 뒤 일어난다 (연속 듣기면 다음 예불로)
+      if ((ls.gone += dt) > 2.5) ls.loop ? this._listenStep(1) : this.exitListening();
       return;
     }
+    if (ls.rest) this._listenDrift(dt);
     ls.shotT += dt;
-    if (ls.shotT > LISTEN_SHOT_SEC && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    if (ls.shotT > LISTEN_SHOT_SEC && !ls.rest && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
       ls.shotT = 0;
       const n = ++ls.shot;
       this._veil(() => this._listening === ls && this.world.setShot(this._listenShot(n), true), 450);
@@ -640,12 +645,55 @@ class MetaTempleApp {
     const t = el ? el.currentTime : 0;
     const paused = !!el && el.paused;
     $('#listen').classList.toggle('paused', paused);
+    $('#listen [data-l="loop"]')?.setAttribute('aria-pressed', String(!!ls.loop));
     $('#listen .l-main').setAttribute('aria-label', paused ? '이어 듣기' : '일시정지');
     $('#listen-time').textContent = `${fmtTime(t)} / ${fmtTime(d)}`;
     const seek = $('#listen-seek');
     if (!ls.seeking) seek.value = Math.round((t / d) * 1000);
     seek.style.setProperty('--p', `${seek.value / 10}%`);
     $('#listen-line').style.width = `${(t / d) * 100}%`;
+  }
+
+  /** 쉼터에서 듣기: 그 자리에 앉은 채 1인칭으로 경치를 본다 (다른 도반은 잠시 보이지 않는다) */
+  _listenOutdoor(ls) {
+    const cam = this.world.cam, pl = this.player, s = ls.rest;
+    this.avatars.solo = true;
+    pl.restState = 'meditate';
+    pl.setState('meditate');
+    document.body.classList.add('listening');
+    $('#listen').classList.remove('hidden');
+    cam.mode = 'first';
+    this._fp = null; // 다음 프레임에 지금 yaw 로 1인칭 시선을 다시 잡는다
+    const v = s.vista || null;
+    cam.yaw = (v ? Math.atan2(v[0] - s.x, v[1] - s.z) : pl.heading) - Math.PI;
+    cam.pitch = s.listenPitch ?? 0.05;
+    ls.drift = 0;
+    ls.t = 0;
+    this._listenScene();
+  }
+
+  /** 쉼터 1인칭: 아주 천천히 좌우로 둘러본다 (70초에 한 번, ±10°). 끌어서 돌아본 만큼은 그대로 더해진다 */
+  _listenDrift(dt) {
+    const ls = this._listening;
+    if (!this._fp || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    ls.t += dt;
+    const k = 0.18 * Math.sin((ls.t * Math.PI * 2) / 70);
+    this._fp.off += k - ls.drift;
+    ls.drift = k;
+  }
+
+  /** 연속 듣기 켜고 끄기 (고른 값은 저장해 다음에도 그대로) */
+  _listenLoop() {
+    const ls = this._listening;
+    ls.loop = !ls.loop;
+    this.store.setSetting('listenLoop', ls.loop);
+    // 듣는 동안은 알림이 숨으므로 제목 자리에 잠깐 띄운다
+    const tt = $('#listen-title');
+    tt.querySelector('b').textContent = ls.loop ? '연속 듣기' : '한 곡만 듣기';
+    tt.querySelector('small').textContent = ls.loop ? '이 예불이 끝나면 다음 예불이 이어집니다' : '이 예불이 끝나면 일어납니다';
+    tt.classList.add('show');
+    clearTimeout(this._titleT);
+    this._titleT = setTimeout(() => tt.classList.remove('show'), 3000);
   }
 
   _listenToggle() {
@@ -699,6 +747,7 @@ class MetaTempleApp {
       if (act === 'play') this._listenToggle();
       else if (act === 'prev') this._listenStep(-1);
       else if (act === 'next') this._listenStep(1);
+      else if (act === 'loop') this._listenLoop();
       else if (act === 'exit') this.exitListening();
       this._listenSync();
       this._listenWake();
@@ -789,6 +838,10 @@ class MetaTempleApp {
       pl.restState = 'sit';
       if (s.kind === 'mat') tr.showMat(s);
       this.toast(REST_SIT_MSG[s.kind]);
+      if (!this._restHinted) {
+        this._restHinted = true; // 처음 앉았을 때 한 번만
+        setTimeout(() => pl.seat?.kind === 'rest' && this.toast('🎧 아래 「예불 들으며 쉬기」를 누르면 이 자리에서 경치를 보며 예불을 듣습니다'), 2600);
+      }
     };
     const st = s.stand;
     const d = Math.hypot(p.x - st.x, p.z - st.z);
@@ -1270,6 +1323,8 @@ class MetaTempleApp {
         bd = d;
       }
     }
+    // 쉼터에 앉아 있으면 그 자리에서 예불 듣기 (알약 → 예불 목록)
+    if (!best && this.player.seat?.kind === 'rest') best = { id: 'yebul', label: '예불 들으며 쉬기' };
     // 순환 산책로: 쉼터(1.4m 안), 없으면 멈춰 선 자리의 돌탑
     if (!best && zone === 'FOREST' && !this.player.sitting) {
       for (const s of this.temple.trail.spots) {
@@ -1323,7 +1378,7 @@ class MetaTempleApp {
     // 1인칭: 시선과 몸이 함께 돈다. 좌우 키·조이스틱·끌기는 돌아보기(게걸음 없음),
     // 걷기·탑돌이·좌복에 앉기처럼 몸이 스스로 돌면 시선도 따라 돈다. 앉아 있거나 걸어가는 중에 끌면 고개만 돌린다.
     const cam = this.world.cam, pl = this.player, A = this.avatars;
-    const fp = this.entered && cam.mode === 'first' && !this._listening;
+    const fp = this.entered && cam.mode === 'first' && (!this._listening || !!this._listening.rest); // 쉼터 예불 듣기는 1인칭 그대로 (끌어서 둘러보기)
     let face;
     if (fp) {
       this._fp ||= { off: wrapAngle(cam.yaw - (pl.heading - Math.PI)) };

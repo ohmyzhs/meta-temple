@@ -545,6 +545,10 @@ body.listening.l-idle, body.listening.l-idle canvas { cursor: none; }
 
 .l-exit { width: auto; padding: 0 14px 0 10px; border-radius: 999px; gap: 6px; display: flex; align-items: center; font-size: 13px; font-family: var(--font-sans); }
 .l-exit svg { width: 16px; height: 16px; }
+/* 연속 듣기: 켜지면 금빛 */
+.l-loop { width: auto; padding: 0 10px 0 8px; border-radius: 999px; gap: 4px; display: flex; align-items: center; font-size: 12px; font-family: var(--font-sans); color: rgba(243, 236, 220, 0.55); }
+.l-loop svg { width: 17px; height: 17px; }
+.l-loop[aria-pressed='true'] { color: var(--gold); }
 
 /* 재생기가 숨어도 남는 머리카락 굵기의 진행선 */
 .listen-line { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: rgba(243, 236, 220, 0.08); }
@@ -553,7 +557,8 @@ body.listening.l-idle, body.listening.l-idle canvas { cursor: none; }
 @media (max-width: 520px) {
   .listen-ctl { gap: 0; padding: 5px 6px; }
   .l-btn[data-l='prev'], .l-btn[data-l='next'] { width: 36px; }
-  .l-exit span { display: none; }
+  .l-exit span, .l-loop span { display: none; }
+  .l-loop { width: 40px; padding: 0; justify-content: center; }
   .l-exit { width: 44px; padding: 0; justify-content: center; }
   .listen-title b { font-size: 19px; }
 }

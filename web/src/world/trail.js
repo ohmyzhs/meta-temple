@@ -239,16 +239,17 @@ export function smallBridgeY(z) {
 /* ───── 길 중간의 쉼 (요구 5) ─────
  * s: 순환로 시작(J1)에서 잰 길이, side: 진행 방향의 오른쪽(+1)/왼쪽(-1), off: 중심선에서 떨어진 거리,
  * look: 앉아서 바라보는 곳, seatH: 땅에서 앉는 면까지 높이. 모양은 trailProps.js 의 같은 kind 빌더가 만든다.
+ * 예불 듣기(1인칭)는 vista 쪽을(없으면 look 쪽을) listenPitch 만큼 내려다본다. view: 그 쪽으로 나무를 비우는 거리(m).
  */
 const REST_DEFS = [
   { id: 'bench_stream', kind: 'bench', s: 14, side: 1, off: 2.3, look: [-13, 12.5], seatH: 0.46 },
   { id: 'bridge', kind: 'bridge', s: 34, side: 0, off: 0, look: [-18, 14.6] },
-  { id: 'stump_a', kind: 'stump', s: 52, side: -1, off: 2.2, look: [-18, -4], seatH: 0.42 },
-  { id: 'stump_b', kind: 'stump', s: 55, side: -1, off: 2.5, look: [-18, -7], seatH: 0.36 },
-  { id: 'spring', kind: 'spring', s: 69, side: -1, off: 2.3, look: [-40, -20.5], seatH: 0.36 },
-  { id: 'lookout', kind: 'lookout', s: 121, side: 1, off: 2.6, look: [0, -10], seatH: 0.95, view: 32 },
-  { id: 'mat_ridge', kind: 'mat', s: 134, side: 1, off: 2.4, look: [10, -10], seatH: 0.03, view: 22 },
-  { id: 'bench_bamboo', kind: 'bench', s: 172, side: -1, off: 2.1, look: [28, -15], seatH: 0.46 },
+  { id: 'stump_a', kind: 'stump', s: 52, side: -1, off: 2.2, look: [-18, -4], seatH: 0.42, view: 16 },
+  { id: 'stump_b', kind: 'stump', s: 55, side: -1, off: 2.5, look: [-18, -7], seatH: 0.36, view: 16 },
+  { id: 'spring', kind: 'spring', s: 69, side: -1, off: 2.3, look: [-40, -20.5], seatH: 0.36, vista: [-12, -16], view: 18 },
+  { id: 'lookout', kind: 'lookout', s: 121, side: 1, off: 3.2, look: [4, -10], seatH: 0.95, view: 34, vista: [17, -6], listenPitch: 0.1 },
+  { id: 'mat_ridge', kind: 'mat', s: 134, side: 1, off: 2.4, look: [10, -10], seatH: 0.03, view: 22, listenPitch: 0.1 },
+  { id: 'bench_bamboo', kind: 'bench', s: 172, side: -1, off: 2.1, look: [28, -15], seatH: 0.46, vista: [35, -40] },
   { id: 'mat_stream', kind: 'mat', s: 204, side: -1, off: 2.4, look: [25, 16], seatH: 0.03 }
 ];
 
@@ -283,7 +284,7 @@ export const REST_SPOTS = REST_DEFS.map((d) => {
   const n = rightNormal(d.s);
   let x = c.x + n.x * d.side * d.off, z = c.z + n.z * d.side * d.off;
   if (d.kind === 'bridge') {
-    // 다리 동쪽 난간 안쪽에 걸터앉는다
+    // 다리 동쪽 난간 안쪽에 걸터앉는다 (난간이 낮아 앉은 눈높이보다 아래)
     x = SMALL_BRIDGE.x + SMALL_BRIDGE.halfW - 0.3;
     z = c.z;
   }
@@ -299,7 +300,8 @@ export function inLookoutView(x, z) {
     if (!l.view) continue;
     const dx = x - l.x, dz = z - l.z;
     if (dx * dx + dz * dz > l.view * l.view) continue;
-    const vx = Math.sin(l.ry), vz = Math.cos(l.ry);
+    const a = l.vista ? Math.atan2(l.vista[0] - l.x, l.vista[1] - l.z) : l.ry;
+    const vx = Math.sin(a), vz = Math.cos(a);
     const along = dx * vx + dz * vz;
     if (along > -2 && Math.abs(dx * vz - dz * vx) < 3 + Math.max(along, 0) * 0.55) return true;
   }
