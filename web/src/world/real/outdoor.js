@@ -194,7 +194,7 @@ function ridgeMesh(layer, uniforms) {
 // 사진 그림 공용: 시각 셋을 섞고, 흐린 날·안개만큼 지평선 색으로 덮는다. 톤매핑 없이 sRGB 그대로 (사진 색 그대로)
 const PHOTO_FRAG = `
   uniform sampler2D tDay, tDusk, tNight; uniform vec3 uW; uniform vec3 uHaze; uniform float uHazeK; uniform float uGain; uniform float uAlpha;
-  uniform vec4 uEdge; // x,y: 좌우 가장자리 흐림 폭 (u), z: 위쪽 흐림 시작 (v), w: 아래 안개
+  uniform vec4 uEdge; // x: 좌우 가장자리 흐림 폭 (u), y: 지평선 v (0 이면 끔 — 그 아래 사진은 흐려 없앤다), z: 위쪽 흐림 폭 (v), w: 아래 안개
   varying vec2 vUv;
   void main() {
     vec4 c = texture2D(tDay, vUv) * uW.x + texture2D(tDusk, vUv) * uW.y + texture2D(tNight, vUv) * uW.z;
@@ -203,6 +203,8 @@ const PHOTO_FRAG = `
     float ex = uEdge.x > 0.0 ? clamp(min(vUv.x, 1.0 - vUv.x) / uEdge.x, 0.0, 1.0) : 1.0;
     float et = uEdge.z > 0.0 ? clamp(vUv.y / uEdge.z, 0.0, 1.0) : 1.0;
     a *= ex * ex * (3.0 - 2.0 * ex) * et * et * (3.0 - 2.0 * et);
+    // 쉼터 경치: 사진의 지평선 아래(앞쪽 숲)는 3D 세계가 맡는다 — 지평선 위 산·하늘만
+    if (uEdge.y > 0.0) a *= 1.0 - smoothstep(uEdge.y - 0.015, uEdge.y + 0.05, vUv.y);
     if (a < 0.004) discard;
     vec3 col = mix(c.rgb * uGain, uHaze, clamp(uHazeK + uEdge.w * smoothstep(0.55, 1.0, vUv.y), 0.0, 1.0));
     gl_FragColor = vec4(col, a);
@@ -249,13 +251,16 @@ const VISTA_R = 150, VISTA_FOV = THREE.MathUtils.degToRad(110);
  * 사진의 지평선을 여기 맞춰 올려야 사진 속 먼 산이 앞산 위로 보인다 (지평선에 두면 3D 언덕·나무에 다 가린다).
  */
 function skyline(spot, dir, eyeY) {
+  // 탁 트인 쉼터(전망 바위·능선 돗자리·대숲 벤치: view ≥ 20m)는 앞산 숲 지붕까지(11m) 넘겨 먼 산줄기를 또렷이,
+  // 숲속 쉼터는 6m 만 — 더 올리면 사진 속 산자락이 나무 사이 하늘을 막는다
+  const treeH = (spot.view ?? 0) >= 20 ? 11 : 6;
   const el = [];
   for (let k = -6; k <= 6; k++) {
     const a = dir + (k / 6) * 0.52;
     let m = -0.2;
     for (let r = 6; r <= VISTA_R; r += 3) {
       const x = spot.x + Math.sin(a) * r, z = spot.z + Math.cos(a) * r;
-      m = Math.max(m, Math.atan2(terrainHeight(x, z) + (r > 9 ? 11 : 0) - eyeY, r)); // 숲 나무 높이 약 11m
+      m = Math.max(m, Math.atan2(terrainHeight(x, z) + (r > 9 ? treeH : 0) - eyeY, r));
     }
     el.push(m);
   }
@@ -267,7 +272,7 @@ function vistaMesh(spot, v, uniforms, eyeY) {
   const f = 0.5 / Math.tan(VISTA_FOV / 2); // 사진 가로 1 = 110° 일 때 초점거리 (가로 단위)
   const aspect = 2 / 3; // 세로/가로
   const dir = spot.vista ? Math.atan2(spot.vista[0] - spot.x, spot.vista[1] - spot.z) : spot.ry;
-  const lift = VISTA_R * Math.tan(Math.max(0, skyline(spot, dir, eyeY) - 0.03)); // 앞산보다 1.7° 아래까지 겹치게
+  const lift = VISTA_R * Math.tan(Math.min(0.2, Math.max(0, skyline(spot, dir, eyeY) - 0.03))); // 앞산보다 1.7° 아래까지 겹치게, 11.5° 까지만
   const yTop = (VISTA_R * (v.hz * aspect)) / f + lift, yBot = (-VISTA_R * ((1 - v.hz) * aspect)) / f + lift;
   const n = 48, pos = [], uv = [], idx = [];
   for (let i = 0; i <= n; i++) {
@@ -775,7 +780,7 @@ class Outdoor {
     if (!key) return;
     const W = this.world, sm = this.small ? '_lo' : '';
     const u = photoUniforms();
-    u.uEdge.value.set(0.14, 0, 0.16, 0);
+    u.uEdge.value.set(0.14, VISTAS[key].hz, 0.16, 0);
     u.uAlpha.value = 0;
     const eye = (W.temple?.trail?.spots.find((q) => q.id === spot.id)?.y ?? 0) + 0.8;
     const mesh = vistaMesh(spot, VISTAS[key], u, eye);
