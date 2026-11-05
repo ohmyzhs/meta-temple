@@ -22,7 +22,7 @@
 | 4 소품 | 데크·나무다리·징검다리·쉼터 6종 + 길가 바위에 판재·화강암·이끼 돌 사진 PBR. 상자 투영 UV(미터 단위, 판재 한 장에 판 하나) | `prepareProps`, `boxUV` |
 
 ## 플래그
-- `?world=real` (lucid-moser 의 석탑·법당 실사와 같은 스위치). 꺼지면 `outdoor.js`·에셋을 받지 않는다.
+- 2026-11-06 사용자 결정으로 **기본값 켬** (`templeScene.js` 의 `REAL_WORLD` 기본값 true, 석탑·법당 실사와 같은 스위치). `?world=classic` 이면 예전 절차적 세계 — `outdoor.js`·에셋을 받지 않는다. 롤백은 그 기본값 한 줄.
 - 기존 파일 손댄 곳: `templeScene.js` 2줄(동적 import·update), `vegetation.js` 반환값, `trailProps.js`·`terrain.js` 의 userData 표시 — 렌더에 영향 없음.
 - 같은 화면 비교 (앱 루프 멈춤, 고정 씨앗, 같은 t): 플래그 끔 vs 9a27c0a 의 차이가 9a27c0a 끼리 두 번 찍은 차이(방문객·반딧불)와 같은 크기, 숲길 6장은 픽셀까지 같다. 그리기 호출·삼각형은 아래 표.
 

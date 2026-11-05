@@ -22,9 +22,9 @@ import { Temple } from './temple.js';
 import { Weather, Ripples } from './effects.js';
 import { kstHour } from '../core/state.js';
 
-// 실사 세계 기능 플래그 — 롤백은 맨 끝 기본값 하나(false = 절차적 세계). 방문별로 ?world=real | ?world=classic
+// 실사 세계 기능 플래그 — 기본 켬 (2026-11-06 사용자 결정). 롤백은 맨 끝 기본값 하나(false = 절차적 세계). 방문별로 ?world=real | ?world=classic
 // 켜지면 build() 가 ./real/realWorld.js 를 동적으로 받는다 (계획: docs/superpowers/plans/2026-11-05-launch-stage3-real.md)
-const REAL_WORLD = ((w) => (w === 'real' ? true : w === 'classic' ? false : false))(new URLSearchParams(location.search).get('world'));
+const REAL_WORLD = ((w) => (w === 'real' ? true : w === 'classic' ? false : true))(new URLSearchParams(location.search).get('world'));
 
 /* ───── 시간대 키프레임 (KST 시각) ───── */
 const KEYS = [
@@ -375,7 +375,7 @@ export class TempleScene {
     if (REAL_WORLD) this.real = (await import('./real/realWorld.js')).prepareReal(this); // 정적 병합 전에 교체 자리를 빼 둔다
     this._buildCrownGrid(this.veg.crowns);
     this.occluders = this._collectOccluders(); // 정적 병합 전에: 합친 뒤에는 지붕·벽과 나머지가 한 메쉬가 된다
-    if (new URLSearchParams(location.search).get('world') === 'real') this.outdoor = (await import('./real/outdoor.js')).prepareOutdoor(this); // 바깥 실사: 소품 재질을 병합 전에 바꿔 둔다
+    if (REAL_WORLD) this.outdoor = (await import('./real/outdoor.js')).prepareOutdoor(this); // 바깥 실사: 소품 재질을 병합 전에 바꿔 둔다
     this.batchStats = batchStatic(this.scene, this.temple.dynamicRoots());
     await step(0.85, '등불을 켜는 중…', () => {
       this._placeLights();
