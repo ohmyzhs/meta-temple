@@ -296,7 +296,7 @@ class MetaTempleApp {
     if (fromPractice) pl.restState = 'idle';
     const dur = this.avatars.triggerAction('prostrate');
     if (fromPractice && pl.seat) pl.sitting = true;
-    setTimeout(() => this.sound.playMoktak(), 1400);
+    if (fromPractice) setTimeout(() => this.sound.playMoktak(0.4), 1400); // 108배 박자만 작게
     const unlocked = this.store.addStat('bowCount');
     this._afterUnlock(unlocked);
     this._updateHUD();
@@ -383,7 +383,7 @@ class MetaTempleApp {
     this.avatars.triggerAction('incense');
     setTimeout(() => {
       this.temple.offerIncense();
-      this.sound.playMoktak();
+      this.sound.playMoktak(0.5);
     }, 1400);
     this.store.addStat('incenseCount');
     this.toast('🕯️ 불단 앞에 향 한 대와 초 한 자루를 공손히 올립니다');
@@ -440,7 +440,6 @@ class MetaTempleApp {
         const d = this.avatars.triggerAction('bow_half');
         if (d) {
           this.world.ripples.spawn(p, { maxR: 3.2, life: 2 });
-          setTimeout(() => this.sound.playWindChime(0.9), 700);
         }
         break;
       }
