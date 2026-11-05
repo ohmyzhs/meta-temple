@@ -19,7 +19,7 @@ from PIL import Image
 LUM = np.array([0.2126, 0.7152, 0.0722], np.float32)
 KTX = Path(os.environ.get('KTX_BIN', '')) / 'ktx'
 
-# 지면 층 (순서 = 셰이더의 층 번호): 숲 바닥(이끼+진흙+낙엽) · 낙엽 · 흙길 · 마사토 · 잔디 · 냇돌(계곡 바닥·바위 비탈)
+# 지면 층 (순서 = 셰이더의 층 번호): 숲 바닥(이끼+진흙+낙엽) · 낙엽 · 흙길 · 마사토 · 잔디 · 냇돌(계곡 바닥·바위 비탈) · (생성) 숲 지붕
 GROUND = [
     ('brown_mud_leaves_01', None),
     ('dry_decay_leaves', None),
@@ -30,7 +30,7 @@ GROUND = [
 ]
 BARK = {'fir': 'jolcham_oak_bark_01', 'pine': 'pine_bark', 'maple': 'trident_maple_bark'}
 PROPS = {
-    'plank': ('weathered_brown_planks', None),  # 데크·다리 판재 (가로 결, 판 14장 = 한 장)
+    'plank': ('weathered_brown_planks', ('#9A8670', 0.3)),  # 데크·다리 판재 (가로 결, 판 14장 = 한 장) — 오래된 소나무 마루처럼 밝은 회갈색으로
     'post': ('weathered_planks', None),  # 기둥·난간·보 (세로 결)
     'granite': ('rock_boulder_dry', ('#A19E99', 0.3)),  # 아트 바이블 화강암 회색
     'mossy': ('mossy_rock', None),
@@ -122,7 +122,15 @@ def ridges(gen, work, out):
     return meta
 
 
-def ground(dl, work, out):
+def height_to_normal(h, strength):
+    gx = np.roll(h, -1, 1) - np.roll(h, 1, 1)
+    gy = np.roll(h, -1, 0) - np.roll(h, 1, 0)
+    n = np.stack([-gx * strength, gy * strength, np.ones_like(h)], -1)  # OpenGL(+Y 위) 노멀
+    n /= np.linalg.norm(n, axis=-1, keepdims=True)
+    return n * 0.5 + 0.5
+
+
+def ground(dl, work, out, gen):
     cols, nors = [], []
     for i, (pid, rc) in enumerate(GROUND):
         c = load(dl / f'{pid}_diffuse_2k.jpg', (1024, 1024))
@@ -135,6 +143,13 @@ def ground(dl, work, out):
         npth = work / f'ground_{i}_nor.png'
         n.save(npth)
         nors.append(npth)
+    # 마지막 층: 먼 산자락의 숲 지붕 (생성 이미지 canopy — 위에서 내려다본 수관, 이음새 없이 반복). 노멀은 밝기를 높이로 삼아
+    c = load(gen / 'canopy' / 'canopy.png', (1024, 1024))
+    save(c, work / 'ground_6_col.png')
+    cols.append(work / 'ground_6_col.png')
+    h = np.asarray(Image.fromarray((c @ LUM * 255).astype(np.uint8)).resize((512, 512), Image.LANCZOS), np.float32) / 255.0
+    save(height_to_normal(h, 5.0), work / 'ground_6_nor.png')
+    nors.append(work / 'ground_6_nor.png')
     ktx(cols, out / 'ground_col.ktx2', 'color', layers=len(cols))
     ktx(nors, out / 'ground_nor.ktx2', 'normal', layers=len(nors))
 
@@ -217,7 +232,7 @@ def main():
     if 'ridges' in only:
         print(ridges(gen, work, out))
     if 'ground' in only:
-        ground(dl, work, out)
+        ground(dl, work, out, gen)
     if 'bark' in only:
         for k, pid in BARK.items():
             single(dl, work, out, f'bark_{k}', pid, csize=512, nsize=512)

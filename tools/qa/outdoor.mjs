@@ -148,6 +148,11 @@ async function perf(browser) {
 async function shots(browser) {
   const [w, h] = size.split('x').map(Number);
   const { ctx, page, errors } = await open(browser, w, h, 'high');
+  // 앱 자체 루프를 멈춘다: 화면은 __view 가 같은 t 로 _frame 을 불러서만 바뀐다 (전후 픽셀 비교가 되게)
+  await page.evaluate(async () => {
+    window.temple._loop = () => {};
+    await new Promise((r) => setTimeout(r, 300));
+  });
   const views = await page.evaluate(trailViews);
   const times = (process.env.TIMES || 'day').split(',');
   for (const time of process.env.TRAIL === '0' ? [] : times) {
@@ -177,7 +182,15 @@ async function shots(browser) {
         t.listen(YEBUL_TRACKS[1]);
         await new Promise((r) => setTimeout(r, 2600));
         t._listening && (t._listening.t = 0);
-        for (let i = 0; i < 90; i++) t._frame(1 / 30, 400 + i / 30);
+        // 시각을 다시 맞추고, 비동기로 받는 쉼터 경치가 들어올 틈을 주며 프레임을 돌린다
+        const W = t.world;
+        W.setTimeOfDay(time);
+        W.hour = W.hourTarget;
+        W.applyEnv(true);
+        for (let k = 0; k < 6; k++) {
+          for (let i = 0; i < 15; i++) t._frame(1 / 30, 400 + (k * 15 + i) / 30);
+          await new Promise((r) => setTimeout(r, 120));
+        }
       }, [id, time]);
       await page.waitForTimeout(400);
       await page.screenshot({ path: `${OUT}/r${String(k).padStart(2, '0')}_${id}_${time}.png` });

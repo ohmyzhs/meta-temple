@@ -1,6 +1,6 @@
 #!/bin/bash
-# gen.sh NAME PROMPTFILE [extra -i images...]  → $SP/gen/NAME/NAME.png
-SP=/private/tmp/claude-501/-Users-gabriel-k-Documents-Workspace-meta-temple--claude-worktrees-suspicious-khorana-ed6b9e/6080c7ae-9de3-4837-9676-051bc3f0a49d/scratchpad
+# gen.sh NAME PROMPTFILE [편집할 그림...] → $SP/gen/NAME/NAME.png  (Codex CLI 의 내장 gpt-image, 아트 바이블을 첫 참조 이미지로)
+SP=${SP:?SP=작업 폴더 (git 밖). $SP/gen/art-bible-v1.jpg 에 docs/art/art-bible-v1.jpg (lucid-moser 브랜치) 를 둔다}
 name=$1; pf=$2; shift 2
 d=$SP/gen/$name; mkdir -p $d
 imgs=(-i $SP/gen/art-bible-v1.jpg)

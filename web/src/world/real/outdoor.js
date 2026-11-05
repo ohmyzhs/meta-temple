@@ -5,7 +5,7 @@
 // 에셋: web/assets/world/outdoor/*.ktx2 (tools/outdoor/build.py), 출처: web/assets/world/outdoor/credits.json
 import * as THREE from 'three';
 import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
-import { L, pathX, streamZ, STREAM_HALF, fbm, noise2, smooth } from '../layout.js';
+import { L, pathX, streamZ, STREAM_HALF, fbm, noise2, smooth, terrainHeight } from '../layout.js';
 import { nearestTrail, PATHS, REST_SPOTS } from '../trail.js';
 import { weatherable, windSway, mats as sharedMats } from '../materials.js';
 
@@ -68,8 +68,10 @@ const GROUND_LAYERS = [
   { scale: 2.4, rot: 2.3, ns: 1.0 },
   { scale: 1.5, rot: 0.6, ns: 0.6 },
   { scale: 2.2, rot: 1.7, ns: 0.7 },
-  { scale: 2.0, rot: 2.9, ns: 1.1 }
+  { scale: 2.0, rot: 2.9, ns: 1.1 },
+  { scale: 110, rot: 0.4, ns: 0.8 } // 6 숲 지붕 (먼 산자락: 거리에 따라 숲 바닥·낙엽·냇돌 대신)
 ];
+const CANOPY = { near: 30, far: 75 }; // 이 거리(m)부터 숲 바닥이 위에서 본 숲 지붕으로 바뀐다 (가까이는 3D 나무가 있다)
 
 /** 지면 한 점의 섞음 비율 — terrain.js groundColor 와 같은 마스크를 색 대신 층 비율로 */
 function groundSplat(x, z, slope, w) {
@@ -134,7 +136,10 @@ function groundMaterial(col, nor, low) {
         '#include <map_fragment>',
         `vec2 gp = vSplatW.xz; vec3 gc = vec3(0.0); vec2 nxy = vec2(0.0);
         float w0 = clamp(1.0 - dot(vSplatA, vec4(1.0)) - vSplatB.x, 0.0, 1.0);
-        ${layer(0, 'w0')} ${layer(1, 'vSplatA.x')} ${layer(2, 'vSplatA.y')} ${layer(3, 'vSplatA.z')} ${layer(4, 'vSplatA.w')} ${layer(5, 'vSplatB.x')}
+        float kc = smoothstep(${CANOPY.near.toFixed(1)}, ${CANOPY.far.toFixed(1)}, distance(vSplatW, cameraPosition));
+        float w6 = kc * (w0 + vSplatA.x + vSplatB.x);
+        w0 *= 1.0 - kc; float w1 = vSplatA.x * (1.0 - kc); float w5 = vSplatB.x * (1.0 - kc);
+        ${layer(0, 'w0')} ${layer(1, 'w1')} ${layer(2, 'vSplatA.y')} ${layer(3, 'vSplatA.z')} ${layer(4, 'vSplatA.w')} ${layer(5, 'w5')} ${layer(6, 'w6')}
         diffuseColor.rgb *= gc * vSplatB.y;`
       )
       .replace(
@@ -194,7 +199,10 @@ const PHOTO_FRAG = `
   void main() {
     vec4 c = texture2D(tDay, vUv) * uW.x + texture2D(tDusk, vUv) * uW.y + texture2D(tNight, vUv) * uW.z;
     float a = c.a * uAlpha;
-    a *= smoothstep(0.0, uEdge.x, vUv.x) * smoothstep(1.0, 1.0 - uEdge.x, vUv.x) * smoothstep(0.0, uEdge.z, vUv.y);
+    // smoothstep(e0, e1) 은 e0 >= e1 이면 정의되지 않는다 (ANGLE/Metal 에서 0) — 폭이 0 이면 흐림 없음
+    float ex = uEdge.x > 0.0 ? clamp(min(vUv.x, 1.0 - vUv.x) / uEdge.x, 0.0, 1.0) : 1.0;
+    float et = uEdge.z > 0.0 ? clamp(vUv.y / uEdge.z, 0.0, 1.0) : 1.0;
+    a *= ex * ex * (3.0 - 2.0 * ex) * et * et * (3.0 - 2.0 * et);
     if (a < 0.004) discard;
     vec3 col = mix(c.rgb * uGain, uHaze, clamp(uHazeK + uEdge.w * smoothstep(0.55, 1.0, vUv.y), 0.0, 1.0));
     gl_FragColor = vec4(col, a);
@@ -236,12 +244,32 @@ const SPOT_VISTA = {
 };
 const VISTA_R = 150, VISTA_FOV = THREE.MathUtils.degToRad(110);
 
-function vistaMesh(spot, v, uniforms) {
+/**
+ * 그 쉼터에서 바라보는 쪽 앞산(지형 + 나무 높이)의 스카이라인 높이각 — 둘레 ±30° 의 70 백분위.
+ * 사진의 지평선을 여기 맞춰 올려야 사진 속 먼 산이 앞산 위로 보인다 (지평선에 두면 3D 언덕·나무에 다 가린다).
+ */
+function skyline(spot, dir, eyeY) {
+  const el = [];
+  for (let k = -6; k <= 6; k++) {
+    const a = dir + (k / 6) * 0.52;
+    let m = -0.2;
+    for (let r = 6; r <= VISTA_R; r += 3) {
+      const x = spot.x + Math.sin(a) * r, z = spot.z + Math.cos(a) * r;
+      m = Math.max(m, Math.atan2(terrainHeight(x, z) + (r > 9 ? 11 : 0) - eyeY, r)); // 숲 나무 높이 약 11m
+    }
+    el.push(m);
+  }
+  el.sort((a, b) => a - b);
+  return el[Math.floor(el.length * 0.7)];
+}
+
+function vistaMesh(spot, v, uniforms, eyeY) {
   const f = 0.5 / Math.tan(VISTA_FOV / 2); // 사진 가로 1 = 110° 일 때 초점거리 (가로 단위)
   const aspect = 2 / 3; // 세로/가로
-  const yTop = (VISTA_R * (v.hz * aspect)) / f, yBot = (-VISTA_R * ((1 - v.hz) * aspect)) / f;
-  const n = 48, pos = [], uv = [], idx = [];
   const dir = spot.vista ? Math.atan2(spot.vista[0] - spot.x, spot.vista[1] - spot.z) : spot.ry;
+  const lift = VISTA_R * Math.tan(Math.max(0, skyline(spot, dir, eyeY) - 0.03)); // 앞산보다 1.7° 아래까지 겹치게
+  const yTop = (VISTA_R * (v.hz * aspect)) / f + lift, yBot = (-VISTA_R * ((1 - v.hz) * aspect)) / f + lift;
+  const n = 48, pos = [], uv = [], idx = [];
   for (let i = 0; i <= n; i++) {
     const t = -VISTA_FOV / 2 + (VISTA_FOV * i) / n, a = dir + t;
     const u = 0.5 + Math.tan(t) * f; // 직선 원근 사진 → 원통 각도
@@ -453,6 +481,8 @@ function impostorMesh(tex, items) {
 /* ───── 산책로 소품: 상자 투영 UV (미터 단위) — 정적 병합 전에 ───── */
 // 질감 한 장이 덮는 실제 크기(m). plank: 판 14장짜리 사진 → 판재 한 장(0.27m)에 판 하나가 오게
 const PROP_TILE = { plank: 3.8, post: 2.4, granite: 1.6, mossy: 1.6 };
+// 사진에 곱하는 색: 화강암은 조금 어둡게 (판재 밝기는 build.py 에서 아트 바이블 마루 색으로 고침)
+const PROP_TINT = { plank: 0xffffff, post: 0xffffff, granite: 0xb4b0aa, mossy: 0xffffff };
 
 function boxUV(mesh, tile, boardStep = 0) {
   const g = mesh.geometry.clone();
@@ -520,7 +550,7 @@ class Outdoor {
     this.propMats = {
       plank: xyNormals(weatherable(new THREE.MeshStandardMaterial({ color: 0x8a7458, roughness: 0.85 }), { snow: 0.9, wet: 0.7 })),
       post: xyNormals(new THREE.MeshStandardMaterial({ color: 0x5a4636, roughness: 0.88 })),
-      granite: xyNormals(weatherable(new THREE.MeshStandardMaterial({ color: 0x9d9a94, roughness: 0.9 }), { snow: 1, wet: 1 })),
+      granite: xyNormals(weatherable(new THREE.MeshStandardMaterial({ color: 0x9d9a94, roughness: 0.9 }), { snow: 1, wet: 1 })), // 사진 질감이 오면 색은 0xb4b0aa (밝은 화강암이 눈처럼 뜨지 않게)
       mossy: xyNormals(weatherable(new THREE.MeshStandardMaterial({ color: 0x6e6a62, roughness: 0.92 }), { snow: 1, wet: 1 }))
     };
     const kindOf = new Map([
@@ -617,6 +647,7 @@ class Outdoor {
       inst.customDepthMaterial = depth;
     };
     card(M.firF, firCards(), { strength: 0.03, height: 12 });
+    M.firF.material.color.set(0xaab8a6); // 전나무는 사진 가지보다 짙고 푸르게 (아트 바이블 솔잎 진녹 #30402E 쪽)
     card(M.pineF, pineCards(), { strength: 0.035, height: 9 });
     card(M.mapleF, mapleCards(), { strength: 0.04, height: 7 });
     if (M.bambooLeaf) card(M.bambooLeaf, bambooCards(), { strength: 0.1, height: 1, flutter: 0.02 });
@@ -639,6 +670,7 @@ class Outdoor {
       inst.material = mat;
     };
     bark(M.firT, bf, bfn, 2, 2.5);
+    M.firT.material.color.set(0x9a8c7c); // 졸참나무 사진의 이끼·지의류가 멀리서 하얗게 뜨지 않게
     bark(M.pineT, bp, bpn, 1.2, 6, true, { strength: 0.03, height: 9 });
     bark(M.mapleT, bm, bmn, 1.5, 3.5);
     this._impostors(imp);
@@ -704,16 +736,28 @@ class Outdoor {
     this.world.scene.add(this.impostor);
   }
 
-  /* 산책로 소품 */
+  /* 산책로 소품 (+ terrain.js 의 길가·계곡 바위: 이끼 낀 돌 사진, 둥근 UV 그대로) */
   async _props() {
     const P = this.propMats;
+    this.world.scene.traverse((o) => {
+      if (!o.userData.rocks) return;
+      const mat = xyNormals(weatherable(new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9 }), { snow: 1, wet: 1 }));
+      this.tex('mossy_col').then(async (c) => {
+        const n = await this.tex('mossy_nor', { srgb: false });
+        const cc = c.clone(), nn = n.clone();
+        for (const t of [cc, nn]) (t.repeat.set(2, 1), (t.needsUpdate = true));
+        mat.map = cc;
+        mat.normalMap = nn;
+        o.material = mat;
+      });
+    });
     await Promise.all(
       Object.entries(P).map(async ([k, mat]) => {
         const [c, n] = await Promise.all([this.tex(`${k}_col`), this.tex(`${k}_nor`, { srgb: false })]);
         mat.map = c;
         mat.normalMap = n;
         mat.normalScale.set(0.9, 0.9);
-        mat.color.set(0xffffff);
+        mat.color.set(PROP_TINT[k]);
         mat.needsUpdate = true;
       })
     );
@@ -733,9 +777,9 @@ class Outdoor {
     const u = photoUniforms();
     u.uEdge.value.set(0.14, 0, 0.16, 0);
     u.uAlpha.value = 0;
-    const mesh = vistaMesh(spot, VISTAS[key], u);
-    const eye = W.temple?.trail?.spots.find((q) => q.id === spot.id)?.y ?? 0;
-    mesh.position.set(spot.x, eye + 0.8, spot.z);
+    const eye = (W.temple?.trail?.spots.find((q) => q.id === spot.id)?.y ?? 0) + 0.8;
+    const mesh = vistaMesh(spot, VISTAS[key], u, eye);
+    mesh.position.set(spot.x, eye, spot.z);
     const v = (this.vista = { spotId: spot.id, mesh, u, k: 0, want: 1, loaded: {} });
     const w = timeWeights(W.hour, W.env.night);
     const order = ['day', 'dusk', 'night'].sort((a, b) => w[['day', 'dusk', 'night'].indexOf(b)] - w[['day', 'dusk', 'night'].indexOf(a)]);
