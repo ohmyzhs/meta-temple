@@ -41,6 +41,26 @@ CREATE TABLE IF NOT EXISTS reports (
   created_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (kind, item_id, client_hash)
 );
+-- 과금 대비 (아직 쓰지 않음): 주문과 보유 권리. 수행 보상은 source 'merit', 결제는 'purchase'
+CREATE TABLE IF NOT EXISTS orders (
+  order_id text PRIMARY KEY,
+  profile_id text NOT NULL,
+  sku text NOT NULL,
+  amount integer NOT NULL,
+  status text NOT NULL DEFAULT 'ready',
+  provider text NOT NULL DEFAULT 'toss',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS entitlements (
+  id serial PRIMARY KEY,
+  profile_id text NOT NULL,
+  sku text NOT NULL,
+  source text NOT NULL CHECK (source IN ('merit', 'purchase')),
+  granted_at timestamptz NOT NULL DEFAULT now(),
+  expires_at timestamptz
+);
+CREATE INDEX IF NOT EXISTS entitlements_profile ON entitlements (profile_id);
 CREATE INDEX IF NOT EXISTS lanterns_recent ON lanterns (created_at DESC) WHERE NOT hidden;
 CREATE INDEX IF NOT EXISTS tiles_recent ON tiles (created_at DESC) WHERE NOT hidden;
 CREATE INDEX IF NOT EXISTS stones_recent ON stones (created_at DESC) WHERE NOT hidden;

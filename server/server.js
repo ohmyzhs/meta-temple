@@ -9,6 +9,7 @@ import crypto from 'node:crypto';
 import { WebSocketServer } from 'ws';
 import { createStore } from './store.js';
 import { checkText } from './moderation.js';
+import { PRODUCTS, paymentsEnabled } from './products.js';
 
 const PORT = Number(process.env.PORT) || 8080;
 const SALT = process.env.ID_SALT || 'dev-salt';
@@ -94,6 +95,7 @@ async function api(req, res) {
   if (url.pathname === '/api/health') return send(res, 200, { ok: true, store: store.kind, rooms: rooms.length, online: [...clients.values()].length });
   if (!rateOk(ip, req.method === 'GET' ? 60 : 20)) return send(res, 429, { error: '잠시 후 다시 해 주세요' });
   if (req.method === 'GET' && url.pathname === '/api/shared') return send(res, 200, await store.recent());
+  if (req.method === 'GET' && url.pathname === '/api/products') return send(res, 200, paymentsEnabled() ? { enabled: true, products: PRODUCTS } : { enabled: false, products: [] });
 
   if (req.method !== 'POST') return send(res, 404, { error: 'not found' });
   let body;

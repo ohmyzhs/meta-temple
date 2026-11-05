@@ -90,7 +90,7 @@
   - `old_client_compat`: 이름 없는 `hello {style:'monk'}`, `report` 를 모르는 옛 형식 POST 도 그대로 201.
 - [ ] **Step 2: 실패 확인** — Run: `node --test server/server.test.js` → Expected: FAIL.
 - [ ] **Step 3: 구현** — 위 Interfaces 그대로. 연속 등록 제한은 메모리 `Map(clientHash+kind → lastAt)`(재시작 시 초기화 허용, `ponytail:` 주석으로 한계 표기). `reports` 테이블: `(kind text, item_id text, client_hash text, created_at timestamptz default now(), primary key(kind,item_id,client_hash))`.
-- [ ] **Step 4: 통과 확인** — Run: `node --test server/` → Expected: PASS (A1 + A2).
+- [ ] **Step 4: 통과 확인** — Run: `npm test` → Expected: PASS (A1 + A2).
 - [ ] **Step 5: 실서버 스키마 반영 방법 확인** — `CREATE TABLE IF NOT EXISTS` 라 `deploy/live.sh` 재실행으로 적용됨을 로컬 Postgres(docker `postgres:17`)에서 한 번 확인: `docker run --rm -d -e POSTGRES_PASSWORD=x -p 55432:5432 postgres:17` 후 `DATABASE_URL=postgres://postgres:x@localhost:55432/postgres node server/server.js` 기동·신고 1건.
 - [ ] **Step 6: Commit** — `git add server/ deploy/mod.sh && git commit -m "Server-side moderation, reports with auto-hide, post cooldown, mod script"`
 
@@ -137,12 +137,12 @@
   - 테이블: `orders(order_id text pk, profile_id text, sku text, amount int, status text, provider text, created_at, updated_at)`, `entitlements(id serial pk, profile_id text, sku text, source text check (source in ('merit','purchase')), granted_at timestamptz, expires_at timestamptz null)`.
   - `toss.createOrder({profileId, sku, amount}) / toss.confirm({paymentKey, orderId, amount})` — 지금은 둘 다 `{ error:'payments_disabled' }`.
 - [ ] **Step 1: 테스트** — `products_disabled_by_default`: `GET /api/products` → `{enabled:false, products:[]}`; `toss_disabled`: `createOrder()` → `{error:'payments_disabled'}`.
-- [ ] **Step 2: 실패 확인 → Step 3: 구현 → Step 4: 통과 확인** — Run: `node --test server/` → PASS.
+- [ ] **Step 2: 실패 확인 → Step 3: 구현 → Step 4: 통과 확인** — Run: `npm test` → PASS.
 - [ ] **Step 5: Commit** — `git commit -m "Payment-ready skeleton: products, orders, entitlements (disabled)"`
 
 ### Task A5: 묶음 A 배포 준비
 
-- [ ] 로컬 전체 확인: `node --test server/ web/src/core/` PASS, 헤드리스에서 금지어 돌탑 등록 시 안내, 정상 등록·신고 3회 숨김 동작.
+- [ ] 로컬 전체 확인: `npm test` PASS (`node --test` 는 디렉터리 인자를 받지 않는다 — 스크립트가 파일 glob 으로 돌린다), 헤드리스에서 금지어 돌탑 등록 시 안내, 정상 등록·신고 3회 숨김 동작.
 - [ ] 사용자에게 보고 후 확인받으면: `integration/launch` 에 병합 → `deploy/live.sh`(서버) → main 푸시(화면). 실서버에서 `/api/health`, 금지어 POST 422 확인.
 
 ---

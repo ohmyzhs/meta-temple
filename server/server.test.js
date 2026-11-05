@@ -84,3 +84,9 @@ test('old_client_compat', async () => {
   const r = await post('/api/lanterns', { id: 'l_' + randomUUID(), wish: '등불처럼', color: '#f2c46d', clientId: 'c-old' }, '10.0.0.6');
   assert.equal(r.status, 201);
 });
+
+test('products_disabled_by_default', async () => {
+  const r = await fetch(`${BASE}/api/products`);
+  assert.equal(r.status, 200);
+  assert.deepEqual(await r.json(), { enabled: false, products: [] });
+});
