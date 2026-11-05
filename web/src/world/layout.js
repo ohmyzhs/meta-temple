@@ -4,6 +4,7 @@
  * 단위 m, +Y 위, -Z 북쪽(산 쪽). 스폰은 (0, 0, 34) 일주문 남쪽.
  */
 import { ImprovedNoise } from 'three/addons/math/ImprovedNoise.js';
+import { forestPathX, nearestTrail, setTrailProfile, onSmallBridge, smallBridgeY, TRAIL_HALF, REST_SPOTS, inLookoutView } from './trail.js';
 
 const perlin = new ImprovedNoise();
 export const noise2 = (x, z) => perlin.noise(x, 0.37, z);
@@ -52,11 +53,9 @@ export const L = {
   spawn: { x: 0, z: 36 }
 };
 
-/* 숲길 중심선 — 완만한 S자 */
+/* 숲길 중심선 — 완만한 S자 (식은 trail.js 에, 순환 산책로 갈림목이 같은 선을 쓴다) */
 export function pathX(z) {
-  if (z < L.forest.zEnd) return 0;
-  const t = smooth(L.forest.zEnd, L.forest.zEnd + 5, z);
-  return t * (1.3 * Math.sin(z * 0.11) + 0.9 * Math.sin(z * 0.23 + 1.1) * smooth(30, 44, z));
+  return forestPathX(z);
 }
 L.bridge.x = pathX(15);
 L.gate.x = pathX(L.gate.z);
@@ -123,16 +122,28 @@ function rectMask(x, z, x0, x1, z0, z1, fall) {
 /**
  * 지형 높이 (렌더·이동 공용). 계단은 경사로로 근사하고 계단 메쉬가 위를 덮는다.
  */
-export function terrainHeight(x, z) {
-  let h = naturalHeight(x, z);
+function forestBandAt(z) {
+  return smooth(L.forest.zEnd - 6, L.forest.zEnd + 1, z) * (1 - smooth(52, 60, z));
+}
 
-  // 1. 숲길 회랑: 길 주변은 길 높이에 가깝게, 멀어질수록 자연 지형
-  const px = pathX(z);
-  const dPath = Math.abs(x - px);
-  const forestBand = smooth(L.forest.zEnd - 6, L.forest.zEnd + 1, z) * (1 - smooth(52, 60, z));
-  const corridor = (1 - smooth(3, 16, dPath)) * forestBand;
+/** 자연 지형 + 숲길 회랑 (순환 산책로 높이 단면을 잴 바탕) */
+function baseHeight(x, z) {
+  const h = naturalHeight(x, z);
+  // 숲길 회랑: 길 주변은 길 높이에 가깝게, 멀어질수록 자연 지형
+  const dPath = Math.abs(x - pathX(z));
+  const corridor = (1 - smooth(3, 16, dPath)) * forestBandAt(z);
   const forestY = pathY(z) + 0.18 * fbm(x * 0.2, z * 0.2, 2) * smooth(2.2, 5, dPath);
-  h = lerp(h, forestY, corridor);
+  return lerp(h, forestY, corridor);
+}
+setTrailProfile(baseHeight);
+
+export function terrainHeight(x, z) {
+  let h = baseHeight(x, z);
+  const forestBand = forestBandAt(z);
+
+  // 1. 순환 산책로 회랑: 반폭 2m 까지 길 높이, 6.5m 에서 자연 지형
+  const tr = nearestTrail(x, z);
+  if (tr) h = lerp(h, tr.h + 0.12 * fbm(x * 0.2 + 5, z * 0.2, 2) * smooth(1.6, 3.5, tr.d), 1 - smooth(TRAIL_HALF + 0.5, 6.5, tr.d));
 
   // 2. 계곡
   const sd = Math.abs(z - streamZ(x));
@@ -180,8 +191,9 @@ export function terrainHeight(x, z) {
   return h;
 }
 
-/* 걷는 높이 — 지형 + 다리 아치 + 법당 마루 */
+/* 걷는 높이 — 지형 + 다리 아치 + 작은 나무다리 + 법당 마루 */
 export function walkHeight(x, z) {
+  if (onSmallBridge(x, z, 0.05)) return smallBridgeY(z);
   const b = L.bridge;
   const sz = streamZ(x);
   if (Math.abs(x - b.x) <= b.halfWidth + 0.2 && Math.abs(z - sz) <= b.halfLen) {
@@ -198,6 +210,9 @@ export function walkHeight(x, z) {
 export function zoneAt(x, z) {
   const hl = L.hall;
   if (x > hl.x0 - 0.2 && x < hl.x1 + 0.2 && z > hl.z0 && z < hl.z1 + 0.3) return 'DAEUNGJEON';
+  // 순환 산책로는 마당·다실 마당 안으로 들어서기 전까지 어디든 숲길 (능선·대숲이 마당·다실로 잡히지 않게)
+  const c = L.courtyard, t = L.teahouseTerrace;
+  if (!inRect(x, z, c.x0 - 0.5, c.x1 + 0.5, c.z0 - 3, c.z1 + 0.6) && !inRect(x, z, t.x0, t.x1, t.z0, t.z1) && (nearestTrail(x, z)?.d ?? 99) < 3) return 'FOREST';
   if (x > L.teahouseTerrace.x0 + 0.4 || (x > 16.5 && z < -2.6 && z > -9.6 && x > L.teaLink.x0 + 1.4)) return 'TEAHOUSE';
   if (z <= L.courtyard.z1 + 0.6) return 'COURTYARD';
   return 'FOREST';
@@ -208,6 +223,9 @@ function inRect(x, z, x0, x1, z0, z1) {
 }
 
 export function isWalkable(x, z) {
+  // 순환 산책로 (계곡은 작은 나무다리로만 건넌다)
+  const tr = nearestTrail(x, z);
+  if (tr && tr.d <= TRAIL_HALF) return Math.abs(z - streamZ(x)) >= 2.6 || onSmallBridge(x, z);
   // 숲길 (계곡은 다리로만 건넌다)
   if (z > L.courtStairs.z1 - 0.2 && z < 47) {
     if (Math.abs(x - pathX(z)) > 6.5) return false;
@@ -290,6 +308,9 @@ export function stepMove(x, z, nx, nz, r = 0.32) {
 /* 나무 심기 금지 영역 */
 export function isClearForTree(x, z, margin = 0) {
   if (isWalkable(x, z)) return false;
+  if ((nearestTrail(x, z)?.d ?? 99) < 3.4 + margin) return false;
+  for (const s of REST_SPOTS) if (Math.hypot(x - s.x, z - s.z) < 4 + margin) return false;
+  if (inLookoutView(x, z)) return false;
   if (Math.abs(x - pathX(z)) < 4.2 + margin && z > 5 && z < 50) return false;
   if (Math.abs(z - streamZ(x)) < 2.6 && Math.abs(x) < 70) return false;
   const c = L.courtyard;
@@ -301,4 +322,18 @@ export function isClearForTree(x, z, margin = 0) {
   const b = L.bamboo;
   if (inRect(x, z, b.x0 - 1, b.x1 + 1, b.z0 - 1, b.z1 + 1)) return false;
   return true;
+}
+
+/**
+ * 돌탑을 쌓을 수 있는 땅 (요구 8): 산문 밖(숲길·순환 산책로)의 걸을 수 있는 곳 가운데
+ * 다리 위·쉼터 자리·석등·나무 같은 충돌체 바로 옆이 아닌 곳.
+ */
+export function canBuildCairn(x, z) {
+  if (!isWalkable(x, z) || zoneAt(x, z) !== 'FOREST') return false;
+  if (onSmallBridge(x, z, 0.5)) return false;
+  const b = L.bridge;
+  if (Math.abs(x - b.x) <= b.halfWidth + 0.5 && Math.abs(z - streamZ(x)) <= b.halfLen + 0.5) return false;
+  for (const s of REST_SPOTS) if (Math.hypot(x - s.x, z - s.z) < 1.8) return false;
+  const p = resolveCollisions(x, z, 0.5);
+  return Math.hypot(p.x - x, p.z - z) < 1e-3;
 }

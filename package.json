@@ -8,6 +8,6 @@
     "start": "python3 -m http.server 8080 --directory web",
     "serve": "npx serve -l 8080 web",
     "deploy": "deploy/deploy.sh",
-    "test": "node --test server/*.test.js web/src/core/*.test.js web/src/ui/*.test.js"
+    "test": "node --test server/*.test.js web/src/core/*.test.js web/src/ui/*.test.js web/src/world/*.test.js"
   }
 }

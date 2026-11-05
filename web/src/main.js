@@ -4,11 +4,13 @@
  */
 import * as THREE from 'three';
 import { ZONES, RITUALS, generateDharmaName } from './data/templeData.js';
-import { TempleStore, kstHour } from './core/state.js';
+import { TempleStore, kstHour, uuid } from './core/state.js';
 import { TempleSoundEngine } from './audio/soundEngine.js';
 import { TempleScene } from './world/templeScene.js';
 import { AvatarManager } from './world/avatarManager.js';
-import { L, isWalkable, zoneAt, streamZ, walkHeight } from './world/layout.js';
+import { L, isWalkable, zoneAt, streamZ, walkHeight, canBuildCairn } from './world/layout.js';
+import { trail, REST_SIT_MSG } from './world/trail.js';
+import { placeStone, findJoinable, areaCount, AREA_CAP, AREA_RADIUS, GATE_ID } from './core/cairns.js';
 import { ModalManager } from './ui/modalManager.js';
 import { LiveLink, sharedApi } from './core/live.js';
 import { YEBUL_TRACKS } from './data/soundCredits.js';
@@ -143,14 +145,18 @@ class MetaTempleApp {
         this.sound.playWindChime(0.8);
         this.toast(`🔄 석탑을 ${n}바퀴 돌았습니다 · 누적 ${this.store.stats.circumambulationLoops}바퀴`);
       },
-      onStandUp: () => this.world.setFocusVignette(false)
+      onStandUp: () => {
+        this.world.setFocusVignette(false);
+        this.temple?.trail.hideMat(); // 돗자리는 일어서면 걷는다
+      }
     });
     this._rebuildPlayer();
     this.avatars.spawnAmbientVisitors();
     temple.lanterns.sync(this.store.state.lanterns);
     await this._brushFont(this.store.state.tiles.map((t) => t.wish).join(''));
     temple.tileRack.sync(this.store.state.tiles);
-    temple.cairn.sync(this.store.state.stones.length);
+    temple.cairn.sync(this.store.gateStoneTotal);
+    temple.cairns.setCairns(this.store.cairnList());
 
     const s = this.store.state.settings;
     this.world.setTimeOfDay(s.time || 'realtime');
@@ -187,7 +193,8 @@ class MetaTempleApp {
     if (d.error) return;
     this.store.mergeShared(d);
     this.temple.lanterns.sync(this.store.state.lanterns);
-    this.temple.cairn.sync(Math.min(this.store.stoneTotal, 40));
+    this.temple.cairn.sync(Math.min(this.store.gateStoneTotal, 40));
+    this.temple.cairns.setCairns(this.store.cairnList());
     await this._brushFont(this.store.state.tiles.map((t) => t.wish).join(''));
     this.temple.tileRack.sync(this.store.state.tiles);
     this.modals?.refresh();
@@ -196,7 +203,15 @@ class MetaTempleApp {
   /** 공개를 고른 서원을 서버에 올린다. 거절되면(링크·욕설·하루 한도) 이 브라우저에만 남긴다 */
   _publish(kind, item, label) {
     sharedApi.publish(kind, item, this.store.profileId).then((r) => {
-      if (!r.error) return;
+      if (!r.error) {
+        // 서버가 1.5m 안의 다른 탑에 합쳤으면 그 탑으로 고쳐 둔다
+        if (kind === 'stones' && r.cairnId && r.cairnId !== item.cairnId) {
+          Object.assign(item, { cairnId: r.cairnId, x: r.x, z: r.z });
+          this.store.save();
+          this.temple.cairns.setCairns(this.store.cairnList());
+        }
+        return;
+      }
       item.public = false;
       this.store.save();
       if (r.error !== 'offline' && r.error !== 'timeout') this.toast(`${label}은 나만 보도록 두었습니다 · ${r.error}`);
@@ -303,11 +318,18 @@ class MetaTempleApp {
         return t;
       },
       onAddStone: (wish, share = true) => {
-        const s = this.store.addStone(wish, share);
+        const place = this._stonePlace();
+        const s = this.store.addStone(wish, share, place);
         if (share) this._publish('stones', s, '돌탑의 돌');
-        this.temple.cairn.addStone(() => this.sound.playStoneDrop());
+        const drop = () => this.sound.playStoneDrop();
+        if (place) {
+          const c = this.temple.cairns.addStone({ id: place.cairnId, x: place.x, z: place.z }, drop);
+          this.toast(c.n === 1 ? '⛰️ 길가에 새 돌탑을 세웠습니다 · 첫 층' : `⛰️ 길가 돌탑에 돌을 얹었습니다 · ${c.n}층`);
+        } else {
+          this.temple.cairn.addStone(drop);
+          this.toast(`⛰️ 돌탑에 조약돌 하나를 얹었습니다 · 지금까지 ${this.store.stoneTotal}개`);
+        }
         this._updateHUD();
-        this.toast(`⛰️ 돌탑에 조약돌 하나를 얹었습니다 · 지금까지 ${this.store.stoneTotal}개`);
         return s;
       },
       onBurnWorry: () => {
@@ -342,7 +364,8 @@ class MetaTempleApp {
         this.store.hideReported(id);
         this.temple.lanterns.sync(this.store.state.lanterns);
         this.temple.tileRack.sync(this.store.state.tiles);
-        this.temple.cairn.sync(Math.min(this.store.stoneTotal, 40));
+        this.temple.cairn.sync(Math.min(this.store.gateStoneTotal, 40));
+        this.temple.cairns.setCairns(this.store.cairnList());
         sharedApi.report(kind, id, this.store.profileId).then((r) =>
           this.toast(r.error ? '신고를 보내지 못했습니다 · 내 화면에서는 가렸습니다' : '신고했습니다 · 이 글은 이제 내 화면에 보이지 않습니다')
         );
@@ -426,6 +449,7 @@ class MetaTempleApp {
 
   activate(id, payload) {
     this.sound.init();
+    if (id === 'stone_pagoda') this._stoneSpot = null; // 일주문 옆 돌탑
     const def = this._interactable(id);
     switch (id) {
       case 'stone_pagoda':
@@ -743,6 +767,79 @@ class MetaTempleApp {
       return setTimeout(go, 200);
     }
     this.avatars.moveTo(c.x, c.z + 0.75, go);
+  }
+
+  /* ───────── 순환 산책로: 쉼터에 앉기 · 돌탑 어디서나 ───────── */
+  /** 다른 구역·먼 곳으로 옮길 때 (장소 이동 가림막이 있으면 그것으로) */
+  _jump(x, z, ry, then) {
+    if (this._veilTeleport) return this._veilTeleport(x, z, ry, () => setTimeout(then, 200));
+    this.avatars.teleport(x, z, ry);
+    this._onZoneChange(true);
+    setTimeout(then, 200);
+  }
+
+  /** 고른 쉼터로 걸어가 앉는다: 가까우면 곧장, 산책로 위면 길을 따라(60m 안), 아니면 옮겨 간다 */
+  _sitRest(s) {
+    const pl = this.player, p = pl.root.position;
+    if (pl.seat?._ref === s) return;
+    if (s.occupant && s.occupant !== pl) return this.toast('다른 도반이 쉬고 있는 자리입니다');
+    const tr = this.temple.trail;
+    const go = () => {
+      this.avatars.sitAt(tr.seat(s), 'sit');
+      pl.restState = 'sit';
+      if (s.kind === 'mat') tr.showMat(s);
+      this.toast(REST_SIT_MSG[s.kind]);
+    };
+    const st = s.stand;
+    const d = Math.hypot(p.x - st.x, p.z - st.z);
+    if (d < 0.6) return go();
+    let clear = d < 8;
+    for (let k = 1; clear && k * 0.5 < d; k++) clear = isWalkable(p.x + ((st.x - p.x) * k * 0.5) / d, p.z + ((st.z - p.z) * k * 0.5) / d);
+    if (clear) return this.avatars.moveTo(st.x, st.z, go);
+    const here = trail.nearest(p.x, p.z), there = trail.nearest(st.x, st.z);
+    if (here && there && here.d < 2 && Math.abs(there.s - here.s) < 60) return this.avatars.moveTo(st.x, st.z, go, trail.route(here.s, there.s, 3));
+    this._jump(st.x, st.z, s.ry, go);
+  }
+
+  /** 지금 알려진 길가 돌탑 + 일주문 옆 돌탑 */
+  _cairnsWithGate() {
+    const g = this.temple.cairnPos;
+    return [...this.temple.cairns.all, { id: GATE_ID, x: g.x, z: g.z, n: this.store.gateStoneTotal }];
+  }
+
+  /** 돌 올리기 창을 이 자리 기준으로 연다 (돌 하나하나는 얹을 때 1.5m 규칙으로 탑을 고른다) */
+  _stoneHere(at) {
+    this._stoneSpot = { x: at.x, z: at.z };
+    this.modals.open('stone_pagoda');
+  }
+
+  /** 돌을 얹을 자리 → { cairnId, x, z } (길가 돌탑) 또는 null (일주문 옆 돌탑) */
+  _stonePlace() {
+    const at = this._stoneSpot, p = this.player.root.position;
+    if (!at || Math.hypot(p.x - at.x, p.z - at.z) > 4) return null; // 그 자리를 떠났으면(다른 데서 연 창) 일주문 옆 돌탑
+    const list = this._cairnsWithGate();
+    let r = placeStone(list, at.x, at.z, `c_${uuid()}`);
+    if (r.full) r = findJoinable(list, at.x, at.z, AREA_RADIUS); // 구역이 꽉 찼으면 가장 가까운 탑에
+    if (!r || r.id === GATE_ID) return null;
+    return { cairnId: r.id, x: r.x, z: r.z };
+  }
+
+  /** 멈춰 선 자리에서 돌탑을 쌓을 수 있으면 알약 하나 (걷는 동안에는 띄우지 않는다) */
+  _cairnPrompt(p) {
+    const pl = this.player, now = performance.now();
+    const s = this._still;
+    if (!s || Math.hypot(p.x - s.x, p.z - s.z) > 0.05 || this.avatars.moveTarget || pl.busy) this._still = { x: p.x, z: p.z, t: now };
+    if (now - this._still.t < 600 || pl.sitting) return null;
+    // 몸 앞 0.9m 에 쌓는다 (그 자리가 안 되면 발밑)
+    const fx = p.x + Math.sin(pl.heading) * 0.9, fz = p.z + Math.cos(pl.heading) * 0.9;
+    const at = canBuildCairn(fx, fz) ? { x: fx, z: fz } : canBuildCairn(p.x, p.z) ? { x: p.x, z: p.z } : null;
+    if (!at) return null;
+    const list = this._cairnsWithGate();
+    const c = findJoinable(list, at.x, at.z);
+    if (c?.id === GATE_ID) return null; // 일주문 옆 돌탑은 원래 알약이 맡는다
+    if (c) return { id: `cairn:${c.id}`, label: `돌탑에 돌 얹기 · ${c.n}층`, at: { x: c.x, z: c.z } };
+    if (areaCount(list, at.x, at.z) >= AREA_CAP) return null;
+    return { id: 'cairn:new', label: '여기에 돌탑 쌓기', at };
   }
 
   /** 108배·염주: 자리를 옮기지 않고 지금 그 자리에서 (좌복 위든 마루 위든) */
@@ -1142,6 +1239,18 @@ class MetaTempleApp {
     }
     if (best) return this.activate(best.id);
     if (Math.hypot(pt.x - L.pagoda.x, pt.z - L.pagoda.z) < 2 && pt.y > L.courtyard.y + 0.4) return this.activate('circumambulate');
+    const rest = this.temple.trail.spots.find((s) => Math.hypot(pt.x - s.x, pt.z - s.z) < (s.kind === 'lookout' ? 1.6 : 1.1));
+    if (rest) return this._sitRest(rest);
+    const cn = findJoinable(this.temple.cairns.shown, pt.x, pt.z, 0.6);
+    if (cn) {
+      // 돌탑을 누르면 그 앞까지 걸어가 돌 올리기
+      const p = this.player.root.position, d = Math.hypot(p.x - cn.x, p.z - cn.z) || 1;
+      const ax = cn.x + ((p.x - cn.x) / d) * 0.9, az = cn.z + ((p.z - cn.z) / d) * 0.9;
+      return this.avatars.moveTo(ax, az, () => {
+        this.player.heading = Math.atan2(cn.x - ax, cn.z - az);
+        this._stoneHere(cn);
+      });
+    }
     if (isWalkable(pt.x, pt.z)) {
       this.avatars.moveTo(pt.x, pt.z);
       this.world.ripples.spawn(new THREE.Vector3(pt.x, walkHeight(pt.x, pt.z), pt.z), { color: '#f3ecdc', maxR: 0.6, life: 0.7 });
@@ -1161,6 +1270,17 @@ class MetaTempleApp {
         bd = d;
       }
     }
+    // 순환 산책로: 쉼터(1.4m 안), 없으면 멈춰 선 자리의 돌탑
+    if (!best && zone === 'FOREST' && !this.player.sitting) {
+      for (const s of this.temple.trail.spots) {
+        const d = Math.min(Math.hypot(p.x - s.stand.x, p.z - s.stand.z), Math.hypot(p.x - s.x, p.z - s.z));
+        if (d < 1.4 && (!best || d < bd)) {
+          best = { id: `rest:${s.id}`, label: s.label, spot: s };
+          bd = d;
+        }
+      }
+      if (!best) best = this._cairnPrompt(p);
+    }
     // 좌복(1.1m 안)과 겨룰 때는 각자 닿는 거리에 견준 가까움으로 — 범위가 넓은 헌향이 앞줄 좌복을 덮지 않게
     if (zone === 'DAEUNGJEON' && !this.player.sitting) {
       const c = this.avatars.freeCushionNear(p.x, p.z);
@@ -1174,6 +1294,8 @@ class MetaTempleApp {
     const n = this.nearby;
     if (!n) return;
     if (n.id === 'cushion') return this._sitCushion(n.cushionIndex);
+    if (n.spot) return this._sitRest(n.spot);
+    if (n.at) return this._stoneHere(n.at);
     this.activate(n.id);
   }
 
@@ -1229,6 +1351,7 @@ class MetaTempleApp {
     if ((ix || iz) && this.modals.isOpen && this.modals.current === 'practice_108') this.modals.close();
     const night = this.world.env.night;
     this.avatars.update(dt, t, { x: wx, z: wz, run: this.keys.ShiftLeft || this.keys.ShiftRight, face }, night);
+    this.temple.cairns.update(dt, pl.root.position.x, pl.root.position.z);
     if (fp) cam.yaw = pl.root.rotation.y - Math.PI + this._fp.off;
     this.world.update(dt, t, this.player.root, this.player.items.hand_lantern);
 
