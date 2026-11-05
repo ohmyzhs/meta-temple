@@ -216,6 +216,7 @@ function buildDeck(scene, m) {
     }
     for (const [pts, r] of [[rail, 0.035], [beam, 0.06]]) g.add(mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), pts.length * 3, r, 5), m.woodDark));
   }
+  g.userData.trailProp = true;
   scene.add(g);
 }
 
@@ -232,6 +233,7 @@ export function buildTrailProps(scene) {
   for (const c of CROSSINGS) {
     const g = BUILDERS[c.kind](m, c);
     g.position.set(c.x, 0, 0);
+    g.userData.trailProp = true; // 바깥 실사(world/real/outdoor.js)가 재질을 바꿔 끼우는 묶음
     scene.add(g);
   }
   buildDeck(scene, m);
@@ -244,6 +246,7 @@ export function buildTrailProps(scene) {
     const g = BUILDERS[s.kind](m, s, ground);
     g.position.set(s.x, gy, s.z);
     g.rotation.y = s.ry;
+    g.userData.trailProp = true;
     scene.add(g);
     if (s.kind === 'bench') addCircleCollider(s.x + Math.sin(s.ry) * 0.05, s.z + Math.cos(s.ry) * 0.05, s.onDeck ? 0.32 : 0.5);
     else if (s.kind === 'stump') addCircleCollider(s.x, s.z, 0.38);

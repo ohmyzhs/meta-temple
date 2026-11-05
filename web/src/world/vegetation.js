@@ -213,7 +213,7 @@ export function buildVegetation(scene, quality) {
     for (const [x, z, s] of spots[k]) if (Math.abs(x - pathX(z)) < 8 || z < 6 || trailDist(x, z) < 6) addCircleCollider(x, z, 0.45 * s);
   }
 
-  buildBamboo(scene, low);
+  const bamboo = buildBamboo(scene, low);
   buildGrass(scene, low);
   const lotus = buildLotus(scene);
   // 카메라가 수관 속으로 들어가지 않도록 쓰는 장애물 목록 [x, z, 수관 반경, 수관 아래, 수관 위]
@@ -222,7 +222,14 @@ export function buildVegetation(scene, quality) {
     ...spots.pine.map(([x, z, s]) => [x, z, 2.4 * s, 5.4 * s, 9.6 * s]),
     ...spots.maple.map(([x, z, s]) => [x, z, 2.3 * s, 2.6 * s, 7.4 * s])
   ];
-  return { lotus, crowns, counts: { fir: spots.fir.length, pine: spots.pine.length, maple: spots.maple.length } };
+  return {
+    lotus,
+    crowns,
+    counts: { fir: spots.fir.length, pine: spots.pine.length, maple: spots.maple.length },
+    // 바깥 실사(world/real/outdoor.js)가 재질·지오메트리를 바꿔 끼우는 자리 (위치·개수는 그대로)
+    spots,
+    meshes: { firF, firT, pineF, pineT, mapleF, mapleT, bambooStalk: bamboo.stalkInst, bambooLeaf: bamboo.leafInst }
+  };
 }
 
 function buildBamboo(scene, low) {
@@ -286,6 +293,7 @@ function buildBamboo(scene, low) {
   leafInst.castShadow = !low;
   stalkInst.userData.noPick = leafInst.userData.noPick = true;
   scene.add(stalkInst, leafInst);
+  return { stalkInst, leafInst };
 }
 
 function buildGrass(scene, low) {
