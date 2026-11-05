@@ -451,11 +451,13 @@ export class Temple {
     // 삼존: 본존 석가모니불(항마촉지인)과 합장한 협시보살 (world/buddha.js 에서 조각)
     const buddha = buildBuddhaStatue('buddha', { quality: this.quality });
     buddha.scale.setScalar(0.95);
+    buddha.userData.realSlot = 'buddha'; // 실사 세계(world/real)가 생성형 불상 사진으로 바꿔 끼우는 자리
     buddha.position.set(0, ay, altarZ - 1.0);
     this.scene.add(buddha);
     for (const sx of [-1, 1]) {
       const bod = buildBuddhaStatue('bodhisattva', { quality: this.quality });
       bod.scale.setScalar(0.78);
+      bod.userData.realSlot = sx < 0 ? 'bodhiL' : 'bodhiR';
       bod.position.set(sx * 3.6, ay, altarZ - 0.9);
       this.scene.add(bod);
     }

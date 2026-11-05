@@ -29,7 +29,8 @@ export const CREDITS = {
   ],
   textures: [],
   patterns: [],
-  generated: []
+  // 실사 세계(world/real)의 법당 삼존·후불벽 — 3D 모델 대신 생성형 사진을 세운 판 (프롬프트: docs/art/prompts/)
+  generated: [{ use: '법당 삼존 불상 사진·후불벽 탱화', title: 'gpt-image 생성 이미지', by: 'OpenAI', url: 'https://openai.com' }]
 };
 
 /** 분류 제목과 한 줄 설명 */

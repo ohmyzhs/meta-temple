@@ -24,8 +24,22 @@ export const SLOTS = {
     half: 6.5 / 2, // 충돌 상자 반폭 (스캔 m)
     at: () => [L.pagoda.x, L.courtyard.y, L.pagoda.z],
     loadWithin: 90 // 플레이어가 이 거리(m) 안이면 받기 시작 — 첫 입장(숲길) 예산 밖, 입장 뒤 뒤에서
-  }
+  },
+  // 불상은 3D 모델 대신 생성형 사진(배경을 뺀 컷아웃)을 세운 판 — 사용자 결정 2026-11-06 「불상만 이미지로」.
+  // 판 높이·자리는 절차적 불상(대좌·광배 포함)의 경계 상자를 그대로 따른다. 사진은 정면(+z)을 본다.
+  buddha: { card: 'buddha/sakyamuni.webp', at: () => [0, 0, L.altar.z], loadWithin: 60 },
+  bodhiL: { card: 'buddha/bodhisattva_l.webp', at: () => [-3.6, 0, L.altar.z], loadWithin: 60 },
+  bodhiR: { card: 'buddha/bodhisattva_r.webp', at: () => [3.6, 0, L.altar.z], loadWithin: 60 },
+  // 후불벽: 생성형 벽면 사진 세 칸 (사용자 2026-11-06 「뒤 벽면도 더 디테일하게 생성형 이미지로」).
+  // 기존 옻칠 판·탱화·액자(temple.js _hall)는 그대로 두고 바로 앞에 세운다 — 칸 이음매는 뒤 기둥(x ±2.8)이 가린다.
+  // 사진은 3:2 를 양옆 4%(기둥이 가리는 폭)만 잘라 비율을 지킨다 — 판 폭 = 칸 폭, 높이 = 폭 ÷ 비율, 위끝 = 후불벽 판 위끝
+// (temple.js: 기둥 4.4m − 0.05 = 4.35m, L.hall.floorY 부터). 아래 남는 부분은 불단과 기존 옻칠 판이 채운다.
+  wallC: { wall: [-2.8, 2.8], img: 'wall/hubul_center.webp', at: () => [0, 0, L.altar.z], loadWithin: 60 },
+  wallL: { wall: [L.hall.x0 + 0.15, -2.8], img: 'wall/hubul_left.webp', at: () => [-5.4, 0, L.altar.z], loadWithin: 60 },
+  wallR: { wall: [2.8, L.hall.x1 - 0.15], img: 'wall/hubul_right.webp', at: () => [5.4, 0, L.altar.z], loadWithin: 60 }
 };
+const WALL_H = 4.35;
+const WALL_Z = 0.23; // L.hall.z0 에서 앞으로 (탱화 금테 앞면 0.185 보다 앞, 기둥 앞면 약 0.29 보다 뒤)
 
 // 공용 재질(materials.js mats())의 그림 텍스처를 사진 PBR(Poly Haven CC0, tools/spike/textures.py 로 팔레트 맞춤)로.
 // 기존 UV·반복(repeat)을 그대로 이어받으므로 형상·병합과 무관하다. 화강암·회벽은 상자 UV 에서 결이 늘어져(시험 화면) 빼 둔다.
@@ -45,6 +59,7 @@ export function prepareReal(world) {
     if (k && SLOTS[k] && !slots.has(k)) slots.set(k, o);
   });
   for (const o of slots.values()) o.traverse((m) => m.isMesh && (m.userData.noBatch = true));
+  for (const [k, s] of Object.entries(SLOTS)) if (s.wall) slots.set(k, null); // 덧대는 판 — 바꿀 절차적 물체가 없다
   const real = new RealWorld(world, slots);
   real.upgradeMaterials().catch((e) => console.warn('[real] 재질 교체 실패, 그림 텍스처 그대로:', e));
   return real;
@@ -117,6 +132,8 @@ class RealWorld {
 
   async _swap(k, proc) {
     const s = SLOTS[k];
+    if (s.card) return this._card(k, proc);
+    if (s.wall) return this._wall(k);
     const obj = (await this._loader().loadAsync(ASSETS + s.url)).scene;
     const [x, y, z] = s.at();
     obj.scale.setScalar(s.scale);
@@ -134,5 +151,46 @@ class RealWorld {
       addBoxCollider(x - h, z - h, x + h, z + h);
     }
     this.state.set(k, obj);
+  }
+
+  /** 후불벽 한 칸: 생성형 벽면 사진 판을 기존 벽 바로 앞에 */
+  async _wall(k) {
+    const s = SLOTS[k];
+    const map = await new THREE.TextureLoader().loadAsync(ASSETS + s.img);
+    map.colorSpace = THREE.SRGBColorSpace;
+    map.anisotropy = 8;
+    const [x0, x1] = s.wall;
+    const w = x1 - x0, h = Math.min(WALL_H, (w * map.image.height) / map.image.width);
+    const plane = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshStandardMaterial({ map, roughness: 0.8, metalness: 0 }));
+    plane.position.set((x0 + x1) / 2, L.hall.floorY + WALL_H - h / 2, L.hall.z0 + WALL_Z);
+    plane.receiveShadow = true;
+    plane.userData.noBatch = true;
+    plane.layers.enable(1);
+    this.world.scene.add(plane);
+    this.state.set(k, plane);
+  }
+
+  /** 생성형 사진 판으로 바꿔 끼우기: 절차적 물체(조각이 끝난 뒤)의 경계 상자에 맞춘다 */
+  async _card(k, proc) {
+    const s = SLOTS[k];
+    const [map] = await Promise.all([
+      new THREE.TextureLoader().loadAsync(ASSETS + s.card),
+      proc.userData.ready // 절차적 불상 조각(워커)이 끝나야 크기가 정해진다
+    ]);
+    map.colorSpace = THREE.SRGBColorSpace;
+    map.anisotropy = 8;
+    proc.updateWorldMatrix(true, true);
+    const box = new THREE.Box3().setFromObject(proc);
+    const h = box.max.y - box.min.y;
+    const w = (h * map.image.width) / map.image.height;
+    const mat = new THREE.MeshStandardMaterial({ map, alphaTest: 0.5, alphaToCoverage: true, roughness: 0.85, metalness: 0, side: THREE.FrontSide });
+    const card = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
+    card.position.set((box.min.x + box.max.x) / 2, box.min.y + h / 2, (box.min.z + box.max.z) / 2);
+    card.receiveShadow = true;
+    card.userData.noBatch = true;
+    card.layers.enable(1);
+    this.world.scene.add(card);
+    proc.visible = false; // 숨겨도 피킹(레이캐스트)은 그대로 받는다
+    this.state.set(k, card);
   }
 }
