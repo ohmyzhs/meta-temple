@@ -5,7 +5,7 @@
 //  · 길게 누르기·세 번 누르기 뒤 getSelection() 이 빈 문자열
 //  · 가림 비율 = #hud 안에서 보이는 '면'(배경·테두리 흐림이 있는 요소, 단추, 입력, 조이스틱)이 덮는 화면 영역의 합집합 / 화면 넓이
 //    (2px 격자 표본, 모서리 둥글림 무시 — 실제보다 조금 크게 잰다. 토스트는 잠깐 뜨므로 뺀다). 세로 폰 ≤ 18%
-//  · 시트(메뉴·장소·더보기·시간날씨·소리·내 모습)를 하나씩 열어 그 안의 단추도 같은 크기·겹침 검사
+//  · 시트(메뉴·장소·더보기·소리)를 하나씩 열어 그 안의 단추도 같은 크기·겹침 검사
 import { launch, enter, VIEWPORTS, fmt, BASE } from './lib.mjs';
 
 const MIN = 48;
@@ -15,9 +15,7 @@ const SHEETS = [
   ['#menu-btn', '#menu-sheet'],
   ['#place-btn', '#place-sheet'],
   ['#more-btn', '#more-sheet'],
-  ['#menu-btn', '#menu-sheet [data-sheet="pop-env"]', '#pop-env'],
-  ['#menu-btn', '#menu-sheet [data-sheet="pop-sound"]', '#pop-sound'],
-  ['#menu-btn', '#menu-sheet [data-sheet="pop-self"]', '#pop-self']
+  ['#menu-btn', '#menu-sheet [data-sheet="pop-sound"]', '#pop-sound'] // 시간·날씨·시점·모습은 메뉴 한 장에 (하위 시트 없음)
 ];
 
 /** 페이지 안에서: scope 안의 보이는 단추·입력 */

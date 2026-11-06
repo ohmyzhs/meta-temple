@@ -39,11 +39,29 @@ export function kstDateString(d = new Date()) {
   return KST_DATE.format(d);
 }
 
-export function kstHour(d = new Date()) {
+// 헤드리스 확인용: ?date=2026-07-15T05:30 (한국 시각) 이면 그 날짜·시각부터 시계가 흐른다 — 계절·시간대 소리와 하늘이 함께 바뀐다
+const FAKE_MS = (() => {
+  try {
+    const v = new URLSearchParams(globalThis.location?.search || '').get('date');
+    const t = v ? Date.parse(`${v.includes('T') ? v : v + 'T12:00'}+09:00`) : NaN;
+    return Number.isFinite(t) ? t - Date.now() : 0;
+  } catch {
+    return 0;
+  }
+})();
+const now = () => new Date(Date.now() + FAKE_MS);
+
+export function kstHour(d = now()) {
   const parts = KST_HM.formatToParts(d);
   const h = Number(parts.find((p) => p.type === 'hour').value);
   const m = Number(parts.find((p) => p.type === 'minute').value);
   return h + m / 60;
+}
+
+const KST_MONTH = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Seoul', month: 'numeric' });
+/** 한국 시각의 달 (1~12) — 계절 소리(개구리·매미·풀벌레)가 이것을 따른다 */
+export function kstMonth(d = now()) {
+  return Number(KST_MONTH.format(d));
 }
 
 export function uuid() {

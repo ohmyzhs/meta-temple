@@ -25,8 +25,9 @@ for (const view of ['help', 'yebul']) {
 }
 
 const allThere = async (how) => {
-  const t = await bodyText(), hrefs = await links();
-  const missing = CREDITS.sound.filter((c) => !t.includes(c.title) || !hrefs.includes(c.url)).map((c) => c.title);
+  // 출처별 카드는 묶음 이름에 있는 말(「자연의소리」)을 원본 이름 앞에서 떼어 보여 준다 — 원본 이름 전체는 링크의 title 에
+  const anchors = await page.evaluate(() => [...document.querySelectorAll('#modal-body a')].map((a) => ({ href: a.href, name: a.title || a.textContent })));
+  const missing = CREDITS.sound.filter((c) => !anchors.some((a) => a.href === c.url && a.name === c.title)).map((c) => c.title);
   check(`${how}: 모든 소리 출처(${CREDITS.sound.length}) 제목·링크`, CREDITS.sound.length && !missing.length, missing.join(', '));
 };
 

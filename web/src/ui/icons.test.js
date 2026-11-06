@@ -11,7 +11,8 @@ const PLAN = {
   행동: 'bow_half prostrate meditate incense circumambulate tea',
   도구: 'menu time_weather sound self record help credits close more back',
   장소: 'zone_forest zone_courtyard zone_hall zone_teahouse',
-  신행: 'stone_pagoda wish_lantern wish_tile burn_worry bell_strike practice_108 sutra_copy yebul tea_chat dharma_card'
+  신행: 'stone_pagoda wish_lantern wish_tile burn_worry bell_strike practice_108 sutra_copy yebul tea_chat dharma_card',
+  제어판: 't_realtime t_dawn sun t_sunset t_night w_rain w_snow cam_third cam_first av_monk av_wanderer listen_nature sliders'
 };
 
 test('sprite_has_every_planned_symbol', () => {

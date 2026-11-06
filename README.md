@@ -20,7 +20,7 @@ meta-temple/
 │   ├── index.html            # 입장 화면 · HUD(독·시트) · 예불 재생기 · 모달 뼈대 · Three.js import map
 │   ├── spike.html            # 에셋 스파이크 비교 화면
 │   ├── assets/
-│   │   ├── audio/            # 실제 녹음 (국립공원공단 자연의소리) · 스님 고정 대사(Typecast)
+│   │   ├── audio/            # 실제 녹음 — nature/ 는 tools/audio/build.py 가 만든 자연의 소리·효과음 (출처 manifest.json) · 스님 고정 대사(Typecast)
 │   │   ├── icons/icons.svg   # 그림 아이콘 30종 (<symbol> 스프라이트, currentColor)
 │   │   ├── avatars/          # 블렌더 아바타 GLB (동자승·행자 / 등불 정령)
 │   │   └── world/ · spike/   # 실사 세계 에셋 (스캔 석탑·사진 질감·원경·삼존·후불벽)
@@ -145,7 +145,9 @@ npm test
 ## 자료 출처
 
 사이트의 메뉴와 도움말 맨 아래 「자료 출처」 화면에 분류별로 모아 둔다 (`web/src/data/credits.js`). 화면 곳곳에는 출처를 적지 않는다.
-`web/assets/audio/` 의 녹음은 모두 **국립공원공단 「자연의소리」**(공공데이터포털, **공공누리 제1유형: 출처표시**)의 영상에서 소리만 잘라 쓴 것이다(구간 편집·음량 조정·MP3 압축).
+`web/assets/audio/` 의 녹음은 **국립공원공단 「자연의소리」**(공공데이터포털)·**공유마당**(공공누리 제1유형: 출처표시)과 **Freesound CC0** 녹음에서 구간을 잘라(음량 -24 LUFS·이음새 교차 페이드·AAC/MP3) 만든 것이다. 원본·구간은 `tools/audio/manifest.json`, 조사와 라이선스 확인은 `docs/audio/SOURCES.md`.
+
+소리는 자리를 따른다: 계곡·연못·대숲·화로·독송·범종·풍경 같은 자리 소리는 `soundEngine.js` 의 `PLACED` 표(배경)와 `_spot()`(원샷)에 위치·모양·세기만 주면 같은 전파 법칙(거리 퍼짐·숲 초과 감쇠·담 가림·공기 흡수)을 받는다. 바람·비·산새·풀벌레·매미는 산 어디서나 시간대·날씨·계절(달)로만. 검사: `tools/qa/sound-map.mjs`(산책로 자리별 크기), `tools/qa/levels.mjs`(녹음·합성 크기 맞춤), `tools/qa/headroom.mjs`, `tools/qa/audio-bytes.mjs`.
 
 ## 남은 일
 

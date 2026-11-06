@@ -3,14 +3,15 @@
  * 24×24 격자, 둥근 끝 1.75px 선, 색은 currentColor (버튼 글자색을 따른다).
  * assets/ 는 배포 때 버전 경로 밖이라 캐시가 4시간 남는다 — 그림을 바꾸면 V 를 올린다.
  */
-const V = 1;
+const V = 2;
 const SPRITE = `./assets/icons/icons.svg?v=${V}`;
 
 export const ICON_NAMES = [
   'bow_half', 'prostrate', 'meditate', 'incense', 'circumambulate', 'tea',
   'menu', 'time_weather', 'sound', 'self', 'record', 'help', 'credits', 'close', 'more', 'back',
   'zone_forest', 'zone_courtyard', 'zone_hall', 'zone_teahouse',
-  'stone_pagoda', 'wish_lantern', 'wish_tile', 'burn_worry', 'bell_strike', 'practice_108', 'sutra_copy', 'yebul', 'tea_chat', 'dharma_card'
+  'stone_pagoda', 'wish_lantern', 'wish_tile', 'burn_worry', 'bell_strike', 'practice_108', 'sutra_copy', 'yebul', 'tea_chat', 'dharma_card',
+  't_realtime', 't_dawn', 'sun', 't_sunset', 't_night', 'w_rain', 'w_snow', 'cam_third', 'cam_first', 'av_monk', 'av_wanderer', 'listen_nature', 'sliders'
 ];
 
 /** 가람 구역 → 건물 그림 */

@@ -43,7 +43,7 @@ const S = (page) =>
       interrupted: s._interrupted,
       userPaused: s._userPaused,
       bg: s.background,
-      bedNext: +(s._beds[0]?.next ?? -1).toFixed(2),
+      bedNext: +((s._nbeds || []).find((b) => b.on)?.next ?? -1).toFixed(2), // 돌고 있는 자연의 소리 배경의 다음 이음새
       t: +(s.ctx?.currentTime ?? 0).toFixed(2)
     };
   });

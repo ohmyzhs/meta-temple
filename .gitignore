@@ -2,3 +2,6 @@
 node_modules/
 .claude/
 .playwright-mcp/
+# 자연의 소리 원본(국립공원공단 영상 등, 수 GB)과 스펙트로그램 확인 그림 — tools/audio/build.py
+tools/audio/raw/
+tools/audio/check/
