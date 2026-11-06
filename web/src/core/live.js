@@ -141,6 +141,8 @@ async function call(path, body, timeout = 5000) {
 
 export const sharedApi = {
   recent: () => call('/shared'),
+  /** 한 돌탑에 남긴 글만 (id 없으면 일주문 옆 돌탑) → { stones, n } */
+  cairnStones: (id) => call(`/stones?cairn=${id ? encodeURIComponent(id) : 'gate'}`),
   publish: (kind, item, clientId) => call(`/${kind}`, { ...item, clientId }),
   empathize: (id, clientId) => call(`/lanterns/${encodeURIComponent(id)}/empathy`, { clientId }),
   report: (kind, id, clientId) => call('/report', { kind, id, clientId })

@@ -154,6 +154,19 @@ test('stone_bad_cairn_400', async () => {
   }
 });
 
+test('cairn_stones_only_that_cairn', async () => {
+  const a = cid(), b = cid();
+  const ia = sid(), ib = sid();
+  assert.equal((await post('/api/stones', { id: ia, wish: '이 탑의 글', clientId: 'c-only1', cairnId: a, x: -50, z: 50 }, '10.1.4.1')).status, 201);
+  assert.equal((await post('/api/stones', { id: ib, wish: '저 탑의 글', clientId: 'c-only2', cairnId: b, x: 50, z: -50 }, '10.1.4.2')).status, 201);
+  const ra = await (await fetch(`${BASE}/api/stones?cairn=${a}`)).json();
+  assert.deepEqual([ra.n, ra.stones.map((s) => s.id)], [1, [ia]]);
+  const gate = await (await fetch(`${BASE}/api/stones?cairn=gate`)).json();
+  assert.ok(gate.stones.every((s) => !s.cairnId));
+  assert.ok(!gate.stones.some((s) => s.id === ia || s.id === ib));
+  assert.equal((await fetch(`${BASE}/api/stones?cairn=../x`)).status, 400);
+});
+
 test('old_stone_still_gate', async () => {
   const before = (await shared()).gateStones;
   const r = await post('/api/stones', { id: sid(), wish: '옛 화면의 돌', clientId: 'c-oldstone' }, '10.1.3.1');

@@ -577,6 +577,9 @@
 @keyframes m-drop { 0% { opacity: 0; transform: translateY(-26px); } 60% { opacity: 1; } 100% { opacity: 1; transform: none; } }
 .cairn-count { margin: 4px 0 0; font-family: var(--font-serif); font-size: 14px; color: var(--muk-soft); }
 .cairn-count b { font-size: 20px; color: var(--muk); font-weight: 600; margin: 0 2px; font-variant-numeric: tabular-nums; }
+.cairn-name { display: block; font-size: 16px; font-weight: 600; color: var(--muk); margin-bottom: 2px; } /* 이 돌탑 이름 (길가 돌탑마다 글이 따로) */
+.my-cairns .stone-item { align-items: center; }
+.my-cairns .m-btn { margin-left: auto; flex: none; }
 .stone-item { display: flex; align-items: flex-start; gap: 12px; padding: 11px 6px; border-bottom: 1px dashed var(--m-line); }
 .stone-item.is-mine { background: linear-gradient(90deg, rgba(201, 163, 90, 0.15), rgba(201, 163, 90, 0)); border-radius: 8px; }
 .stone-pebble {
