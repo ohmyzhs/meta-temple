@@ -848,7 +848,7 @@ export class AvatarManager {
     // 상주 스님 두 분
     const hallMonk = new Avatar('monk', { name: '청연 스님', variant: 'resident' });
     hallMonk.setItems({ wooden_mala: true });
-    hallMonk.root.position.set(-4.6, L.hall.floorY + 0.02, L.altar.z + 0.9); // 불단 왼쪽 앞, 대중을 옆으로 보고
+    hallMonk.root.position.set(-8.0, L.hall.floorY + 0.02, L.altar.z + 2.0); // 불단 왼쪽 앞, 대중을 옆으로 보고
     hallMonk.heading = Math.PI / 2;
     hallMonk.sitting = true;
     hallMonk.setState('meditate');

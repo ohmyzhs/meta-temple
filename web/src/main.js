@@ -699,7 +699,7 @@ class MetaTempleApp {
     veil(() => {
       if (this._listening !== ls) return;
       if (rest) return this._listenOutdoor(ls);
-      const c = this.avatars.freeCushionNear(0, L.hall.z1 - 4.4); // 셋째 줄 가운데(본존 정면): 불단과 삼존불이 한눈에 들어오는 자리
+      const c = this.avatars.freeCushionNear(0, L.hall.z1 - 6.4); // 셋째 줄 가운데(본존 정면): 불단과 삼존불이 한눈에 들어오는 자리
       const seat = this.avatars.cushionSeat(c);
       seat.kind = 'cushion';
       this.avatars.sitAt(seat, 'meditate');

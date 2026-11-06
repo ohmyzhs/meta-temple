@@ -73,9 +73,9 @@ const ARM = {
 };
 const wrapA = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 // 실내 규칙: 카메라 높이는 천장·처마 밑에서 0.4m 아래까지만.
-// 법당 우물천장 밑면 7.98m(마루 3.0 + 기둥 5.0 − 0.02), 처마 밑 최저 8.19m / 심검당 처마 밑 최저 4.77m (layout.js ROOF_COVERS, 위로 쏜 광선으로 잰 값)
+// 법당 우물천장 밑면 14.98m(마루 3.0 + 기둥 12.0 − 0.02), 처마 밑 최저 8.38m(중층 아랫지붕) / 심검당 처마 밑 최저 4.77m (layout.js ROOF_COVERS, 위로 쏜 광선으로 잰 값)
 // 다실 가는 길은 머리(약 2.45m)에서 처마 밑 4.37m 까지 1.92m 이므로 거리 5m 면 기울기 0.39rad 까지
-const HALL_CAM = { dist: 5.2, pitch: 0.42, maxY: L.hall.floorY + L.hall.colH - 0.02 - 0.4 }; // 우물천장 밑 0.4m
+const HALL_CAM = { dist: 6.5, pitch: 0.36, maxY: L.hall.floorY + L.hall.colH - 0.02 - 0.4 }; // 우물천장 밑 0.4m
 const PASSAGE_CAM = { dist: 5.0, pitch: 0.39, maxY: 4.77 - 0.4 };
 
 /* 밤하늘 세기 — tools/qa/night.mjs 로 재서 맞춘 값 */
