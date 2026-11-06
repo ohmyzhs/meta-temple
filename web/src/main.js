@@ -1,5 +1,5 @@
 /**
- * 청연산사 — 앱 진입점.
+ * 사운드템플 — 앱 진입점. (서비스 이름은 사운드템플, 그 안의 산사는 청연산사 — 산문 현판 「清蓮山寺」)
  * 입장 화면 → 월드 생성 → HUD·입력·신행 활동 연결 → 메인 루프.
  */
 import * as THREE from 'three';
@@ -727,14 +727,14 @@ class MetaTempleApp {
       w.setWeather(track.weather);
       this.sound.setSceneTimer(SCENE_MINUTES * 60); // 장면 한 편 — 한 곡·연속·반복이 이것으로 (data/natureSounds.js)
       this._listenLabel(track.title, track.note);
-      this.sound.setNowPlaying(track.title, '청연산사 · 자연의 소리');
+      this.sound.setNowPlaying(track.title, '사운드템플 · 자연의 소리');
       this.sound.setTrackActions(() => this._listenStep(-1), () => this._listenStep(1));
       return this._listenSync();
     }
     ls.ready = !!this.sound.playTrack('./assets/audio/' + track.file);
     this._listenLabel(track.title, track.place);
     // 잠금화면·알림: 제목과 이전·다음 단추
-    this.sound.setNowPlaying(track.title, `청연산사 예불 · ${track.place}`, 'yebul');
+    this.sound.setNowPlaying(track.title, `사운드템플 예불 · ${track.place}`, 'yebul');
     this.sound.setTrackActions(() => this._listenStep(-1), () => this._listenStep(1));
     this._listenSync();
   }
@@ -991,7 +991,7 @@ class MetaTempleApp {
   _nowPlayingZone() {
     const z = ZONES[this.zone];
     const art = { FOREST: 'forest', COURTYARD: 'courtyard', DAEUNGJEON: 'hall', TEAHOUSE: 'teahouse' }[this.zone] || 'forest';
-    if (z) this.sound.setNowPlaying(`${z.short}의 소리`, '청연산사 · 자연의 소리', art);
+    if (z) this.sound.setNowPlaying(`${z.short}의 소리`, '사운드템플 · 자연의 소리', art);
   }
 
   _listenSeek(by) {

@@ -280,7 +280,7 @@ export class TempleStore {
     } catch {
       return { ok: false, message: '기록 파일을 읽을 수 없습니다' };
     }
-    if (!raw || typeof raw !== 'object' || !raw.profile || typeof raw.profile !== 'object') return { ok: false, message: '청연산사 기록 파일이 아닙니다' };
+    if (!raw || typeof raw !== 'object' || !raw.profile || typeof raw.profile !== 'object') return { ok: false, message: '사운드템플 기록 파일이 아닙니다' };
     this.state = migrateState(raw);
     this.save();
     return { ok: true };

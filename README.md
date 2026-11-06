@@ -1,8 +1,11 @@
-# 청연산사 (清蓮山寺) — 무설치 웹 3D 온라인 사찰
+# 사운드템플 — 입체 ASMR 산사 (무설치 웹 3D)
+
+서비스 이름은 **사운드템플**(2026-11-07, ASMR 을 핵심 콘텐츠로 내세우려는 결정). 그 안의 산사 이름은 그대로 청연산사(清蓮山寺) — 산문 현판에만 붓글씨로 걸려 있다.
 
 > 말없이 함께 머물며 산사의 바람·풍경 소리를 듣고, 절·연등·사경·차담으로 마음을 비우는 웹 3D 디지털 안식처
 
-- 라이브: https://temple.lotiony.com
+- 라이브: https://temple.lotiony.com (sound-temple.lotiony.com 연결 예정)
+- 대문 로고: 처마 풍경 엠블럼 + 갈필 붓글씨 「사운드 템플」(생성형, `web/assets/brand/logo-sound-v1.webp`, 프롬프트 `docs/art/prompts/logo-sound-v1.txt`). 엠블럼만 떼어 상태판 낙관·사이트 아이콘(`emblem-v1.webp`, `web/assets/icons/`)으로도 쓴다.
 - 기획·설계 문서: [`docs/`](./docs) — 출시판 설계는 [`docs/superpowers/specs/2026-11-05-launch-upgrade-design.md`](./docs/superpowers/specs/2026-11-05-launch-upgrade-design.md), 단계별 계획·결과는 [`docs/superpowers/plans/`](./docs/superpowers/plans)
 
 ## 폴더 구조

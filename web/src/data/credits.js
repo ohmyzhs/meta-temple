@@ -71,7 +71,8 @@ export const CREDITS = {
   // 실사 세계(world/real)의 법당 삼존·후불벽 — 3D 모델 대신 생성형 사진을 세운 판 (프롬프트: docs/art/prompts/)
   generated: [
     { use: '법당 삼존 불상 사진·후불벽 탱화', title: 'gpt-image 생성 이미지', by: 'OpenAI', url: 'https://openai.com' },
-    { use: '대문 붓글씨 「清蓮山寺」', title: 'gpt-image 생성 이미지', by: 'OpenAI', url: 'https://openai.com' }
+    { use: '산문 현판 붓글씨 「清蓮山寺」', title: 'gpt-image 생성 이미지', by: 'OpenAI', url: 'https://openai.com' },
+    { use: '대문 로고 「사운드 템플」·처마 풍경 엠블럼', title: 'gpt-image 생성 이미지', by: 'OpenAI', url: 'https://openai.com' }
   ]
 };
 

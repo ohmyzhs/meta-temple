@@ -7,7 +7,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { mats } from './materials.js';
-import { latticeTextures, plaqueTexture, plasterTexture } from './textures.js';
+import { latticeTextures, plaqueImageTexture, plaqueTexture, plasterTexture } from './textures.js';
 import { nightGlow } from './materials.js';
 
 const V3 = THREE.Vector3;
@@ -754,7 +754,7 @@ export function buildIljumun() {
   roof.position.y = colH + 0.2 + 0.65 - (roof.userData.profileAt(sCol) - roof.userData.thickAt(sCol)) - 0.15;
   g.add(roof);
   // 현판 (앞뒤)
-  const pt = plaqueTexture('清蓮山寺', { w: 640, h: 200 });
+  const pt = plaqueImageTexture('./assets/brand/logo-cal-v1.webp', { w: 640, h: 200 }); // 산문 현판 「清蓮山寺」 붓글씨 (2026-11-07, 대문 로고였던 것)
   const pmat = new THREE.MeshStandardMaterial({ map: pt, roughness: 0.55, metalness: 0.1 });
   for (const side of [1, -1]) {
     const p = new THREE.Mesh(new THREE.PlaneGeometry(2.3, 0.72), pmat);
