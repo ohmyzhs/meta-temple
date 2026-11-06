@@ -31,7 +31,7 @@ export const NATURE_BEDS = {
   frogs: { layer: 'frogs', level: 0.66, /* 밤 풀벌레(0.06×3.3)와 같은 크기 */ pieces: [...N('frogs-baekryeong', 1, { months: [5, 6, 7] }), ...N('frogs-pool', 3, { months: [4, 5, 6, 7] })] },
   chant: { layer: 'chant', replaces: 'chant', level: 0.98, pieces: N('chant-baekyang', 3) },
   spring: { layer: 'spring', replaces: 'spring', level: 0.98, pieces: N('spring-dogap', 3) },
-  fire: { layer: 'brazier', level: 3.8, /* 평균 크기로는 23.7배(levels.mjs)지만 탁 소리 봉우리가 23dB 커서, 화롯가 장면에서 마스터 봉우리 -8dBFS 를 넘지 않게 묶은 값 (headroom.mjs) */ pieces: N('fire-camp', 3) }
+  fire: { layer: 'brazier', level: 1.51, /* 모닥불 조각은 탁 소리 봉우리를 8dB 깎고(peakcut) -29 LUFS 로 맞췄다 — 예전 -37 LUFS·3.8 과 같은 크기(-8dB), 봉우리만 낮다 (headroom.mjs) */ pieces: N('fire-camp', 3) }
 };
 
 function birdPieces() {
@@ -104,7 +104,7 @@ export const NATURE_PRESETS = [
   { id: 'autumnnight', title: '가을밤', note: '풀벌레와 산바람', time: 'night', month: 10, weather: 'clear', mix: { crickets: 1.2, wind: 0.6 } },
   { id: 'winter', title: '겨울 산사', note: '눈 내린 고요와 풍경', time: 'night', month: 1, weather: 'snow', mix: { wind: 0.8 }, chimes: true },
   { id: 'tea', title: '다실 찻물', note: '물 끓는 소리와 연못 샘물', time: 'day', month: 11, weather: 'clear', mix: { kettle: 1.2, spring: 0.8, wind: 0.3 } },
-  { id: 'fire', title: '화롯가', note: '장작 타는 소리와 겨울바람', time: 'night', month: 12, weather: 'snow', mix: { brazier: 1.3, wind: 0.7 } }
+  { id: 'fire', title: '화롯가', note: '장작 타는 소리와 겨울바람', time: 'night', month: 12, weather: 'snow', mix: { brazier: 0.46, wind: 0.7 } } // 화로 레이어 크기를 2.8배로 올린 만큼 (headroom.mjs 그대로)
 ];
 
 /** 잠자기 타이머(분) — 0 은 끔 */

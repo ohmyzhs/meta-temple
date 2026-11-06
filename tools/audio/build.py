@@ -121,8 +121,9 @@ def make_sprite(cut, out_wav, ch, n=12, slot=0.6, length=0.45, gap=0.3, starts=N
     return len(onsets)
 
 
-def build_piece(src, out, a, b, kind, ch, lufs, tmp, sprite=None, hp=25):
-    base = f'aresample=48000,highpass=f={hp}' + (',pan=mono|c0=0.5*c0+0.5*c1' if ch == 1 else '')
+def build_piece(src, out, a, b, kind, ch, lufs, tmp, sprite=None, hp=25, peakcut=0):
+    # peakcut: 봉우리만 이만큼(dB) 깎는다 — 모닥불 탁 소리처럼 봉우리가 큰 녹음이 엔진의 리미터를 누르지 않게 (평균 크기는 뒤에서 LUFS 로)
+    base = f'aresample=48000,highpass=f={hp}' + (f',alimiter=limit={10 ** (-peakcut / 20):.4f}:attack=1:release=40:level=0' if peakcut else '') + (',pan=mono|c0=0.5*c0+0.5*c1' if ch == 1 else '')
     cut = tmp / 'cut.wav'
     ff(['-ss', str(a), '-to', str(b), '-i', str(src), '-vn', '-af', base, '-ac', str(ch), '-c:a', 'pcm_f32le', str(cut)])
     count = None
@@ -173,7 +174,7 @@ def cmd_build(names):
             sp = {k: e[k] for k in ('n', 'slot', 'len', 'gap', 'starts') if k in e}
             if 'len' in sp:
                 sp['length'] = sp.pop('len')
-            i, gain, lim, count = build_piece(src, OUT / e['out'], e['from'], e['to'], e.get('kind', 'bed'), ch, e.get('lufs'), Path(t), sp, e.get('hp', 25))
+            i, gain, lim, count = build_piece(src, OUT / e['out'], e['from'], e['to'], e.get('kind', 'bed'), ch, e.get('lufs'), Path(t), sp, e.get('hp', 25), e.get('peakcut', 0))
         print(f'✓ {e["out"]:<22} {e["from"]:>6.1f}–{e["to"]:<6.1f}s  원래 {i:6.1f} LUFS → {gain:+5.1f} dB{"  (리미터)" if lim else ""}{f"  {count}칸" if count else ""}')
         done += 1
     print(f'{done}개 만듦 → {OUT}')

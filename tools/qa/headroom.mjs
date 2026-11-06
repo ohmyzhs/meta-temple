@@ -40,7 +40,10 @@ try {
         clearInterval(window._qaFoley);
         window._qaFoley = setInterval(() => {
           const k = i++ % 5;
-          if (k === 0) e.playFireWhoosh();
+          if (k === 0) {
+            e.playFireWhoosh(); // 소각 순간: 종이 불 + 화로 불이 세진다
+            e.flareBrazier(3);
+          }
           else if (k === 1) e.playTeaPour();
           else if (k === 2) e.playChukbi();
           else e.playFootstep(['gravel', 'stone', 'wood', 'earth'][i % 4]);

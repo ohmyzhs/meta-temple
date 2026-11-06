@@ -49,7 +49,7 @@ const LAYERS = {
   stream: { base: 0.5, w: 'stream' },
   spring: { base: 0.5 },
   bamboo: { base: 0.35 },
-  brazier: { base: 0.5 },
+  brazier: { base: 1.4, flare: true }, // 사용자 2026-11-06: 화로 곁(3~5m)에서 타닥 소리가 분명히 (tools/qa/brazier.mjs)
   kettle: { base: 0.45 },
   chant: { base: 0.6, duck: true } // 예불 듣는 동안은 내린다
 };
@@ -60,7 +60,7 @@ const PLACED = {
   frogs: { at: 'water', shape: 'line', ref: 8, preset: [-6, -1, 5] }, // 개구리는 물가에서
   spring: { at: 'pond', shape: 'point', ref: 4, preset: [2.5, -1.2, -2] },
   bamboo: { at: 'groves', shape: 'area', ref: 5, preset: [-4, 2, -5] },
-  brazier: { at: 'brazier', shape: 'point', ref: 1.5, preset: [-1.4, -0.9, -0.6] },
+  brazier: { at: 'brazier', shape: 'point', ref: 4, alpha: 3, preset: [-1.4, -0.9, -0.6] }, // 4m 안은 온전히, 타닥(고음)은 10m 넘으면 숲이 빨리 먹는다
   kettle: { at: 'kettle', shape: 'point', ref: 1.5, preset: [1.2, -0.6, -1] },
   chant: { at: 'chant', shape: 'point', ref: 4, alpha: 1.0, preset: [0, 2, -14] }
 };
@@ -114,6 +114,7 @@ const DEFAULT_EMITTERS = {
 const REC_ORDER = [['moktak', 3]];
 const BED_XFADE = 4; // 배경 녹음 이음새 교차 페이드(초)
 // 자연의 소리 배경(data/natureSounds.js): 조각을 번갈아 틀며 필요할 때만 받고 풀어 둔다
+const FLARE_BOOST = 0.8; // flareBrazier: 처음 배율 1.8 (+5dB) — 종이 불 소리와 겹쳐도 리미터가 누르지 않게 (headroom.mjs)
 const BED_PREFETCH = 12; // 지금 조각이 끝나기 이만큼 전에 다음 조각을 받아 풀어 둔다(초) — 47초 조각 하나가 모바일에서 1~2초
 const BED_AUDIBLE = 0.006; // 이보다 작게 들릴 배경(약 -44dB)은 받지도 틀지도 않는다
 const ENTRY_FADE = 4.5; // 입장하면 소리를 이만큼에 걸쳐 올린다 — 그동안 첫 녹음을 받는다 (사용자: 5초 안 페이드인이면 괜찮다)
@@ -580,6 +581,16 @@ export class TempleSoundEngine {
     this.preset = p || null;
     if (this.L) this._placeSources(0); // 자리 소리를 듣는 자리 곁으로(장면) 또는 제자리로
     this._mix(ZONE_FADE);
+  }
+
+  /**
+   * 번뇌 소각: 쪽지가 화로에 닿은 순간 부른다 — 화로 타닥 소리가 dur 초 동안 세졌다가(+5dB) 처음 크기로 잦아든다.
+   * 화면의 불(temple.brazier.flare 1→0)과 같은 모양. 화로 소리의 크기·거리는 전파 법칙 그대로
+   */
+  flareBrazier(dur = 3) {
+    if (!this._ready() || !this.L) return;
+    this._flare = { t0: this.ctx.currentTime, dur };
+    this._mix(0.15);
   }
 
   /** 잠자기 타이머 (분, 0·null 이면 끔) — 재생 시간(AudioContext 시계)으로 잰다. 화면이 꺼져 그리기가 멈춰도, 멈춰 둔 동안은 세지 않는다 */
@@ -1327,6 +1338,12 @@ export class TempleSoundEngine {
         if (src && layer.tone) this._ramp(layer.tone.frequency, airTone(src.d), dur);
       }
       if (def.duck && this._track) g = 0;
+      if (def.flare && this._flare) {
+        // 번뇌 소각: 쪽지가 숯불에 닿은 뒤 불이 세졌다가 잦아든다 (flareBrazier)
+        const left = 1 - (this.ctx.currentTime - this._flare.t0) / this._flare.dur;
+        if (left <= 0) this._flare = null;
+        else g *= 1 + FLARE_BOOST * left;
+      }
       this._ramp(layer.level.gain, g, def.fade ? Math.max(dur, def.fade) : dur);
     }
   }
