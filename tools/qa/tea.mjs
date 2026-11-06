@@ -162,6 +162,51 @@ for (const [w, h] of SIZES) {
   check(!errors.length, `페이지 오류 없음 ${errors[0] || ''}`);
   await ctx.close();
 }
+// 기억: AI 가 준 메모는 이 브라우저에만 두고, 다시 앉으면 다음 요청에 실어 보낸다. 「잊게 하기」로 지운다
+{
+  console.log('— memory 390x844');
+  const { ctx, page, errors } = await enter(browser, [390, 844], { init: () => localStorage.clear() });
+  page.on('pageerror', (e) => console.log(`    pageerror: ${String(e.stack || e).split('\n').slice(0, 4).join(' | ')}`));
+  const sent = [];
+  await page.route('**/api/monk', (route) => {
+    if (route.request().method() === 'GET') return route.fulfill({ json: { ai: true, limit: 20 } });
+    const body = route.request().postDataJSON();
+    sent.push(body);
+    return route.fulfill({ json: { ...AI(body.message), memory: sent.length === 1 ? '요즘 잠을 잘 못 이룸. 숨을 길게 내쉬기를 권함' : '' } });
+  });
+  const settings = () => page.evaluate(() => window.temple.store.state.settings.teaMemory || '');
+  await toTea(page);
+  await page.waitForTimeout(900);
+  await page.click('.tea-say');
+  await repliesShown(page);
+  await page.locator('.tea-reply').first().click();
+  await page.waitForSelector('.m-view.tea:not(.is-thinking)', { timeout: 10000 });
+  await page.click('.tea-say');
+  await repliesShown(page);
+  check(sent[0].memory === '', '첫 차담: 보낸 메모 없음');
+  check((await settings()).startsWith('요즘 잠을'), '받은 메모를 이 브라우저에 둠');
+  check((await page.textContent('.tea-ai')).includes('기억합니다'), `표시 「${await page.textContent('.tea-ai')}」`);
+  await shot(page, 'memory-390x844');
+  // 일어났다가 다시 앉기 → 메모를 실어 보낸다, 빈 메모가 오면 지난 메모 그대로
+  await page.click('[data-act="leave"]');
+  await page.waitForFunction(() => !document.body.classList.contains('tea-scene'), null, { timeout: 5000 });
+  await page.waitForTimeout(1500);
+  await page.click('#dock-rituals [data-ritual="tea_chat"]');
+  await page.waitForFunction(() => window.temple.modals.current === 'tea_chat' && document.body.classList.contains('tea-scene'), null, { timeout: 15000 });
+  await page.waitForTimeout(700);
+  await page.click('.tea-say');
+  await repliesShown(page);
+  await page.locator('.tea-reply').nth(1).click();
+  await page.waitForSelector('.m-view.tea:not(.is-thinking)', { timeout: 10000 });
+  await page.click('.tea-say');
+  await repliesShown(page);
+  check(sent[1]?.memory?.startsWith('요즘 잠을'), '다시 앉으면 메모를 실어 보냄');
+  check((await settings()).startsWith('요즘 잠을'), '빈 메모가 오면 지난 메모 그대로');
+  await page.click('.tea-forget');
+  check((await settings()) === '' && !(await page.textContent('.tea-ai')).includes('기억'), '잊게 하기로 지움');
+  check(!errors.length, `페이지 오류 없음 ${errors[0] || ''}`);
+  await ctx.close();
+}
 await browser.close();
 console.log(fails.length ? `FAIL (${fails.length})` : 'PASS');
 process.exit(fails.length ? 1 : 0);

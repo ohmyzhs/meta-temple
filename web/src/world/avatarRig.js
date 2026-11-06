@@ -17,10 +17,92 @@ const FILE_OF = { monk: 'monk', ink_wanderer: 'monk', lantern_spirit: 'spirit' }
 const BODY = {
   monk: ['monk_body'],
   resident: ['monk_body', 'necklace'], // 상주 스님: 목에 건 긴 염주
+  tea_master: ['monk_body', 'necklace'], // 심검당 차담 스님 (중년) — 아래 LOOKS 로 질감·비율을 바꾼다
   ink_wanderer: ['wanderer_body', 'wanderer_hat'],
   lantern_spirit: ['spirit_body']
 };
 const ALL_BODIES = new Set(Object.values(BODY).flat());
+
+/**
+ * 같은 뼈대·동작을 쓰되 다른 사람으로 보이게 (동자승인 내 모습과 마주 앉았을 때 헷갈리지 않게).
+ *  head·body: 머리 뼈·몸 전체 배율 — 머리를 줄이고 몸을 키우면 2.5등신 아이에서 어른 쪽으로.
+ *  open: 이 동작들에서는 눈을 감지 않는다 (차를 건네며 마주 보는 스님).
+ *  paint: 아틀라스(1024², glTF UV — 왼쪽 위 머리·얼굴, 오른쪽 위 장삼, 가운데 띠 가사, 아래 다리·소매, 오른쪽 아래 손·눈·염주)를 다시 칠한다.
+ */
+const LOOKS = {
+  tea_master: { head: 0.8, body: 1.12, open: new Set(['sit', 'tea', 'serve_tea', 'incense', 'idle']), paint: paintTeaMaster }
+};
+
+function paintTeaMaster(ctx) {
+  const tint = (op, color, x, y, w, h) => {
+    ctx.globalCompositeOperation = op;
+    ctx.fillStyle = color;
+    ctx.fillRect(x, y, w, h);
+  };
+  // 장삼: 잿빛 → 짙은 먹빛 회갈색 (손때 묻은 오래 입은 옷)
+  tint('multiply', '#8a7d6e', 512, 0, 512, 512);
+  tint('multiply', '#8a7d6e', 0, 620, 256, 404);
+  tint('multiply', '#8a7d6e', 256, 512, 256, 512);
+  // 가사: 붉은빛 → 괴색(흙빛 갈색)
+  tint('color', '#6e5236', 512, 512, 512, 128);
+  tint('multiply', '#b8a48c', 512, 512, 512, 128);
+  // 얼굴·손: 볕에 그은 살빛
+  tint('multiply', '#ead6c4', 0, 0, 512, 512);
+  tint('multiply', '#ead6c4', 512, 704, 128, 128);
+  tint('multiply', '#ead6c4', 768, 704, 128, 128);
+  // 깎은 머리의 푸른 기 (머리선 y≈200 위로 옅어지며)
+  const g = ctx.createLinearGradient(0, 120, 0, 205);
+  g.addColorStop(0, '#b9b8c2');
+  g.addColorStop(1, '#ffffff');
+  ctx.globalCompositeOperation = 'multiply';
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 512, 205);
+  ctx.globalCompositeOperation = 'source-over';
+  // 눈: 눈동자 위쪽을 살빛 눈꺼풀로 덮어 지그시 뜬 눈 (큰 빛 반사는 가린다) — 눈동자 칸 (576..704, 832..960)
+  ctx.fillStyle = '#d29d7c';
+  ctx.fillRect(576, 832, 128, 50);
+  ctx.fillStyle = 'rgba(52,36,28,0.95)';
+  ctx.fillRect(576, 878, 128, 7);
+  // 얼굴: 짙은 눈썹(원래 (228,235)·(284,235)), 팔자 주름(코 (256,305) 옆 → 입 (255,330) 양끝)
+  ctx.lineCap = 'round';
+  const stroke = (color, width, pts) => {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.beginPath();
+    ctx.moveTo(pts[0], pts[1]);
+    ctx.quadraticCurveTo(pts[2], pts[3], pts[4], pts[5]);
+    ctx.stroke();
+  };
+  for (const s of [-1, 1]) {
+    const c = 256 + s * 28;
+    stroke('rgba(58,48,42,0.92)', 7, [c - s * 17, 237, c - s * 2, 224, c + s * 15, 232]); // 눈썹
+    stroke('rgba(128,82,60,0.42)', 2.5, [256 + s * 13, 306, 256 + s * 25, 322, 256 + s * 19, 343]); // 팔자 주름
+  }
+  stroke('rgba(140,95,72,0.32)', 2, [236, 212, 256, 207, 276, 212]); // 이마 주름 (눈썹과 머리선 사이)
+}
+
+const painted = new WeakMap(); // lib → { variant: material }
+/** 변형 모습의 재질: 원본 재질을 복제하고 아틀라스를 캔버스에 다시 칠해 끼운다 (원본·다른 아바타는 그대로) */
+function lookMaterial(lib, variant, src) {
+  const byLib = painted.get(lib) || painted.set(lib, {}).get(lib);
+  if (byLib[variant]) return byLib[variant];
+  const img = src.map?.image;
+  if (!img || typeof document === 'undefined') return (byLib[variant] = src);
+  const cv = document.createElement('canvas');
+  cv.width = img.width;
+  cv.height = img.height;
+  const ctx = cv.getContext('2d');
+  ctx.drawImage(img, 0, 0);
+  ctx.save();
+  ctx.scale(img.width / 1024, img.height / 1024); // 칠하는 좌표는 1024² 기준
+  LOOKS[variant].paint(ctx);
+  ctx.restore();
+  const tex = new THREE.CanvasTexture(cv);
+  for (const k of ['flipY', 'colorSpace', 'wrapS', 'wrapT', 'magFilter', 'minFilter', 'anisotropy', 'channel']) tex[k] = src.map[k];
+  const mat = src.clone();
+  mat.map = tex;
+  return (byLib[variant] = mat);
+}
 /** 블렌더 몸이 있는 모습 */
 export const RIG_STYLES = new Set(Object.keys(FILE_OF));
 
@@ -95,14 +177,18 @@ export class RigBody {
     const lib = (this.lib = rigLib(style));
     this.model = cloneSkinned(lib.scene);
     const show = new Set(BODY[variant] || BODY[style] || BODY.monk);
+    const look = LOOKS[variant];
     const drop = [];
     this.model.traverse((o) => {
       if (!o.isMesh) return;
       if (ALL_BODIES.has(o.name) && !show.has(o.name)) return drop.push(o); // 다른 모습의 몸은 뗀다
+      if (look && o.material?.name === 'monk') o.material = lookMaterial(lib, variant, o.material); // 복제본 — 내 모습은 그대로
       o.castShadow = true;
       o.frustumCulled = false; // 절·좌선으로 몸이 쉬는 자세의 경계 밖으로 나간다 (아바타 수십 명이라 그냥 그린다)
     });
     drop.forEach((o) => o.removeFromParent());
+    if (look) this.model.scale.setScalar(look.body); // 동작이 손대지 않는 맨 위 — 앉은 엉덩이는 자리(루트)에 그대로 붙는다
+    this.look = look || null;
     this.hat = this.model.getObjectByName('wanderer_hat');
     this.mixer = new THREE.AnimationMixer(this.model);
     this.actions = new Map();
@@ -197,7 +283,10 @@ export class RigBody {
       const ref = this.lib.meta.clips?.[this.name]?.speed || 1;
       c.setEffectiveTimeScale(Math.max(0.35, speed / ref));
     }
+    // 동작이 뼈 크기를 쓰는 프레임도, 안 쓰는 프레임(한 번짜리 동작이 끝나 멈춘 뒤)도 있다 — 1 로 되돌린 뒤 갱신하고 곱해야 누적되지 않는다
+    if (this.look) this.head.scale.setScalar(1);
     this.mixer.update(dt);
+    if (this.look) this.head.scale.multiplyScalar(this.look.head);
     this._eyes(dt);
     // 도복 스치는 소리: 클립에 적힌 시각을 지날 때 (큰절·일어서기·앉기)
     const R = c && onRustle && this.lib.meta.clips?.[this.name]?.rustle;
@@ -220,7 +309,7 @@ export class RigBody {
       this._blinkIn = 2.5 + Math.random() * 3;
     }
     this._blink = Math.max(0, this._blink - dt);
-    const shut = EYES_SHUT.has(this.name) || this._blink > 0;
+    const shut = (EYES_SHUT.has(this.name) && !this.look?.open.has(this.name)) || this._blink > 0;
     this.eyesOpen.visible = !shut;
     this.eyesClosed.visible = shut;
   }

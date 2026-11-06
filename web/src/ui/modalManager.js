@@ -52,8 +52,8 @@ const TEA_MAX = 300; // 한 번에 건넬 수 있는 말 (server/monk.js MONK_LI
 const TYPE_MS = 42; // 대사가 한 자씩 나오는 간격 — 누르면 바로 다 보인다
 // Windows InJoon, 안드로이드·맥의 남성 한국어 음성 이름들
 const KO_MALE_VOICE = /injoon|hyunsu|minsu|bongjin|gookmin|jinho|male|남성|남자/i;
-// 스님 초상 (먹선 한 장 — 생성형 초상이 생기면 바꾼다)
-const MONK_FACE = `<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="31" fill="#2b2722"/><circle cx="32" cy="32" r="29" fill="none" stroke="#c9a35a" stroke-opacity=".55"/><path d="M12 60c2-12 10-18 20-18s18 6 20 18" fill="#5b4a3a"/><path d="M22 47l10 8 10-8" fill="none" stroke="#c9a35a" stroke-opacity=".7" stroke-width="1.6"/><ellipse cx="32" cy="29" rx="10.5" ry="12" fill="#e8d6bd"/><path d="M26.5 30.5q2 1.4 4 0M33.5 30.5q2 1.4 4 0" fill="none" stroke="#5e554a" stroke-width="1.3" stroke-linecap="round"/><path d="M29 36.5q3 1.8 6 0" fill="none" stroke="#8a6a2e" stroke-width="1.2" stroke-linecap="round"/></svg>`;
+// 차담 스님 초상 (먹선 한 장, 3D 의 중년 스님과 같은 옷빛·짙은 눈썹·지그시 뜬 눈 — 생성형 초상이 생기면 바꾼다)
+const MONK_FACE = `<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="31" fill="#2b2722"/><circle cx="32" cy="32" r="29" fill="none" stroke="#c9a35a" stroke-opacity=".55"/><path d="M11 60c2-12 10-17 21-17s19 5 21 17" fill="#4d453c"/><path d="M21 46l11 9 11-9" fill="none" stroke="#8a6a44" stroke-width="2.4"/><path d="M38 47l6 12" stroke="#6e5236" stroke-width="5"/><ellipse cx="32" cy="29" rx="10" ry="11.5" fill="#dcc3a6"/><path d="M24.5 25.6q3-2.4 6 -.8M33.5 24.8q3-1.6 6 .8" fill="none" stroke="#3a302a" stroke-width="1.9" stroke-linecap="round"/><path d="M26 29.8h4.4M33.6 29.8h4.4" stroke="#3a2a22" stroke-width="1.5" stroke-linecap="round"/><path d="M28.4 33.2q-1.4 2.6 .2 4.6M35.6 33.2q1.4 2.6-.2 4.6" fill="none" stroke="#9a6a50" stroke-width=".9" stroke-linecap="round"/><path d="M29.6 37q2.4 1.4 4.8 0" fill="none" stroke="#8a5a3e" stroke-width="1.2" stroke-linecap="round"/></svg>`;
 
 /* ───────── 작은 도구들 ───────── */
 const ESC_MAP = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
@@ -1416,10 +1416,15 @@ export class ModalManager {
     let suggestions = [];
     let aiShown = null;
 
+    // 다음 차담을 위한 스님의 짧은 메모 — 이 브라우저에만 (설정에 함께 저장, 기록 내보내기에도 담긴다)
+    const memory = () => this.store.state.settings.teaMemory || '';
+    let leftShown;
     const setAi = (ai, left) => {
       aiShown = !!ai;
+      leftShown = left;
       const el = $('[data-ai]');
-      el.textContent = ai ? `차담 스님은 AI 입니다${Number.isFinite(left) && left <= 3 ? ` · 오늘 ${left}번 남음` : ''}` : '미리 적어 둔 말로 답합니다';
+      const head = ai ? `차담 스님은 AI 입니다${Number.isFinite(left) && left <= 3 ? ` · 오늘 ${left}번 남음` : ''}` : '미리 적어 둔 말로 답합니다';
+      el.innerHTML = `<span>${esc(head)}</span>${memory() ? '<span class="tea-mem"> · 지난 이야기를 기억합니다 <button type="button" class="tea-forget" data-act="forget">잊게 하기</button></span>' : ''}`;
       el.classList.toggle('is-ai', !!ai);
     };
 
@@ -1505,7 +1510,8 @@ export class ModalManager {
       const prior = hist.slice();
       hist.push({ role: 'user', text });
       const started = performance.now();
-      const res = await generateMonkResponse(text, prior, { name: this.store.profile.dharmaName, clientId: this.store.profileId });
+      const res = await generateMonkResponse(text, prior, { name: this.store.profile.dharmaName, clientId: this.store.profileId, memory: memory() });
+      if (res.memory) this.store.setSetting('teaMemory', res.memory);
       const cooled = res.limited && this._teaCooled !== kstDateString();
       if (cooled) this._teaCooled = kstDateString();
       const reply = cooled ? COOLED_LINE : res.reply;
@@ -1577,7 +1583,10 @@ export class ModalManager {
       else if (act === 'cancel') closeCompose();
       else if (act === 'card') drawCard();
       else if (act === 'leave') this.close();
-      else if (act === 'voice') {
+      else if (act === 'forget') {
+        this.store.setSetting('teaMemory', '');
+        setAi(aiShown, leftShown);
+      } else if (act === 'voice') {
         voiceOn = !voiceOn;
         b.setAttribute('aria-pressed', String(voiceOn));
         this.store.setSetting?.('teaVoice', voiceOn);
@@ -1936,7 +1945,7 @@ export class ModalManager {
         <h3 class="m-sub">기록과 비밀</h3>
         <p class="help-p">법명, 쌓인 수행, 연등·기와·돌탑, 간직한 죽비는 <b>이 브라우저에만</b> 저장됩니다. 회원가입도, 서버 계정도 없습니다.</p>
         <p class="help-p"><b>번뇌 소각</b>에 적은 글은 어디에도 저장되거나 보내지지 않으며, 태우는 순간 화면에서도 사라집니다.</p>
-        <p class="help-p"><b>차담</b>의 말은 AI 스님의 답을 받으려고 서버를 거쳐 AI 회사(OpenRouter 를 통해 Anthropic 등)에 전해집니다. 산사의 서버는 대화를 저장하지 않고, 이 브라우저에도 남지 않습니다. 기도와 고민은 광고에 쓰이지 않습니다.</p>
+        <p class="help-p"><b>차담</b>의 말은 AI 스님의 답을 받으려고 서버를 거쳐 AI 회사(OpenRouter 를 통해 Anthropic 등)에 전해집니다. 산사의 서버는 대화를 저장하지 않습니다. 다음 차담에서 이어 갈 수 있게 스님이 짧게 적은 메모 하나만 <b>이 브라우저에</b> 남고(기록 내보내기에도 담깁니다), 차담 창의 「잊게 하기」로 언제든 지울 수 있습니다. 기도와 고민은 광고에 쓰이지 않습니다.</p>
       </section>
       <p class="help-foot"><button type="button" class="m-link" data-act="credits">자료 출처</button></p>`);
     this._on(this.body, 'click', (e) => e.target.closest('[data-act="credits"]') && this.open('credits'));
@@ -1999,7 +2008,8 @@ function reportBtn(kind, x) {
  * 서버 /api/monk (server/monk.js) 가 AI 로 답한다. API 키는 서버에만 있다.
  * 위기 신호는 서버에 묻기 전에 여기서 먼저 109 를 안내하고, 거름에 걸린 말은 보내지 않는다.
  * 서버가 없거나 끊기거나 오늘 몫을 다 쓰면 미리 적어 둔 대화 나무(localMonkResponse)로 잇는다.
- * 반환 { reply, suggestions[3], verse, crisis, ai, left?, limited?, blocked? } */
+ * memory: 지난 차담 메모 (이 브라우저에만 둔 것) — 보내면 스님이 이어서 기억한다.
+ * 반환 { reply, suggestions[3], verse, crisis, ai, memory?, left?, limited?, blocked? } */
 const MONK_WAIT_MS = 9000; // 서버가 7초(MONK_TIMEOUT_MS)에 끊고 알려 주니 그보다 조금 길게 — 실측 전 임시값
 const monkEndpoint = () => (typeof window === 'undefined' ? null : window.TEMPLE_CONFIG?.monkChatEndpoint ?? `${LIVE_API}/monk`);
 
@@ -2026,7 +2036,7 @@ export async function monkStatus() {
   }
 }
 
-export async function generateMonkResponse(userMessage, history = [], { name, clientId } = {}) {
+export async function generateMonkResponse(userMessage, history = [], { name, clientId, memory = '' } = {}) {
   const text = String(userMessage ?? '').replace(/\s+/g, ' ').trim().slice(0, TEA_MAX);
   const local = (extra) => ({ ...localMonkResponse(text, history), ai: false, ...extra });
   const blocked = (reason) => ({ reply: BLOCKED_REPLIES[reason] || BLOCKED_REPLIES.abuse, verse: '', suggestions: REST_SUGGESTIONS, crisis: false, ai: false, blocked: reason });
@@ -2036,7 +2046,7 @@ export async function generateMonkResponse(userMessage, history = [], { name, cl
   const url = monkEndpoint();
   if (url) {
     try {
-      const body = { message: v.text, history: history.slice(-6).map((h) => ({ role: h.role, text: String(h.text || '').slice(0, 240) })), name, clientId };
+      const body = { message: v.text, history: history.slice(-6).map((h) => ({ role: h.role, text: String(h.text || '').slice(0, 240) })), name, clientId, memory: String(memory || '').slice(0, 200) };
       const { res, data } = await monkFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }, MONK_WAIT_MS);
       if (res.ok && typeof data?.reply === 'string' && data.reply.trim()) {
         const sug = Array.isArray(data.suggestions) ? data.suggestions.filter((x) => typeof x === 'string' && x.trim()).slice(0, 3) : [];
@@ -2046,6 +2056,7 @@ export async function generateMonkResponse(userMessage, history = [], { name, cl
           suggestions: sug.length === 3 ? sug : localMonkResponse(text, history).suggestions,
           crisis: !!data.crisis,
           ai: !!data.ai,
+          memory: typeof data.memory === 'string' ? data.memory.trim().slice(0, 200) : '', // 빈 문자열 = 지난 메모 그대로
           left: Number.isFinite(data.left) ? data.left : undefined
         };
       }
