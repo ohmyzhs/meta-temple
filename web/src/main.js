@@ -618,7 +618,7 @@ class MetaTempleApp {
     ls.ready = !!this.sound.playTrack('./assets/audio/' + track.file);
     $('#listen-name').textContent = `${track.title} · ${track.place}`;
     // 잠금화면·알림: 제목과 이전·다음 단추
-    this.sound.setNowPlaying(track.title, `청연산사 예불 · ${track.place}`);
+    this.sound.setNowPlaying(track.title, `청연산사 예불 · ${track.place}`, 'yebul');
     this.sound.setTrackActions(() => this._listenStep(-1), () => this._listenStep(1));
     this._listenSync();
   }
@@ -799,7 +799,8 @@ class MetaTempleApp {
   /** 잠금화면·알림의 제목: 지금 있는 곳의 소리 */
   _nowPlayingZone() {
     const z = ZONES[this.zone];
-    if (z) this.sound.setNowPlaying(`${z.short}의 소리`, '청연산사 · 자연의 소리');
+    const art = { FOREST: 'forest', COURTYARD: 'courtyard', DAEUNGJEON: 'hall', TEAHOUSE: 'teahouse' }[this.zone] || 'forest';
+    if (z) this.sound.setNowPlaying(`${z.short}의 소리`, '청연산사 · 자연의 소리', art);
   }
 
   _listenSeek(by) {
