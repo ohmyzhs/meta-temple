@@ -370,7 +370,12 @@ export class Temple {
     const fy = h.floorY;
     // 마루
     const fl = new THREE.Mesh(new THREE.BoxGeometry(h.x1 - h.x0 + 0.6, fy - L.stylobate.y + 0.02, h.z1 - h.z0 + 0.6), [m.woodDark, m.woodDark, m.floor, m.woodDark, m.woodDark, m.woodDark]);
-    m.floor.map.repeat.set((h.x1 - h.x0 + 0.6) / 5.5, (h.z1 - h.z0 + 0.6) / 5.3); // 마루 널 한 장 폭이 예전(16m 법당 3×2)과 같게
+    m.floor.map.repeat.set(3, 2); // 공용 마루 재질 (다실 방바닥도 같은 재질) — 반복은 예전 값 그대로 두고
+    {
+      // 넓어진 법당 마루는 윗면 UV 를 늘려 널 한 장 폭을 예전(16.6m 에 3번)과 같게
+      const uv = fl.geometry.attributes.uv, kx = (h.x1 - h.x0 + 0.6) / 16.6, kz = (h.z1 - h.z0 + 0.6) / 10.6;
+      for (let i = 8; i < 12; i++) uv.setXY(i, uv.getX(i) * kx, uv.getY(i) * kz); // BoxGeometry 윗면(+y) 정점 8..11
+    }
     fl.position.set(0, (fy + L.stylobate.y) / 2, (h.z0 + h.z1) / 2);
     fl.receiveShadow = true;
     this.scene.add(fl);
