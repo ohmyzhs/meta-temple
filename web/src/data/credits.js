@@ -52,7 +52,7 @@ export const CREDITS = {
     { use: "죽비", title: "Wooden staff hitting hand", by: "eveninx (Freesound)", license: "CC0", url: "https://freesound.org/s/434979/" },
     { use: "염주", title: "Beads - Manipulation", by: "Vrymaa (Freesound)", license: "CC0", url: "https://freesound.org/s/807390/" },
     { use: "돌탑 조약돌", title: "rocks on rocks", by: "_StudentofSound_ (Freesound)", license: "CC0", url: "https://freesound.org/s/703519/" },
-    { use: "번뇌 소각(종이 타는 소리)", title: "1.10_burning-paper", by: "15GKovacovaJulie (Freesound)", license: "CC0", url: "https://freesound.org/s/461075/" },
+    { use: "번뇌 소각", title: "1.10_burning-paper", by: "15GKovacovaJulie (Freesound)", license: "CC0", url: "https://freesound.org/s/461075/" },
     { use: "차 따르기", title: "Tea Pouring", by: "mdayalan (Freesound)", license: "CC0", url: "https://freesound.org/s/240125/" },
     { use: "도복 스침", title: "Cotton clothes rustling", by: "khenshom (Freesound)", license: "CC0", url: "https://freesound.org/s/481075/" },
     { use: "한지", title: "종이_넘기는_소리", by: "(재)전주정보문화산업진흥원", license: "공공누리 제1유형", url: "https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?wrtSn=13372326&menuNo=200020" },
@@ -77,7 +77,7 @@ export const CREDITS = {
 
 /** 분류 제목과 한 줄 설명 */
 export const CREDIT_GROUPS = {
-  sound: { title: '소리', note: '산사의 소리는 국립공원공단 「자연의소리」(공공데이터포털)와 한국저작권위원회 공유마당의 공공누리 제1유형(출처표시) 녹음을 주로 쓰고, 국내에 없는 소리(겨울 숲·모닥불·수리부엉이·발소리 등)는 Freesound 의 CC0(저작권 포기) 녹음으로 채웠습니다.' },
+  sound: { title: '소리', note: '산사에서 실제로 녹음한 소리를 잘라 음량을 맞추고 이어 붙여 씁니다. 국내에 없는 소리(겨울 숲·모닥불·수리부엉이·발소리 등)는 Freesound 의 CC0 녹음으로 채웠습니다.' },
   scans: { title: '3D 스캔' },
   textures: { title: '사진 질감' },
   patterns: { title: '문양' },
@@ -85,6 +85,25 @@ export const CREDIT_GROUPS = {
 };
 
 export const LICENSE_URLS = { [KOGL1]: 'https://www.kogl.or.kr/info/licenseType1.do', CC0: 'https://creativecommons.org/publicdomain/zero/1.0/deed.ko' };
+
+/**
+ * 출처별 묶음 — 「자료 출처」 화면이 항목의 by 로 묶어 카드 하나에 보여 준다 (머리에 라이선스·원본 사이트를 한 번만).
+ * Freesound 항목은 by 가 「올린 사람 (Freesound)」 — 묶음은 Freesound, 올린 사람은 항목 옆에.
+ * strip: 화면에서 원본 이름 앞에서 뗄 말 (묶음 이름에 이미 있다)
+ */
+export const CREDIT_SOURCES = {
+  국립공원공단: { name: '국립공원공단 「자연의소리」', site: '공공데이터포털', url: 'https://www.data.go.kr', strip: '자연의소리_' },
+  '(재)전주정보문화산업진흥원': { name: '공유마당 자연음·전통사물 소리', site: '한국저작권위원회 공유마당', url: 'https://gongu.copyright.or.kr', note: '(재)전주정보문화산업진흥원 제작' },
+  Freesound: { name: 'Freesound', site: 'freesound.org', url: 'https://freesound.org', note: '저작권을 포기한 녹음 — 올린 사람을 함께 적는다' },
+  국가유산청: { name: '국가유산청', site: '국가유산 디지털 서비스', url: 'https://digital.khs.go.kr' },
+  OpenAI: { name: 'OpenAI', site: 'openai.com', url: 'https://openai.com' }
+};
+
+/** 항목의 출처 묶음 이름과 (Freesound 면) 올린 사람 */
+export function creditSource(c) {
+  const m = /^(.*) \(Freesound\)$/.exec(c.by || '');
+  return m ? { key: 'Freesound', author: m[1] } : { key: c.by, author: null };
+}
 
 /** 법당 「예불 듣기」 — 실제 사찰에서 녹음한 예불을 처음부터 끝까지 (국립공원공단 녹음 길이 그대로, 약 5분). sec = ffprobe 실측 길이 */
 export const YEBUL_TRACKS = [

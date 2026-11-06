@@ -1382,3 +1382,24 @@ body.tea-scene .modal-overlay.is-side {
 /* 자연의 소리 듣기: 옆 패널이 좁아 타이머 라벨을 위로 쌓는다 */
 .sutra-group.nature-sleep { flex-direction: column; align-items: stretch; gap: 6px; margin-bottom: 14px; }
 .nature-sleep .sutra-group-label { width: auto; }
+
+/* 자료 출처: 출처별 카드 — 머리(이름·라이선스·원본 사이트) 한 번, 안에는 쓰는 곳 | 원본 이름들 */
+.cr-list { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+.cr-src { border: 1px solid rgba(43, 39, 34, 0.12); border-radius: 12px; background: rgba(255, 252, 244, 0.55); padding: 12px 14px 10px; }
+.cr-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.cr-head b { font-family: var(--font-serif); font-weight: 600; font-size: 14.5px; color: var(--muk); }
+.cr-lic { font-size: 11px; line-height: 1; padding: 4px 8px; border-radius: 999px; border: 1px solid var(--gold-soft); color: var(--m-gold-ink); background: rgba(201, 163, 90, 0.08); }
+.cr-lic a { color: inherit; text-decoration: none; }
+.cr-site { margin: 4px 0 8px; font-size: 11.5px; color: var(--muk-soft); }
+.cr-site a { color: var(--muk-soft); text-underline-offset: 3px; }
+.cr-rows { display: grid; grid-template-columns: 84px 1fr; gap: 5px 10px; margin: 0; padding-top: 8px; border-top: 1px dashed rgba(43, 39, 34, 0.12); font-size: 12.5px; line-height: 1.55; }
+.cr-rows dt { color: var(--muk); font-weight: 500; word-break: keep-all; }
+.cr-rows dd { margin: 0; color: var(--muk-soft); min-width: 0; }
+.cr-item a { color: var(--m-gold-ink); text-underline-offset: 3px; word-break: keep-all; overflow-wrap: anywhere; }
+.cr-item small { font-size: 11px; color: var(--muk-soft); }
+.cr-item + .cr-item::before { content: '·'; margin: 0 6px; color: rgba(43, 39, 34, 0.35); }
+@media (max-width: 480px) {
+  .cr-rows { grid-template-columns: 1fr; gap: 1px 0; }
+  .cr-rows dt { margin-top: 6px; font-size: 12px; }
+  .cr-rows dt:first-child { margin-top: 0; }
+}

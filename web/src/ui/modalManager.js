@@ -10,7 +10,7 @@
  */
 import { nameFeedback, NAME_PLACEHOLDER } from './nameField.js';
 import { NAME_MAX, checkText } from '../core/moderation.js';
-import { CREDITS, CREDIT_GROUPS, LICENSE_URLS, YEBUL_TRACKS } from '../data/credits.js';
+import { CREDITS, CREDIT_GROUPS, CREDIT_SOURCES, LICENSE_URLS, YEBUL_TRACKS, creditSource } from '../data/credits.js';
 import { NATURE_PRESETS, SLEEP_MINUTES } from '../data/natureSounds.js';
 import { SUTRA_VERSES, DHARMA_CARDS, localMonkResponse, isCrisisText, OPENING_SUGGESTIONS, BLOCKED_REPLIES, COOLED_LINE, REST_SUGGESTIONS, TEA_LINES, voiceKey, cardVoiceText } from '../data/dharmaTexts.js';
 import { LIVE_API } from '../core/live.js';
@@ -2065,18 +2065,45 @@ export class ModalManager {
   }
 
   /* ═════════ 11. 자료 출처 ═════════ */
+  /** 자료 출처: 분류(소리·3D 스캔…) 안에서 출처별 카드로 묶는다 — 머리에 라이선스·원본 사이트를 한 번, 안에는 쓰는 곳마다 원본 이름 */
   _credits() {
-    const link = (url, text) => `<a href="${esc(url)}" target="_blank" rel="noopener">${esc(text)}</a>`;
+    const link = (url, text, title) => `<a href="${esc(url)}" target="_blank" rel="noopener"${title ? ` title="${esc(title)}"` : ''}>${esc(text)}</a>`;
+    const card = (key, list) => {
+      const s = CREDIT_SOURCES[key] || { name: key };
+      const licenses = [...new Set(list.map((c) => c.license).filter(Boolean))];
+      const rows = new Map(); // 쓰는 곳 → 원본들 (처음 나온 차례대로)
+      for (const c of list) {
+        const { author } = creditSource(c);
+        // 화면에서만 읽기 쉽게: 묶음 이름에 있는 말을 떼고 밑줄은 띄어쓰기로 (원본 이름 그대로는 링크의 title 에)
+        const shown = (s.strip && c.title.startsWith(s.strip) ? c.title.slice(s.strip.length) : c.title).replace(/_/g, ' ');
+        const item = `<span class="cr-item">${link(c.url, shown, c.title)}${author ? ` <small>${esc(author)}</small>` : ''}</span>`;
+        if (!rows.has(c.use)) rows.set(c.use, []);
+        rows.get(c.use).push(item);
+      }
+      const site = [s.url ? link(s.url, s.site || s.url) : '', s.note ? esc(s.note) : '', `${list.length}건`].filter(Boolean).join(' · ');
+      return `<article class="cr-src">
+        <header class="cr-head">
+          <b>${esc(s.name)}</b>
+          ${licenses.map((l) => `<span class="cr-lic">${LICENSE_URLS[l] ? link(LICENSE_URLS[l], l) : esc(l)}</span>`).join('')}
+        </header>
+        <p class="cr-site">${site}</p>
+        <dl class="cr-rows">${[...rows].map(([use, items]) => `<dt>${esc(use)}</dt><dd>${items.join('')}</dd>`).join('')}</dl>
+      </article>`;
+    };
     const groups = Object.entries(CREDITS)
       .filter(([, list]) => list.length)
       .map(([key, list]) => {
         const g = CREDIT_GROUPS[key] || { title: key };
+        const bySource = new Map();
+        for (const c of list) {
+          const k = creditSource(c).key;
+          if (!bySource.has(k)) bySource.set(k, []);
+          bySource.get(k).push(c);
+        }
         return `<section class="help-sec">
           <h3 class="m-sub">${esc(g.title)}</h3>
           ${g.note ? `<p class="help-p">${esc(g.note)}</p>` : ''}
-          <ul class="help-credits">${list
-            .map((c) => `<li>${esc(c.use)} — ${esc(c.by)}, ${link(c.url, c.title)}${c.license ? ` · ${LICENSE_URLS[c.license] ? link(LICENSE_URLS[c.license], c.license) : esc(c.license)}` : ''}</li>`)
-            .join('')}</ul>
+          <div class="cr-list">${[...bySource].map(([k, l]) => card(k, l)).join('')}</div>
         </section>`;
       })
       .join('');

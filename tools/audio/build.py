@@ -241,7 +241,7 @@ def cmd_scan(path, length=50.0, skip=15.0, k=4):
 USE = {'stream': '계곡 물소리', 'rain': '빗소리', 'wind': '솔바람', 'winter': '겨울 숲 고요', 'bamboo': '대숲 바람', 'birds': '산새', 'crickets': '가을 풀벌레',
        'cicadas': '여름 매미', 'frogs': '개구리', 'chant': '법당 염불', 'spring': '연못 샘물', 'fire': '화롯불', 'gust': '돌풍', 'bell': '범종', 'chime': '처마 풍경(풍탁)',
        'scops': '소쩍새', 'owl': '솔부엉이', 'eagleowl': '수리부엉이', 'thunder': '먼 천둥', 'drip': '낙숫물', 'sweep': '마당 쓰는 소리', 'step': '발소리',
-       'chukbi': '죽비', 'beads': '염주', 'pebble': '돌탑 조약돌', 'paper': '한지', 'robe': '도복 스침', 'brush': '붓', 'paperfire': '번뇌 소각(종이 타는 소리)', 'pour': '차 따르기'}
+       'chukbi': '죽비', 'beads': '염주', 'pebble': '돌탑 조약돌', 'paper': '한지', 'robe': '도복 스침', 'brush': '붓', 'paperfire': '번뇌 소각', 'pour': '차 따르기'}
 
 
 def cmd_credits():
