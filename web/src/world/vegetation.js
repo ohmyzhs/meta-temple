@@ -6,7 +6,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { L, terrainHeight, isClearForTree, addCircleCollider, pathX, noise2, streamZ } from './layout.js';
 import { windSway, weatherable } from './materials.js';
 import { bambooTexture } from './textures.js';
-import { nearestTrail, trail, REST_SPOTS, inLookoutView, DENSE_FOREST } from './trail.js';
+import { nearestTrail, trail, REST_SPOTS, inLookoutView, DENSE_FOREST, trailDistFar, FLOOR_REACH } from './trail.js';
 
 const trailDist = (x, z) => nearestTrail(x, z)?.d ?? 99;
 
@@ -210,7 +210,7 @@ export function buildVegetation(scene, quality) {
   }
   // 길 가까운 나무만 충돌
   for (const k of ['fir', 'pine', 'maple']) {
-    for (const [x, z, s] of spots[k]) if (Math.abs(x - pathX(z)) < 8 || z < 6 || trailDist(x, z) < 6) addCircleCollider(x, z, 0.45 * s);
+    for (const [x, z, s] of spots[k]) if (Math.abs(x - pathX(z)) < 8 || z < 6 || trailDistFar(x, z) < FLOOR_REACH + 1.5) addCircleCollider(x, z, 0.45 * s);
   }
 
   const bamboo = buildBamboo(scene, low);

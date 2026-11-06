@@ -249,6 +249,14 @@ export const courtBranch = new Polyline(sampleCurve(COURT_BRANCH_CTRL));
 export const teaBranch = new Polyline(sampleCurve(TEA_BRANCH_CTRL));
 export const PATHS = [trail, courtBranch, teaBranch];
 
+/** 한 바퀴 닫힌 고리: 순환로(J1 → J3) + 숲길(J3 → J1, 산문 앞). 자동 산책이 이 길을 따라 돈다 */
+export const loop = (() => {
+  const pts = [...trail.pts];
+  for (let z = J3.z - 0.5; z > J1.z + 0.25; z -= 0.5) pts.push({ x: forestPathX(z), z });
+  pts.push({ x: J1.x, z: J1.z });
+  return new Polyline(pts);
+})();
+
 /** 두 길(순환로·다실 갈림길) 중 가장 가까운 점 { d, h(높이 단면, setProfile 뒤), path, ... } */
 export function nearestTrail(x, z) {
   let best = null;
@@ -482,4 +490,139 @@ export function fenceRuns() {
     }
   }
   return runs.filter((r) => r.pts.length >= 2);
+}
+
+/* ───── 나무 이정표 ─────
+ * 갈림목·쉼터 앞·긴 구간 중간에 세운다. 판마다 { text, dx, dz } — 판 끝이 가리키는 쪽, 거리는 고리(loop)를 따라 잰 값.
+ */
+const DEST = (() => {
+  const list = [];
+  const seen = new Set();
+  for (const r of REST_SPOTS) {
+    if (seen.has(r.name)) continue;
+    seen.add(r.name);
+    list.push({ name: r.name, s: loop.nearest(r.stand.x, r.stand.z).s, spot: r });
+  }
+  list.push({ name: '일주문', s: loop.length });
+  return list.sort((a, b) => a.s - b.s);
+})();
+const BRANCHES = [
+  { name: '후원 다실', path: teaBranch },
+  { name: '대웅전 앞마당', path: courtBranch }
+].map((b) => ({ ...b, s: loop.nearest(b.path.pts[0].x, b.path.pts[0].z).s }));
+
+const roundM = (d) => (d < 12 ? Math.max(1, Math.round(d)) : Math.round(d / 5) * 5);
+function tangentOn(P, s) {
+  const a = P.at(Math.max(0, s - 0.5)), b = P.at(Math.min(P.length, s + 0.5));
+  const l = Math.hypot(b.x - a.x, b.z - a.z) || 1;
+  return { x: (b.x - a.x) / l, z: (b.z - a.z) / l };
+}
+
+export const SIGN_OFF = FENCE_OFF + 0.65;
+
+/** 이정표 목록 [{ x, z, s, boards: [{ text, dx, dz }] }] (순수 계산 — 테스트가 그대로 읽는다) */
+export const SIGNS = (() => {
+  const L = loop.length;
+  const next = (s) => DEST.find((d) => d.s > s + 4) || DEST[0];
+  const prev = (s) => [...DEST].reverse().find((d) => d.s < s - 4) || DEST[DEST.length - 1];
+  const fwd = (s, d) => roundM(((d.s - s) % L + L) % L);
+  const back = (s, d) => roundM(((s - d.s) % L + L) % L);
+  const sites = [];
+  // 1. 산문 안 갈림목(순환로 들머리)과 남동 숲에서 숲길로 나오는 곳
+  sites.push({ s: 9, kind: 'start' });
+  sites.push({ s: trail.length - 9, kind: 'end' });
+  // 2. 다실·마당 갈림목
+  for (const b of BRANCHES) sites.push({ s: b.s - 3, kind: 'branch', branch: b });
+  // 3. 쉼터 앞 (4m 앞, 쉼터 쪽)
+  for (const d of DEST) if (d.spot) sites.push({ s: d.s - 4, kind: 'spot', dest: d });
+  // 4. 긴 구간 중간 (이정표 사이가 60m 넘으면)
+  sites.sort((a, b) => a.s - b.s);
+  for (let i = 0; i < sites.length - 1; i++) {
+    const gap = sites[i + 1].s - sites[i].s;
+    if (gap > 60) sites.splice(i + 1, 0, { s: sites[i].s + gap / 2, kind: 'mid' });
+  }
+  const busy = (q, off) =>
+    REST_SPOTS.some((r) => Math.hypot(r.x - q.x, r.z - q.z) < 2.4) ||
+    LANTERNS.some((l) => Math.hypot(l.x - q.x, l.z - q.z) < 1.6) ||
+    PATH_LAMPS.some((l) => Math.hypot(l.x - q.x, l.z - q.z) < 1.4) ||
+    crossingAt(q.x, q.z, 1.5) ||
+    PATHS.some((P) => (P.nearest(q.x, q.z)?.d ?? 99) < off - 0.3) ||
+    (q.z > 5 && q.z < 47 && Math.abs(q.x - forestPathX(q.z)) < 3); // 일주문 숲길 한가운데는 비운다
+  const out = [];
+  for (const site of sites) {
+    const s = Math.min(Math.max(site.s, 1), trail.length - 1);
+    const onDeck = s > DECK.s0 - 1 && s < DECK.s1 + 1;
+    const off = onDeck ? DECK.halfW + 0.65 : SIGN_OFF;
+    const prefer = site.dest ? site.dest.spot.side || 1 : site.branch ? -branchSide(site.branch) : 1;
+    let p = null;
+    for (const side of [prefer, -prefer]) {
+      const q = offsetOn(trail, s, side, off);
+      if (!busy(q, off)) {
+        p = q;
+        break;
+      }
+    }
+    if (!p) continue;
+    const t = tangentOn(trail, s);
+    const boards = [];
+    if (site.kind === 'spot') boards.push({ text: `${site.dest.name} ${fwd(s, site.dest)}m`, dx: t.x, dz: t.z });
+    if (site.kind === 'branch') {
+      const bt = tangentOn(site.branch.path, 2);
+      boards.push({ text: `${site.branch.name} ${roundM(3 + site.branch.path.length)}m`, dx: bt.x, dz: bt.z });
+    }
+    const n = next(site.kind === 'spot' ? site.dest.s : s);
+    boards.push({ text: `${n.name} ${fwd(s, n)}m`, dx: t.x, dz: t.z });
+    const pv = prev(s);
+    if (boards.length < 3 && pv.name !== n.name) boards.push({ text: `${pv.name} ${back(s, pv)}m`, dx: -t.x, dz: -t.z });
+    out.push({ x: p.x, z: p.z, s, kind: site.kind, boards });
+  }
+  return out;
+})();
+
+/** 갈림길이 순환로 진행 방향의 어느 쪽(+1 오른쪽)으로 나가는가 */
+function branchSide(b) {
+  const t = tangentOn(trail, b.s), q = b.path.at(4), c = trail.at(b.s);
+  return Math.sign(-t.z * (q.x - c.x) + t.x * (q.z - c.z)) || 1;
+}
+
+/* ───── 산책로 둘레 숲 바닥 (길에서 FLOOR_REACH m 안을 걸어 들어갈 수 있다) ─────
+ * 울타리·데크 난간이 있는 곳은 길 가장자리에서 막는다 (울타리 틈·갈림목·쉼터 입구로 드나든다).
+ */
+export const FLOOR_REACH = 10;
+const FAR = PATHS.map((P) => new Polyline(P.pts, FLOOR_REACH + 2, 4));
+
+/** 세 길 가운데 가장 가까운 거리 (FLOOR_REACH+2 m 까지, 그 밖은 Infinity) */
+export function trailDistFar(x, z) {
+  let d = Infinity;
+  for (const P of FAR) {
+    const n = P.nearest(x, z);
+    if (n && n.d < d) d = n.d;
+  }
+  return d;
+}
+
+/** 길별·쪽별 울타리 구간 [s0, s1] (fenceRuns 를 한 번만 잰다) */
+let FENCE_SPANS = null;
+function fenceSpans() {
+  if (FENCE_SPANS) return FENCE_SPANS;
+  FENCE_SPANS = new Map();
+  for (const r of fenceRuns()) {
+    const k = `${PATHS.indexOf(r.path)}:${r.side}`;
+    if (!FENCE_SPANS.has(k)) FENCE_SPANS.set(k, []);
+    FENCE_SPANS.get(k).push([r.pts[0].s - 0.6, r.pts[r.pts.length - 1].s + 0.6]);
+  }
+  return FENCE_SPANS;
+}
+
+/** 길 가장자리 울타리·데크 난간 띠 위인가 (이 띠는 넘어 다닐 수 없다) */
+export function fenceBarrier(x, z) {
+  const n = nearestTrail(x, z);
+  if (!n || n.d <= TRAIL_HALF - 0.05) return false;
+  const P = n.path;
+  if (P === trail && n.s > DECK.s0 && n.s < DECK.s1) return n.d < DECK.halfW + 1.1; // 데크 난간
+  if (n.d > FENCE_OFF + 0.55) return false;
+  const nm = normalOn(P, n.s);
+  const side = Math.sign((x - n.x) * nm.x + (z - n.z) * nm.z) || 1;
+  const spans = fenceSpans().get(`${PATHS.indexOf(P)}:${side}`);
+  return !!spans && spans.some(([a, b]) => n.s >= a && n.s <= b);
 }
