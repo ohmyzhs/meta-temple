@@ -64,7 +64,7 @@ test('success_shape_and_request_body', async () => {
   assert.equal(init.headers.authorization, `Bearer ${KEY}`);
   assert.equal(body.model, 'anthropic/claude-haiku-5.5');
   assert.deepEqual(body.reasoning, { enabled: false });
-  assert.deepEqual(body.provider, { require_parameters: true, data_collection: 'deny' });
+  assert.deepEqual(body.provider, { require_parameters: true });
   assert.equal(body.response_format.type, 'json_schema');
   assert.equal(body.response_format.json_schema.strict, true);
   assert.deepEqual(body.response_format.json_schema.schema.required, ['reply', 'suggestions', 'verseId', 'crisis']);

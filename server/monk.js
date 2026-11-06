@@ -138,8 +138,10 @@ export function createMonk(env = process.env, { fetch: fetchFn = globalThis.fetc
       ],
       response_format: { type: 'json_schema', json_schema: { name: 'monk_turn', strict: true, schema: SCHEMA } },
       reasoning: { enabled: false }, // Haiku 5.5 는 기본이 생각하기(medium) — 차담에는 늦고 비싸기만 하다
-      // 구조화 출력을 못 하는 경로(Bedrock 등)는 빼고, 받은 말을 쌓아 두거나 학습에 쓰는 곳으로는 보내지 않는다
-      provider: { require_parameters: true, data_collection: 'deny' }
+      // 구조화 출력을 못 하는 경로(Bedrock 등)는 뺀다.
+      // data_collection:'deny' 는 Haiku 경로가 남는지 문서로 확인하지 못해 넣지 않았다 (모두 걸러지면 AI 가 조용히 꺼진다).
+      // 학습 거부는 OpenRouter 계정 설정(Privacy)에서 한다.
+      provider: { require_parameters: true }
     };
 
     const t0 = now();
