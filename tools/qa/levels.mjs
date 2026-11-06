@@ -19,9 +19,14 @@ try {
     const ext = new Audio().canPlayType('audio/mp4; codecs="mp4a.40.2"') ? '.m4a' : '.mp3';
     const packed = {};
     const get = async (f) => (packed[f] ||= await (await fetch(`./assets/audio/nature/${f}${ext}`)).arrayBuffer());
+    let lastPeak = 0;
     const energy = (buf) => {
       let e = 0;
-      for (let c = 0; c < buf.numberOfChannels; c++) for (const v of buf.getChannelData(c)) e += v * v;
+      lastPeak = 0;
+      for (let c = 0; c < buf.numberOfChannels; c++) for (const v of buf.getChannelData(c)) {
+        e += v * v;
+        if (Math.abs(v) > lastPeak) lastPeak = Math.abs(v);
+      }
       return e;
     };
     // fn(E) 를 오프라인 엔진에서 한 번 부르고 sec 초를 그린 에너지
@@ -59,10 +64,13 @@ try {
     const FOLEY = [['playBeadClick', 'beads', 0.4], ['playStoneDrop', 'pebble', 0.8], ['playChukbi', 'chukbi', 0.6], ['playPaperRustle', 'paper', 1.0], ['playBrushStroke', 'brush', 0.6], ['playRobeRustle', 'robe', 1.1], ['playFireWhoosh', 'paperfire', 11], ['playTeaPour', 'pour', 9]];
     for (const [fn, name, sec] of FOLEY) {
       const k = sec > 5 ? 3 : 12;
-      const es = await avg(k, Math.max(sec, 2.8), null, (E) => E[fn]());
+      let ps = 0, pr = 0;
+      const es = await avg(k, Math.max(sec, 2.8), null, (E) => { E[fn](); });
+      ps = lastPeak;
       const er = await avg(k, sec, (E, off) => sprite(E, off, name), (E) => E[fn]());
-      // 길이가 다른 소리(종이 불 10초 vs 합성 2.6초)는 같은 시간 동안의 평균 크기로 견준다
-      res.foley[name] = +Math.sqrt((es / Math.max(sec, 2.8)) / (er / sec)).toFixed(3);
+      pr = lastPeak;
+      // 길이가 다른 소리(종이 불 10초 vs 합성 2.6초)는 같은 시간 동안의 평균 크기로 견준다. 봉우리 비(peak)도 함께
+      res.foley[name] = { rms: +Math.sqrt((es / Math.max(sec, 2.8)) / (er / sec)).toFixed(3), peak: +(ps / pr).toFixed(3) };
     }
     // 낙숫물·소쩍새: 합성 vs 녹음 (같은 함수 경로)
     for (const [name, sec, synth, rec] of [
@@ -88,13 +96,15 @@ try {
         E.ctx.listener.positionX && (E.ctx.listener.positionX.value = 0, E.ctx.listener.positionY.value = 0, E.ctx.listener.positionZ.value = 0);
       };
       const es = await render(10, (E) => only(E, 'synth'), () => {}, true);
+      const ps = lastPeak;
       const er = await render(10, async (E, off) => {
         only(E, 'rec');
         const b = E._natureBed(bed, { ...def, level: 1 });
         b.buffer = await off.decodeAudioData((await get(piece)).slice(0));
         E._bedChunk(b, 0, 5);
       }, () => {}, true);
-      res.beds[bed] = +Math.sqrt(es / er).toFixed(3);
+      // 봉우리가 큰 녹음(모닥불 탁 소리)은 평균 크기로 맞추면 봉우리가 리미터를 누른다 → 평균·봉우리 중 작은 쪽
+      res.beds[bed] = { rms: +Math.sqrt(es / er).toFixed(3), peak: +(ps / lastPeak).toFixed(3) };
     }
     return res;
   });

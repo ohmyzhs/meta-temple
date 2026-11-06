@@ -114,15 +114,18 @@ const DEFAULT_EMITTERS = {
 const REC_ORDER = [['moktak', 3]];
 const BED_XFADE = 4; // 배경 녹음 이음새 교차 페이드(초)
 // 자연의 소리 배경(data/natureSounds.js): 조각을 번갈아 틀며 필요할 때만 받고 풀어 둔다
-const BED_PREFETCH = 25; // 지금 조각이 끝나기 이만큼 전에 다음 조각을 받아 풀어 둔다(초)
+const BED_PREFETCH = 12; // 지금 조각이 끝나기 이만큼 전에 다음 조각을 받아 풀어 둔다(초) — 47초 조각 하나가 모바일에서 1~2초
+const BED_AUDIBLE = 0.006; // 이보다 작게 들릴 배경(약 -44dB)은 받지도 틀지도 않는다
+const ENTRY_FADE = 4.5; // 입장하면 소리를 이만큼에 걸쳐 올린다 — 그동안 첫 녹음을 받는다 (사용자: 5초 안 페이드인이면 괜찮다)
 const BED_RELEASE = 40; // 이만큼 안 들리면 풀어 둔 소리를 놓는다(초) — 다시 들리면 받아 둔 압축본에서 다시 푼다
 const DECODED_CAP = 150 * 1048576; // 풀어 둔 소리 상한(48kHz 스테레오는 초당 384KB). 넘으면 새 조각을 풀지 않고 지금 조각을 다시 쓴다
-const PACKED_CAP = 40 * 1048576; // 받아 둔 압축본 상한 — 오래 안 쓴 것부터 버린다
+const PACKED_CAP = 48 * 1048576; // 받아 둔 압축본 상한 (자연의 소리 m4a 전부 약 39MB 가 들어간다) — 넘으면 오래 안 쓴 것부터 버린다
 const SLEEP_FADE = 30; // 잠자기 타이머가 끝나기 전 이만큼에 걸쳐 소리를 줄인다(초)
 // 녹음 발소리 재질별 크기 (stepBus 안에서) — 합성 발소리와 같은 크기로 실측해 맞춘다
 const STEP_LEVEL = { gravel: 0.201, earth: 1.019, stone: 0.162, floor: 0.716, deck: 0.217, leaves: 0.13, snow: 0.055 }; // 낙엽·눈은 흙 합성, 마루·데크는 나무 합성과
 // 행동 효과음 녹음 크기 (sfx 버스 안에서) — 합성음과 같은 크기로 실측해 맞춘다 (tools/qa/levels.mjs)
-const FOLEY_LEVEL = { beads: 0.158, pebble: 0.324, chukbi: 0.481, paper: 0.26, brush: 0.07, robe: 0.158, paperfire: 1.858, pour: 0.83 }; // 종이 불·찻물은 같은 시간 평균 크기로
+// 평균 크기로 맞춘 뒤, 봉우리가 합성음보다 3dB 넘게 큰 것(종이 불·찻물·도복·한지·조약돌·죽비)은 봉우리를 묶었다 (levels.mjs peak, headroom.mjs)
+const FOLEY_LEVEL = { beads: 0.158, pebble: 0.253, chukbi: 0.433, paper: 0.2, brush: 0.07, robe: 0.112, paperfire: 1.04, pour: 0.535 };
 const GUST_GAP = [18, 42]; // 산들바람 '솨아' 사이 간격(초) — 계속 불지 않고 가끔
 const GUST_LEVEL = 2.0;
 
@@ -502,6 +505,11 @@ export class TempleSoundEngine {
     setMediaActions({ play: () => this.resumeAll(), pause: () => this.pauseAll(), stop: () => this.pauseAll() });
     setPlaybackState('playing');
     if (ctx.state !== 'running') ctx.resume();
+    // 첫 입장: 소리를 0 에서 천천히 — 녹음을 받는 몇 초 동안 합성음이 갑자기 들렸다 바뀌지 않게
+    const mg = this.master.gain;
+    mg.setValueAtTime(0, ctx.currentTime);
+    mg.linearRampToValueAtTime(MASTER_LEVEL, ctx.currentTime + ENTRY_FADE);
+    mg._target = MASTER_LEVEL;
     if (this.background) this._anchorPlay(); // 사용자 동작 안 (입장·소리 켜기)
   }
 
@@ -539,7 +547,9 @@ export class TempleSoundEngine {
 
   /** 이 구역에서 할 수 있는 동작의 효과음 녹음을 미리 (첫 동작부터 녹음으로 — data/natureSounds.js FOLEY_BY_ZONE) */
   _prefetchFoley() {
-    if (this._base) for (const name of FOLEY_BY_ZONE[this.zone] || []) this._shot(name);
+    if (!this._base) return;
+    for (const name of FOLEY_BY_ZONE[this.zone] || []) this._shot(name);
+    if (this.zone === 'DAEUNGJEON') this._loadLegacy();
   }
 
   /** 행동 효과음 녹음: 받아 두었으면 틀고 true, 아니면 받기 시작하고 false (그때는 합성음) */
@@ -680,14 +690,19 @@ export class TempleSoundEngine {
     this._base = base;
     // 자연의 소리 배경은 여기서 받지 않는다 — 들려야 할 때 _natureTick 이 받는다 (첫 입장 전송량을 늘리지 않게)
     if (this.L) this._nbeds = Object.entries(NATURE_BEDS).map(([name, def]) => this._natureBed(name, def));
-    for (const name of SHOTS_AT_ENTRY) await this._loadShot(name);
-    this._prefetchFoley();
+    // 산 어디서나 쓰는 원샷(돌풍·범종)은 산문에서 들리는 첫 배경이 켜진 뒤에 받는다 (_natureAttach). 풍경·효과음 등은 그 자리에서 필요할 때
+  }
+
+  /** 예전 녹음(목탁) — 법당에 들어설 때 (작아서 한 번에) */
+  async _loadLegacy() {
+    if (this._legacyLoading || !this._base) return;
+    this._legacyLoading = true;
     for (const [name, n] of REC_ORDER) {
       const files = n ? Array.from({ length: n }, (_, i) => `${name}${i + 1}`) : [name];
       try {
         const bufs = [];
         for (const f of files) {
-          const r = await fetch(`${base}${f}.mp3`);
+          const r = await fetch(`${this._base}${f}.mp3`);
           if (!r.ok) throw new Error(`HTTP ${r.status}`);
           bufs.push(await this.ctx.decodeAudioData(await r.arrayBuffer()));
         }
@@ -1059,6 +1074,7 @@ export class TempleSoundEngine {
     lim.attack.value = 0.003;
     lim.release.value = 0.25;
     lim.connect(ctx.destination);
+    this._lim = lim; // QA: tools/qa/headroom.mjs 가 reduction 을 읽는다
     this.master = gain(MASTER_LEVEL, lim);
 
     this.reverb = ctx.createConvolver();
@@ -1435,7 +1451,7 @@ export class TempleSoundEngine {
       }
     });
     if (this.preset?.chimes && Math.random() < (strong ? 0.5 : 0.06)) this._chimeNear(now + rand(0.6, 2.2), rand(0.4, 0.9) * (strong ? 1 : 0.6));
-    if (target > 0.9 && dist(this.emit.bamboo, this._lp) < 30 && Math.random() < 0.5) this._bambooKnock(now + rand(0.8, 2));
+    if (target > 0.9 && this._src?.bamboo?.gain > 0.05 && Math.random() < 0.5) this._bambooKnock(now + rand(0.8, 2)); // 대숲이 들리는 곳에서만 (크기는 대숲 레이어의 전파를 따른다)
   }
 
   _playGust(t) {
@@ -1521,13 +1537,12 @@ export class TempleSoundEngine {
       }
       this._owlNext = now + rand(30, 80);
     }
-    // 아침 마당 쓰는 소리: 맑은 새벽·낮 마당에서 4~9분에 한 번, 마당 한쪽에서 스님이 대빗자루로
-    if (this.zone === 'COURTYARD' && !this.preset && weather === 'clear' && this._time() !== 'night' && this._time() !== 'sunset' && now > this._sweepNext) {
-      const recs = this._shot('sweep');
-      if (recs && this._sweepNext > 0) {
-        const p = this._spot(this.emit.sweep, 4, this.bus.temple);
-        if (p) this._playRec(recs, now + 0.1, p, 0.8, 1, p._chain);
-      }
+    // 아침 마당 쓰는 소리: 맑은 새벽·낮에 4~9분에 한 번, 마당 서쪽에서 스님이 대빗자루로 — 어디서 들리는지는 전파 법칙(_spot)이 정한다
+    if (!this.preset && weather === 'clear' && this._time() !== 'night' && this._time() !== 'sunset' && now > this._sweepNext) {
+      const p = this._sweepNext > 0 && this._spot(this.emit.sweep, 4, this.bus.temple);
+      const recs = p && this._shot('sweep'); // 들릴 자리에서만 받는다
+      if (recs) this._playRec(recs, now + 0.1, p, 0.8, 1, p._chain);
+      else if (p) p._chain.forEach((n) => n.disconnect());
       this._sweepNext = now + rand(240, 540);
     }
     if (weather === 'rain') {
@@ -1722,9 +1737,29 @@ export class TempleSoundEngine {
     return Object.values(NATURE_BEDS).some((d) => d.layer === layer && this._pool(d).length);
   }
 
+  /**
+   * 산문(지금 자리) 소리가 다 켜지고 받는 줄이 비면, 걷는 동안 뒤에서 나머지 녹음을 전부 받아 둔다 (사용자 2026-11-06) —
+   * 압축본만(풀지 않는다), 한 번에 하나씩: 배경마다 첫 조각 → 원샷·발소리·효과음 → 나머지 조각. 재생은 자리(전파 법칙)를 따른다
+   */
+  _idlePrefetch() {
+    if (this._idleDone || !this._shotsQueued || this._inflight?.size || (this._nbeds || []).some((b) => b.pending)) return;
+    this._idleDone = true;
+    const beds = Object.values(NATURE_BEDS);
+    const files = [
+      ...beds.filter((d) => d.pieces.length).map((d) => d.pieces[0].f),
+      ...Object.values(NATURE_SHOTS).flatMap((v) => (Array.isArray(v) ? v : [v.sprite])),
+      ...beds.flatMap((d) => d.pieces.map((p) => p.f))
+    ];
+    for (const f of new Set(files)) this._packedBytes(f).catch(() => {});
+  }
+
   _natureTick(now, end) {
-    for (const bed of this._nbeds || []) {
-      const want = bed.layer.level.gain._target > 0 && this._pool(bed.def).length > 0;
+    this._idlePrefetch();
+    // 들리는 크기가 큰 배경부터 받는다 (받기는 한 번에 하나씩이라 먼저 부른 것이 먼저 온다)
+    const loud = (b) => b.layer.level.gain._target * (b.layer.panner?._bus === 'temple' ? 1 : this.natureZone.gain._target);
+    const beds = [...(this._nbeds || [])].sort((a, b) => loud(b) - loud(a));
+    for (const bed of beds) {
+      const want = loud(bed) > BED_AUDIBLE && this._pool(bed.def).length > 0;
       if (want) bed.quietAt = 0;
       else if (!bed.quietAt) bed.quietAt = now;
       if (!want && bed.on && now - bed.quietAt > BED_RELEASE) this._natureRelease(bed);
@@ -1765,7 +1800,12 @@ export class TempleSoundEngine {
     if (slot === 'nextBuf' && this.decodedBytes > DECODED_CAP) return;
     const pool = this._pool(bed.def);
     if (!pool.length) return;
-    const choices = pool.length > 1 ? pool.filter((p) => p.f !== bed.last) : pool;
+    // 같은 조각을 연달아 고르지 않고, 같은 레이어의 다른 층(산새 두 겹)이 지금 쓰는 조각도 피한다
+    const busy = new Set([bed.last, ...this._nbeds.filter((b) => b !== bed && b.layer === bed.layer).map((b) => b.last)]);
+    const free = pool.filter((p) => !busy.has(p.f));
+    let choices = free.length ? free : pool.length > 1 ? pool.filter((p) => p.f !== bed.last) : pool;
+    const ready = choices.filter((p) => this._packed.has(this._url(p.f))); // 미리 받아 둔 조각이 있으면 그것부터 (바로 들린다)
+    if (ready.length && !bed.on) choices = ready;
     const p = pick(choices);
     bed.last = p.f;
     const gen = bed.gen;
@@ -1790,6 +1830,12 @@ export class TempleSoundEngine {
   /** 처음 들릴 때 같은 레이어의 합성음을 걷는다 */
   _natureAttach(bed) {
     this.rec[bed.def.replaces || bed.name] = true;
+    if (!this._shotsQueued) {
+      // 첫 배경이 켜졌다: 이제 산 어디서나 쓰는 원샷과 지금 구역의 효과음을 줄 세운다 (받기는 한 번에 하나씩)
+      this._shotsQueued = true;
+      for (const name of SHOTS_AT_ENTRY) this._loadShot(name);
+      this._prefetchFoley();
+    }
     const layer = bed.layer;
     if (layer.synth) {
       this._ramp(layer.synth.gain, 0, BED_XFADE);
@@ -1816,15 +1862,31 @@ export class TempleSoundEngine {
   }
 
   /** 자연의 소리 파일 하나를 받아 푼다. 압축본은 넣어 두어 다시 풀 때 또 받지 않는다 */
-  async _decode(f) {
+  _url(f) {
     this._ext ||= new Audio().canPlayType('audio/mp4; codecs="mp4a.40.2"') ? '.m4a' : '.mp3';
-    const url = `${this._base}nature/${f}${this._ext}`;
+    return `${this._base}nature/${f}${this._ext}`;
+  }
+
+  /** 압축본 받기 (줄 서서 한 번에 하나, 같은 파일은 한 번만, 받은 것은 넣어 둔다) */
+  async _packedBytes(f) {
+    const url = this._url(f);
     let packed = this._packed.get(url);
     if (packed) this._packed.delete(url); // 최근에 쓴 것으로 옮긴다
     else {
-      const r = await fetch(url);
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      packed = await r.arrayBuffer();
+      // 받기는 한 번에 하나씩 (첫 입장 때 여러 녹음이 회선을 나눠 쓰며 다 같이 늦어지지 않게). 같은 파일은 한 번만
+      const fly = (this._inflight ||= new Map());
+      let job = fly.get(url);
+      if (!job) {
+        job = (this._net || Promise.resolve()).then(async () => {
+          const r = await fetch(url);
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          return r.arrayBuffer();
+        });
+        fly.set(url, job);
+        this._net = job.catch(() => {});
+        job.finally(() => fly.delete(url)).catch(() => {});
+      }
+      packed = await job;
     }
     this._packed.set(url, packed);
     let total = 0;
@@ -1834,6 +1896,11 @@ export class TempleSoundEngine {
       this._packed.delete(k);
       total -= b.byteLength;
     }
+    return packed;
+  }
+
+  async _decode(f) {
+    const packed = await this._packedBytes(f);
     try {
       return await this.ctx.decodeAudioData(packed.slice(0));
     } catch (err) {

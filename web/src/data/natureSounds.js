@@ -31,7 +31,7 @@ export const NATURE_BEDS = {
   frogs: { layer: 'frogs', level: 0.66, /* 밤 풀벌레(0.06×3.3)와 같은 크기 */ pieces: [...N('frogs-baekryeong', 1, { months: [5, 6, 7] }), ...N('frogs-pool', 3, { months: [4, 5, 6, 7] })] },
   chant: { layer: 'chant', replaces: 'chant', level: 0.98, pieces: N('chant-baekyang', 3) },
   spring: { layer: 'spring', replaces: 'spring', level: 0.98, pieces: N('spring-dogap', 3) },
-  fire: { layer: 'brazier', level: 22.7, /* 모닥불 녹음은 -37 LUFS 로 낮춰 두었다(봉우리가 커서) */ pieces: N('fire-camp', 3) }
+  fire: { layer: 'brazier', level: 3.8, /* 평균 크기로는 23.7배(levels.mjs)지만 탁 소리 봉우리가 23dB 커서, 화롯가 장면에서 마스터 봉우리 -8dBFS 를 넘지 않게 묶은 값 (headroom.mjs) */ pieces: N('fire-camp', 3) }
 };
 
 function birdPieces() {
@@ -78,8 +78,8 @@ export const NATURE_SHOTS = {
 /** 밤새가 우는 달 — 소쩍새·솔부엉이는 여름 철새, 수리부엉이는 겨울에 운다 */
 export const NIGHT_CALLS = { scops: [4, 5, 6, 7, 8], owl: [5, 6, 7, 8, 9], eagleowl: [10, 11, 12, 1, 2, 3] };
 
-/** 입장할 때 미리 받는 원샷 (돌풍·범종·풍경 — 첫 구역에서 바로 들린다) */
-export const SHOTS_AT_ENTRY = ['gust', 'bell', 'chime'];
+/** 산 어디서나 쓰는 원샷 — 산문에서 들리는 첫 배경이 켜진 뒤 받는다 (돌풍은 어디서나 불고, 범종은 산책로 전역에 들린다). 풍경 등 자리 소리는 들릴 자리에서 처음 울릴 때 */
+export const SHOTS_AT_ENTRY = ['gust', 'bell'];
 
 /** 구역에 들어서면 미리 받아 둘 행동 효과음 (첫 동작부터 녹음으로) */
 export const FOLEY_BY_ZONE = {
