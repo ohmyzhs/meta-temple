@@ -32,7 +32,7 @@ export function prepareOutdoor(world) {
 
 // ETC1S normal-mode 노멀맵: X 는 RGB, Y 는 A — z 를 복원한다
 const XY_NORMAL = 'vec3 xyNormal(vec4 t) { vec2 xy = vec2(t.r, t.a) * 2.0 - 1.0; return vec3(xy, sqrt(max(0.04, 1.0 - dot(xy, xy)))); }';
-function xyNormals(mat) {
+export function xyNormals(mat) {
   const prev = mat.onBeforeCompile, prevKey = mat.customProgramCacheKey?.() || '';
   mat.onBeforeCompile = (s, r) => {
     prev?.call(mat, s, r);
