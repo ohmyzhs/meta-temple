@@ -377,6 +377,7 @@ export class TempleScene {
     this.occluders = this._collectOccluders(); // 정적 병합 전에: 합친 뒤에는 지붕·벽과 나머지가 한 메쉬가 된다
     if (REAL_WORLD) this.outdoor = (await import('./real/outdoor.js')).prepareOutdoor(this); // 바깥 실사: 소품 재질을 병합 전에 바꿔 둔다
     this.batchStats = batchStatic(this.scene, this.temple.dynamicRoots());
+    if (REAL_WORLD) this.precinct = (await import('./real/precinct.js')).preparePrecinct(this); // 경내 실사: 병합된 메쉬의 UV·재질 그림을 (바깥 질감 뒤에) 바꾼다
     await step(0.85, '등불을 켜는 중…', () => {
       this._placeLights();
       this.terrain.ground.forEach((g) => g.layers.enable(1));

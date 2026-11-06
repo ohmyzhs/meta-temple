@@ -1,0 +1,19 @@
+{
+ "_note": "경내 실사(?world=real) 질감 출처. tools/precinct/build.py 가 만든 KTX2 (사진 PBR 을 아트 바이블 색으로 고치고 합성). 출처 모아보기(web/src/data/credits.js)로 옮길 때 분류는 textures·generated.",
+ "textures": [
+  { "title": "ceramic_roof_01", "source": "Poly Haven", "url": "https://polyhaven.com/a/ceramic_roof_01", "license": "CC0", "use": "전각·담장·기와불사 기와 (먹회색으로 고침), 처마 테두리·용마루, 채움 기와" },
+  { "title": "weathered_planks", "source": "Poly Haven", "url": "https://polyhaven.com/a/weathered_planks", "license": "CC0", "use": "서까래 사이 개판" },
+  { "title": "fine_grained_wood", "source": "Poly Haven", "url": "https://polyhaven.com/a/fine_grained_wood", "license": "CC0", "use": "서까래 결, 뇌록·주홍 칠 아래 나무결" },
+  { "title": "clay_plaster", "source": "Poly Haven", "url": "https://polyhaven.com/a/clay_plaster", "license": "CC0", "use": "흙벽 요철(노멀)" },
+  { "title": "rock_boulder_dry", "source": "Poly Haven", "url": "https://polyhaven.com/a/rock_boulder_dry", "license": "CC0", "use": "다듬은 화강암 잔결 (기단·계단·석등·박석)" },
+  { "title": "rust_coarse_01", "source": "Poly Haven", "url": "https://polyhaven.com/a/rust_coarse_01", "license": "CC0", "use": "청동 주물 결 (범종·화로·향로)" },
+  { "title": "green_metal_rust", "source": "Poly Haven", "url": "https://polyhaven.com/a/green_metal_rust", "license": "CC0", "use": "청동 녹청 얼룩" }
+ ],
+ "generated": [
+  {
+   "title": "단청 띠 (dancheong_band), 흙벽 (earth_wall)",
+   "tool": "gpt-image (OpenAI, Codex CLI 내장 이미지 생성), 아트 바이블 docs/art/art-bible-v1.jpg 를 참조 이미지로 — 에셋 스파이크(묶음 F) 때 만든 docs/art/generated/ 그림을 그대로 씀",
+   "note": "연등 한지 섬유 결은 build.py 가 절차적으로 그림"
+  }
+ ]
+}

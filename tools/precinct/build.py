@@ -3,10 +3,12 @@
   KTX_BIN=<KTX-Software 4.4.2 bin> python3 -I tools/precinct/build.py DL [OUT=web/assets/world/precinct]
 
 DL: Poly Haven 2k jpg 폴더 (<id>_diffuse_2k.jpg, <id>_nor_gl_2k.jpg, <id>_arm_2k.jpg) — 아래 SRC, 출처는 credits.json
-    + weathered_planks·fine_grained_wood (바깥 실사·에셋 스파이크가 받은 같은 CC0 사진)
+    + weathered_planks·fine_grained_wood·rock_boulder_dry (바깥 실사·에셋 스파이크가 받은 같은 CC0 사진)
+    scipy 필요 (가우스 흐림)
 생성 이미지: docs/art/generated/{dancheong_band,earth_wall}.jpg (에셋 스파이크, gpt-image, 아트 바이블 참조)
 
-방향: KTX2 는 flipY 가 없어 그림 맨 윗줄이 v=0 이다. 캔버스 질감(flipY)과 같은 자리에 오게 할 것은 뒤집어 굽는다 (서까래·단청).
+방향: KTX2 는 flipY 가 없어 그림 맨 윗줄이 v=0 이다 (단청은 꽃이 서게 뒤집어 굽는다).
+      노멀은 OpenGL(+Y 위) 그대로 — 그래서 런타임에 normalScale.y 를 음수로 쓴다 (GLTFLoader 와 같은 처리, precinct.js).
 폰 1K 예산: 색 1024, 노멀·거칠기 512. 노멀은 ETC1S normal-mode(XY) — outdoor.js xyNormals 로 푼다.
 """
 import os
@@ -82,6 +84,17 @@ def ph(id_, part, size=2048, mode='RGB'):
     return load(DL / f'{id_}_{part}_2k.jpg', (size, size), mode)
 
 
+def blur(a, r):
+    """이어지는 가우스 흐림 (가장자리를 감아서 — 타일 이음매가 생기지 않게)"""
+    from scipy.ndimage import gaussian_filter
+    return gaussian_filter(a, r, mode='wrap')
+
+
+def highpass(g, r):
+    """큰 얼룩(r px 보다 큰 밝기 변화)을 빼고 잔결만"""
+    return g - blur(g, r)
+
+
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
     WORK.mkdir(parents=True, exist_ok=True)
@@ -101,7 +114,7 @@ def main():
     boards = load(DL / 'weathered_planks_diffuse_2k.jpg', (W, W))
     boards = recolor(boards, '#D2C4A2', 0.25)
     grain = load(DL / 'fine_grained_wood_col_2k.jpg', (W, W)) @ LUM
-    grain = np.rot90(grain)  # 결이 서까래 길이(세로)로
+    # 사진 결이 이미 세로(서까래 길이 방향) — |d/dx| 4.4 > |d/dy| 2.4 실측
     img = boards.copy()
     height = np.zeros((W, W), np.float32)
     xs = np.arange(W)
@@ -121,14 +134,13 @@ def main():
             sh = (xs - cx) * side
             m = (sh > half) & (sh < half + 22)
             img[:, m] *= (0.72 + 0.28 * (sh[m] - half) / 22)[None, :, None]
-        # 끝 띠 (캔버스 230..256/256 = 아래): 흰 띠, 주홍, 석황
-        for y0, y1, hx in ((920, 936, '#F1E7CF'), (944, 976, '#B7402A'), (984, 1024, '#E1B54A')):
+        # 끝 띠 (그림 아래 = 처마 끝): 흰 띠, 주홍, 석황 — 지붕 밑면 v 의 6% (큰 법당 처마 깊이 약 5m 에서 0.3m)
+        for y0, y1, hx in ((962, 970, '#F1E7CF'), (974, 996, '#B7402A'), (1000, 1024, '#E1B54A')):
             band = hexrgb(hx) * (0.85 + 0.25 * (grain[y0:y1, inside] - grain.mean()))[..., None]
             img[y0:y1][:, inside] = np.clip(band * shade[inside][None, :, None], 0, 1)
-    img = img[::-1]  # 캔버스(flipY) 와 같은 v 로
-    height = height[::-1]
+    # 뒤집지 않는다: 그림 아랫줄 = v≈1 = 처마 끝 (지붕 밑면 v 는 용마루 0 → 처마 1). 캔버스 판은 끝 띠가 용마루 쪽에 있었다
     emit('rafter_col', img, 'color', 1024)
-    emit('rafter_nor', normal_from_height(height + 0.05 * grain[::-1], 6.0), 'normal', 512)
+    emit('rafter_nor', normal_from_height(height + 0.05 * grain, 6.0), 'normal', 512)
 
     # ── 단청 띠: 에셋 스파이크의 생성 그림 (가로로 이어지게 만든 것). 꽃이 위로 서게 뒤집어 굽는다 ──
     dc = load(ROOT / 'docs/art/generated/dancheong_band.jpg')
@@ -138,23 +150,44 @@ def main():
     emit('wall_col', load(ROOT / 'docs/art/generated/earth_wall.jpg', (1024, 1024)), 'color', 1024)
     emit('wall_nor', ph('clay_plaster', 'nor_gl'), 'normal', 512)
 
-    # ── 칠한 나무 결 (뇌록·주홍 칠 부재에 곱하는 밝기 결): 평균 0.95 로 맞춰 전체가 어두워지지 않게 ──
-    p = ph('distressed_painted_planks', 'diffuse') @ LUM
-    p = 0.95 + (p - p.mean()) * 0.6  # 판재 줄눈이 너무 도드라지지 않게
+    # ── 칠한 나무 결 (뇌록·주홍 칠 부재에 곱하는 밝기 결): 판재 사진은 줄눈이 줄무늬로 보여(시험 화면) 결 고운 나무로.
+    #    결은 v(세로) 방향, 평균 0.95 — 칠 색이 어두워지지 않게. 노멀은 같은 결에서 얕게 ──
+    wd = load(DL / 'fine_grained_wood_col_2k.jpg', (2048, 2048)) @ LUM  # 결은 세로 그대로
+    wd = highpass(wd, 60)
+    p = 0.95 + wd / max(wd.std(), 1e-4) * 0.035
     emit('paint_col', np.repeat(p[..., None], 3, -1), 'color', 1024)
-    emit('paint_nor', ph('distressed_painted_planks', 'nor_gl'), 'normal', 512)
+    emit('paint_nor', normal_from_height(blur(wd, 1.5), 3.0), 'normal', 512)
 
-    # ── 청동(범종·화로·향로): 녹슨 금속 사진을 청동 갈색으로 + 얼룩진 녹청 ──
-    rust = ph('rust_coarse_01', 'diffuse')
-    br = recolor(rust, '#7A6238', 0.2)
+    # ── 다듬은 화강암 (기단·계단·석등·박석): 바위 사진(rock_boulder_dry, 바깥 실사와 같은 CC0)의 큰 얼룩은 빼고 잔결만 —
+    #    큰 얼룩이 다듬은 돌에서는 얼룩무늬로 보였다(시험 화면). 바탕은 절차적 화강암 색 #A9A69C 보다 조금 밝게 ──
+    gr = ph('rock_boulder_dry', 'diffuse')
+    gl = gr @ LUM
+    hp = highpass(gl, 24)
+    hp = hp / max(hp.std(), 1e-4)
+    mid = highpass(blur(gl, 24), 160)  # 돌 한 장 안의 은은한 얼룩 (사진 큰 얼룩의 1/4 세기)
+    mid = mid / max(mid.std(), 1e-4)
+    # 색 잡음은 넣지 않는다 — ETC1S 가 잔 색결을 파랗고 노란 점으로 뭉갰다(시험 화면)
+    stone = hexrgb('#B3B0A8') * (1 + 0.06 * hp[..., None] + 0.035 * mid[..., None])
+    emit('stone_col', stone, 'color', 1024)
+    emit('stone_nor', normal_from_height(blur(hp, 1.0) * 0.06, 2.0), 'normal', 512)
+
+    # ── 청동(범종·화로·향로): 주물 금속 바탕(옛 절차적 청동 색) + 녹슨 사진의 잔결을 얕게 + 군데군데 번진 녹청.
+    #    녹 사진을 그대로 쓰면 나무껍질처럼 보였다(시험 화면) — 결은 ±10% 만 ──
+    rust = ph('rust_coarse_01', 'diffuse') @ LUM
+    rh = highpass(blur(rust, 4), 60)  # 결을 cm 단위로 — 잔 녹결은 금속 반사에서 털처럼 반짝였다(시험 화면)
+    rh = rh / max(rh.std(), 1e-4)
+    br = hexrgb('#7A6440') * (1 + 0.1 * rh[..., None])
     pat = ph('green_metal_rust', 'diffuse') @ LUM
-    blob = np.asarray(Image.fromarray((rng.random((24, 24)) * 255).astype(np.uint8)).resize((2048, 2048), Image.BICUBIC), np.float32) / 255
-    blob = np.asarray(Image.fromarray((blob * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(40)), np.float32) / 255
-    mask = np.clip((blob - 0.5) * 3 + 0.25 * (pat - pat.mean()), 0, 1)[..., None] * 0.55  # 녹청은 군데군데 번지게
-    verd = hexrgb('#4E7564') * (0.7 + 0.6 * (pat[..., None] - pat.mean()))
+    blob = blur(rng.random((2048, 2048)).astype(np.float32), 90)
+    blob = (blob - blob.mean()) / max(blob.std(), 1e-4)
+    mask = np.clip(blob * 0.5 - 0.35 + 0.3 * (pat - pat.mean()), 0, 1)[..., None] * 0.6  # 녹청은 군데군데 번지게
+    verd = hexrgb('#5B806C') * (0.85 + 0.3 * (pat[..., None] - pat.mean()))
     emit('bronze_col', br * (1 - mask) + verd * mask, 'color', 1024)
-    emit('bronze_nor', ph('rust_coarse_01', 'nor_gl'), 'normal', 512)
-    emit('bronze_arm', ph('rust_coarse_01', 'arm'), 'linear', 512)
+    emit('bronze_nor', normal_from_height(blur(rh, 2.0) * 0.05, 2.0), 'normal', 512)
+    # ARM: R 틈 그늘(얕게) · G 거칠기(금속 0.5 ~ 녹청 0.85) · B 금속성(0.85, 녹청은 0)
+    m2 = mask[..., 0] / 0.6
+    arm = np.stack([1 - 0.12 * np.clip(-rh, 0, 3) / 3, 0.5 + 0.35 * m2 + 0.04 * rh, 0.85 * (1 - m2)], -1)
+    emit('bronze_arm', arm, 'linear', 512)
 
     # ── 한지(연등): 섬유가 엉킨 결 — 이어지게 그린다 (가장자리를 넘는 선은 반대쪽에도) ──
     S = 512
@@ -171,7 +204,7 @@ def main():
                 dr.line([(a + ox, b + oy) for a, b in pts], fill=c, width=1)
     im = im.filter(ImageFilter.GaussianBlur(0.6))
     h = np.asarray(im, np.float32) / 255
-    cream = hexrgb('#F4EAD3') * (0.9 + 0.35 * (h[..., None] - h.mean()))
+    cream = hexrgb('#F4EAD3') * (0.9 + 0.7 * (h[..., None] - h.mean()))
     emit('hanji_col', cream, 'color', 512)
 
 
