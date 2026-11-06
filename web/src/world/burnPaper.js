@@ -4,10 +4,15 @@
  */
 import * as THREE from 'three';
 import { makeEmitter } from './effects.js';
+import { envUniforms } from './materials.js';
 
 const FLY = 1.8; // 손앞 → 화로 (초)
-const BURN = 2.9; // 불이 붙어 다 타기까지 (초)
+export const BURN = 2.9; // 불이 붙어 다 타기까지 (초)
 const PAPER = { w: 0.34, h: 0.24 }; // 쪽지 크기 (m) — 창의 한지 쪽지 비율
+// 다 타 갈 무렵부터 불꽃·불똥이 하늘로: 불붙고 SKY.delay 초 뒤부터 SKY.spawn 초 동안 하나씩 솟아 끝까지 올라 사라진다
+export const SKY = { delay: 1.2, spawn: 2.6, sparkLife: 3.8, sparkRise: 10, flameLife: 1.8, flameRise: 5 };
+/** 불붙는 순간부터 하늘로 솟은 마지막 불똥이 사라지기까지 (초) — 소리·카메라가 이 길이에 맞춘다 */
+export const SKY_TOTAL = SKY.delay + SKY.spawn + SKY.sparkLife;
 
 const BURN_GLSL = `
 uniform float uBurn, uCurl, uFly, uT;
@@ -63,7 +68,8 @@ export class PaperBurn {
    * @param bowl  THREE.Vector3 — 화로 숯불 위 (종이가 내려앉는 자리)
    * @param pxOf  () => 지금 입자 화면 배율 (기존 화로 입자와 같게)
    */
-  constructor(scene, bowl, pxOf) {
+  constructor(scene, bowl, pxOf, { low = false } = {}) {
+    this.low = low;
     this.scene = scene;
     this.bowl = bowl;
     this.pxOf = pxOf;
@@ -163,8 +169,10 @@ export class PaperBurn {
     for (let i = this.bursts.length - 1; i >= 0; i--) {
       const b = this.bursts[i];
       b.t += dt;
-      const k = b.t < 0.25 ? b.t / 0.25 : Math.max(0, 1 - (b.t - 0.25) / (b.life - 0.25));
-      b.e.userData.uniforms.uIntensity.value = b.peak * k;
+      if (!b.once) {
+        const k = b.t < 0.25 ? b.t / 0.25 : Math.max(0, 1 - (b.t - 0.25) / (b.life - 0.25));
+        b.e.userData.uniforms.uIntensity.value = b.peak * k;
+      }
       if (b.t >= b.life) {
         this.scene.remove(b.e);
         b.e.geometry.dispose();
@@ -188,6 +196,21 @@ export class PaperBurn {
     add({ count: 34, spread: 0.12, rise: 1.0, life: 0.8, size: 0.85, grow: -0.6, color: '#fff0c4', color2: '#e8541c', opacity: 0.9, texture: 'tongue', upright: true, additive: true, drift: 0.12, seed: 61 }, 0.02, BURN * 0.9, 0.85);
     add({ count: 36, spread: 0.18, rise: 2.8, life: 1.6, size: 0.05, grow: -0.2, color: '#ffd890', opacity: 1, texture: 'dot', additive: true, drift: 0.8, seed: 62 }, 0.05, BURN + 0.8, 1.4);
     add({ count: 16, spread: 0.12, rise: 1.7, life: 2.4, size: 0.045, grow: 0.4, color: '#2b2520', opacity: 0.85, texture: 'dot', additive: false, drift: 0.5, seed: 63 }, 0.1, BURN + 1.6, 1);
+    // 하늘로: 한 번만 태어나는 입자 (되풀이 없이 끝까지 올라 사라진다)
+    const sky = (opts, y, life, peak) => {
+      const e = makeEmitter({ ...opts, spawn: SKY.spawn });
+      e.position.set(at.x, at.y + y, at.z);
+      const u = e.userData.uniforms;
+      u.uPx.value = this.pxOf();
+      u.uIntensity.value = peak;
+      u.uStart.value = envUniforms.uTime.value + SKY.delay;
+      this.scene.add(e);
+      this.bursts.push({ e, life: SKY.delay + SKY.spawn + life + 0.3, t: 0, peak, once: true });
+    };
+    // 불똥: 바람에 흩어지며 10m 위까지
+    sky({ count: this.low ? 45 : 90, spread: 0.22, rise: SKY.sparkRise, life: SKY.sparkLife, size: 0.12, grow: -0.5, color: '#fff2b8', color2: '#ff4a12', opacity: 1, texture: 'dot', additive: true, drift: 1.7, seed: 64 }, 0.15, SKY.sparkLife, 1.6);
+    // 불꽃 조각: 불길에서 떨어져 나와 5m 위로 솟으며 작아진다
+    sky({ count: this.low ? 16 : 30, spread: 0.12, rise: SKY.flameRise, life: SKY.flameLife, size: 0.95, grow: -0.85, color: '#fff1c6', color2: '#b0280a', opacity: 0.85, texture: 'tongue', upright: true, additive: true, drift: 0.35, seed: 65 }, 0.25, SKY.flameLife, 1);
   }
 
   _finish() {

@@ -330,7 +330,7 @@ export class Temple {
     this.brazier = { fire, smoke, embers, core, tongues, sparks, coals, flare: 0, base: 0.55 };
     this.emitters.push(...parts);
     // 적은 종이가 날아 들어가 타는 연출 (main.js _burnPaper)
-    this.paperBurn = new PaperBurn(this.scene, new THREE.Vector3(L.brazier.x, c.y + 0.9, L.brazier.z), () => fire.userData.uniforms.uPx.value);
+    this.paperBurn = new PaperBurn(this.scene, new THREE.Vector3(L.brazier.x, c.y + 0.9, L.brazier.z), () => fire.userData.uniforms.uPx.value, { low });
     this.lightAnchors.brazier = new THREE.Vector3(L.brazier.x, c.y + 1.6, L.brazier.z);
     this.addInteractable({
       id: 'burn_worry',

@@ -11,6 +11,7 @@ import { AvatarManager } from './world/avatarManager.js';
 import { loadRig } from './world/avatarRig.js';
 import { wireState } from './core/avatarMotion.js';
 import { L, isWalkable, zoneAt, streamZ, walkHeight, canBuildCairn, pathX } from './world/layout.js';
+import { SKY_TOTAL, BURN } from './world/burnPaper.js';
 import { createMiniMap } from './ui/miniMap.js';
 import { scrollFade } from './ui/scrollFade.js';
 import { trail, loop, J1, REST_SIT_MSG } from './world/trail.js';
@@ -1132,15 +1133,27 @@ class MetaTempleApp {
     this.world.setShot({ pos, look, dur: 1 });
     this._burnHold = true;
     const from = new THREE.Vector3(p.x + ux * 0.42, p.y + 1.05, p.z + uz * 0.42); // 모은 두 손 앞
+    const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
     this.temple.burnPaper(canvas, from, pos, {
-      instant: matchMedia('(prefers-reduced-motion: reduce)').matches,
+      instant: still,
       onIgnite: () => {
         this.temple.flareBrazier();
         this.sound.playFireWhoosh();
+        this.sound.flareBrazier?.(SKY_TOTAL); // 화로 타닥 소리를 하늘로 솟는 불길 길이만큼 키웠다 줄인다 (소리 세션의 훅 — 없으면 건너뜀)
+        // 불똥이 하늘로 솟는 동안 카메라도 천천히 올려다본다
+        if (!still)
+          setTimeout(() => {
+            if (!this._burnHold) return;
+            // 조금 물러나며 살짝만 올려다본다: 화로가 화면 아래에 남고, 불기둥이 위로 솟아 화면 밖(하늘)으로 사라진다
+            const lookTo = new THREE.Vector3(b.x, y + 2.4, b.z);
+            const to = pos.clone().addScaledVector(pos.clone().sub(look).setY(0).normalize(), 2.2).setY(pos.y + 0.3);
+            this.world.setShot({ pos, look, to, lookTo, dur: 3.0 });
+          }, 1000);
       },
       onDone: () => {
         this.toast('🔥 흔적 없이 사라졌습니다 · 깊게 한 번 내쉬어 보세요');
-        setTimeout(() => this._endBurnHold(), 900);
+        // 하늘로 솟은 마지막 불똥이 사라질 무렵 원래 시점으로 (종이는 불붙고 BURN 초 뒤에 다 탄다)
+        setTimeout(() => this._endBurnHold(), still ? 900 : (SKY_TOTAL - BURN) * 1000);
       }
     });
     return true;

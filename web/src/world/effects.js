@@ -32,7 +32,8 @@ export function makeEmitter({
   drift = 0.3,
   seed = 1,
   color2 = null, // 수명 끝의 색 (없으면 color 그대로) — 불꽃은 밑이 희고 위로 갈수록 붉게
-  upright = false // 곧게 선 불꽃: 입자를 거의 돌리지 않는다 (혀 모양 그림이 옆으로 눕지 않게)
+  upright = false, // 곧게 선 불꽃: 입자를 거의 돌리지 않는다 (혀 모양 그림이 옆으로 눕지 않게)
+  spawn = 0 // >0 이면 한 번만: start() 뒤 spawn 초 동안 하나씩 태어나 life 동안 끝까지 오르고 사라진다 (되풀이 없음)
 }) {
   const r = rand(seed);
   const g = new THREE.BufferGeometry();
@@ -62,7 +63,9 @@ export function makeEmitter({
     uGrow: { value: grow },
     uOpacity: { value: opacity },
     uDrift: { value: drift },
-    uPx: { value: 1 }
+    uPx: { value: 1 },
+    uStart: { value: -1e6 },
+    uSpawn: { value: spawn }
   };
   const mat = new THREE.ShaderMaterial({
     uniforms,
@@ -71,10 +74,11 @@ export function makeEmitter({
     blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending,
     vertexShader: `
       attribute vec4 seed;
-      uniform float uTime, uWind, uIntensity, uSpread, uRise, uLife, uSize, uGrow, uDrift, uPx;
+      uniform float uTime, uWind, uIntensity, uSpread, uRise, uLife, uSize, uGrow, uDrift, uPx, uStart, uSpawn;
       varying float vAge; varying float vSeed;
       void main() {
-        float age = fract(uTime / uLife + seed.x);
+        // 되풀이: 고리형 수명 / 한 번만(uSpawn>0): 태어나기 전·다 산 뒤는 나이 0·1 (둘 다 투명)
+        float age = uSpawn > 0.0 ? clamp((uTime - uStart - seed.x * uSpawn) / uLife, 0.0, 1.0) : fract(uTime / uLife + seed.x);
         vAge = age; vSeed = seed.w;
         float spd = mix(0.6, 1.0, uIntensity);
         vec3 p = position;
@@ -102,6 +106,7 @@ export function makeEmitter({
   const pts = new THREE.Points(g, mat);
   pts.frustumCulled = false;
   pts.userData.uniforms = uniforms;
+  pts.userData.start = () => (uniforms.uStart.value = envUniforms.uTime.value); // 한 번만 입자: 지금부터 태어난다
   return pts;
 }
 
