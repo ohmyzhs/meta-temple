@@ -660,11 +660,14 @@ body.listening.l-idle, body.listening.l-idle canvas { cursor: none; }
   .l-mode, .l-exit { width: 48px; padding: 0; justify-content: center; }
   .l-seekrow { padding: 0 14px 0 16px; }
 }
-/* 넉넉한 화면: 듣기 방식·일어나기에도 글 */
-@media (min-width: 840px) {
-  .l-mode span, .l-exit span { display: inline; }
-  .l-mode { width: auto; padding: 0 12px 0 10px; }
+/* 넉넉한 화면: 일어나기(680~)·듣기 방식(840~)에도 글 */
+@media (min-width: 680px) {
+  .l-exit span { display: inline; }
   .l-exit { width: auto; padding: 0 16px 0 12px; }
+}
+@media (min-width: 840px) {
+  .l-mode span { display: inline; }
+  .l-mode { width: auto; padding: 0 12px 0 10px; }
 }
 
 /* 접기: 재생/멈춤 · 펴기만 남은 작은 알약. 접은 동안에는 화면을 누르거나 끌어 둘러봐도 재생기가 다시 뜨지 않는다 (main.js _listenFold) */

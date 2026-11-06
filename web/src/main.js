@@ -1027,7 +1027,8 @@ class MetaTempleApp {
     this._idleT = setTimeout(() => {
       if (!this._listening) return;
       const ctl = ui.querySelector('.listen-ctl');
-      if (this._listenPaused() || !$('#listen-vol').hidden || ctl.matches(':hover') || ctl.querySelector(':focus-visible')) return this._listenWake();
+      const hover = matchMedia('(hover: hover)').matches && ctl.matches(':hover'); // 터치는 누른 자리에 :hover 가 남는다 — 마우스만 본다
+      if (this._listenPaused() || !$('#listen-vol').hidden || hover || ctl.querySelector(':focus-visible')) return this._listenWake();
       ui.classList.add('l-idle');
       document.body.classList.add('l-idle');
     }, 3500);
