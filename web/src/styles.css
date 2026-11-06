@@ -270,7 +270,9 @@ body:has(#intro:not(.leaving):not(.hidden)) .name-label { visibility: hidden; }
 /* 가까이 있는 신행 안내 (E) */
 .prompts {
   position: absolute; left: 50%; translate: -50% 0; bottom: calc(var(--gap) + var(--safe-b) + var(--dock-h) + 10px);
-  max-width: calc(100vw - 2 * var(--gap)); display: flex; gap: 8px; pointer-events: none;
+  max-width: calc(100vw - 2 * var(--gap)); pointer-events: none;
+  /* 알약이 둘이면(쉼터: 예불 · 자연의 소리) 같은 너비로 — 넓은 쪽에 맞춘다 */
+  display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 8px;
 }
 .prompt {
   pointer-events: auto; max-width: 100%; padding: 0 18px; gap: 8px; border-radius: 24px;
@@ -424,7 +426,7 @@ body:has(#intro:not(.leaving):not(.hidden)) .name-label { visibility: hidden; }
 @media (pointer: coarse) and (max-width: 599px) and (min-height: 520px) {
   /* 폰 세로: 조이스틱은 독 위 왼쪽, 신행 안내는 그 오른쪽 */
   .joystick { bottom: calc(var(--gap) + var(--safe-b) + var(--dock-h) + 12px); }
-  .prompts { left: auto; right: calc(var(--gap) + var(--safe-r)); translate: none; bottom: calc(var(--gap) + var(--safe-b) + var(--dock-h) + 12px); max-width: calc(100vw - 166px - var(--safe-l)); flex-direction: column-reverse; align-items: flex-end; }
+  .prompts { left: auto; right: calc(var(--gap) + var(--safe-r)); translate: none; bottom: calc(var(--gap) + var(--safe-b) + var(--dock-h) + 12px); max-width: calc(100vw - 166px - var(--safe-l)); grid-auto-flow: row; }
 }
 
 /* short: 폰 가로 — 위는 현판 · 장소 · 메뉴, 아래는 낮은 독 */
