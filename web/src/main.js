@@ -635,6 +635,7 @@ class MetaTempleApp {
     tt.classList.add('show');
     clearTimeout(this._titleT);
     this._titleT = setTimeout(() => tt.classList.remove('show'), 7000);
+    $('#listen').classList.toggle('folded', !!this.store.state.settings.listenFold); // 접어 둔 사람은 접힌 채로
     this._listenWake();
   }
 
@@ -741,7 +742,7 @@ class MetaTempleApp {
     const paused = !!el && el.paused;
     $('#listen').classList.toggle('paused', paused);
     $('#listen [data-l="loop"]')?.setAttribute('aria-pressed', String(!!ls.loop));
-    $('#listen .l-main').setAttribute('aria-label', paused ? '이어 듣기' : '일시정지');
+    $$('#listen .l-main').forEach((b) => b.setAttribute('aria-label', paused ? '이어 듣기' : '일시정지')); // 재생기와 접은 알약
     $('#listen-time').textContent = `${fmtTime(t)} / ${fmtTime(d)}`;
     const seek = $('#listen-seek');
     if (!ls.seeking) seek.value = Math.round((t / d) * 1000);
@@ -823,7 +824,8 @@ class MetaTempleApp {
     this._listenSync();
   }
 
-  /** 재생기는 손이 닿으면 나타나고, 3.5초 가만히 있으면 사라진다 (멈춤 중·손을 올린 동안은 그대로) */
+  /** 재생기는 손이 닿으면 나타나고, 3.5초 가만히 있으면 사라진다 (멈춤 중·손을 올린 동안·키보드로 고르는 동안은 그대로).
+   *  누른 단추에 남는 포커스는 보지 않는다 — 폰에서 단추를 한 번 누르면 재생기가 다시는 숨지 않았다 */
   _listenWake() {
     const ui = $('#listen');
     ui.classList.remove('l-idle');
@@ -832,10 +834,17 @@ class MetaTempleApp {
     this._idleT = setTimeout(() => {
       if (!this._listening) return;
       const ctl = ui.querySelector('.listen-ctl');
-      if (this.sound.currentTrack?.el.paused || ctl.matches(':hover') || ctl.contains(document.activeElement)) return this._listenWake();
+      if (this.sound.currentTrack?.el.paused || ctl.matches(':hover') || ctl.querySelector(':focus-visible')) return this._listenWake();
       ui.classList.add('l-idle');
       document.body.classList.add('l-idle');
     }, 3500);
+  }
+
+  /** 재생기 접기·펴기 — 접으면 재생/멈춤·펴기만 남은 작은 알약이 되고, 화면을 끌어 둘러봐도 다시 뜨지 않는다. 고른 값은 저장 */
+  _listenFold(folded) {
+    $('#listen').classList.toggle('folded', folded);
+    this.store.setSetting('listenFold', folded);
+    document.activeElement?.blur?.(); // 숨는 단추에 포커스가 남지 않게
   }
 
   _bindListen() {
@@ -848,6 +857,7 @@ class MetaTempleApp {
       else if (act === 'prev') this._listenStep(-1);
       else if (act === 'next') this._listenStep(1);
       else if (act === 'loop') this._listenLoop();
+      else if (act === 'fold' || act === 'unfold') this._listenFold(act === 'fold');
       else if (act === 'exit') this.exitListening();
       this._listenSync();
       this._listenWake();
