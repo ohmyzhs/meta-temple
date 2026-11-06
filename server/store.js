@@ -72,7 +72,7 @@ CREATE INDEX IF NOT EXISTS stones_cairn ON stones (cairn_id) WHERE cairn_id IS N
 `;
 
 // 한 번에 돌려주는 양 — "일부만" 보이게 (최근 것 위주). cairns 는 최근에 돌이 얹힌 길가 돌탑
-export const LIMITS = { lanterns: 90, tiles: 24, stones: 20, cairns: 300 };
+export const LIMITS = { lanterns: 90, tiles: 24, stones: 20, cairns: 300, cairnStones: 40 };
 
 const row = (r) => ({
   id: r.id,
@@ -119,6 +119,16 @@ export async function createStore(url) {
         gateStones: sc.rows[0].gate,
         cairns: c.rows.map((r) => ({ id: r.cairn_id, x: Number(r.x), z: Number(r.z), n: r.n }))
       };
+    },
+    /** 한 돌탑에 얹힌 돌 (최근 것부터, id 가 null 이면 일주문 옆 돌탑) + 그 탑의 돌 수 */
+    async cairnStones(id) {
+      const where = id ? 'cairn_id = $1' : 'cairn_id IS NULL';
+      const args = id ? [id] : [];
+      const [s, c] = await Promise.all([
+        pool.query(`SELECT id, author, wish, cairn_id, x, z, created_at FROM stones WHERE NOT hidden AND ${where} ORDER BY created_at DESC LIMIT ${LIMITS.cairnStones}`, args),
+        pool.query(`SELECT count(*)::int AS n FROM stones WHERE NOT hidden AND ${where}`, args)
+      ]);
+      return { stones: s.rows.map(row), n: c.rows[0].n };
     },
     /** 이 탑 (숨긴 돌만 남았어도 자리는 지킨다) */
     async cairnById(id) {
@@ -203,6 +213,10 @@ function memoryStore() {
         gateStones: shown.filter((s) => !s.cairn_id).length,
         cairns
       };
+    },
+    async cairnStones(id) {
+      const mine = db.stones.filter((s) => !s.hidden && (s.cairn_id || null) === (id || null));
+      return { stones: newest(mine, LIMITS.cairnStones), n: mine.length };
     },
     async cairnById(id) {
       const s = db.stones.find((x) => x.cairn_id === id);

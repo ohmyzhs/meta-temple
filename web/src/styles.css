@@ -522,11 +522,37 @@ body.listening.l-idle, body.listening.l-idle canvas { cursor: none; }
 /* 폰 세로: 단추 다섯 개(48px) 사이에는 곡 이름이 두세 글자만 남으니, 이름은 재생기 바로 위 한 줄로 올린다 */
 @media (max-width: 430px) {
   .l-name {
-    position: absolute; left: 12px; right: 12px; bottom: calc(100% + 7px);
+    position: absolute; left: 52px; right: 52px; bottom: calc(100% + 7px); /* 오른쪽 위 접기 단추를 비켜서 */
     text-align: center; font-size: 13px; color: var(--hanji-50);
     text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75), 0 0 10px rgba(0, 0, 0, 0.45);
     pointer-events: none;
   }
+}
+
+/* 접기: 재생기 오른쪽 위 작은 단추(누르는 자리는 48px) → 접으면 재생/멈춤 · 펴기만 남은 작은 알약.
+   접은 동안에는 화면을 누르거나 끌어 둘러봐도 재생기가 다시 뜨지 않는다 (main.js _listenFold) */
+.l-fold { position: absolute; right: 2px; bottom: calc(100% + 2px); z-index: 0; background: transparent; }
+.l-fold::before {
+  content: ''; position: absolute; inset: 8px; z-index: -1; border-radius: 50%;
+  background: rgba(16, 13, 10, 0.45); border: 1px solid rgba(243, 236, 220, 0.12);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+}
+.l-fold:hover, .l-fold:focus-visible { background: transparent; }
+.l-fold:hover::before, .l-fold:focus-visible::before { background: rgba(43, 36, 30, 0.7); }
+.l-fold svg, .l-unfold svg { width: 18px; height: 18px; }
+.l-mini {
+  position: absolute; left: 50%; bottom: calc(18px + var(--safe-b)); transform: translate(-50%, 12px);
+  display: flex; gap: 2px; padding: 4px; border-radius: 999px; color: var(--hanji-50);
+  background: rgba(16, 13, 10, 0.4); border: 1px solid rgba(243, 236, 220, 0.12);
+  -webkit-backdrop-filter: blur(10px) saturate(1.1); backdrop-filter: blur(10px) saturate(1.1);
+  opacity: 0; visibility: hidden; pointer-events: auto;
+  transition: opacity 0.6s var(--ease), transform 0.6s var(--ease), visibility 0s linear 0.6s;
+}
+.listen.folded .l-mini { opacity: 1; visibility: visible; transform: translate(-50%, 0); transition-delay: 0s; }
+.listen.folded.l-idle .l-mini { opacity: 0.5; }
+.listen.folded .listen-ctl {
+  opacity: 0; visibility: hidden; transform: translate(-50%, 16px);
+  transition: opacity 0.6s var(--ease), transform 0.6s var(--ease), visibility 0s linear 0.6s;
 }
 
 /* 재생기가 숨어도 남는 머리카락 굵기의 진행선 */
@@ -540,7 +566,7 @@ body.listening.l-idle, body.listening.l-idle canvas { cursor: none; }
   .listen-title b { font-size: 19px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .listen-title, .listen-ctl, #listen-veil { transition-duration: 0.01s !important; }
+  .listen-title, .listen-ctl, .l-mini, #listen-veil { transition-duration: 0.01s !important; }
 }
 
 /* 장소 시트의 작은 지도 (ui/miniMap.js) — 북쪽이 위, 점을 누르면 그리로 간다 */

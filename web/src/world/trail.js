@@ -381,6 +381,9 @@ export const REST_SIT_MSG = {
   stone: '🪨 돌 의자에 앉았습니다 · 움직이면 일어납니다'
 };
 
+/** 쉼터 칸이 다 차서 곁의 땅에 앉았을 때 */
+export const REST_GROUND_MSG = '🍃 쉼터가 차서 곁에 자리를 잡고 앉았습니다 · 움직이면 일어납니다';
+
 /** 진행 방향 오른쪽 법선 (+x 동, -z 북 좌표에서 위에서 보아 시계 방향으로 90°) */
 function rightNormal(s) {
   const a = trail.at(s - 0.5), b = trail.at(s + 0.5);

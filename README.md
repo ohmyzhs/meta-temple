@@ -3,96 +3,151 @@
 > 말없이 함께 머물며 산사의 바람·풍경 소리를 듣고, 절·연등·사경·차담으로 마음을 비우는 웹 3D 디지털 안식처
 
 - 라이브: https://temple.lotiony.com
-- 기획·설계 문서: [`docs/`](./docs)
+- 기획·설계 문서: [`docs/`](./docs) — 출시판 설계는 [`docs/superpowers/specs/2026-11-05-launch-upgrade-design.md`](./docs/superpowers/specs/2026-11-05-launch-upgrade-design.md), 단계별 계획·결과는 [`docs/superpowers/plans/`](./docs/superpowers/plans)
 
 ## 폴더 구조
 
 ```text
 meta-temple/
 ├── README.md
-├── package.json              # 실행·배포 스크립트만 (빌드 단계 없음)
+├── package.json              # 실행·시험·배포 스크립트만 (빌드 단계 없음)
 ├── docs/                     # 기획·설계 문서 (배포되지 않음)
-│   ├── 01-planning-and-market-analysis.md
-│   ├── 02-spatial-and-avatar-design.md
-│   └── 03-technical-specification.md
+│   ├── 01~03-*.md            # 첫 기획·공간·기술 명세
+│   ├── superpowers/specs/    # 출시판 업그레이드 설계 (요구사항·결정·구현 현황)
+│   ├── superpowers/plans/    # 1단계(안전·모바일 UI·렌더) · 3단계(지도 확장·실사) 계획과 결과
+│   ├── art/ · spike/ · outdoor/ · avatar/   # 아트 바이블, 에셋 스파이크·실사 보고서, 아바타 예절 동작
 ├── web/                      # 배포 루트 — 이 폴더만 서버에 올라간다
-│   ├── assets/audio/         # 실제 녹음 — nature/ 는 tools/audio/build.py 가 만든 자연의 소리·효과음 (출처 manifest.json)
-│   ├── index.html            # 입장 화면 · HUD · 모달 뼈대 · Three.js import map
+│   ├── index.html            # 입장 화면 · HUD(독·시트) · 예불 재생기 · 모달 뼈대 · Three.js import map
+│   ├── spike.html            # 에셋 스파이크 비교 화면
+│   ├── assets/
+│   │   ├── audio/            # 실제 녹음 — nature/ 는 tools/audio/build.py 가 만든 자연의 소리·효과음 (출처 manifest.json) · 스님 고정 대사(Typecast)
+│   │   ├── icons/icons.svg   # 그림 아이콘 30종 (<symbol> 스프라이트, currentColor)
+│   │   ├── avatars/          # 블렌더 아바타 GLB (동자승·행자 / 등불 정령)
+│   │   └── world/ · spike/   # 실사 세계 에셋 (스캔 석탑·사진 질감·원경·삼존·후불벽)
 │   └── src/
-│       ├── main.js           # 앱 진입점: 입장 → 월드 생성 → 입력·HUD·신행 연결 → 루프
-│       ├── styles.css        # 디자인 토큰 + HUD (먹빛 유리 패널, 모바일 하단 시트)
-│       ├── core/state.js     # localStorage 수행 기록, 출석, 공덕 보상 해금
+│       ├── main.js           # 앱 진입점: 입장 → 월드 → 입력·HUD·신행·예불 듣기·차담 장면 → 루프
+│       ├── styles.css        # 디자인 토큰 + HUD(하단 독·시트·예불 재생기)
+│       ├── core/
+│       │   ├── state.js      # 저장 구조 v3 (profileId·직접 지은 법명·내보내기/가져오기), 출석, 공덕 해금
+│       │   ├── live.js       # 실시간 동석 + 공유 서원 클라이언트 (server/server.js 짝)
+│       │   ├── moderation.js # → ../../../server/moderation.js 링크 (서버·화면 같은 거름)
+│       │   ├── cairns.js     # → server/cairns.js 링크 (돌탑 어디서나 규칙)
+│       │   └── avatarMotion.js # 아바타 상태 → 블렌더 동작 클립 (순수 함수)
 │       ├── data/
-│       │   ├── templeData.js # 구역·법명 사전(24×24)·연등 4색·초기 서원
-│       │   └── dharmaTexts.js# 반야심경·법구경 사경문, 죽비 카드, 차담 지식베이스
-│       ├── audio/soundEngine.js  # Web Audio 절차적 입체 ASMR (HRTF·리버브·3채널 믹서)
+│       │   ├── templeData.js # 구역·하단 독 신행(DOCK_RITUALS)·법명 사전·연등 색
+│       │   ├── dharmaTexts.js# 사경문, 차담 로컬 지식베이스
+│       │   ├── dharma.js     # → server/dharma.js 링크 (죽비 38장·위기 신호)
+│       │   └── credits.js    # 자료 출처 (분류: sound·scans·textures·patterns·generated) + 예불 트랙
+│       ├── audio/
+│       │   ├── soundEngine.js# Web Audio 입체 ASMR (HRTF·리버브·3채널), 녹음·예불·목소리 재생
+│       │   └── background.js # 화면이 꺼져도 계속 듣기 (Android 오디오 포커스, iOS audioSession)
 │       ├── ui/
-│       │   ├── modalManager.js   # 신행 모달 (연등·기와·돌탑·번뇌 소각·108배·염주·사경·차담·죽비·기록·안내)
-│       │   └── modals.css
+│       │   ├── modalManager.js # 신행 모달 (연등·기와·돌탑·번뇌 소각·108배·사경·차담·죽비·기록·안내·자료 출처)
+│       │   ├── modals.css
+│       │   ├── icons.js      # icon(name) → <svg><use href="icons.svg?v=N#name"></svg>
+│       │   ├── sheets.js     # HUD 시트 열림 상태 (openSheet·toggleSheet·closeTop·closeAll·hasOpen)
+│       │   ├── backGuard.js  # 안드로이드 뒤로가기 방어 (열린 것부터 닫고, 두 번 눌러야 산문 밖으로)
+│       │   ├── veil.js       # 화면 전환 가림막
+│       │   ├── nameField.js  # 법명 직접 짓기 칸 (즉시 거름 안내)
+│       │   ├── miniMap.js    # 장소 시트의 작은 지도 (가람·쉼터로 바로 가기)
+│       │   └── scrollFade.js # 시트 스크롤: 막대 대신 가장자리 흐림
+│       ├── spike/spike.js    # 에셋 스파이크 페이지
 │       └── world/
-│           ├── layout.js     # 가람 배치 좌표 계약: 지형 높이·이동 가능 영역·충돌
-│           ├── templeScene.js# 렌더러·후처리·하늘·시간대/날씨·카메라·피킹·정적 병합
-│           ├── terrain.js    # 지형·원경 겹산·계곡/연못 물·바위·박석
-│           ├── vegetation.js # 전나무·소나무·단풍·대숲·풀·연꽃 (인스턴싱 + 바람 셰이더)
-│           ├── architecture.js # 한옥 빌더: 앙곡 지붕(맞배·우진각·팔작)·배흘림 기둥·공포·석탑·석등
-│           ├── temple.js     # 경내 조립 + 연등·돌탑·화로·범종·향로·기와대 + 상호작용 지점
-│           ├── buddha.js     # 대웅전 삼존 조립: 연화대좌·광배·보관·영락 + 조각 메쉬
-│           ├── buddhaSculpt.js # 삼존 조각: SDF → surface nets 메쉬 → AO 꼭짓점 색 (THREE 없음)
-│           ├── buddhaWorker.js # 조각을 워커에서 (메인 스레드를 멈추지 않게)
-│           ├── avatarManager.js # 아바타 3종·동작 상태 머신·동석 참배객·syncRemotePeers
-│           ├── effects.js    # GPU 파티클 (연기·불꽃·찻김·비 1,500·눈 1,200·낙엽·반딧불·파동, 지붕 밑엔 안 들이침)
-│           ├── materials.js  # 공용 재질 + 눈 덮임·젖음·바람·야간 발광 셰이더 주입
-│           └── textures.js   # 절차적 텍스처 (기와·단청·창호·화강암·탱화·우물천장·수미단·닫집·현판·얼굴)
-├── server/                   # 실시간 동석(WebSocket /ws) + 공유 서원 API(/api) — Node 22, ws, pg
+│           ├── layout.js     # 가람 배치 좌표 계약: 지형 높이·이동 가능 영역·구역·충돌
+│           ├── templeScene.js# 렌더러·후처리·하늘(달빛·은하수)·시간대/날씨·스프링 암 카메라·가림 처리·피킹
+│           ├── terrain.js · vegetation.js · architecture.js · materials.js · textures.js · effects.js
+│           ├── temple.js     # 경내 조립 (대웅전 5×3칸·좌복 65) + 신행 소품 + 상호작용 지점
+│           ├── westCourt.js  # 서쪽 마당·대웅전 옆마당
+│           ├── trail.js · trailProps.js · cairnField.js · pathfind.js  # 순환 산책로·쉼터·길가 돌탑·길 찾기
+│           ├── buddha.js · buddhaSculpt.js · buddhaWorker.js           # 절차식 삼존 (조각은 워커에서)
+│           ├── avatarManager.js · avatarRig.js # 아바타·동작 상태 머신·동석 참배객 / 블렌더 스킨드 리그
+│           └── real/         # 실사 세계 (기본값; ?world=classic 이면 절차식): 원경·지면·나무·경내 질감·스캔 석탑
+├── server/                   # 실시간 동석(WebSocket /ws) + 공유 서원·신고·차담 AI API(/api) — Node 22, ws, pg
+│   ├── server.js · store.js · relevance.js   # 동석 서버·Postgres/메모리 저장소·관심 영역
+│   ├── moderation.js · dharma.js · cairns.js # 화면과 같이 쓰는 규칙 (web/src 에 링크)
+│   ├── monk.js               # /api/monk 차담 스님 AI (OpenRouter, 구조화 출력, 하루 한도)
+│   └── products.js · payments/toss.js        # 과금 대비 자리 (지금은 모두 꺼짐)
+├── tools/
+│   ├── qa/                   # 헤드리스 검사 스크립트 (아래 「검사」)
+│   ├── blender/ · tts/       # 아바타·법당 칸 굽기, 스님 고정 대사 녹음
+│   └── outdoor/ · precinct/ · spike/   # 실사 원경·경내 질감·스파이크 에셋 만들기
 ├── deploy/
-│   ├── deploy.sh             # web/ → 오라클 VM (버전 경로로 캐시 무효화)
-│   ├── live.sh               # server/ → VM 도커(temple-live + temple-db Postgres), nginx 가 /ws·/api 를 넘김
-│   ├── nginx-temple.conf
-│   └── oracle_known_hosts
-└── .github/workflows/deploy.yml  # main 푸시 → 자동 배포
+│   ├── deploy.sh             # web/ → 오라클 VM (web/src 는 버전 경로 v/<커밋>/ 로)
+│   ├── live.sh               # server/ → VM 도커 (temple-live + temple-db Postgres)
+│   ├── mod.sh                # 공개 글 관리 (목록·숨김·되살림·찾기)
+│   ├── nginx-temple.conf · oracle_known_hosts
+└── .github/workflows/deploy.yml  # main 에 web/** 푸시 → 자동 배포
 ```
-
-텍스처는 모두 코드로 그리고, 소리는 공공 녹음(`web/assets/audio`) + 합성음을 쓴다. 빌드 없이 정적 서버로 바로 돈다.
 
 ## 실행
 
 ```bash
 npm start
 ```
-브라우저에서 http://localhost:8080 — 저사양 모드 강제는 `?q=low`.
+
+브라우저에서 http://localhost:8080 . 주소 뒤에 붙이는 선택지:
+
+| 선택지 | 뜻 |
+|---|---|
+| `?q=low` / `?q=high` | 저사양·고사양 강제 (기본은 기기 판별 + 첫 몇 초 프레임 실측) |
+| `?world=classic` | 실사 세계 대신 절차식 세계 |
+| `?rig=0` | 블렌더 아바타 대신 절차식 아바타 |
+
+실시간 동석·공유 서원·차담 AI 를 로컬에서 보려면 `PORT=8095 node server/server.js` 를 함께 띄운다 (8080·8093 포트의 화면은 8095 서버를 찾는다. `DATABASE_URL` 이 없으면 메모리 저장소, `OPENROUTER_API_KEY` 가 없으면 차담은 대화 나무로).
+
+## 검사
+
+```bash
+npm test
+```
+
+서버·저장 구조·거름·아이콘·지도·아바타 동작 단위 시험 (`node --test`). 서버 시험에는 `server/` 에서 `npm ci` 가 먼저 필요하다.
+
+화면 검사는 `tools/qa/*.mjs` — 헤드리스 Chrome 으로 띄워 수치를 출력한다. 두 가지 꼴이 있다.
+
+- **`node` 로 바로 실행** (대부분 `tools/qa/lib.mjs` 를 씀): `node tools/qa/<이름>.mjs`. 프로젝트에 의존성을 더하지 않으려고 전역 `@playwright/mcp` 에 딸린 playwright 를 쓴다(`PW=…` 로 바꿀 수 있음). 대상은 `BASE=http://localhost:<포트>` (기본 8081 — Range 를 지원하는 정적 서버로 `web/` 을 띄울 것).
+- **Playwright MCP 로 도는 것**: `browser_run_code_unsafe {filename}` 으로 실행 (파일 머리 주석에 쓰는 법).
+
+| 영역 | 스크립트 (★ = `node` 로 바로 실행) | 보는 것 |
+|---|---|---|
+| 모바일 UI | `hud.mjs`★ | 여섯 뷰포트에서 모든 단추 48×48 이상·겹침·화면 밖·글자 선택 안 됨·HUD 가림 비율(세로 폰 ≤ 18%) |
+| | `back.mjs`★ | 안드로이드 뒤로가기: 창·시트·예불 듣기·차담을 하나씩 닫고, 두 번 눌러야 나감 (링크로 바로 들어온 탭·새로고침 포함) |
+| | `credits.mjs`★ · `listen.mjs`★ · `seated.mjs`★ | 자료 출처 화면 / 예불 재생기 접기 / 일어나면 앉은 자세가 풀리는지 |
+| 렌더·카메라 | `night.mjs` · `day.mjs` · `camera.mjs` · `occlusion.mjs` · `travel.mjs` · `bloom-nan.mjs`★ · `normal-sign.mjs`★ | 밤 밝기·윤곽, 맑은 낮 채도, 카메라 가림, 장소 이동 |
+| 실사·아바타·군중 | `outdoor.mjs`★ · `real-*.mjs` · `avatar-*.mjs` · `crowd.mjs` · `live-load.mjs`★ | 실사 세계, 블렌더 아바타 동작·동기화·성능, 군중 컬링·서버 부하 |
+| 차담·소리 | `tea.mjs`★ · `background.mjs`★ | 차담 장면(/api/monk 흉내), 화면 꺼져도 계속 듣기 |
 
 ## 배포
 
-- 실시간 서버: `deploy/live.sh` (SSH 가 열린 네트워크의 맥에서. 처음 한 번 temple 컨테이너를 다시 만든다)
-
-- `main` 에 `web/**` 변경을 푸시하면 GitHub Actions 가 오라클 VM(`/srv/temple/dist`)으로 올린다.
-- 맥에서 직접: `npm run deploy`
+- 작업 흐름: 묶음마다 자기 브랜치 → `integration/launch` 에 합쳐 화면·수치 확인 → 사용자 확인 뒤 `main`.
+- `main` 에 `web/**` 변경을 푸시하면 GitHub Actions 가 `deploy/deploy.sh` 로 오라클 VM(`/srv/temple/dist`)에 올린다. 맥에서 직접: `npm run deploy`.
 - `web/src` 는 `v/<커밋>/` 경로로 올라가고 `index.html` 이 그 경로를 가리킨다. Cloudflare 가 JS/CSS 를 4시간 캐시해도 옛 모듈과 새 페이지가 섞이지 않는다.
+- `web/assets/` 는 버전 경로 밖이다. 바꾸면 파일 이름을 바꾸거나 주소의 버전을 올린다 (아이콘은 `web/src/ui/icons.js` 의 `V`).
+- 실시간 서버(`server/`)는 `deploy/live.sh` 로 따로 올린다 (SSH 가 열린 네트워크의 맥에서). 비밀값(`OPENROUTER_API_KEY`, DB 비밀번호)은 VM 의 `/srv/temple/live.env` 에만 둔다.
 
 ## 구현된 것
 
-- **가람 4구역 (심리스)**: 일주문·전나무 숲길·계곡 홍예교·소원 돌탑 → 마당(삼층석탑·연등 줄·범종각·번뇌 소각 화로·기와 불사대) → 대웅전(금동 삼존불·광배·후불탱화·향로·쌍촛대·좌복 32개·사경 서안) → 후원 다실 심검당(툇마루 찻상·연꽃 연못·정자·대숲)
-- **시간대 5종 + 날씨 3종**: 실시간(KST) / 새벽 / 한낮 / 노을 / 밤, 맑음(낙엽·반딧불) / 봄비(젖은 바닥) / 설경(지붕·마당 눈 덮임). 매일 05:00·18:00 KST 예불 범종 5타.
-- **아바타 3종**: 목각·백자 동자승 / 삿갓 수묵 행자(림 라이트) / 연꽃 등불 정령. 법명 자동 부여·다시 받기.
-- **동작 6종**: 합장 반배(6m 안 도반 답례) · 큰절(오체투지) · 가부좌·염주 · 헌향·헌촉 · 탑돌이(반경 4.5m 우요) · 다선
-- **신행**: 소원 연등(4색, 합장 공감) · 기와 불사 · 소원 돌탑 · 번뇌 소각(어디에도 저장 안 함) · 108배(4초 호흡 가이드)·염주 · 반야심경 사경(한글 IME 대응) · 선사 차담 · 오늘의 죽비
-- **비경쟁 공덕 표시**: 자단목 단주(절 21배·염주 108회), 손연등(연등 1개·사경 1회, 밤에만), 백옥 단주(7일 연속)
-- **입체 ASMR (실제 녹음)**: 계곡·솔바람·산새·빗소리·풀벌레·연못 샘물, 범종·풍탁·목탁·법당 염불은 국립공원공단 「자연의소리」 녹음. 죽비·염주·발걸음·찻물 등 작은 효과음과 녹음을 받기 전 몇 초는 Web Audio 합성음. 구역별 감쇠(법당 안 바깥 소리 40%)
-- **예불 듣기**: 법당에서 백양사 염불 · 무위사 사시예불 · 개암사 새벽예불(각 약 5분, 실제 녹음)을 골라 처음부터 끝까지
-- **실시간 동석**: 같은 시간에 접속한 도반의 위치·모습·동작이 보이고(채팅 없음), 합장하면 10m 안의 도반에게 인사가 전해지고 답례가 돌아온다. 실제 도반이 늘면 NPC 참배객이 줄어든다. 서버가 없으면 혼자 그대로 동작
-- **공유 서원**: 연등·기와·돌탑은 '다른 도반에게도 보이기'를 고르면 서버에 올라가 최근 일부(연등 90·기와 24·돌 20)가 모두에게 보인다. 링크·금칙어 차단, 하루 한도, 공감은 연등마다 한 번
-- **모바일**: 가상 조이스틱, 핀치 줌, 하단 시트, 저사양 자동 판별과 첫 몇 초 프레임 실측 후 해상도 자동 조정
+- **공간**: 가람 4구역(일주문 숲길 · 대웅전 앞마당 · 대웅전 법당 5×3칸 좌복 65 · 후원 다실) + 서쪽 마당. 산사를 두르는 순환 산책로(전나무 데크·깊은 숲·대숲·징검다리·이정표)와 쉼터(여럿이 나란히 앉기), 산책로 어디서나 돌 올리기(돌탑마다 글 따로), 자동 산책.
+- **실사 세계 (기본)**: 사진 원경 능선(해질녘·밤 띠), 지면·나무 사진 질감, 경내 기와·단청·석재 실사 질감, 스캔 삼층석탑, 생성형 삼존·후불벽. `?world=classic` 이면 절차식.
+- **시간·날씨**: 실시간(KST) 기본. 맑은 낮은 쨍하게, 밤은 달빛 아래 윤곽과 은하수(노출 하한). 봄비·설경은 고를 때만. 매일 05:00·18:00 KST 예불 범종.
+- **카메라**: 스프링 암 3인칭(지붕·담에 가려지지 않게), 1인칭, 장소 이동은 가림막 뒤 순간 이동.
+- **아바타**: 블렌더 리그 3종(동자승·삿갓 행자·등불 정령), 걸음 1.1m/s, 법명 자동 부여 + 직접 짓기(2~12자, 거름).
+- **동작·신행**: 합장(도반 답례) · 큰절 · 가부좌·염주 · 헌향 · 탑돌이 · 다선, 소원 연등 · 기와 불사 · 소원 돌탑 · 번뇌 소각(어디에도 저장 안 함) · 108배 · 반야심경 사경 · 오늘의 죽비(38장, 스님 목소리로 듣기).
+- **차담**: 다실에서 스님과 마주 앉는 대사 장면. 스님 두뇌는 서버 AI(`/api/monk`), 고정 대사는 녹음한 목소리, 예상 응답 3개 + 직접 말하기, 다음 방문까지 짧은 기억. 자살·자해 신호에는 자살예방상담전화 **109** 안내. AI 가 없으면 대화 나무로.
+- **예불 듣기**: 실제 녹음 예불 3편(각 약 5분). 법당 좌복에 홀로 앉아 듣거나 쉼터에서 경치를 보며 1인칭으로. 연속 듣기, 재생기 접기(작은 알약으로), 화면이 꺼져도 계속 듣기.
+- **실시간 동석**: 같은 시간에 접속한 도반의 위치·모습·동작이 보인다(채팅 없음). 합장 인사·답례. 보이는 사람만 그리고 먼 사람은 덜 자주 보내 50명 군중도 가볍게.
+- **공유 서원과 안전**: 연등·기와·돌탑을 공개하면 모두에게 보인다. 욕설·성적 표현·링크·연락처는 서버와 화면이 같은 규칙으로 거른다(띄어쓰기·자모 분리·한영 섞기 우회 포함). 서로 다른 3명이 신고하면 자동 숨김, 연속 등록 제한, 관리 스크립트 `deploy/mod.sh`.
+- **기록**: 이 브라우저에만 저장(저장 구조 v3, 옛 기록 그대로 이어받음), 기록 내보내기·가져오기. 비경쟁 공덕 표시(단주·손연등).
+- **모바일 UI**: 하단 독(이곳의 주 신행 + 몸짓 4 + 더보기), 오른쪽 위 장소(지도·쉼터 바로 가기)·메뉴(시간·날씨 · 소리 · 내 모습 · 수행 기록 · 도움말 · 자료 출처), 모두 그림 아이콘 + 짧은 글자. 단추는 48px 이상이고 글자 선택·길게 누르기 메뉴가 뜨지 않는다. 시트는 기본 접힘. 안드로이드 뒤로가기는 열린 것부터 하나씩 닫고, 닫을 것이 없으면 「한 번 더 누르면 산문을 나섭니다」.
+- **과금 대비**: 상품·주문·보유 권리 테이블과 토스페이먼츠 어댑터 자리만 (지금은 모두 꺼짐).
 
-## 소리의 출처
+## 자료 출처
 
-`web/assets/audio/` 의 녹음은 **국립공원공단 「자연의소리」**(공공데이터포털)·**공유마당**(공공누리 제1유형: 출처표시)과 **Freesound CC0** 녹음에서 구간을 잘라(음량 -24 LUFS·이음새 교차 페이드·AAC/MP3) 만든 것입니다. 원본·구간은 `tools/audio/manifest.json`, 조사와 라이선스 확인은 `docs/audio/SOURCES.md`, 항목별 링크는 `web/src/data/credits.js` 와 사이트의 「자료 출처」에 있습니다.
+사이트의 메뉴와 도움말 맨 아래 「자료 출처」 화면에 분류별로 모아 둔다 (`web/src/data/credits.js`). 화면 곳곳에는 출처를 적지 않는다.
+`web/assets/audio/` 의 녹음은 **국립공원공단 「자연의소리」**(공공데이터포털)·**공유마당**(공공누리 제1유형: 출처표시)과 **Freesound CC0** 녹음에서 구간을 잘라(음량 -24 LUFS·이음새 교차 페이드·AAC/MP3) 만든 것이다. 원본·구간은 `tools/audio/manifest.json`, 조사와 라이선스 확인은 `docs/audio/SOURCES.md`.
 
-소리는 자리를 따른다: 계곡·연못·대숲·화로·독송·범종·풍경 같은 자리 소리는 `soundEngine.js` 의 `PLACED` 표(배경)와 `_spot()`(원샷)에 위치·모양·세기만 주면 같은 전파 법칙(거리 퍼짐·숲 초과 감쇠·담 가림·공기 흡수)을 받는다. 바람·비·산새·풀벌레·매미는 산 어디서나 시간대·날씨·계절(달)로만. 검사: `tools/qa/sound-map.mjs`(산책로 자리별 크기), `tools/qa/levels.mjs`(녹음·합성 크기 맞춤).
+소리는 자리를 따른다: 계곡·연못·대숲·화로·독송·범종·풍경 같은 자리 소리는 `soundEngine.js` 의 `PLACED` 표(배경)와 `_spot()`(원샷)에 위치·모양·세기만 주면 같은 전파 법칙(거리 퍼짐·숲 초과 감쇠·담 가림·공기 흡수)을 받는다. 바람·비·산새·풀벌레·매미는 산 어디서나 시간대·날씨·계절(달)로만. 검사: `tools/qa/sound-map.mjs`(산책로 자리별 크기), `tools/qa/levels.mjs`(녹음·합성 크기 맞춤), `tools/qa/headroom.mjs`, `tools/qa/audio-bytes.mjs`.
 
-## 이어서 할 일 (docs/03 §4 로드맵 훅)
+## 남은 일
 
-| 훅 | 위치 | 하는 일 |
-|---|---|---|
-| `loadCustomGLBModels()` | `world/templeScene.js` | `window.TEMPLE_CONFIG.models` 의 국가유산청 `.glb` 를 불러와 배치 |
-| `avatarManager.syncRemotePeers(peers)` | `world/avatarManager.js` | Supabase Presence 피어를 아바타로 주입·보간 |
-| `generateMonkResponse(message, history)` | `ui/modalManager.js` | `window.TEMPLE_CONFIG.monkChatEndpoint` 가 있으면 서버 LLM, 없으면 로컬 지식베이스 |
+출시판 설계([spec](./docs/superpowers/specs/2026-11-05-launch-upgrade-design.md) 「구현 현황」)에서 아직 하지 않은 것: 공덕 도감·오늘의 수행(요구 6), 실제 결제와 카카오 로그인, AI 답의 서버 음성 합성.

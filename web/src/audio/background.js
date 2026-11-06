@@ -50,9 +50,11 @@ export function setMediaActions(handlers) {
   }
 }
 
-export function setNowPlaying(title, artist) {
+/** art: assets/covers/<art>-256|512.jpg (게임 안 장면을 찍어 만든 표지 — 없으면 잠금화면에 크롬 로고·빈 그림이 뜬다) */
+export function setNowPlaying(title, artist, art = 'forest') {
   if (!('mediaSession' in navigator) || typeof MediaMetadata === 'undefined') return;
-  navigator.mediaSession.metadata = new MediaMetadata({ title, artist, album: '청연산사 · 입체 ASMR' });
+  const artwork = [256, 512].map((n) => ({ src: new URL(`./assets/covers/${art}-${n}.jpg`, location.href).href, sizes: `${n}x${n}`, type: 'image/jpeg' }));
+  navigator.mediaSession.metadata = new MediaMetadata({ title, artist, album: '청연산사 · 입체 ASMR', artwork });
 }
 
 export function setPlaybackState(state) {

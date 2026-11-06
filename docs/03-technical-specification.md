@@ -10,30 +10,32 @@
 
 ```text
 meta-temple/
-├── docs/                         # 기획·설계 문서 (배포 제외)
+├── docs/                         # 기획·설계 문서 (배포 제외). 출시판 설계·계획·결과는 docs/superpowers/
 ├── web/                          # 배포 루트
-│   ├── index.html                # 입장 화면 · HUD · 모달 뼈대 · import map(three, three/addons)
+│   ├── index.html                # 입장 화면 · HUD(하단 독·시트) · 예불 재생기 · 모달 뼈대 · import map(three, three/addons)
+│   ├── assets/                   # 녹음·스님 목소리 · 아이콘 스프라이트 · 블렌더 아바타 GLB · 실사 세계 에셋
 │   └── src/
-│       ├── main.js               # 앱 진입점, 입력·HUD·신행 연결, 정시 예불, 품질 자동 조정
+│       ├── main.js               # 앱 진입점, 입력·HUD·신행·예불 듣기·차담 장면, 정시 예불, 품질 자동 조정
 │       ├── styles.css            # 디자인 토큰 + HUD
-│       ├── core/state.js         # localStorage(meta_temple_cheongyeon_state_v1) 수행 기록·출석·해금
-│       ├── data/templeData.js    # 구역·법명 사전·연등 색·초기 서원
-│       ├── data/dharmaTexts.js   # 사경문·죽비 카드·차담 지식베이스
-│       ├── audio/soundEngine.js  # 절차적 입체 ASMR 엔진
-│       ├── ui/modalManager.js    # 신행 모달, generateMonkResponse()
+│       ├── core/                 # state.js(localStorage 저장 구조 v3) · live.js(동석·공유 서원) · moderation.js·cairns.js(서버 파일 링크) · avatarMotion.js
+│       ├── data/                 # templeData.js · dharmaTexts.js · dharma.js(서버 링크, 죽비·위기 신호) · credits.js(자료 출처)
+│       ├── audio/                # soundEngine.js(입체 ASMR·녹음·목소리) · background.js(화면 꺼져도 계속 듣기)
+│       ├── ui/                   # modalManager.js(신행 모달, generateMonkResponse) · icons · sheets · backGuard · veil · nameField · miniMap · scrollFade
 │       └── world/
-│           ├── layout.js         # 좌표 계약: terrainHeight / walkHeight / isWalkable / 충돌
-│           ├── templeScene.js    # 렌더러·후처리·하늘·시간대/날씨·카메라·피킹, loadCustomGLBModels()
-│           ├── terrain.js · vegetation.js · architecture.js · temple.js
-│           ├── buddha.js         # 대웅전 삼존 조립: 연화대좌·광배·보관 + 조각 메쉬 (워커에서 받아 붙임)
-│           ├── buddhaSculpt.js   # 삼존 조각(SDF → surface nets → AO 꼭짓점 색), THREE 없이 순수 계산
-│           ├── buddhaWorker.js   # 조각을 메인 스레드 밖에서
-│           ├── avatarManager.js  # 아바타·동석, syncRemotePeers()
-│           └── effects.js · materials.js · textures.js
-└── deploy/ · .github/workflows/  # 오라클 VM 배포 파이프라인
+│           ├── layout.js         # 좌표 계약: terrainHeight / walkHeight / isWalkable / zoneAt / 충돌
+│           ├── templeScene.js    # 렌더러·후처리·하늘·시간대/날씨·스프링 암 카메라·피킹
+│           ├── terrain.js · vegetation.js · architecture.js · temple.js · westCourt.js
+│           ├── trail.js · trailProps.js · cairnField.js · pathfind.js   # 순환 산책로·쉼터·돌탑·길 찾기
+│           ├── buddha.js · buddhaSculpt.js · buddhaWorker.js           # 절차식 삼존 (조각은 워커)
+│           ├── avatarManager.js · avatarRig.js                          # 아바타·동석, syncRemotePeers() / 블렌더 리그
+│           ├── effects.js · materials.js · textures.js
+│           └── real/             # 실사 세계 (기본값, ?world=classic 이면 끔)
+├── server/                       # 실시간 동석(/ws)·공유 서원·신고·차담 AI(/api/monk) — Node 22, ws, pg
+├── tools/                        # qa(헤드리스 검사) · blender · tts · outdoor · precinct · spike
+└── deploy/ · .github/workflows/  # 오라클 VM 배포 (web: deploy.sh·Actions, server: live.sh)
 ```
 
-> 2026-11 재구현: 파일럿의 단일 `templeScene.js`를 좌표 계약(`layout.js`)·지형·식생·건축·경내 조립으로 나눴다. 자세한 파일 설명은 저장소 `README.md`.
+> 2026-11 재구현: 파일럿의 단일 `templeScene.js`를 좌표 계약(`layout.js`)·지형·식생·건축·경내 조립으로 나눴다. 출시판(2026-11-05~06)에서 산책로·실사 세계·서버 기능이 더해졌다. 자세한 파일 설명은 저장소 `README.md`, 구현 현황은 `docs/superpowers/specs/2026-11-05-launch-upgrade-design.md` §9.
 
 ---
 
@@ -81,6 +83,8 @@ meta-temple/
 
 ## 3. 데이터 스키마 명세 (Data Schema for LocalStorage & Supabase)
 
+> **2026-11-06 현재**: 저장 키는 `meta_temple_cheongyeon_state_v1`, 내용은 저장 구조 v3 (`schemaVersion: 3`, `profileId`, `updatedAt`, `profile.nameIsCustom` …) — 옛 v2 기록은 `web/src/core/state.js` 의 `migrateState` 가 그대로 이어받는다. 기록 내보내기·가져오기(JSON). 공유 연등·기와·돌탑·신고·주문·보유 권리는 Supabase 가 아니라 자체 서버의 Postgres(`server/store.js`). 아래는 처음 설계 원문.
+
 현재 프로토타입은 브라우저 `localStorage`(`meta_temple_state_v1`)를 통해 새로고침 후에도 모든 수행 기록과 내가 단 연등·기와를 영구 보존하며, 상용 배포 시 [Supabase Realtime](https://supabase.com/docs/guides/realtime/presence) 및 PostgreSQL 테이블로 1:1 매핑할 수 있도록 설계되었습니다.
 
 ### 3.1 사용자 수행 프로필 (`UserProfile`)
@@ -119,6 +123,8 @@ meta-temple/
 ---
 
 ## 4. 다른 개발 도구에서 이어서 고도화하기 위한 단계별 로드맵
+
+> **2026-11-06 현재**: Step 1 은 일부 — 실사 세계(기본값)에서 국가유산청 스캔 삼층석탑을 쓰고, 삼존·후불벽은 생성형 사진 판. Step 2 는 Supabase 대신 자체 Node 서버(`server/server.js`, WebSocket `/ws`, 관심 영역으로 먼 사람은 덜 보냄)로 구현. Step 3 은 `/api/monk`(OpenRouter 경유 `anthropic/claude-haiku-5.5`, 구조화 출력, 하루 한도, 109 안내)로 구현 — 화면은 `generateMonkResponse` 가 `/api/monk` 를 부르고(실패하면 로컬 대화 나무), 차담은 채팅창이 아니라 마주 앉은 대사 장면. 아래는 처음 로드맵 원문.
 
 ### Step 1. 국가유산청 실측 3D 에셋(`.glb`) 및 3DGS 배경 교체
 1. 국가유산청 [국가유산 디지털 서비스 3D 에셋](https://digital.khs.go.kr/heritage/heriTage.do)에서 아래 에셋을 무료 다운로드(공공누리, 상업적 활용 가능)합니다:
