@@ -164,6 +164,7 @@ class MetaTempleApp {
         this.temple?.trail.hideMat(); // 돗자리는 일어서면 걷는다
       }
     });
+    this.avatars.camera = this.world.camera; // 시야 밖 사람은 그리지도 몸을 계산하지도 않는다 (avatarManager _crowdLod)
     this._rebuildPlayer();
     this.avatars.spawnAmbientVisitors();
     // 블렌더 아바타(GLB 2개)는 산사를 다 지은 뒤에 받기 시작한다 — 느린 망에서 입장을 늦추지 않게(같이 받으면 Fast 3G 에서 입장이 수 초 늦었다).
@@ -269,6 +270,10 @@ class MetaTempleApp {
       onPeers: (peers, count) => {
         this.avatars.syncRemotePeers(peers);
         this.avatars.setNpcBudget(Math.max(4, 11 - count)); // 실제 도반이 늘면 NPC 참배객을 줄인다
+      },
+      onPeerUpdates: (peers, ids, count) => {
+        this.avatars.updateRemotePeers(peers, ids);
+        this.avatars.setNpcBudget(Math.max(4, 11 - count));
       },
       onBow: (from) => this._onPeerBow(from)
     });

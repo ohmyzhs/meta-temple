@@ -13,10 +13,12 @@ import { parsePlace, placeStone, AREA_RADIUS } from './cairns.js';
 import { PRODUCTS, paymentsEnabled } from './products.js';
 import { createMonk, MONK_BODY_MAX } from './monk.js';
 
+import { relevantUpdate, row } from './relevance.js';
 const PORT = Number(process.env.PORT) || 8080;
 const SALT = process.env.ID_SALT || 'dev-salt';
-const ROOM_CAP = 40; // 한 산사에 함께 보이는 인원 — 넘치면 둘째 산사(방)를 연다
+const ROOM_CAP = 60; // 한 산사에 함께 있는 인원 (목표 50명 + 여유) — 넘치면 둘째 산사(방)를 연다
 const TICK_MS = 200;
+// 관심 영역(가까운 도반은 자주, 먼 도반은 드물게, 바뀐 사람만)은 relevance.js
 const BOW_RANGE = 10; // 합장 인사가 닿는 거리(m)
 const DAILY = { lanterns: 6, tiles: 6, stones: 12 };
 const STYLES = new Set(['monk', 'ink_wanderer', 'lantern_spirit']);
@@ -191,7 +193,7 @@ function leave(peer) {
 }
 
 wss.on('connection', (ws, req) => {
-  const peer = { ws, sid: nextSid++, name: '도반', style: 'monk', x: 0, y: 0, z: 36, ry: Math.PI, a: 'idle', n: 0, alive: true, msgs: 0, ready: false, dirty: true };
+  const peer = { ws, sid: nextSid++, name: '도반', style: 'monk', x: 0, y: 0, z: 36, ry: Math.PI, a: 'idle', n: 0, alive: true, msgs: 0, ready: false, dirty: true, v: 1, ver: 0, sent: new Map(), rosterKey: '' };
   clients.set(ws, peer);
   joinRoom(peer);
   ws.send(JSON.stringify({ t: 'welcome', sid: peer.sid, room: peer.room.id }));
@@ -207,8 +209,10 @@ wss.on('connection', (ws, req) => {
     if (m.t === 'hello') {
       peer.name = safeName(m.name, '도반');
       peer.style = STYLES.has(m.style) ? m.style : 'monk';
+      peer.v = m.v === 2 ? 2 : 1;
       peer.ready = true;
       peer.dirty = true;
+      peer.ver++;
     } else if (m.t === 's') {
       const num = (v, lim) => (Number.isFinite(v) ? Math.max(-lim, Math.min(lim, v)) : 0);
       peer.x = num(m.x, 400);
@@ -221,6 +225,7 @@ wss.on('connection', (ws, req) => {
       if (m.name) peer.name = safeName(m.name, peer.name);
       peer.ready = true;
       peer.dirty = true;
+      peer.ver++;
     } else if (m.t === 'bow' && peer.ready) {
       const now = Date.now();
       if (now - (peer.lastBow || 0) < 1500) return;
@@ -235,18 +240,25 @@ wss.on('connection', (ws, req) => {
   ws.on('error', () => leave(peer));
 });
 
-// 0.2초마다 방마다 한 번: 바뀐 것이 있을 때만, 1초에 한 번은 무조건 (새로 온 사람용)
+// 0.2초마다 방마다 한 번. 옛 클라이언트(v1)에는 예전처럼 전체 목록 — 바뀐 것이 있을 때, 1초에 한 번은 무조건
 let tick = 0;
 setInterval(() => {
   tick++;
+  const slow = tick % 5 === 0;
   for (const room of rooms) {
     const ready = [...room.peers].filter((p) => p.ready);
     const changed = ready.some((p) => p.dirty);
-    if (!changed && tick % 5) continue;
-    const all = ready.map((p) => [p.sid, p.name, p.style, +p.x.toFixed(2), +p.y.toFixed(2), +p.z.toFixed(2), +p.ry.toFixed(2), p.a, p.n]);
+    const roster = ready.map((p) => p.sid);
+    let all = null;
     for (const p of room.peers) {
       if (p.ws.readyState !== 1) continue;
-      p.ws.send(JSON.stringify({ t: 'peers', count: ready.length, peers: all.filter((x) => x[0] !== p.sid) }));
+      if (p.v >= 2) {
+        const m = relevantUpdate(p, ready, slow, roster);
+        if (m) p.ws.send(JSON.stringify(m));
+      } else if (changed || slow) {
+        all ||= ready.map(row);
+        p.ws.send(JSON.stringify({ t: 'peers', count: ready.length, peers: all.filter((x) => x[0] !== p.sid) }));
+      }
     }
     ready.forEach((p) => (p.dirty = false));
   }

@@ -475,6 +475,11 @@ export class Avatar {
     return this.head.localToWorld(out.set(0, 0.2, 0.06));
   }
 
+  /** 안 보일 때 대신 부른다: 동작 순서(seq)·상태만 진행하고 몸(뼈·자세)은 계산하지 않는다 */
+  advance(dt, t) {
+    this._targetPose(dt, t);
+  }
+
   update(dt, t, night) {
     const target = this._targetPose(dt, t);
     const k = 9;
@@ -954,9 +959,15 @@ export class AvatarManager {
    * peers: [{ id, dharmaName, avatarStyle, x, y, z, ry, actionState }]
    */
   syncRemotePeers(peers = []) {
-    const seen = new Set();
+    this.updateRemotePeers(peers, peers.map((p) => p.id));
+  }
+
+  /**
+   * 서버 v2: peers 는 바뀐 사람만(먼 사람은 1초에 한 번), ids 는 같은 방 명단(드나듦이 있을 때만 온다).
+   * 지우는 것은 명단으로만 — 이번에 안 온 사람은 그대로 둔다.
+   */
+  updateRemotePeers(peers = [], ids = null) {
     for (const peer of peers) {
-      seen.add(peer.id);
       let r = this.remote.get(peer.id);
       if (!r || r.av.style !== peer.avatarStyle) {
         r?.av.dispose();
@@ -983,8 +994,10 @@ export class AvatarManager {
         else r.av.setState(state);
       }
     }
-    for (const [id, r] of this.remote) {
-      if (!seen.has(id)) {
+    if (ids) {
+      const keep = new Set(ids);
+      for (const [id, r] of this.remote) {
+        if (keep.has(id)) continue;
         r.av.dispose();
         this.remote.delete(id);
       }
@@ -1100,26 +1113,125 @@ export class AvatarManager {
     pl.root.rotation.y = angleDamp(pl.root.rotation.y, pl.heading, 10, dt);
     pl.update(dt, t, night);
 
+    // 다른 사람들 (참배객 + 실제 도반): 화면에 안 보이면 그리지도 몸을 계산하지도 않고 동작 순서만 진행,
+    // 보이면 거리에 따라 몸 계산 빈도를 나누고, 그림자는 가까운 몇 명만 (_crowdLod)
+    const view = this._crowdView();
     // solo: 예불 듣기 — 나 말고는 아무도 보이지 않는다 (움직임·자리는 그대로 이어간다)
     for (const v of this.visitors) {
-      v.av.root.visible = !v.hidden && !this.solo;
-      if (v.hidden) continue;
+      if (v.hidden) {
+        v.av.root.visible = false;
+        continue;
+      }
       if (v.plan.role !== 'resident') this._updateVisitor(v, dt, t);
-      v.av.update(dt, t, night);
-      const dist = v.av.root.position.distanceTo(p);
-      v.av.labelEl.style.opacity = dist < 9 ? String(clamp((9 - dist) / 3, 0, 0.85)) : '0';
+      this._crowdLod(v.av, view, dt, t, night, 9, 3, 0.85);
     }
     for (const r of this.remote.values()) {
-      r.av.root.visible = !this.solo;
       const before = _prev.copy(r.av.root.position);
       r.av.root.position.lerp(r.target, 1 - Math.exp(-dt * 6));
       const moved = dt > 0 ? r.av.root.position.distanceTo(before) / dt : 0;
       r.av.speed = damp(r.av.speed, r.av.root.position.distanceTo(r.target) > 0.05 ? moved : 0, 6, dt);
       r.av.root.rotation.y = angleDamp(r.av.root.rotation.y, r.ry, 8, dt);
-      r.av.update(dt, t, night);
-      const d = r.av.root.position.distanceTo(p);
-      r.av.labelEl.style.opacity = d < 14 ? String(clamp((14 - d) / 4, 0, 0.95)) : '0';
+      this._crowdLod(r.av, view, dt, t, night, 14, 4, 0.95);
     }
-    pl.labelEl.style.opacity = pl.speed > 0.3 ? '0' : '0.75';
+    this._crowdShadows(view);
+    setLabel(pl, pl.speed > 0.3 ? 0 : 0.75);
   }
+
+  /** 이 프레임의 카메라 시야 (카메라가 없으면 — 시험 등 — 모두 보이는 것으로) */
+  _crowdView() {
+    const cam = this.camera;
+    const V = (this._view ||= { frustum: new THREE.Frustum(), m: new THREE.Matrix4(), sphere: new THREE.Sphere(), cam: new THREE.Vector3(), frame: 0, shadowed: [] });
+    V.frame++;
+    V.on = !!cam;
+    V.shadowed.length = 0;
+    if (cam) {
+      cam.updateMatrixWorld();
+      V.m.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse);
+      V.frustum.setFromProjectionMatrix(V.m);
+      V.cam.setFromMatrixPosition(cam.matrixWorld);
+    }
+    return V;
+  }
+
+  /**
+   * 한 사람: 숨김(시야 밖·먼 곳) → 동작 순서만 진행 / 보임 → 가까우면 매 프레임, 멀수록 2·3프레임에 한 번(쌓인 dt 로) 몸 계산.
+   * labelNear·labelFade·labelMax: 이름표가 보이는 거리(m)·옅어지는 폭·최대 불투명도.
+   */
+  _crowdLod(av, V, dt, t, night, labelNear, labelFade, labelMax) {
+    const root = av.root;
+    av._lodDt = (av._lodDt || 0) + dt;
+    let d = 0, show = !this.solo;
+    if (show && V.on) {
+      V.sphere.center.set(root.position.x, root.position.y + CROWD.center, root.position.z);
+      V.sphere.radius = CROWD.radius;
+      d = V.cam.distanceTo(V.sphere.center);
+      show = d < CROWD.far && V.frustum.intersectsSphere(V.sphere);
+    }
+    if (!show) {
+      // 장면에서 떼어 둔다: 숨김(visible=false)만으로는 매 프레임 뼈 행렬 갱신·이름표 숨기기가 사람 수만큼 그대로 돈다
+      if (root.parent) {
+        root.removeFromParent();
+        av.labelEl.style.display = 'none';
+      }
+      av.advance(dt, t); // 다시 보일 때 멈춘 몸으로 나타나지 않게: 큰절·헌향 같은 한 번짜리 동작의 순서·끝은 계속 잰다
+      av._lodDt = 0;
+      av._lodSkip = 0;
+      return;
+    }
+    if (!root.parent) this.scene.add(root);
+    const every = d < CROWD.everyFrame ? 1 : d < CROWD.everyOther ? 2 : 3;
+    if (++av._lodSkip >= every) {
+      av._lodSkip = 0;
+      av.update(av._lodDt, t, night);
+      av._lodDt = 0;
+    }
+    const ld = root.position.distanceTo(this.player.root.position);
+    V.shadowed.push([d, av, ld < labelNear ? clamp((labelNear - ld) / labelFade, 0, labelMax) : 0]);
+  }
+
+  /**
+   * 보이는 사람 가운데 가까운 순으로: 그림자는 CROWD.shadows 명만 (나머지는 그림자 패스에서 몸을 또 그리지 않게),
+   * 이름표도 CROWD.labels 명만 (50명이 모이면 이름표가 겹쳐 읽히지 않는다)
+   */
+  _crowdShadows(V) {
+    V.shadowed.sort((a, b) => a[0] - b[0]);
+    V.shadowed.forEach(([, av, label], i) => {
+      setCasting(av, i < CROWD.shadows, V.frame);
+      setLabel(av, i < CROWD.labels ? label : 0);
+    });
+  }
+}
+
+/* ───── 군중 (다른 사람들) 성능 단계 — tools/qa/crowd.mjs 로 잰 값 ───── */
+const CROWD = {
+  center: 0.9, // 몸 가운데 높이 (m)
+  radius: 1.4, // 시야 판정 구 (팔·큰절·그림자 끝까지 넉넉히)
+  far: 45, // 이보다 멀면 그리지 않는다 (m)
+  everyFrame: 8, // 이 안은 매 프레임 몸 계산
+  everyOther: 18, // 이 안은 2프레임에 한 번, 그 밖은 3프레임에 한 번
+  shadows: 10, // 그림자를 드리우는 사람 수 (가까운 순)
+  labels: 8 // 이름표를 다는 사람 수 (가까운 순, 그 안에서도 거리에 따라 옅어진다)
+};
+
+/** 이름표 불투명도: 0.05 단위로, 바뀔 때만 쓴다 (매 프레임 style 을 쓰면 사람 수만큼 스타일 계산이 다시 돈다). 0 이면 아예 숨긴다 */
+function setLabel(av, o) {
+  const v = Math.round(o * 20) / 20;
+  if (av._labelO === v) return;
+  av._labelO = v;
+  av.label.visible = v > 0;
+  av.labelEl.style.opacity = String(v);
+}
+
+/**
+ * 그림자 드리우기 켜고 끄기: 처음 볼 때의 castShadow 를 기억해 두고 그 메쉬만.
+ * 바뀔 때, 그리고 2초(120프레임)에 한 번은 다시 훑는다 — 블렌더 몸(GLB)이 늦게 붙어도 잡히게 (사람마다 다른 프레임에)
+ */
+function setCasting(av, on, frame) {
+  if (av._casting === on && (frame + av.root.id) % 120) return;
+  av.root.traverse((o) => {
+    if (!o.isMesh) return;
+    if (o.userData.cast0 === undefined) o.userData.cast0 = o.castShadow;
+    o.castShadow = on && o.userData.cast0;
+  });
+  av._casting = on;
 }

@@ -10,7 +10,10 @@ const wsBase = httpBase.replace(/^http/, 'ws');
 export const LIVE_API = `${httpBase}/api`;
 
 export class LiveLink {
-  /** @param hooks { onPeers(peers, count), onBow({sid, name}), onStatus(connected) } */
+  /**
+   * @param hooks { onPeers(peers, count) — 옛 전체 목록 / 끊김, onPeerUpdates(peers, ids|null, count) — v2 바뀐 사람만 + 드나듦 명단,
+   *   onBow({sid, name}), onStatus(connected) }
+   */
   constructor(hooks = {}) {
     this.hooks = hooks;
     this.ws = null;
@@ -43,7 +46,7 @@ export class LiveLink {
     ws.onopen = () => {
       this.connected = true;
       this.retry = 0;
-      this._send({ t: 'hello', ...this.me });
+      this._send({ t: 'hello', v: 2, ...this.me });
       if (this.last) this._send(this.last);
       this.hooks.onStatus?.(true);
     };
@@ -54,12 +57,13 @@ export class LiveLink {
       } catch {
         return;
       }
-      if (m.t === 'peers') {
+      const peer = ([sid, name, style, x, y, z, ry, a, n]) => ({ id: `p${sid}`, dharmaName: name, avatarStyle: style, x, y, z, ry, actionState: a, actionSeq: n });
+      if (m.t === 'pv') {
         this.count = Math.max(0, (m.count || 1) - 1);
-        this.hooks.onPeers?.(
-          m.peers.map(([sid, name, style, x, y, z, ry, a, n]) => ({ id: `p${sid}`, dharmaName: name, avatarStyle: style, x, y, z, ry, actionState: a, actionSeq: n })),
-          this.count
-        );
+        this.hooks.onPeerUpdates?.(m.peers.map(peer), m.ids ? m.ids.map((s) => `p${s}`) : null, this.count);
+      } else if (m.t === 'peers') {
+        this.count = Math.max(0, (m.count || 1) - 1);
+        this.hooks.onPeers?.(m.peers.map(peer), this.count);
       } else if (m.t === 'bow') this.hooks.onBow?.({ id: `p${m.sid}`, name: m.name });
     };
     ws.onclose = () => {
@@ -87,7 +91,7 @@ export class LiveLink {
 
   setIdentity(name, style) {
     this.me = { name, style };
-    this._send({ t: 'hello', ...this.me });
+    this._send({ t: 'hello', v: 2, ...this.me });
   }
 
   /** 매 프레임 불러도 된다: 0.2초 간격, 바뀐 것이 있을 때만(2초마다 한 번은 살아 있음 표시) */
