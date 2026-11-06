@@ -45,6 +45,7 @@ for (const [w, h] of SIZES) {
   const tag = `${w}x${h}`;
   console.log(`— ${tag}`);
   const { ctx, page, touch, errors } = await enter(browser, [w, h], { init: () => localStorage.clear() });
+  page.on('pageerror', (e) => console.log(`    pageerror: ${String(e.stack || e).split('\n').slice(0, 4).join(' | ')}`));
   await mock(page, 'ai');
   await toTea(page);
   await page.waitForTimeout(1000); // HUD 는 0.8초에 걸쳐 사라진다
@@ -103,6 +104,7 @@ for (const [w, h] of SIZES) {
 {
   console.log('— offline 390x844');
   const { ctx, page, errors } = await enter(browser, [390, 844], { init: () => localStorage.clear() });
+  page.on('pageerror', (e) => console.log(`    pageerror: ${String(e.stack || e).split('\n').slice(0, 4).join(' | ')}`));
   await mock(page, 'offline');
   await toTea(page);
   await page.waitForTimeout(900);
@@ -127,6 +129,7 @@ for (const [w, h] of SIZES) {
 {
   console.log('— quota·blocked 390x844');
   const { ctx, page, errors } = await enter(browser, [390, 844], { init: () => localStorage.clear() });
+  page.on('pageerror', (e) => console.log(`    pageerror: ${String(e.stack || e).split('\n').slice(0, 4).join(' | ')}`));
   let posts = 0;
   await page.route('**/api/monk', (route) => {
     if (route.request().method() === 'GET') return route.fulfill({ json: { ai: true, limit: 20 } });
