@@ -11,7 +11,7 @@
 import { nameFeedback, NAME_PLACEHOLDER } from './nameField.js';
 import { NAME_MAX, checkText } from '../core/moderation.js';
 import { CREDITS, CREDIT_GROUPS, LICENSE_URLS, YEBUL_TRACKS } from '../data/credits.js';
-import { SUTRA_VERSES, DHARMA_CARDS, localMonkResponse, isCrisisText, OPENING_SUGGESTIONS, BLOCKED_REPLIES, COOLED_LINE, REST_SUGGESTIONS } from '../data/dharmaTexts.js';
+import { SUTRA_VERSES, DHARMA_CARDS, localMonkResponse, isCrisisText, OPENING_SUGGESTIONS, BLOCKED_REPLIES, COOLED_LINE, REST_SUGGESTIONS, TEA_LINES, voiceKey } from '../data/dharmaTexts.js';
 import { LIVE_API } from '../core/live.js';
 import { icon } from './icons.js';
 import { LANTERN_COLORS, ZONES, RITUALS } from '../data/templeData.js';
@@ -50,8 +50,14 @@ const BOW_CYCLE_MS = 8000; // 108배 연속 모드: 8초에 한 번 천천히 (�
 const MALA_BEADS = 27; // 27주 단주 네 바퀴 = 108
 const TEA_MAX = 300; // 한 번에 건넬 수 있는 말 (server/monk.js MONK_LIMITS 와 같게)
 const TYPE_MS = 42; // 대사가 한 자씩 나오는 간격 — 누르면 바로 다 보인다
-// Windows InJoon, 안드로이드·맥의 남성 한국어 음성 이름들
-const KO_MALE_VOICE = /injoon|hyunsu|minsu|bongjin|gookmin|jinho|male|남성|남자/i;
+// 스님 목소리: 미리 녹음한 문장 목록 (tools/tts/monk_voice.py). 한 번만 받는다
+const VOICE_DIR = './assets/audio/monk/';
+let voiceIndex = null;
+const voiceKeys = () =>
+  (voiceIndex ||= fetch(`${VOICE_DIR}index.json`)
+    .then((r) => (r.ok ? r.json() : { keys: [] }))
+    .then((j) => new Set(j.keys || []))
+    .catch(() => ((voiceIndex = null), new Set())));
 // 차담 스님 초상 (먹선 한 장, 3D 의 중년 스님과 같은 옷빛·짙은 눈썹·지그시 뜬 눈 — 생성형 초상이 생기면 바꾼다)
 const MONK_FACE = `<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="31" fill="#2b2722"/><circle cx="32" cy="32" r="29" fill="none" stroke="#c9a35a" stroke-opacity=".55"/><path d="M11 60c2-12 10-17 21-17s19 5 21 17" fill="#4d453c"/><path d="M21 46l11 9 11-9" fill="none" stroke="#8a6a44" stroke-width="2.4"/><path d="M38 47l6 12" stroke="#6e5236" stroke-width="5"/><ellipse cx="32" cy="29" rx="10" ry="11.5" fill="#dcc3a6"/><path d="M24.5 25.6q3-2.4 6 -.8M33.5 24.8q3-1.6 6 .8" fill="none" stroke="#3a302a" stroke-width="1.9" stroke-linecap="round"/><path d="M26 29.8h4.4M33.6 29.8h4.4" stroke="#3a2a22" stroke-width="1.5" stroke-linecap="round"/><path d="M28.4 33.2q-1.4 2.6 .2 4.6M35.6 33.2q1.4 2.6-.2 4.6" fill="none" stroke="#9a6a50" stroke-width=".9" stroke-linecap="round"/><path d="M29.6 37q2.4 1.4 4.8 0" fill="none" stroke="#8a5a3e" stroke-width="1.2" stroke-linecap="round"/></svg>`;
 
@@ -1369,8 +1375,9 @@ export class ModalManager {
   _tea() {
     const token = this._token;
     const hist = this._teaHistory;
-    const synth = typeof speechSynthesis !== 'undefined' ? speechSynthesis : null;
     let voiceOn = this.store.state.settings.teaVoice !== false;
+    let stopVoice = () => {};
+    let lineNo = 0;
     const root = this._root(`
       <div class="tea-box" data-box>
         <div class="tea-face" aria-hidden="true">${MONK_FACE}</div>
@@ -1378,7 +1385,7 @@ export class ModalManager {
           <div class="tea-head">
             <span class="tea-name">청연 선사</span>
             <span class="tea-tools">
-              ${synth ? `<button type="button" class="tea-tool" data-act="voice" aria-pressed="${voiceOn}" aria-label="스님 목소리">${icon('sound')}</button>` : ''}
+              <button type="button" class="tea-tool" data-act="voice" aria-pressed="${voiceOn}" aria-label="스님 목소리">${icon('sound')}</button>
               <button type="button" class="tea-tool" data-act="card" aria-label="오늘의 죽비 뽑기">${icon('dharma_card')}</button>
               <button type="button" class="tea-tool" data-act="leave" aria-label="찻자리에서 일어나기">${icon('close')}</button>
             </span>
@@ -1428,20 +1435,17 @@ export class ModalManager {
       el.classList.toggle('is-ai', !!ai);
     };
 
-    /* 스님 목소리 — 기기에 한국어 음성이 있을 때만. 남성 음성을 먼저 찾고, 없으면 낮고 느리게 */
+    /* 스님 목소리 — 미리 녹음해 둔 문장만 (Typecast 권일). AI 가 그때 지은 답은 글로만 (브라우저 음성 합성은 쓰지 않는다) */
     const speak = (text) => {
-      if (!synth) return;
-      synth.cancel();
-      if (!voiceOn || this.sound?.isEnabled === false) return;
-      const voices = synth.getVoices();
-      const ko = voices.filter((v) => /^ko/i.test(v.lang));
-      if (voices.length && !ko.length) return; // 음성 목록을 받았는데 한국어가 없으면 엉뚱한 소리를 내지 않는다
-      const u = new SpeechSynthesisUtterance(text);
-      u.lang = 'ko-KR';
-      u.voice = ko.find((v) => KO_MALE_VOICE.test(v.name)) || ko[0] || null;
-      u.rate = 0.88;
-      u.pitch = u.voice && KO_MALE_VOICE.test(u.voice.name) ? 0.95 : 0.75;
-      synth.speak(u);
+      stopVoice();
+      stopVoice = () => {};
+      const n = ++lineNo;
+      if (!voiceOn || !text) return;
+      const key = voiceKey(text);
+      voiceKeys().then((keys) => {
+        if (n !== lineNo || !alive() || !voiceOn || !keys.has(key)) return;
+        stopVoice = this.sound?.playVoice?.(`${VOICE_DIR}${key}.mp3`) || (() => {});
+      });
     };
 
     const renderReplies = (list) => {
@@ -1499,7 +1503,7 @@ export class ModalManager {
       if (!text || busy) return;
       busy = true;
       closeCompose(false);
-      synth?.cancel();
+      speak('');
       showYou(text);
       root.classList.add('is-thinking');
       lineEl.textContent = '';
@@ -1560,7 +1564,7 @@ export class ModalManager {
     const drawCard = () => {
       if (busy) return;
       showYou('');
-      say('죽비 한 자루를 건넵니다. 마음에 닿는 구절이면 간직해 두세요.', {
+      say(TEA_LINES.card, {
         suggestions,
         card: () => {
           const deck = this._deck($('[data-card]'), true);
@@ -1590,8 +1594,7 @@ export class ModalManager {
         voiceOn = !voiceOn;
         b.setAttribute('aria-pressed', String(voiceOn));
         this.store.setSetting?.('teaVoice', voiceOn);
-        if (voiceOn) speak(lineEl.textContent);
-        else synth?.cancel();
+        speak(voiceOn ? (typing ? typing.chars.join('') : lineEl.textContent) : '');
       }
     });
     // 데스크톱: 1·2·3 으로 고르고, Enter·Space 로 말 끝까지 (산사 몸짓 단축키는 main.js 가 차담 중 쉬게 한다)
@@ -1609,19 +1612,18 @@ export class ModalManager {
 
     // 맞이하기
     monkStatus().then((st) => alive() && aiShown === null && setAi(st.ai));
-    const name = this.store.profile.dharmaName;
     const last = [...hist].reverse().find((h) => h.role === 'monk');
     if (!hist.length) {
-      const hello = `어서 오십시오, ${name} 도반님. 찻물이 마침 알맞게 끓어 연잎차 한 잔 따라 드립니다. 무엇이든 편히 꺼내 놓으세요. 답을 드리기보다 먼저 듣겠습니다.`;
+      const hello = TEA_LINES.hello; // 이름은 넣지 않는다 — 미리 녹음한 목소리와 같은 문장
       hist.push({ role: 'monk', text: hello, suggestions: OPENING_SUGGESTIONS });
       this._later(() => alive() && say(hello, { suggestions: OPENING_SUGGESTIONS }), 500);
     } else {
-      this._later(() => alive() && say('다시 오셨군요. 차를 새로 데웠습니다. 하시던 이야기, 이어서 들려주셔도 좋습니다.', { suggestions: last?.suggestions || OPENING_SUGGESTIONS }), 400);
+      this._later(() => alive() && say(TEA_LINES.back, { suggestions: last?.suggestions || OPENING_SUGGESTIONS }), 400);
     }
     return {
       reopen: () => (compose.hidden ? root.querySelector('.tea-reply')?.focus({ preventScroll: true }) : input.focus({ preventScroll: true })),
       destroy: () => {
-        synth?.cancel();
+        speak('');
         this.cb.onTeaLeave?.();
       }
     };

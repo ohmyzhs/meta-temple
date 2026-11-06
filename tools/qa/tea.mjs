@@ -46,6 +46,9 @@ for (const [w, h] of SIZES) {
   console.log(`— ${tag}`);
   const { ctx, page, touch, errors } = await enter(browser, [w, h], { init: () => localStorage.clear() });
   page.on('pageerror', (e) => console.log(`    pageerror: ${String(e.stack || e).split('\n').slice(0, 4).join(' | ')}`));
+  const voiceReqs = [];
+  page.on('request', (r) => r.url().includes('/assets/audio/monk/') && voiceReqs.push(r.url()));
+  await page.evaluate(() => (window.speechSynthesis.speak = () => { throw new Error('브라우저 음성 합성을 쓰면 안 된다'); }));
   await mock(page, 'ai');
   await toTea(page);
   await page.waitForTimeout(1000); // HUD 는 0.8초에 걸쳐 사라진다
@@ -57,6 +60,7 @@ for (const [w, h] of SIZES) {
   await page.click('.tea-say');
   await repliesShown(page);
   check((await page.locator('.tea-reply').count()) === 4, '예상 응답 3 + 직접 말하기');
+  check(voiceReqs.some((u) => /\/assets\/audio\/monk\/[0-9a-f]{8}\.mp3$/.test(u)) && (await page.evaluate(() => !!window.temple.sound._voiceStop)), `첫인사를 녹음한 목소리로 (${voiceReqs.length}개 받음)`);
   check(/AI/.test(await page.textContent('.tea-ai')), `AI 표시 「${await page.textContent('.tea-ai')}」`);
   const box = await page.locator('.tea-box').boundingBox();
   const all = await page.locator('.m-view.tea').boundingBox();
