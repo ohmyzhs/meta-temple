@@ -41,10 +41,12 @@ export function xyNormals(mat) {
       .replace(
         '#include <normal_fragment_maps>',
         THREE.ShaderChunk.normal_fragment_maps
-          .replace('texture2D( normalMap, vNormalMapUv ).xyz * 2.0 - 1.0', 'xyNormal( texture2D( normalMap, vNormalMapUv ) )')
+          // 접선 공간 줄을 콕 집어서: 같은 식이 위쪽 물체 공간 분기에 먼저 나와, 그냥 replace 하면 그쪽만 바뀌고 X 가 xyz 로 읽혔다
+          .replace('vec3 mapN = texture2D( normalMap, vNormalMapUv ).xyz * 2.0 - 1.0;', 'vec3 mapN = xyNormal( texture2D( normalMap, vNormalMapUv ) );')
           // UV 가 한 점으로 모인 삼각형(상자 투영의 모서리)에서는 접선이 0 이 되어 NaN → 블룸이 화면 전체로 번진다: 원래 노멀 그대로
           .replace('normal = normalize( tbn * mapN );', '{ vec3 pn = tbn * mapN; if (dot(pn, pn) > 1e-8) normal = normalize(pn); }')
       );
+    if (!s.fragmentShader.includes('mapN = xyNormal(')) console.warn('[xyNormals] three 노멀맵 셰이더 조각이 바뀌어 XY 노멀을 못 풀었다');
   };
   mat.customProgramCacheKey = () => `${prevKey}-xyn`;
   return mat;
