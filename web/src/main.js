@@ -286,6 +286,11 @@ class MetaTempleApp {
     setTimeout(() => {
       this.toast('산문에 들어섰습니다. 천천히 걸어 보세요 · WASD 또는 바닥을 눌러 이동');
       if (isNewDay && streak > 1) setTimeout(() => this.toast(`🍃 ${streak}일째 이어진 발걸음입니다`), 2600);
+      if (this.store.renamedFrom) {
+        // 법명이 10자로 줄어든 뒤 처음 들어온 옛 방문자 (state.js shortenName)
+        setTimeout(() => this.toast(`법명을 10자 안으로 줄였습니다 · 『${this.store.profile.dharmaName}』`), 1800);
+        delete this.store.renamedFrom;
+      }
     }, 900);
     this.live = new LiveLink({
       onPeers: (peers, count) => {

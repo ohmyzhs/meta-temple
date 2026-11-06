@@ -62,17 +62,30 @@ kbd {
 
 #scene { position: fixed; inset: 0; touch-action: none; }
 #scene canvas { display: block; outline: none; }
+/* 머리 위 이름표 — 글자 뒤에 옅은 먹 상자를 깔아 밝은 마당에서도 읽힌다. 나(.me)·실제 도반(.peer)·산사식구(.npc)를 달리 한다 */
 .name-label {
   font-family: var(--font-serif);
-  font-size: 12px;
-  color: var(--hanji-100);
-  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--hanji-50);
+  padding: 2px 10px 3px;
+  border-radius: 999px;
+  background: rgba(20, 17, 14, 0.72);
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.35);
   white-space: nowrap;
   pointer-events: none;
   letter-spacing: 0.02em;
   transition: opacity 0.4s;
 }
-.name-label.me { color: #f6dfa5; }
+.name-label.me { color: #f6dfa5; box-shadow: inset 0 0 0 1px rgba(201, 163, 90, 0.75), 0 1px 6px rgba(0, 0, 0, 0.35); }
+.name-label.peer { color: #e3f2e5; box-shadow: inset 0 0 0 1px rgba(146, 196, 160, 0.7), 0 1px 6px rgba(0, 0, 0, 0.35); }
+/* 실제 접속한 사람(나·도반)은 이름 앞에 초록 점 — 산사식구(참배객·스님)는 점 없이 글자도 조금 가볍게 (사용자 결정 2026-11-06) */
+.name-label.npc { font-weight: 400; color: rgba(243, 236, 220, 0.9); }
+.name-label:not(.npc)::before {
+  content: ''; display: inline-block; width: 7px; height: 7px; margin: 0 6px 0 -3px; border-radius: 50%; vertical-align: 2px;
+  background: #6fd38c; box-shadow: 0 0 6px rgba(111, 211, 140, 0.8);
+}
 
 #focus-vignette {
   position: fixed;
@@ -472,7 +485,6 @@ body:has(#intro:not(.leaving):not(.hidden)) .name-label { visibility: hidden; }
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
 
-.name-label.peer { color: #d5ead9; font-weight: 600; }
 
 /* ───────── 예불 듣기 모드 ───────── */
 /* 화면 전환 가림막: 켤 때는 빠르게 어두워지고, 걷을 때는 천천히 밝아진다 */

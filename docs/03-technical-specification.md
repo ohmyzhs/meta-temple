@@ -91,7 +91,7 @@ meta-temple/
 ```json
 {
   "userId": "uuid-v4",
-  "dharmaName": "새벽안개 품은 솔잎",
+  "dharmaName": "새벽안개 속 솔잎",
   "avatarStyle": "monk",
   "stats": {
     "bowCount": 108,

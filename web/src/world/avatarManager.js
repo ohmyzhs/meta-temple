@@ -861,7 +861,10 @@ export class AvatarManager {
     this.scene.add(teaMonk.root);
     this.teaMonk = teaMonk;
     this.visitors.push({ av: teaMonk, plan: { role: 'resident' }, t: 0, pause: 0 });
-    this.visitors.forEach((v) => (v.av.root.rotation.y = v.av.heading));
+    this.visitors.forEach((v) => {
+      v.av.root.rotation.y = v.av.heading;
+      v.av.labelEl.classList.add('npc'); // 산사식구(참배객·스님) — 실제 접속한 사람과 이름표를 달리한다
+    });
   }
 
   _initVisitor(v, i, used) {
@@ -1131,7 +1134,7 @@ export class AvatarManager {
         continue;
       }
       if (v.plan.role !== 'resident') this._updateVisitor(v, dt, t);
-      this._crowdLod(v.av, view, dt, t, night, 9, 3, 0.85);
+      this._crowdLod(v.av, view, dt, t, night, 9, 3, 1); // 이름표는 먹 상자째 흐려지므로 가까이선 끝까지 진하게 (흰 하늘 위 대비)
     }
     for (const r of this.remote.values()) {
       const before = _prev.copy(r.av.root.position);
@@ -1139,10 +1142,10 @@ export class AvatarManager {
       const moved = dt > 0 ? r.av.root.position.distanceTo(before) / dt : 0;
       r.av.speed = damp(r.av.speed, r.av.root.position.distanceTo(r.target) > 0.05 ? moved : 0, 6, dt);
       r.av.root.rotation.y = angleDamp(r.av.root.rotation.y, r.ry, 8, dt);
-      this._crowdLod(r.av, view, dt, t, night, 14, 4, 0.95);
+      this._crowdLod(r.av, view, dt, t, night, 14, 4, 1);
     }
     this._crowdShadows(view);
-    setLabel(pl, pl.speed > 0.3 ? 0 : 0.75);
+    setLabel(pl, pl.speed > 0.3 ? 0 : 1);
   }
 
   /** 이 프레임의 카메라 시야 (카메라가 없으면 — 시험 등 — 모두 보이는 것으로) */

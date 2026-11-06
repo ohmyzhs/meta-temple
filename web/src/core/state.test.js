@@ -9,7 +9,7 @@ globalThis.localStorage = {
   removeItem: (k) => mem.delete(k)
 };
 const KEY = 'meta_temple_cheongyeon_state_v1';
-const { TempleStore, migrateState } = await import('./state.js');
+const { TempleStore, migrateState, shortenName } = await import('./state.js');
 
 beforeEach(() => mem.clear());
 
@@ -119,4 +119,18 @@ test('cairn_list_merges_server_and_own', () => {
   assert.ok(st.gateStoneTotal >= 9);
   st.mergeShared({ stoneTotal: 13 }); // 옛 서버: 길가 돌탑을 모름 → 목록은 그대로, 일주문 수는 전체 수로
   assert.equal(st.cairnList().length, 1);
+});
+
+test('long_old_names_get_shortened', () => {
+  assert.equal(shortenName('은은한 향기 나는 조약돌'), '향기 머문 조약돌');
+  assert.equal(shortenName('따스한 햇살 받은 기왓장'), '햇살 받은 기왓장');
+  assert.equal(shortenName('달빛 머금은 대나무'), '달빛 머금은 대나무'); // 10자는 그대로
+  assert.equal(shortenName('가나다라마바사아자차카타'), '가나다라마바사아자차');
+  assert.ok([...shortenName('관리자관리자관리자관리자')].length <= 10); // 거름에 걸리면 새 자동 법명
+  mem.set(KEY, JSON.stringify({ ...V2, profile: { ...V2.profile, dharmaName: '맑은 이슬 맺힌 초승달' } }));
+  const st = new TempleStore();
+  assert.equal(st.profile.dharmaName, '이슬 맺힌 초승달');
+  assert.equal(st.renamedFrom, '맑은 이슬 맺힌 초승달');
+  assert.equal(JSON.parse(mem.get(KEY)).profile.dharmaName, '이슬 맺힌 초승달');
+  assert.equal(new TempleStore().renamedFrom, undefined); // 한 번만 알린다
 });
