@@ -695,8 +695,13 @@
 .mala-tassel-line { fill: none; stroke: #7c2a1c; stroke-width: 0.7; opacity: 0.55; }
 .mala-cord { fill: none; stroke: #8c2f22; stroke-width: 1.6; }
 .mala-halo { opacity: 0.3; transform-box: fill-box; transform-origin: center; }
-.mala.is-tick .mala-halo { animation: mala-tick 0.7s ease-out; }
-@keyframes mala-tick { 0% { opacity: 1; transform: scale(0.6); } 100% { opacity: 0.3; transform: scale(1.3); } }
+.mala.is-tick .mala-halo { animation: mala-tick 0.7s ease-out, mala-ready 2.3s 0.7s ease-in both; }
+@keyframes mala-tick { 0% { opacity: 1; transform: scale(0.6); } 100% { opacity: 0.05; transform: scale(1.3); } }
+/* 다음 알은 3초 뒤에 센다(main.js MALA_MIN_MS) — 윗알 빛이 꺼졌다가 3초에 걸쳐 다시 차오르고,
+   안쪽 금빛 표시도 흐렸다가 3초에 금빛으로 돌아오면 넘길 때 */
+@keyframes mala-ready { from { opacity: 0.05; transform: scale(0.85); } to { opacity: 0.95; transform: scale(1.05); } }
+.mala.is-tick .mala-tick { animation: mala-tick-ready 3s linear both; }
+@keyframes mala-tick-ready { 0% { fill: #b8ab97; opacity: 0.45; } 96% { fill: #b8ab97; opacity: 0.6; } 100% { fill: var(--gold); opacity: 1; } }
 .mala-glow { opacity: 0; transform-box: fill-box; transform-origin: center; }
 .mala.is-loop .mala-glow { animation: mala-loop 1.6s ease-out; }
 .mala.is-complete .mala-glow { animation: mala-done 3.2s ease-out; }
@@ -1366,6 +1371,7 @@ body.tea-scene .modal-overlay.is-side {
   .jukbi-card { transition: none; }
   .mala-beads, .mala [data-bead] { transition-duration: 0.01ms; }
   .mala.is-tick .mala-halo, .mala.is-loop .mala-glow, .mala.is-complete .mala-glow, .mala.is-tick .mala-center b, .mala.is-resist svg { animation: none; }
+  .mala.is-tick .mala-tick { animation: mala-tick-ready 3s steps(1, end) both; }
 }
 @media (max-width: 640px) {
   /* 폰: 접은 108배 막대는 오른쪽 아래(왼쪽 조이스틱을 비켜), 숨 글자는 빼고 고리·멈춤·펼치기만 */

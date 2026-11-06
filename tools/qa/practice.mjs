@@ -2,7 +2,7 @@
 //  · 108배 창에는 탭이 없고(염주는 따로), 머리에 접기 단추가 있다
 //  · 자동 108배를 시작하면 3초 뒤 작은 막대로 접힌다 — 횟수 고리·멈춤·펼치기만, 단추 48px 이상, 조이스틱·하단 독과 겹치지 않음
 //  · 접힌 동안에도 절은 이어지고, 막대에서 멈추고 이어 하고 펼칠 수 있다
-//  · 염주는 더보기의 「염주」로 따로 열린다. 광클릭(1초에 10번)은 세지 않고, 0.7초 간격이면 다 센다
+//  · 염주는 법당의 「염주」로 따로 열린다. 한 알 사이는 최소 3초 — 광클릭(1초에 10번)은 한 알만, 3.1초 간격이면 다 센다
 //  · 알은 고리와 반대로 돌아 빛이 늘 같은 쪽
 import { launch, enter } from './lib.mjs';
 
@@ -75,14 +75,17 @@ for (const vp of [[390, 844], [1280, 800]]) {
     await page.waitForTimeout(90);
   }
   const m1 = await count();
-  check('광클릭 1초에 10번 → 많아야 2알', m1 - m0 <= 2 && m1 - m0 >= 1, `${m1 - m0}알`);
-  await page.waitForTimeout(700);
-  for (let i = 0; i < 4; i++) {
+  check('광클릭 1초에 10번 → 한 알', m1 - m0 === 1, `${m1 - m0}알`);
+  await page.mouse.click(box.x + box.w / 2, box.y + box.h / 2);
+  await page.waitForTimeout(300);
+  check('3초 안에 다시 → 세지 않음', (await count()) === m1);
+  await page.waitForTimeout(2900);
+  for (let i = 0; i < 2; i++) {
     await page.mouse.click(box.x + box.w / 2, box.y + box.h / 2);
-    await page.waitForTimeout(700);
+    await page.waitForTimeout(3100);
   }
   const m2 = await count();
-  check('0.7초 간격 네 번 → 네 알', m2 - m1 === 4, `${m2 - m1}알`);
+  check('3.1초 간격 두 번 → 두 알', m2 - m1 === 2, `${m2 - m1}알`);
   const rot = await page.evaluate(() => {
     const g = document.querySelector('[data-beads]').style.transform, b = document.querySelector('[data-bead]').style.transform;
     const n = (s) => Number((s.match(/-?[\d.]+/) || [0])[0]);

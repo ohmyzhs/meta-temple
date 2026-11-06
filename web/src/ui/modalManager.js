@@ -165,7 +165,7 @@ function malaSvg() {
     <defs>
       <radialGradient id="mala-shade" cx="38%" cy="32%" r="72%"><stop offset="0" stop-color="#fff2dc" stop-opacity=".28"/><stop offset=".55" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#2a1208" stop-opacity=".55"/></radialGradient>
       <radialGradient id="mala-guru" cx="35%" cy="30%" r="75%"><stop offset="0" stop-color="#d0866a"/><stop offset=".5" stop-color="#8a3a25"/><stop offset="1" stop-color="#3f1a10"/></radialGradient>
-      <radialGradient id="mala-halo"><stop offset="0" stop-color="#f0cf86" stop-opacity=".85"/><stop offset="1" stop-color="#f0cf86" stop-opacity="0"/></radialGradient>
+      <radialGradient id="mala-halo"><stop offset="0" stop-color="#e2a640" stop-opacity=".95"/><stop offset=".55" stop-color="#e8b85a" stop-opacity=".45"/><stop offset="1" stop-color="#f0cf86" stop-opacity="0"/></radialGradient>
       <radialGradient id="mala-glow"><stop offset=".72" stop-color="#e8c070" stop-opacity="0"/><stop offset=".86" stop-color="#e8c070" stop-opacity=".55"/><stop offset="1" stop-color="#e8c070" stop-opacity="0"/></radialGradient>
     </defs>
     <circle class="mala-glow" cx="${C}" cy="${C}" r="118" fill="url(#mala-glow)"/>
