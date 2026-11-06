@@ -68,6 +68,24 @@ for (const [w, h] of SIZES) {
   check(all.y + all.height <= h + 1 && all.y >= 0, `대사 상자·응답이 화면 안 (위 ${Math.round(all.y)} · 높이 ${Math.round(all.height)} / ${h}, 상자 ${Math.round(box.height)})`);
   await shot(page, `${tag}-1-greet`);
 
+  // 죽비 층: 대사 상자를 거두고 가운데 큰 카드 — 화면 안에 다 들어오고(스크롤 없이), Esc 는 층만 닫는다
+  await page.click('[data-act="card"]');
+  await page.waitForSelector('.tea-jukbi:not([hidden]) .jukbi-card.is-flipped', { timeout: 5000 });
+  await page.waitForTimeout(1100); // 뒤집히는 0.95초
+  const jk = await page.evaluate(() => {
+    const panel = document.querySelector('.tea-jukbi-panel').getBoundingClientRect();
+    const card = document.querySelector('.tea-jukbi .jukbi-card').getBoundingClientRect();
+    const p = document.querySelector('.tea-jukbi-panel');
+    return { panel: [panel.left, panel.top, panel.right, panel.bottom].map(Math.round), card: [card.left, card.top, card.right, card.bottom].map(Math.round), scroll: p.scrollHeight - p.clientHeight, box: getComputedStyle(document.querySelector('.tea-box')).visibility };
+  });
+  const cx = (jk.card[0] + jk.card[2]) / 2;
+  check(jk.panel[0] >= 0 && jk.panel[1] >= 0 && jk.panel[2] <= w && jk.panel[3] <= h && jk.scroll <= 1, `죽비 층이 화면 안, 스크롤 없음 (패널 ${jk.panel.join(',')} · 넘침 ${jk.scroll}px)`);
+  check(jk.box === 'hidden' && (h < 520 || Math.abs(cx - w / 2) <= 2), `대사 상자 거둠 · 카드 가운데 (카드 중심 ${Math.round(cx)} / ${w / 2})`);
+  await shot(page, `${tag}-7-jukbi`);
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('.tea-jukbi[hidden]', { state: 'attached', timeout: 3000 });
+  check((await page.evaluate(() => window.temple.modals.current)) === 'tea_chat' && !(await page.isHidden('.tea-replies')), 'Esc 는 죽비 층만 닫고 차담은 그대로');
+
   // 고르기: 휴대폰은 누르고, 데스크톱은 1 키
   const before = await page.evaluate(() => window.temple.player.state);
   if (touch) await page.locator('.tea-reply').first().click();
@@ -239,15 +257,16 @@ for (const [w, h] of SIZES) {
   await repliesShown(page);
   const afterAi = await voices();
   check(afterAi.length === 1, `AI 답은 글로만 (튼 소리 ${afterAi.length}개)`);
-  // 죽비: 「건넵니다」 → (그 말이 끝나면) 구절
+  // 죽비 층: 뒤집히면 구절을 읽는다. 뒤로가기는 층만 닫는다
   await page.click('[data-act="card"]');
-  await page.waitForTimeout(600);
-  await page.click('.tea-say');
-  await page.waitForFunction((k) => window.__voices.some((v) => k.includes(v)), [...cardKeys], { timeout: 15000 });
-  const v1 = await voices();
-  check(v1.indexOf(voiceKey(TEA_LINES.card)) >= 0 && cardKeys.has(v1.at(-1)) && v1.indexOf(voiceKey(TEA_LINES.card)) < v1.length - 1, '죽비: 건네는 말 다음에 구절을 읽음');
-  await page.click('.tea-card [data-act="keep"]');
+  await page.waitForFunction((k) => window.__voices.some((v) => k.includes(v)), [...cardKeys], { timeout: 5000 });
+  check(cardKeys.has((await voices()).at(-1)), '죽비 층: 뒤집히면 구절을 읽음');
+  await page.waitForTimeout(1100);
+  await page.click('.tea-jukbi [data-act="keep"]');
   await shot(page, 'voice-jukbi-390x844');
+  await page.goBack();
+  await page.waitForSelector('.tea-jukbi[hidden]', { state: 'attached', timeout: 3000 });
+  check((await page.evaluate(() => window.temple.modals.current)) === 'tea_chat', '뒤로가기는 죽비 층만 닫음');
   // 일어나면 끝인사
   await page.click('[data-act="leave"]');
   await page.waitForTimeout(300);

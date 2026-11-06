@@ -226,7 +226,7 @@ export class ModalManager {
       if (e.key === 'Escape') {
         if (!e.isComposing) {
           e.preventDefault();
-          this.close();
+          this.back();
         }
         e.stopPropagation();
         return;
@@ -234,7 +234,7 @@ export class ModalManager {
       if (isTextField(e.target)) e.stopPropagation();
     });
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && !e.isComposing && this.isOpen && !isTextField(e.target)) this.close();
+      if (e.key === 'Escape' && !e.isComposing && this.isOpen && !isTextField(e.target)) this.back();
     });
   }
 
@@ -295,6 +295,12 @@ export class ModalManager {
 
   refresh() {
     if (this.isOpen) this._view?.refresh?.();
+  }
+
+  /** Esc·뒤로가기: 창 안에 겹쳐 연 것(차담의 죽비 층)이 있으면 그것부터, 없으면 창을 닫는다 */
+  back() {
+    if (this._view?.back?.()) return;
+    this.close();
   }
 
   /* ───── 생명주기 ───── */
@@ -1390,7 +1396,7 @@ export class ModalManager {
     const token = this._token;
     const hist = this._teaHistory;
     let voiceOn = this.store.state.settings.teaVoice !== false;
-    let deck = null; // 차담에서 건넨 죽비
+    let deck = null; // 죽비 층의 카드 한 벌 (한 번 만들어 다시 뽑기에 쓴다)
     const root = this._root(`
       <div class="tea-box" data-box>
         <div class="tea-face" aria-hidden="true">${MONK_FACE}</div>
@@ -1412,7 +1418,6 @@ export class ModalManager {
           <button type="button" class="tea-say" data-say aria-label="스님 말 끝까지 보기"><span class="tea-line" data-line aria-hidden="true"></span></button>
           <p class="sr-only" data-live aria-live="polite"></p>
           <p class="tea-verse" data-verse hidden></p>
-          <div class="tea-card" data-card></div>
           <p class="tea-ai" data-ai></p>
         </div>
       </div>
@@ -1422,7 +1427,18 @@ export class ModalManager {
         <input id="tea-input" type="text" maxlength="${TEA_MAX}" autocomplete="off" enterkeyhint="send" placeholder="스님께 건넬 말을 적어 보세요" />
         <button type="submit" class="m-btn primary">건네기</button>
         <button type="button" class="tea-tool" data-act="cancel" aria-label="직접 말하기 닫기">${icon('close')}</button>
-      </form>`);
+      </form>
+      <div class="tea-jukbi" data-jukbi hidden role="dialog" aria-modal="true" aria-label="스님이 건넨 죽비">
+        <div class="tea-jukbi-panel">
+          <div class="tea-jukbi-head">
+            <span class="tea-jukbi-face" aria-hidden="true">${MONK_FACE}</span>
+            <p class="tea-jukbi-line"><b>청연 선사</b>${esc(TEA_LINES.card)}</p>
+            <button type="button" class="tea-jukbi-x" data-act="jukbi-close" aria-label="찻자리로 돌아가기">${icon('close')}</button>
+          </div>
+          <div class="tea-jukbi-deck" data-jukbi-deck></div>
+          <button type="button" class="m-link tea-jukbi-back" data-act="jukbi-close">찻자리로 돌아가기</button>
+        </div>
+      </div>`);
     root.classList.add('tea');
     const $ = (sel) => root.querySelector(sel);
     const lineEl = $('[data-line]');
@@ -1486,7 +1502,6 @@ export class ModalManager {
       root.classList.add('is-typing');
       $('[data-verse]').hidden = true;
       $('[data-help]').hidden = !opt.crisis;
-      $('[data-card]').replaceChildren();
       repliesEl.hidden = true;
       boxEl.scrollTop = 0;
       $('[data-live]').textContent = line;
@@ -1513,7 +1528,6 @@ export class ModalManager {
       repliesEl.hidden = true;
       $('[data-verse]').hidden = true;
       $('[data-help]').hidden = true;
-      $('[data-card]').replaceChildren();
       const prior = hist.slice();
       hist.push({ role: 'user', text });
       const started = performance.now();
@@ -1564,17 +1578,30 @@ export class ModalManager {
       if (showReplies && !typing && !busy) repliesEl.hidden = false;
     }
 
-    const drawCard = () => {
-      if (busy) return;
-      showYou('');
-      say(TEA_LINES.card, {
-        suggestions,
-        card: () => {
-          deck = this._deck($('[data-card]'), true, { autoVoice: false });
-          this._later(() => deck.draw(), reduceMotion() ? 0 : 300);
-        },
-        onVoiceEnd: () => deck?.speak() // 「죽비 한 자루를 건넵니다」를 다 말한 뒤 구절을 읽는다
-      });
+    /* 죽비: 대사 상자를 잠시 거두고 가운데 큰 카드 층으로 (차담 창은 그대로 — 닫으면 일어서고 끝인사까지 하므로).
+     * 뒤집히면 스님이 구절을 읽는다. Esc·뒤로가기·「찻자리로 돌아가기」로 대화로 돌아온다 */
+    // 창(.modal-window)에는 등장 애니메이션의 변환이 남아 있어 그 안의 fixed 는 창에 갇힌다 → 덮개 바로 아래로 옮긴다
+    const jukbi = $('[data-jukbi]');
+    this.overlay.appendChild(jukbi);
+    this._on(jukbi, 'click', (e) => e.target.closest('[data-act="jukbi-close"]') && closeJukbi());
+    const openJukbi = () => {
+      if (busy || !jukbi.hidden) return;
+      if (typing) finish();
+      if (!compose.hidden) closeCompose();
+      speak('');
+      jukbi.hidden = false;
+      root.classList.add('is-jukbi');
+      deck ||= this._deck(jukbi.querySelector('[data-jukbi-deck]'), false);
+      this._later(() => alive() && !jukbi.hidden && deck.draw(), reduceMotion() ? 0 : 350);
+      jukbi.querySelector('.tea-jukbi-x').focus({ preventScroll: true });
+    };
+    const closeJukbi = () => {
+      if (jukbi.hidden) return false;
+      jukbi.hidden = true;
+      root.classList.remove('is-jukbi');
+      this._voice('');
+      root.querySelector('[data-act="card"]')?.focus({ preventScroll: true });
+      return true;
     };
 
     this._on(compose, 'submit', (e) => {
@@ -1589,7 +1616,7 @@ export class ModalManager {
       if (b.matches('[data-say]')) finish();
       else if (act === 'own') openCompose();
       else if (act === 'cancel') closeCompose();
-      else if (act === 'card') drawCard();
+      else if (act === 'card') openJukbi();
       else if (act === 'leave') this.close();
       else if (act === 'forget') {
         this.store.setSetting('teaMemory', '');
@@ -1603,7 +1630,7 @@ export class ModalManager {
     });
     // 데스크톱: 1·2·3 으로 고르고, Enter·Space 로 말 끝까지 (산사 몸짓 단축키는 main.js 가 차담 중 쉬게 한다)
     this._on(document, 'keydown', (e) => {
-      if (!alive() || isTextField(e.target) || e.isComposing || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (!alive() || !jukbi.hidden || isTextField(e.target) || e.isComposing || e.ctrlKey || e.metaKey || e.altKey) return;
       if (/^[1-3]$/.test(e.key)) {
         e.preventDefault();
         if (typing) finish();
@@ -1626,7 +1653,9 @@ export class ModalManager {
     }
     return {
       reopen: () => (compose.hidden ? root.querySelector('.tea-reply')?.focus({ preventScroll: true }) : input.focus({ preventScroll: true })),
+      back: closeJukbi,
       destroy: () => {
+        jukbi.remove();
         this._voice(TEA_LINES.bye); // 끝인사 — 창이 닫혀도 소리는 산사에 남는다
         this.cb.onTeaLeave?.();
       }
