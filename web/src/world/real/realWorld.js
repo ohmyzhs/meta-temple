@@ -1,7 +1,8 @@
 // 실사 세계 (출시판 3단계, docs/superpowers/plans/2026-11-05-launch-stage3-real.md)
 // templeScene.build() 가 플래그(REAL_WORLD)가 켜졌을 때만 동적으로 불러온다 — 꺼지면 이 파일도 에셋도 받지 않는다.
 // 절차적 세계는 그대로 두고, temple.js 가 userData.realSlot 을 단 물체를 정적 병합에서 빼 두었다가
-// 실사 GLB 가 도착하면 바꿔 끼운다. 못 받거나 저사양(q=low)이면 절차적 그대로.
+// 실사 GLB 가 도착하면 바꿔 끼운다. 못 받으면 절차적 그대로. 저사양(q=low, 폰)은 스캔 GLB(석탑)만 빼고
+// 사진 판(불상·후불벽)과 사진 재질은 그대로 받는다 — 사진 판 한 장이 조각 불상보다 가볍다 (사용자 2026-11-07 「불상이 다시 폴리곤」).
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
@@ -28,8 +29,8 @@ export const SLOTS = {
   // 불상은 3D 모델 대신 생성형 사진(배경을 뺀 컷아웃)을 세운 판 — 사용자 결정 2026-11-06 「불상만 이미지로」.
   // 판 높이·자리는 절차적 불상(대좌·광배 포함)의 경계 상자를 그대로 따른다. 사진은 정면(+z)을 본다.
   buddha: { card: 'buddha/sakyamuni.webp', at: () => [0, 0, L.altar.z], loadWithin: 60 },
-  bodhiL: { card: 'buddha/bodhisattva_l.webp', at: () => [-6.2, 0, L.altar.z], loadWithin: 60 },
-  bodhiR: { card: 'buddha/bodhisattva_r.webp', at: () => [6.2, 0, L.altar.z], loadWithin: 60 },
+  bodhiL: { card: 'buddha/bodhisattva_l.webp', at: () => [-6.5, 0, L.altar.z], loadWithin: 60 },
+  bodhiR: { card: 'buddha/bodhisattva_r.webp', at: () => [6.5, 0, L.altar.z], loadWithin: 60 },
   // 후불벽: 생성형 벽면 사진 세 칸 (사용자 2026-11-06 「뒤 벽면도 더 디테일하게 생성형 이미지로」).
   // 기존 옻칠 판·탱화·액자(temple.js _hall)는 그대로 두고 바로 앞에 세운다 — 칸 이음매는 뒤 기둥(x ±2.8)이 가린다.
   // 사진은 칸 비율(폭 ÷ 벽 높이)에 맞춰 둔다 — tools/spike/wall_fit.py 가 그림은 그대로 두고 맨 아래 세로 널판 띠만 늘린다.
@@ -53,11 +54,11 @@ export const MATERIALS = {
 
 /** 정적 병합 전에 부른다: 교체 자리를 병합에서 빼 둔다 */
 export function prepareReal(world) {
-  if (world.quality === 'low') return null;
+  const low = world.quality === 'low';
   const slots = new Map();
   world.scene.traverse((o) => {
     const k = o.userData.realSlot;
-    if (k && SLOTS[k] && !slots.has(k)) slots.set(k, o);
+    if (k && SLOTS[k] && !slots.has(k) && !(low && SLOTS[k].url)) slots.set(k, o); // 저사양: GLB 자리는 병합에 그대로 둔다
   });
   for (const o of slots.values()) o.traverse((m) => m.isMesh && (m.userData.noBatch = true));
   for (const [k, s] of Object.entries(SLOTS)) if (s.wall) slots.set(k, null); // 덧대는 판 — 바꿀 절차적 물체가 없다

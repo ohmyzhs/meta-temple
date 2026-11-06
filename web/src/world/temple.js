@@ -33,6 +33,7 @@ import { PaperBurn } from './burnPaper.js';
 import { buildBuddhaStatue } from './buddha.js';
 import { buildTrailProps } from './trailProps.js';
 import { buildWestCourt, buildWestGate } from './westCourt.js';
+import { buildHallAdorn, buildHallLanterns } from './hallAdorn.js';
 import { CairnField } from './cairnField.js';
 import { taenghwaTexture, ceilingTexture, sumidanTexture, canopyTexture, valanceTexture, tileWishTexture, softDotTexture, latticeTextures, graniteTextures, coalBedTextures } from './textures.js';
 
@@ -69,6 +70,7 @@ export class Temple {
     this._hall();
     this._teahouse();
     this.lanterns = new LanternSystem(scene);
+    buildHallLanterns(scene, this.lanterns.mesh, quality); // 법당 안 대중 위 연등 (마당 연등과 같은 지오메트리·재질)
     this.cairn = new Cairn(scene, this.cairnPos);
     // 순환 산책로: 쉼터·작은 다리·갈림목 석등, 그리고 길가 돌탑
     this.trail = buildTrailProps(scene);
@@ -524,15 +526,15 @@ export class Temple {
 
     // 삼존: 본존 석가모니불(항마촉지인)과 합장한 협시보살 (world/buddha.js 에서 조각)
     const buddha = buildBuddhaStatue('buddha', { quality: this.quality });
-    buddha.scale.setScalar(2.3); // 높이 약 6.9m (대좌·광배 포함) — 천장 12m
+    buddha.scale.setScalar(2.75); // 높이 약 8.3m (대좌·광배 포함) — 광배 끝이 닫집 낙양 바로 밑 (사용자 2026-11-07 「불상 더 키워」)
     buddha.userData.realSlot = 'buddha'; // 실사 세계(world/real)가 생성형 불상 사진으로 바꿔 끼우는 자리
     buddha.position.set(0, ay, altarZ - 1.0 * A);
     this.scene.add(buddha);
     for (const sx of [-1, 1]) {
       const bod = buildBuddhaStatue('bodhisattva', { quality: this.quality });
-      bod.scale.setScalar(1.75); // 약 4.4m
+      bod.scale.setScalar(2.15); // 약 5.4m
       bod.userData.realSlot = sx < 0 ? 'bodhiL' : 'bodhiR';
-      bod.position.set(sx * 6.2, ay, altarZ - 0.9 * A);
+      bod.position.set(sx * 6.5, ay, altarZ - 0.9 * A);
       this.scene.add(bod);
     }
     // 후불벽: 짙은 붉은 옻칠 판 위에 세 폭 탱화 (가운데 영산회상도, 양옆 보살회상도), 금테 액자
@@ -566,7 +568,7 @@ export class Temple {
     // 닫집: 본존 위에 매단 작은 궁전 — 공포 세 층, 낙양 투각 띠, 금 테
     {
       const cy0 = fy + colH - 0.02; // 천장 밑면
-      const cz = altarZ - 1.3, cw = 6.2, cd = 2.0; // 커진 본존(어깨폭·광배)에 맞춘 닫집
+      const cz = altarZ - 1.4, cw = 7.4, cd = 2.5; // 커진 본존(광배 폭 약 4.8m)에 맞춘 닫집
       const dc = canopyTexture();
       const dcMat = new THREE.MeshStandardMaterial({ map: dc, roughness: 0.6 });
       const dcSide = dc.clone();
@@ -601,14 +603,10 @@ export class Temple {
       }
     }
 
-    // 불단 앞 탁자: 향로 · 촛대 · 공양
-    const tz = altarZ + 0.4 * A + 0.9; // 불단 앞면에서 0.9m 앞
-    const table = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.62, 0.8), m.red);
-    table.position.set(0, fy + 0.31, tz);
-    table.castShadow = true;
-    this.scene.add(table);
-    addBoxCollider(-1.65, tz - 0.45, 1.65, tz + 0.45);
-    const ty = fy + 0.62;
+    // 공양단(수미단 앞 긴 단)과 그 둘레 장엄 — world/hallAdorn.js. 향로·쌍촛대·헌촉은 여기서 공양단 위에 세운다
+    const tz = altarZ + 0.4 * A + 0.55; // 공양단 가운데 (앞면 = 수미단 앞면에서 1.0m)
+    const ty = fy + 0.95; // 공양단 윗면
+    buildHallAdorn(this.scene, m, { tz, ty }).glow.forEach((d) => this.glowDecals.push(d));
     const burner = new THREE.Group();
     const bowl = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.18, 0.22, 16), m.bronze);
     bowl.position.y = 0.17;
@@ -619,33 +617,39 @@ export class Temple {
       leg.position.set(Math.cos(a) * 0.15, 0.05, Math.sin(a) * 0.15);
       burner.add(leg);
     }
-    burner.position.set(0, ty, tz);
+    const BS = 1.6; // 넓어진 공양단에 맞춘 큰 향로
+    burner.scale.setScalar(BS);
+    burner.position.set(0, ty, tz + 0.05);
     this.scene.add(burner);
-    this.incense = { group: burner, sticks: [], top: new THREE.Vector3(0, ty + 0.28, tz), boost: 0 };
+    this.incense = { group: burner, sticks: [], top: new THREE.Vector3(0, ty + 0.28 * BS, tz + 0.05), boost: 0 };
     const smoke = makeEmitter({ count: 34, spread: 0.02, rise: 2.4, life: 7, size: 0.18, grow: 4, color: '#d9d4cc', opacity: 0.4, texture: 'smoke', drift: 0.14, seed: 8 });
-    smoke.position.set(0, ty + 0.38, tz);
+    smoke.position.set(0, ty + 0.38 * BS, tz + 0.05);
     this.scene.add(smoke);
     this.incense.smoke = smoke;
     this.emitters.push(smoke);
     this._addIncenseStick();
-    // 쌍촛대
+    // 쌍촛대 (연꽃 받침 금 촛대, 큰 초)
     const candleFlames = [];
+    const CX = 1.5;
     for (const sx of [-1, 1]) {
-      const stand = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.12, 0.62, 10), m.gold);
-      stand.position.set(sx * 1.15, ty + 0.31, tz);
+      const stand = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.17, 0.95, 12), m.gold);
+      stand.position.set(sx * CX, ty + 0.475, tz);
       this.scene.add(stand);
-      const candle = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.3, 10), new THREE.MeshStandardMaterial({ color: 0xf4ecd8, roughness: 0.6, emissive: 0x553311, emissiveIntensity: 0.3 }));
-      candle.position.set(sx * 1.15, ty + 0.77, tz);
+      const pan = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.08, 0.05, 14), m.gold);
+      pan.position.set(sx * CX, ty + 0.97, tz);
+      this.scene.add(pan);
+      const candle = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.42, 12), new THREE.MeshStandardMaterial({ color: 0xf4ecd8, roughness: 0.6, emissive: 0x553311, emissiveIntensity: 0.3 }));
+      candle.position.set(sx * CX, ty + 1.2, tz);
       this.scene.add(candle);
-      const flame = makeEmitter({ count: 5, spread: 0.004, rise: 0.06, life: 0.35, size: 0.12, grow: -0.3, color: '#ffd38a', opacity: 1, texture: 'flame', additive: true, drift: 0.0, seed: 10 + sx });
-      flame.position.set(sx * 1.15, ty + 0.95, tz);
+      const flame = makeEmitter({ count: 5, spread: 0.005, rise: 0.08, life: 0.35, size: 0.16, grow: -0.3, color: '#ffd38a', opacity: 1, texture: 'flame', additive: true, drift: 0.0, seed: 10 + sx });
+      flame.position.set(sx * CX, ty + 1.45, tz);
       this.scene.add(flame);
       candleFlames.push(flame);
       this.emitters.push(flame);
     }
-    this.lightAnchors.candleL = new THREE.Vector3(-1.15, ty + 1.05, tz + 0.1);
-    this.lightAnchors.candleR = new THREE.Vector3(1.15, ty + 1.05, tz + 0.1);
-    this.lightAnchors.buddha = new THREE.Vector3(-4.2, fy + 8.6, altarZ + 5.0); // 앞 왼쪽 위에서 비스듬히: 얼굴·가사 주름에 음영이 진다
+    this.lightAnchors.candleL = new THREE.Vector3(-CX, ty + 1.55, tz + 0.1);
+    this.lightAnchors.candleR = new THREE.Vector3(CX, ty + 1.55, tz + 0.1);
+    this.lightAnchors.buddha = new THREE.Vector3(-4.8, fy + 10.0, altarZ + 6.0); // 앞 왼쪽 위에서 비스듬히: 얼굴·가사 주름에 음영이 진다
     // 헌촉 — 작은 등촉 줄 (켤 때마다 하나씩)
     this.votives = [];
     const votiveGeo = new THREE.CylinderGeometry(0.035, 0.035, 0.12, 8);
@@ -656,18 +660,6 @@ export class Temple {
       vm.position.set(x, ay + 0.06, z);
       this.scene.add(vm);
       this.votives.push(vm);
-    }
-    // 공양물
-    const fruitCol = [0xd9542a, 0xe8a33a, 0xc9b23a];
-    for (const sx of [-0.6, 0.6]) {
-      const plate = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.12, 0.06, 14), m.gold);
-      plate.position.set(sx, ty + 0.03, tz - 0.18);
-      this.scene.add(plate);
-      for (let k = 0; k < 4; k++) {
-        const f = new THREE.Mesh(new THREE.SphereGeometry(0.065, 10, 8), new THREE.MeshStandardMaterial({ color: fruitCol[k % 3], roughness: 0.5 }));
-        f.position.set(sx + (k % 2 ? 0.06 : -0.06), ty + 0.11 + (k > 1 ? 0.09 : 0), tz - 0.18 + (k % 2 ? 0.03 : -0.03));
-        this.scene.add(f);
-      }
     }
     this.addInteractable({
       id: 'incense',
