@@ -563,3 +563,18 @@ body.listening.l-idle, body.listening.l-idle canvas { cursor: none; }
 @media (prefers-reduced-motion: reduce) { .mm-me-halo { animation: none; } }
 .sheet-sub small { margin-left: 6px; font-family: var(--font-sans); font-weight: 400; font-size: 11px; color: var(--text-dim); }
 .rest-chips { grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); }
+
+/* 스크롤: 막대 없이(심리스) 넘치는 쪽 가장자리만 시트 빛깔로 흐리게 (ui/scrollFade.js 가 .fade-top / .fade-bottom) */
+.sheet { --sheet-px: 12px; --sheet-pt: 4px; --sheet-pb: 14px; scrollbar-width: none; }
+.sheet::-webkit-scrollbar, .intro::-webkit-scrollbar { display: none; }
+.intro { scrollbar-width: none; }
+.sheet::before, .sheet::after {
+  content: ''; position: sticky; z-index: 3; display: block; height: 30px;
+  margin-inline: calc(-1 * var(--sheet-px)); pointer-events: none; opacity: 0; transition: opacity 0.25s var(--ease);
+}
+.sheet::before { top: calc(-1 * var(--sheet-pt)); margin-top: calc(-1 * var(--sheet-pt)); margin-bottom: -30px; background: linear-gradient(rgba(20, 17, 14, 0.92), rgba(20, 17, 14, 0)); }
+.sheet::after { bottom: calc(-1 * var(--sheet-pb)); margin-top: -30px; margin-bottom: calc(-1 * var(--sheet-pb)); background: linear-gradient(rgba(20, 17, 14, 0), rgba(20, 17, 14, 0.92)); }
+.sheet.fade-top::before, .sheet.fade-bottom::after { opacity: 1; }
+@media (max-width: 599px) and (min-height: 520px) {
+  .sheet, .sheet[data-anchor='bottom'] { --sheet-px: 14px; --sheet-pb: calc(16px + var(--safe-b)); }
+}

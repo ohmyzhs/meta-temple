@@ -12,6 +12,7 @@ import { loadRig } from './world/avatarRig.js';
 import { wireState } from './core/avatarMotion.js';
 import { L, isWalkable, zoneAt, streamZ, walkHeight, canBuildCairn, pathX } from './world/layout.js';
 import { createMiniMap } from './ui/miniMap.js';
+import { scrollFade } from './ui/scrollFade.js';
 import { trail, REST_SIT_MSG } from './world/trail.js';
 import { placeStone, findJoinable, areaCount, AREA_CAP, AREA_RADIUS, GATE_ID } from './core/cairns.js';
 import { ModalManager } from './ui/modalManager.js';
@@ -1208,6 +1209,7 @@ class MetaTempleApp {
       .map((m) => `<button class="ctl chip" type="button" data-goto-rest="${m.id}">${m.name}</button>`)
       .join('');
     $$('[data-goto-rest]').forEach((b) => b.addEventListener('click', () => this._goRest(b.dataset.gotoRest)));
+    $$('.sheet').forEach(scrollFade); // 스크롤 막대 대신 가장자리 흐림
 
     // 시트: 단추로 여닫고, 하위 시트는 ‹ 로 메뉴에 돌아가며, 바깥을 누르거나 Esc 로 닫는다
     $$('[data-sheet]').forEach((b) =>
