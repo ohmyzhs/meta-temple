@@ -97,7 +97,7 @@ export class Temple {
     const gate = buildIljumun();
     gate.position.set(L.gate.x, pathY(L.gate.z) - 0.05, L.gate.z);
     this.scene.add(gate);
-    gate.userData.columns.forEach(([x, z]) => addCircleCollider(L.gate.x + x, L.gate.z + z, 0.55));
+    gate.userData.columns.forEach(([x, z]) => addCircleCollider(L.gate.x + x, L.gate.z + z, 0.55, 6.5));
 
     // 홍예 석교
     const b = L.bridge;
@@ -230,7 +230,7 @@ export class Temple {
     pg.userData.realSlot = 'pagoda'; // 실사 세계(world/real)가 스캔으로 바꿔 끼우는 자리
     pg.position.set(L.pagoda.x, c.y, L.pagoda.z);
     this.scene.add(pg);
-    addBoxCollider(L.pagoda.x - 1.75, L.pagoda.z - 1.75, L.pagoda.x + 1.75, L.pagoda.z + 1.75);
+    addBoxCollider(L.pagoda.x - 1.75, L.pagoda.z - 1.75, L.pagoda.x + 1.75, L.pagoda.z + 1.75, 9);
     this.addInteractable({
       id: 'circumambulate',
       label: '석탑 탑돌이',
@@ -244,7 +244,7 @@ export class Temple {
     const sl = buildStoneLantern(1.25);
     sl.position.set(L.stoneLanternFront.x, c.y, L.stoneLanternFront.z);
     this.scene.add(sl);
-    addCircleCollider(L.stoneLanternFront.x, L.stoneLanternFront.z, 0.8);
+    addCircleCollider(L.stoneLanternFront.x, L.stoneLanternFront.z, 0.8, 3.3);
     this.lightAnchors.stoneLantern = new THREE.Vector3(L.stoneLanternFront.x, c.y + sl.userData.fireY, L.stoneLanternFront.z);
     this.glowDecals.push({ x: L.stoneLanternFront.x, z: L.stoneLanternFront.z, y: c.y, r: 3.4, i: 0.6 });
 
@@ -380,7 +380,7 @@ export class Temple {
     });
     hall.position.y = fy;
     this.scene.add(hall);
-    hall.userData.columns.forEach(([x, z]) => addCircleCollider(x, z, 0.38));
+    hall.userData.columns.forEach(([x, z]) => addCircleCollider(x, z, 0.38, 8));
     // 벽 충돌 (정면은 기둥만)
     addBoxCollider(h.x0 - 0.15, h.z0 - 0.15, h.x1 + 0.15, h.z0 + 0.12);
     addBoxCollider(h.x0 - 0.15, h.z0, h.x0 + 0.12, h.z1);
@@ -411,7 +411,7 @@ export class Temple {
       o.position.set(x, fy, z);
       o.updateMatrix();
       inner.setMatrixAt(i, o.matrix);
-      addCircleCollider(x, z, 0.35);
+      addCircleCollider(x, z, 0.35, 8);
     });
     this.scene.add(inner);
 
@@ -986,7 +986,7 @@ class LanternSystem {
         o.position.set(x, L.courtyard.y, z);
         o.updateMatrix();
         poles.setMatrixAt(k++, o.matrix);
-        addCircleCollider(x, z, 0.2);
+        addCircleCollider(x, z, 0.2, R.y + 1.2);
       }
     }
     poles.castShadow = true;

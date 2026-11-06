@@ -259,12 +259,14 @@ export function isWalkable(x, z) {
 }
 
 /* ───── 충돌체 (원·축정렬 박스, 2D) ───── */
+// h: 땅에서 잰 높이 — 걷기에는 쓰지 않고, 카메라 팔(templeScene ARM)이 이 높이 위로는 지나간다
+export const COLLIDER_H = 2.5;
 export const colliders = [];
-export function addCircleCollider(x, z, r) {
-  colliders.push({ type: 'c', x, z, r });
+export function addCircleCollider(x, z, r, h = COLLIDER_H) {
+  colliders.push({ type: 'c', x, z, r, h });
 }
-export function addBoxCollider(x0, z0, x1, z1) {
-  colliders.push({ type: 'b', x0: Math.min(x0, x1), z0: Math.min(z0, z1), x1: Math.max(x0, x1), z1: Math.max(z0, z1) });
+export function addBoxCollider(x0, z0, x1, z1, h = COLLIDER_H) {
+  colliders.push({ type: 'b', x0: Math.min(x0, x1), z0: Math.min(z0, z1), x1: Math.max(x0, x1), z1: Math.max(z0, z1), h });
 }
 
 /** 반경 r 인 몸을 (x,z)로 옮길 때 충돌을 밀어낸 위치를 돌려준다 */

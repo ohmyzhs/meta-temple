@@ -45,56 +45,37 @@ export const PRESET_HOURS = { dawn: 5.0, day: 13, sunset: 18.0, night: 22 };
 /* 맑은 낮 색 보정(finalPass) — 1 에 더하는 양. tools/qa/day.mjs 로 재서 맞춘 값 */
 const DAY_GRADE = { sat: 0.18, contrast: 0.06 };
 
-/* 카메라 가림 (Task C4) — tools/qa/occlusion.mjs 로 확인 */
-const OCC = {
-  minDist: 1.2, // 당겨도 머리에서 이만큼은 떨어진다
-  margin: 0.3, // 막힌 면 앞 여유
-  slab: 1.0, // 지붕 판 속인지 볼 때 위·아래로 쏘는 거리
-  fade: 10, // 디더 비춤 양이 따라가는 빠르기 (1/s)
-  r0: 0.07, // 디더 구멍: 머리 둘레 이 반지름(화면 높이 비율)까지 다 비추고
-  r1: 0.15 // 여기까지 옅어진다
+/*
+ * 카메라 팔 — 3인칭 RPG 방식 (Unreal SpringArm 의 굵은 광선 검사 + Unity Cinemachine Deoccluder 의 '거리 지키며 비키기').
+ * 머리 높이 초점에서 원하는 카메라 자리로 굵은 팔(반지름 r)을 뻗어 막히는지 본다. 막히면
+ *  1) 같은 거리를 지키며 좌우로 조금(yaws) 돌아 트인 방위를 찾는다 — 연등 기둥·나무줄기처럼 가는 것은 줌 없이 비킨다.
+ *  2) 그래도 막히면 막힌 곳 앞으로 바로 당긴다(들어올 때는 그 프레임에 — 벽·기둥 속이 화면을 덮지 않게), 트이면 천천히(outRate) 다시 늘인다.
+ * 가림체를 투명하게 비우지 않는다 (사용자 2026-11-06 「투명화 말고 가리지 않게 쫓아다니는 카메라」). tools/qa/camera.mjs·occlusion.mjs 로 확인.
+ */
+const ARM = {
+  r: 0.3, // 팔 굵기 (카메라 근평면이 물체에 닿지 않을 만큼)
+  ahead: 0.7, // 미리 보는 굵기: 카메라 쪽 끝(cap)에서만 더한다 — 닿기 전에 비키기 시작하고, 못 비키면 미리 부드럽게 당긴다
+  cap: 3, // 굵게 보는 구간: 팔 끝에서 이만큼 (머리 쪽까지 굵게 보면 벽·나무 옆을 걷기만 해도 당겨진다)
+  mid: 0.4, // 머리에서 midFrom 너머 팔 가운데를 조금 굵게: 팔 가운데로 들어오는 석등·석탑을 미리 본다
+  midFrom: 2.5,
+  margin: 0.25, // 막힌 면 앞 여유
+  minDist: 1.0, // 아무리 당겨도 초점에서 이만큼은
+  yaws: [0.1, 0.2, 0.32, 0.46, 0.6], // 비켜 볼 방위 (rad, 좌우 각각) — 최대 약 34°
+  clear: 0.94, // 원하는 거리의 이 비율까지 트이면 '트임'
+  avoidRate: 3.5, // 비키는 방위로 도는 빠르기 (1/s)
+  avoidFast: 10, // 가는 팔이 이미 막혔을 때 비키는 빠르기 (줌으로 튀는 것보다 빨리 돌아 비킨다)
+  inRate: 2.2, // 미리 보는 팔에 걸려 부드럽게 당기는 빠르기 (1/s) — 진짜 팔에 걸리면 그 프레임에 바로
+  outRate: 1.8, // 당겼던 팔이 다시 늘어나는 빠르기 (1/s)
+  followRate: 1.1, // 탑돌이·눌러서 걸어가기 동안 등 뒤로 따라 도는 빠르기 (1/s)
+  followHold: 1500, // 손으로 화면을 돌린 뒤 이 시간(ms) 동안은 따라 돌지 않는다
+  zoomRate: 8 // 막힌 것이 없을 때 거리 바뀜(손 확대·축소)을 따르는 빠르기 (1/s)
 };
+const wrapA = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 // 실내 규칙: 카메라 높이는 천장·처마 밑에서 0.4m 아래까지만.
 // 법당 우물천장 밑면 7.38m(마루 3.0 + 기둥 4.4 − 0.02), 처마 밑 최저 7.54m / 심검당 처마 밑 최저 4.77m (layout.js ROOF_COVERS, 위로 쏜 광선으로 잰 값)
 // 다실 가는 길은 머리(약 2.45m)에서 처마 밑 4.37m 까지 1.92m 이므로 거리 5m 면 기울기 0.39rad 까지
 const HALL_CAM = { dist: 5.2, pitch: 0.42, maxY: 7.38 - 0.4 };
 const PASSAGE_CAM = { dist: 5.0, pitch: 0.39, maxY: 4.77 - 0.4 };
-
-/* 가림체 디더: 머리보다 카메라 쪽에 있는 조각을, 머리 둘레 원 안에서 화면 공간 4×4 Bayer 로 비운다 */
-const seeU = {
-  uSeePx: { value: new THREE.Vector2() },
-  uSeeR: { value: new THREE.Vector2(OCC.r0, OCC.r1) },
-  uSeeRes: { value: 1 },
-  uSeeDepth: { value: 0 },
-  uSeeAmt: { value: 0 }
-};
-function seeThrough(mat) {
-  if (mat.userData.seeThrough) return;
-  mat.userData.seeThrough = true;
-  const prev = mat.onBeforeCompile;
-  const key = mat.customProgramCacheKey(); // weatherable·nightGlow 의 키를 지금 값으로 붙잡아 둔다
-  mat.onBeforeCompile = (shader, r) => {
-    prev.call(mat, shader, r);
-    Object.assign(shader.uniforms, seeU);
-    shader.fragmentShader = shader.fragmentShader
-      .replace(
-        '#include <common>',
-        `#include <common>
-        uniform vec2 uSeePx, uSeeR; uniform float uSeeRes, uSeeDepth, uSeeAmt;
-        const int SEE_BAYER[16] = int[16](0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5);`
-      )
-      .replace(
-        '#include <clipping_planes_fragment>',
-        `#include <clipping_planes_fragment>
-        if (uSeeAmt > 0.001 && vViewPosition.z < uSeeDepth) {
-          float see = (1.0 - smoothstep(uSeeR.x, uSeeR.y, length(gl_FragCoord.xy - uSeePx) / uSeeRes)) * uSeeAmt;
-          ivec2 bq = ivec2(mod(gl_FragCoord.xy, 4.0));
-          if (see > (float(SEE_BAYER[bq.x + bq.y * 4]) + 0.5) / 16.0) discard;
-        }`
-      );
-  };
-  mat.customProgramCacheKey = () => key + '|see';
-}
 
 /* 밤하늘 세기 — tools/qa/night.mjs 로 재서 맞춘 값 */
 const NIGHT_SKY = { MW_CORE: 0.006, MW_WIDE: 0.03, MW_GAIN: 0.07, STAR_FAINT: 0.7, STAR_MID: 3.0, STAR_BRIGHT: 5.0, MOON_DISK: 3.0 };
@@ -108,7 +89,8 @@ const MILKY_POLE = new THREE.Vector3(0.966, 0.2, 0.259).normalize();
 export const NIGHT_EXPOSURE_FLOOR = 1.3;
 
 const _ca = new THREE.Color(), _cb = new THREE.Color();
-const _UP = new THREE.Vector3(0, 1, 0), _DOWN = new THREE.Vector3(0, -1, 0);
+const _UP = new THREE.Vector3(0, 1, 0);
+const _armA = new THREE.Vector3(), _armB = new THREE.Vector3(), _armC = new THREE.Vector3(), _armD = new THREE.Vector3();
 function sampleKeys(hour) {
   hour = ((hour % 24) + 24) % 24;
   let i = 0;
@@ -232,6 +214,8 @@ const FinalShader = {
     float rnd(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233)) + uTime) * 43758.5453); }
     void main() {
       vec4 c = texture2D(tDiffuse, vUv);
+      // NaN 한 점은 그 점만 검게 (비교는 NaN 이면 모두 거짓 — 아래 clamp 는 NaN 을 정하지 않는다)
+      if (!(c.r >= 0.0 && c.g >= 0.0 && c.b >= 0.0 && c.r <= 4.0 && c.g <= 4.0 && c.b <= 4.0)) c.rgb = vec3(0.0);
       // 맑은 낮 색 보정: 채도·대비 (밤에는 1)
       float y = dot(c.rgb, vec3(0.2126, 0.7152, 0.0722));
       c.rgb = clamp(mix(vec3(y), c.rgb, uSat), 0.0, 1.0);
@@ -244,6 +228,25 @@ const FinalShader = {
       gl_FragColor = c;
     }`
 };
+
+/**
+ * 블룸 입력 거르기. 폰 GPU 에서 반사광 한 점이 half float(65504)를 넘거나(Inf) NaN 이 되면, 블룸의 작은 해상도 흐림이
+ * 그 한 점을 화면에 정렬된 검은 네모로 번지게 한다 (사용자 2026-11-06: 탑돌이 중 번쩍이는 검은 직사각형, 시간 바꾼 뒤 검은 땅).
+ * 흐림에 들어가기 전에 그런 점은 빼고, 아주 밝은 점은 BLOOM_MAX 로 누른다. tools/qa/bloom-nan.mjs 가 Inf·NaN 을 일부러 넣어 확인한다.
+ */
+const BLOOM_MAX = 32;
+function sanitizeBloom(bloom) {
+  const m = bloom.materialHighPassFilter;
+  const at = 'vec4 texel = texture2D( tDiffuse, vUv );';
+  if (!m.fragmentShader.includes(at)) return console.warn('[post] 블룸 셰이더가 바뀌어 입력 거르기를 못 붙였습니다');
+  m.fragmentShader = m.fragmentShader.replace(
+    at,
+    `${at}
+    if (!(texel.r >= 0.0 && texel.g >= 0.0 && texel.b >= 0.0 && texel.r < 60000.0 && texel.g < 60000.0 && texel.b < 60000.0)) texel = vec4(0.0);
+    texel.rgb = min(texel.rgb, vec3(${BLOOM_MAX.toFixed(1)}));`
+  );
+  m.needsUpdate = true;
+}
 
 /**
  * 정적 메쉬를 재질별로 하나로 합친다 (드로우콜 수백 → 수십).
@@ -427,33 +430,9 @@ export class TempleScene {
     }
   }
 
-  /** 카메라 위치 q 가 나무 수관·기둥·담 같은 장애물 안인가 */
-  _blocked(q, skipColliders) {
-    const gx = Math.floor(q.x / 6), gz = Math.floor(q.z / 6);
-    const base = terrainHeight(q.x, q.z);
-    for (let i = -1; i <= 1; i++) {
-      for (let j = -1; j <= 1; j++) {
-        const list = this.crownGrid.get(`${gx + i},${gz + j}`);
-        if (!list) continue;
-        for (const [x, z, r, y0, y1] of list) {
-          const h = q.y - base;
-          if (h > y0 - 0.6 && h < y1 && Math.hypot(q.x - x, q.z - z) < r) return true;
-        }
-      }
-    }
-    if (skipColliders) return false;
-    for (const c of colliders) {
-      if (q.y - base > 6.5) continue;
-      if (c.type === 'c') {
-        if (Math.hypot(q.x - c.x, q.z - c.z) < c.r + 0.25) return true;
-      } else if (q.x > c.x0 - 0.25 && q.x < c.x1 + 0.25 && q.z > c.z0 - 0.25 && q.z < c.z1 + 0.25) return true;
-    }
-    return false;
-  }
-
   /**
    * 카메라 가림체: 지붕·담·벽·천장(architecture.js·temple.js 가 userData.occluder 로 표시).
-   * 광선 검사용 양면 대리 메쉬(장면에 넣지 않음)를 만들고, 그 재질에 디더 투명을 붙인다.
+   * 광선 검사용 양면 대리 메쉬(장면에 넣지 않음) — 카메라 팔이 이것을 뚫고 나가지 않는다.
    */
   _collectOccluders() {
     this.scene.updateMatrixWorld(true);
@@ -468,74 +447,116 @@ export class TempleScene {
       p.matrixWorld.copy(o.matrixWorld);
       p.userData.kind = kind;
       out.push(p);
-      (Array.isArray(o.material) ? o.material : [o.material]).forEach(seeThrough);
     });
     this.occRay = new THREE.Raycaster();
-    this.see = { amt: 0, target: 0 };
     return out;
   }
 
-  /** p 에서 dir 로 쏜 광선이 처음 닿은 면을 뒤에서 맞았나 (가림체 속에 있나) */
-  _backHit(p, dir, far) {
-    const ray = this.occRay;
-    ray.set(p, dir);
-    ray.near = 0;
-    ray.far = far;
-    const h = ray.intersectObjects(this.occluders, false)[0];
-    return !!h && h.face.normal.clone().transformDirection(h.object.matrixWorld).dot(dir) > 0;
-  }
-
   /**
-   * 머리 → 카메라 선분을 가림체로 검사해 pos 를 고친다.
-   * 담·벽·천장은 그 앞 0.3m 로 당기고(머리에서 1.2m 안으로는 안 당김), 처마·지붕·담 기와처럼 얇은 것은 당기지 않고 디더로 비춘다.
-   * 카메라가 지붕 판 속에 들면(위·아래 광선이 모두 판 뒷면) 그 앞으로 당긴다.
+   * 초점 focus 에서 dir(단위 벡터) 쪽으로 len 만큼 뻗은 굵은 카메라 팔(반지름 ARM.r)이 어디까지 트였나 (m).
+   *  · 지붕·담·벽·천장: 대리 메쉬에 광선 다섯 줄 (가운데 + 굵기만큼 위·아래·좌·우)
+   *  · 기둥·석등·탑 기단·연등 기둥·나무줄기 (layout 충돌체): 높이 h 인 세로 기둥 — 반지름은 팔 굵기만큼 키운다
+   *  · 나무 수관 (crownGrid): 수관 아래~위 원기둥
+   * 초점이 이미 안에 든 것(앉은 의자·나무 밑)은 뺀다 — 그것까지 막힘으로 보면 팔이 늘 0 이 된다.
    */
-  _occlude(pos, head) {
-    const t0 = performance.now();
-    const dir = pos.clone().sub(head);
-    let len = dir.length();
-    if (len < 1e-3) return;
-    dir.divideScalar(len);
-    const ray = this.occRay;
-    ray.set(head, dir);
-    ray.near = 0.05;
-    ray.far = len;
-    const hits = ray.intersectObjects(this.occluders, false);
-    for (const h of hits) {
-      const k = h.object.userData.kind;
-      if ((k === 'wall' || k === 'ceiling') && h.distance - OCC.margin >= OCC.minDist) {
-        len = h.distance - OCC.margin;
-        break;
+  _armFree(focus, dir, len, extra = 0, from = 0) {
+    let free = len;
+    const r = ARM.r, rv = r + extra; // rv: 굵기 (extra 는 from 부터 끝까지만 — 카메라 쪽 끝을 굵게 볼 때)
+    if (this.occluders) {
+      const side = _armA.crossVectors(dir, _UP);
+      if (side.lengthSq() < 1e-6) side.set(1, 0, 0);
+      side.normalize().multiplyScalar(rv);
+      const up = _armB.crossVectors(side, dir).normalize().multiplyScalar(rv);
+      const ray = this.occRay;
+      for (let i = 0; i < 5; i++) {
+        const o = _armC.copy(focus).addScaledVector(dir, from);
+        if (i === 1) o.add(side);
+        else if (i === 2) o.sub(side);
+        else if (i === 3) o.add(up);
+        else if (i === 4) o.sub(up);
+        ray.set(o, dir);
+        ray.near = 0;
+        ray.far = free - from;
+        if (ray.far <= 0) break;
+        const h = ray.intersectObjects(this.occluders, false)[0];
+        if (h) free = from + h.distance;
       }
     }
-    pos.copy(head).addScaledVector(dir, len);
-    if (hits.length && this._backHit(pos, _UP, OCC.slab) && this._backHit(pos, _DOWN, OCC.slab)) {
-      const entry = [...hits].reverse().find((h) => h.distance < len);
-      if (entry && entry.distance - OCC.margin >= OCC.minDist) {
-        len = entry.distance - OCC.margin;
-        pos.copy(head).addScaledVector(dir, len);
+    const fx = focus.x, fy = focus.y, fz = focus.z, dx = dir.x, dy = dir.y, dz = dir.z;
+    // 선분 t∈(0, free) 가 높이 [yLo, yHi] 사이에 있는 t 구간과 XZ 구간 [t0, t1] 이 겹치는 첫 t
+    const enterY = (t0, t1, yLo, yHi) => {
+      let s0 = -Infinity, s1 = Infinity;
+      if (Math.abs(dy) > 1e-6) {
+        const a = (yLo - fy) / dy, b = (yHi - fy) / dy;
+        s0 = Math.min(a, b);
+        s1 = Math.max(a, b);
+      } else if (fy < yLo || fy > yHi) return Infinity;
+      const t = Math.max(t0, s0, from);
+      return t <= Math.min(t1, s1) ? t : Infinity;
+    };
+    // XZ 원: 처음부터 안이면 Infinity (뺀다)
+    const circle = (cx, cz, R) => {
+      const ox = fx - cx, oz = fz - cz, a = dx * dx + dz * dz;
+      const c0 = ox * ox + oz * oz - R * R;
+      if (c0 <= 0 || a < 1e-9) return null;
+      const b = ox * dx + oz * dz, disc = b * b - a * c0;
+      if (disc < 0) return null;
+      const q = Math.sqrt(disc);
+      return [(-b - q) / a, (-b + q) / a];
+    };
+    const box = (x0, z0, x1, z1) => {
+      if (fx > x0 && fx < x1 && fz > z0 && fz < z1) return null;
+      let t0 = -Infinity, t1 = Infinity;
+      for (const [o, d, lo, hi] of [[fx, dx, x0, x1], [fz, dz, z0, z1]]) {
+        if (Math.abs(d) < 1e-9) {
+          if (o < lo || o > hi) return null;
+          continue;
+        }
+        const a = (lo - o) / d, b = (hi - o) / d;
+        t0 = Math.max(t0, Math.min(a, b));
+        t1 = Math.min(t1, Math.max(a, b));
       }
+      return t0 <= t1 ? [t0, t1] : null;
+    };
+    const ex = fx + dx * free, ez = fz + dz * free; // 거리로 먼저 거를 선분 끝
+    const near = (x, z, R) => {
+      const vx = ex - fx, vz = ez - fz, l2 = vx * vx + vz * vz;
+      const u = l2 > 1e-9 ? clamp(((x - fx) * vx + (z - fz) * vz) / l2, 0, 1) : 0;
+      return Math.hypot(fx + vx * u - x, fz + vz * u - z) < R;
+    };
+    for (const c of colliders) {
+      const isC = c.type === 'c';
+      const cx = isC ? c.x : (c.x0 + c.x1) / 2, cz = isC ? c.z : (c.z0 + c.z1) / 2;
+      const R = isC ? c.r + rv : Math.hypot(c.x1 - c.x0, c.z1 - c.z0) / 2 + rv;
+      if (!near(cx, cz, R)) continue;
+      // 초점이 충돌체 자체 안이면(앉은 의자) 뺀다. 굵기 띠 안에만 들었으면(석탑 기단에 붙어 걸음) 그 충돌체만 굵기를 줄여 본다 —
+      // 통째로 빼면 한 걸음 떨어지는 순간 팔이 갑자기 막혀 튄다
+      const edge = isC ? Math.hypot(fx - c.x, fz - c.z) - c.r : Math.hypot(Math.max(c.x0 - fx, 0, fx - c.x1), Math.max(c.z0 - fz, 0, fz - c.z1));
+      if (edge <= 0) continue;
+      const pad = Math.min(rv, edge - 0.02);
+      const span = isC ? circle(cx, cz, c.r + pad) : box(c.x0 - pad, c.z0 - pad, c.x1 + pad, c.z1 + pad);
+      if (!span) continue;
+      const base = terrainHeight(cx, cz);
+      const t = enterY(span[0], span[1], base - 1, base + c.h + pad);
+      if (t < free) free = t;
     }
-    this.see.target = hits.some((h) => h.distance < len - 0.05) ? 1 : 0;
-    this.occlusionMs = (this.occlusionMs ?? 0) * 0.9 + (performance.now() - t0) * 0.1;
-  }
-
-  /** 디더 구멍 위치: 화면에서 머리가 있는 픽셀과 머리까지의 깊이 */
-  _seeUpdate(head, on, dt) {
-    const s = this.see;
-    if (!s) return;
-    if (!on) s.amt = 0; // 1인칭·예불 장면: 바로 끈다
-    else s.amt += (s.target - s.amt) * (1 - Math.exp(-dt * OCC.fade));
-    seeU.uSeeAmt.value = s.amt;
-    if (s.amt < 0.001) return;
-    const cam = this.camera;
-    cam.updateMatrixWorld();
-    const v = head.clone().applyMatrix4(cam.matrixWorldInverse);
-    seeU.uSeeDepth.value = -v.z - 0.35; // 머리보다 0.35m 넘게 카메라 쪽에 있는 조각만
-    v.applyMatrix4(cam.projectionMatrix);
-    const el = this.renderer.domElement;
-    seeU.uSeePx.value.set((v.x * 0.5 + 0.5) * el.width, (v.y * 0.5 + 0.5) * el.height);
-    seeU.uSeeRes.value = el.height;
+    if (this.crownGrid) {
+      const g0x = Math.floor(Math.min(fx, ex) / 6) - 1, g1x = Math.floor(Math.max(fx, ex) / 6) + 1;
+      const g0z = Math.floor(Math.min(fz, ez) / 6) - 1, g1z = Math.floor(Math.max(fz, ez) / 6) + 1;
+      for (let gx = g0x; gx <= g1x; gx++)
+        for (let gz = g0z; gz <= g1z; gz++) {
+          const list = this.crownGrid.get(`${gx},${gz}`);
+          if (!list) continue;
+          for (const [x, z, cr, y0, y1] of list) {
+            const span = circle(x, z, cr + extra);
+            if (!span) continue;
+            const base = terrainHeight(x, z);
+            const t = enterY(span[0], span[1], base + y0 - 0.6, base + y1);
+            if (t < free) free = t;
+          }
+        }
+    }
+    return Math.max(0, free);
   }
 
   _enablePickLayer() {
@@ -610,6 +631,7 @@ export class TempleScene {
     this.composer.addPass(new RenderPass(this.scene, this.camera));
     const bs = new THREE.Vector2(window.innerWidth, window.innerHeight).multiplyScalar(low ? 0.35 : 0.5);
     this.bloom = new UnrealBloomPass(bs, 0.55, 0.55, 0.92);
+    sanitizeBloom(this.bloom);
     this.composer.addPass(this.bloom);
     this.composer.addPass(new OutputPass());
     this.finalPass = new ShaderPass(FinalShader);
@@ -730,6 +752,7 @@ export class TempleScene {
   }
 
   orbit(dx, dy) {
+    this.cam.userTurnAt = performance.now(); // 손으로 돌린 동안은 등 뒤 따라 돌기를 멈춘다
     // 1인칭은 끌어서 돈 만큼을 main.js 가 몸·시선에 함께 나눠 준다
     if (this.cam.mode === 'first') this.cam.turn = (this.cam.turn || 0) - dx * 0.0055;
     else this.cam.yaw -= dx * 0.0055;
@@ -791,7 +814,6 @@ export class TempleScene {
     const c = this.cam;
     const p = player.position;
     player.visible = true;
-    if (c.shot || c.mode === 'first') this._seeUpdate(null, false, dt);
     if (c.shot) {
       const s = c.shot;
       s.t += dt;
@@ -815,12 +837,17 @@ export class TempleScene {
       // 3인칭과 같은 규약: yaw 0 = 북쪽(-z)을 봄, pitch 양수 = 아래를 봄
       const look = new THREE.Vector3(-Math.sin(c.yaw) * Math.cos(c.pitch), -Math.sin(c.pitch), -Math.cos(c.yaw) * Math.cos(c.pitch));
       this.camera.lookAt(this.camera.position.clone().add(look));
+      c.arm = null;
       return;
     }
     const focusY = (player.userData.focusHeight ?? 1.25);
     const focus = new THREE.Vector3(p.x, p.y + focusY, p.z);
     if (c.snap) c.focus.copy(focus);
     else c.focus.lerp(focus, 1 - Math.exp(-dt * 8));
+    // 탑돌이·눌러서 걸어가기: 등 뒤로 천천히 따라 돈다 (손으로 돌린 직후·키로 걷는 동안은 main.js 가 follow 를 비운다)
+    if (c.follow != null && performance.now() - (c.userTurnAt || 0) > ARM.followHold) {
+      c.yaw += wrapA(c.follow - Math.PI - c.yaw) * (1 - Math.exp(-dt * ARM.followRate));
+    }
     // 실내 규칙: 법당 안, 다실 가는 담 사이 길에서는 낮고 가깝게
     const lk = L.teaLink;
     const inPassage = !inHall && p.x > lk.x0 - 0.5 && p.x < lk.x1 + 1.5 && p.z > lk.z0 && p.z < lk.z1;
@@ -831,43 +858,68 @@ export class TempleScene {
       dist = Math.min(dist, room.dist);
       pitch = Math.min(pitch, room.pitch);
     }
-    const off = new THREE.Vector3(Math.sin(c.yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(c.yaw) * Math.cos(pitch)).multiplyScalar(dist);
-    const want = c.focus.clone().add(off);
-    if (inHall) {
-      // 법당 벽 안쪽, 앞은 처마 밖(z −15)까지 — 처마 밑 최저 7.54m 가 maxY 보다 높아 처마 판에 들지 않는다
-      want.x = clamp(want.x, L.hall.x0 + 0.5, L.hall.x1 - 0.5);
-      want.z = clamp(want.z, L.hall.z0 + 0.5, -15);
-    }
-    if (room) want.y = Math.min(want.y, room.maxY);
-    if (!inHall && this.crownGrid) {
-      // 초점에서 카메라 쪽으로 걸어가며 처음 막히는 곳 앞에서 멈춘다
-      const dir = want.clone().sub(c.focus);
-      const len = dir.length();
-      dir.divideScalar(len);
-      const skip = this._blocked(c.focus, false);
-      const q = new THREE.Vector3();
-      for (let s = 0.8; s < len; s += 0.35) {
-        q.copy(c.focus).addScaledVector(dir, s);
-        if (this._blocked(q, skip)) {
-          want.copy(c.focus).addScaledVector(dir, Math.max(1.2, s - 0.45));
-          break;
+    // 카메라 팔: 막히면 같은 거리로 비키고(방위), 그래도 막히면 그 앞으로 당긴다
+    const armT0 = performance.now();
+    const arm = (c.arm ||= { avoid: 0, len: dist });
+    if (c.snap) Object.assign(arm, { avoid: 0, len: dist });
+    const dirAt = (off, out = new THREE.Vector3()) => out.set(Math.sin(c.yaw + off) * Math.cos(pitch), Math.sin(pitch), Math.cos(c.yaw + off) * Math.cos(pitch));
+    const capFrom = Math.max(0, dist - ARM.cap);
+    // 판단: 가는 팔 전체 + 카메라 쪽 끝을 굵게 — 둘 중 먼저 막히는 곳
+    const midFrom = Math.min(ARM.midFrom, dist * 0.4);
+    const freeAt = (off) => {
+      const d = dirAt(off, _armD);
+      return Math.min(this._armFree(c.focus, d, dist), this._armFree(c.focus, d, dist, ARM.mid, midFrom), this._armFree(c.focus, d, dist, ARM.ahead, capFrom));
+    };
+    const need = dist * ARM.clear;
+    let goal = arm.avoid;
+    if (Math.abs(arm.avoid) > 1e-3 && freeAt(0) >= need && freeAt(arm.avoid / 2) >= need) goal = 0; // 원래 방위로 돌아가는 길이 트였으면
+    else if (freeAt(arm.avoid) < need) {
+      // 지금 방위에서 가장 가까운 트인 방위 (없으면 그대로 두고 당긴다)
+      let best = null;
+      for (const d of ARM.yaws)
+        for (const sgn of [1, -1]) {
+          const off = sgn * d;
+          if (best !== null && Math.abs(off - arm.avoid) >= Math.abs(best - arm.avoid)) continue;
+          if (freeAt(off) >= need) best = off;
         }
-      }
+      if (best !== null) goal = best;
+    } else if (Math.abs(arm.avoid) <= 1e-3) goal = 0;
+    const thinBlocked = this._armFree(c.focus, dirAt(arm.avoid, _armD), dist) < dist - 1e-3;
+    arm.avoid += (goal - arm.avoid) * (c.snap ? 1 : 1 - Math.exp(-dt * (thinBlocked ? ARM.avoidFast : ARM.avoidRate)));
+    const dir = dirAt(arm.avoid);
+    // 길이: 미리 보는 팔(soft)은 부드럽게 따라가고, 진짜 팔(hard)에 걸리면 그 프레임에 바로 — 둘 중 짧은 쪽
+    const fit = (free) => (free >= dist - 1e-3 ? dist : Math.max(ARM.minDist, free - ARM.margin));
+    const hard = fit(this._armFree(c.focus, dir, dist));
+    // 카메라 쪽 끝 cap 만 굵게: 당긴 자리에서 다시 보며(최대 세 번) 카메라 둘레가 트인 길이를 찾는다
+    let softFree = Math.min(hard >= dist ? dist : hard + ARM.margin, this._armFree(c.focus, dir, dist, ARM.mid, midFrom));
+    for (let k = 0; k < 3; k++) {
+      const f = this._armFree(c.focus, dir, softFree, ARM.ahead, Math.max(0, softFree - ARM.cap));
+      if (f >= softFree - 1e-3) break;
+      softFree = Math.max(ARM.minDist + ARM.margin, f);
     }
-    const ground = terrainHeight(want.x, want.z) + 0.5;
-    if (want.y < ground) want.y = ground;
-    // 보간한 실제 자리를 검사한다 (멀어지며 지붕 판을 지나가는 프레임도 잡히게)
-    const pos = c.snap ? want : this.camera.position.clone().lerp(want, 1 - Math.exp(-dt * 9));
-    const av = player.userData.avatar;
-    const head = av ? av.eyeWorld(new THREE.Vector3()) : c.focus.clone();
-    if (this.occluders) this._occlude(pos, head);
+    const soft = fit(softFree);
+    arm.sincePull = (arm.sincePull ?? 99) + dt;
+    if (softFree < dist - 1e-3) arm.sincePull = 0; // 무언가에 걸려 있다 — 풀린 뒤 한동안은 천천히 늘어난다
+    if (c.snap || arm.soft == null) arm.soft = soft;
+    else {
+      const rate = soft < arm.soft ? ARM.inRate : arm.sincePull < 1.5 ? ARM.outRate : ARM.zoomRate;
+      arm.soft += (soft - arm.soft) * (1 - Math.exp(-dt * rate));
+    }
+    if (hard < arm.soft) arm.soft = hard; // 진짜 팔이 막혔으면 거기서부터 다시 늘어난다
+    arm.len = Math.min(arm.soft, hard);
+    this.armMs = (this.armMs ?? 0) * 0.9 + (performance.now() - armT0) * 0.1;
+    const pos = c.focus.clone().addScaledVector(dir, arm.len);
+    if (inHall) {
+      // 법당 벽 안쪽, 앞은 처마 밖(z −15)까지
+      pos.x = clamp(pos.x, L.hall.x0 + 0.5, L.hall.x1 - 0.5);
+      pos.z = clamp(pos.z, L.hall.z0 + 0.5, -15);
+    }
+    if (room) pos.y = Math.min(pos.y, room.maxY);
+    const ground = terrainHeight(pos.x, pos.z) + 0.5;
+    if (pos.y < ground) pos.y = ground;
     this.camera.position.copy(pos);
     this.camera.lookAt(c.focus);
-    if (c.snap) {
-      c.snap = false;
-      if (this.see) this.see.amt = this.see.target;
-    }
-    this._seeUpdate(head, true, dt);
+    c.snap = false;
   }
 
   /* ───── 프레임 ───── */

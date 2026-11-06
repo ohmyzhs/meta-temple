@@ -17,7 +17,7 @@ import { ModalManager } from './ui/modalManager.js';
 import { LiveLink, sharedApi } from './core/live.js';
 import { YEBUL_TRACKS } from './data/credits.js';
 import { bindNameForm } from './ui/nameField.js';
-import { veil, veiling } from './ui/veil.js';
+import { veil } from './ui/veil.js';
 import { DOCK_RITUALS } from './data/templeData.js';
 import { icon, ZONE_ICONS } from './ui/icons.js';
 import { toggleSheet, closeTop, closeAll } from './ui/sheets.js';
@@ -35,12 +35,8 @@ function detectQuality() {
   return (coarse && small) || weak ? 'low' : 'high';
 }
 
-// 장소 전환 (Task C3)
-const TRAVEL_HOLD = 600; // 가림막이 다 어두워진 뒤(0.55초) 옮긴다
+// 장소 이동: 가림막(디졸브) 없이 바로 옮긴다 — 맵이 한 공간이라 디졸브는 어색하기만 했다 (사용자 2026-11-06 「제거해라」)
 const ARRIVAL = { pitch: 0.22, dist: 9 }; // 도착 구도: 입장 때와 같은 높이·거리, 방위는 도착해서 바라보는 쪽의 뒤 (법당 안은 실내 규칙이 줄인다)
-const WALK_VEIL = new Set(['COURTYARD|FOREST', 'COURTYARD|DAEUNGJEON']); // 걸어서 넘으면 디졸브: 산문(숲길↔마당 계단), 법당 문턱
-const CROSS_COOLDOWN = 2.0; // 가림막이 내려왔다 걷히는 시간(0.6 + 1.4초) 안에 문턱을 다시 넘어도 깜빡이지 않게
-const CROSS_SETTLE = 0.25; // 새 구역에 이만큼 머물러야 넘은 것으로 (걷는 속도 1.1m/s 로 약 0.28m — 문턱선 위를 따라 걸을 때 깜빡이지 않게)
 const FP_TURN = 2.0; // 1인칭 A/D·조이스틱 좌우로 도는 빠르기(rad/s)
 // 1인칭 탑돌이: 걷는 방향에서 탑 쪽(오른쪽)으로 57° — 실측: 1000×640 은 탑 중심이 화면 x≈0.8, 375×812 는 탑 기단이 오른쪽 1/3 에 들고 왼쪽엔 앞길
 const FP_CIRCLE_LOOK = -1.0;
@@ -498,7 +494,7 @@ class MetaTempleApp {
       fn();
     };
     if (near) return run();
-    if (!sameZone) return this._veilTeleport(a.x, a.z, a.ry, () => setTimeout(run, 250)); // 다른 구역이면 가람 이동처럼
+    if (!sameZone) return this._teleport(a.x, a.z, a.ry, () => setTimeout(run, 250)); // 다른 구역이면 가람 이동처럼
     this.avatars.moveTo(a.x, a.z, run);
   }
 
@@ -521,7 +517,7 @@ class MetaTempleApp {
           this.avatars.triggerAction('circumambulate');
           this.toast('🙏 두 손을 모으고 석탑을 오른쪽으로 돕니다 · 움직이면 멈춥니다');
         };
-        if (zoneAt(this.player.root.position.x, this.player.root.position.z) !== 'COURTYARD') return this._veilTeleport(0, 1.5, Math.PI, circle);
+        if (zoneAt(this.player.root.position.x, this.player.root.position.z) !== 'COURTYARD') return this._teleport(0, 1.5, Math.PI, circle);
         return circle();
       }
       case 'incense':
@@ -635,40 +631,16 @@ class MetaTempleApp {
     const z = ZONES[zoneId];
     if (!z) return;
     this.sound.init();
-    return this._veilTeleport(z.spawn.x, z.spawn.z, z.spawn.ry, () => this.toast(`📍 ${z.name}(으)로 발걸음을 옮겼습니다`));
+    return this._teleport(z.spawn.x, z.spawn.z, z.spawn.ry, () => this.toast(`📍 ${z.name}(으)로 발걸음을 옮겼습니다`));
   }
 
-  /** 다른 구역으로 순간 이동: 어두워진 뒤 옮기고 그 자리에서 바라보는 쪽 뒤에 카메라를 놓는다 */
-  _veilTeleport(x, z, ry, then) {
-    return veil(() => {
-      this.avatars.teleport(x, z, ry);
-      this._walkZone = this._walkCand = zoneAt(x, z);
-      this.world.snapCameraTo(ry - Math.PI, ARRIVAL.pitch, ARRIVAL.dist);
-      this._onZoneChange(true);
-      then?.();
-    }, { hold: TRAVEL_HOLD });
-  }
-
-  /** 걸어서 산문(숲길↔마당)·법당 문턱을 넘으면 짧은 디졸브 뒤 가는 쪽 뒤에서 본 구도로 */
-  _crossZone(t) {
-    const p = this.player.root.position;
-    const z = zoneAt(p.x, p.z);
-    if (z !== this._walkCand) {
-      this._walkCand = z;
-      this._walkCandT = t;
-    }
-    if (t - this._walkCandT < CROSS_SETTLE) return;
-    const from = this._walkZone;
-    this._walkZone = z;
-    if (!from || z === from || !WALK_VEIL.has([from, z].sort().join('|'))) return;
-    if (this._listening || veiling() || this.world.cam.mode === 'first' || t - (this._crossT ?? -99) < CROSS_COOLDOWN) return;
-    this._crossT = t;
-    veil(() => {
-      // 키·조이스틱은 카메라 기준이라, 누른 채 넘을 때 방위를 돌리면 같은 키가 반대로 걸린다 → 그때는 방위를 둔다
-      const k = this.keys;
-      const steering = k.KeyW || k.KeyS || k.KeyA || k.KeyD || k.ArrowUp || k.ArrowDown || k.ArrowLeft || k.ArrowRight || this.joy.x || this.joy.z;
-      this.world.snapCameraTo(steering ? this.world.cam.yaw : this.player.heading - Math.PI, ARRIVAL.pitch, ARRIVAL.dist);
-    }, { hold: TRAVEL_HOLD });
+  /** 다른 구역으로 순간 이동: 바로 옮기고 그 자리에서 바라보는 쪽 뒤에 카메라를 놓는다 */
+  _teleport(x, z, ry, then) {
+    this.avatars.teleport(x, z, ry);
+    this.world.snapCameraTo(ry - Math.PI, ARRIVAL.pitch, ARRIVAL.dist);
+    this._onZoneChange(true);
+    then?.();
+    return Promise.resolve();
   }
 
   /** 장면들: 좌복(c) 기준. 세로 화면은 삼존불이 다 들어오지 않으니 더 가깝고 높게 잡는다 */
@@ -898,17 +870,14 @@ class MetaTempleApp {
       if (then) then();
       else this.toast('🪷 좌복에 앉았습니다 · 2 큰절 · 3 가부좌 · 움직이면 일어납니다');
     };
-    if (zoneAt(p.x, p.z) !== 'DAEUNGJEON') return this._veilTeleport(c.x, c.z + 0.8, Math.PI, () => setTimeout(go, 200));
+    if (zoneAt(p.x, p.z) !== 'DAEUNGJEON') return this._teleport(c.x, c.z + 0.8, Math.PI, () => setTimeout(go, 200));
     this.avatars.moveTo(c.x, c.z + 0.75, go);
   }
 
   /* ───────── 순환 산책로: 쉼터에 앉기 · 돌탑 어디서나 ───────── */
   /** 다른 구역·먼 곳으로 옮길 때 (장소 이동 가림막이 있으면 그것으로) */
   _jump(x, z, ry, then) {
-    if (this._veilTeleport) return this._veilTeleport(x, z, ry, () => setTimeout(then, 200));
-    this.avatars.teleport(x, z, ry);
-    this._onZoneChange(true);
-    setTimeout(then, 200);
+    return this._teleport(x, z, ry, () => setTimeout(then, 200));
   }
 
   /** 고른 쉼터로 걸어가 앉는다: 가까우면 곧장, 산책로 위면 길을 따라(60m 안), 아니면 옮겨 간다 */
@@ -1498,6 +1467,8 @@ class MetaTempleApp {
       this._fp = null;
       cam.turn = 0;
     }
+    // 3인칭: 탑돌이·눌러서 걸어가기 동안 카메라가 등 뒤로 천천히 따라 돈다 (키·조이스틱으로 걸을 때는 사용자가 방위를 쥔다)
+    cam.follow = !fp && !this._listening && (A.circling || A.moveTarget) && !ix && !iz ? pl.heading : null;
     const yaw = fp ? pl.heading - Math.PI + this._fp.off : cam.yaw;
     const wx = ix * Math.cos(yaw) + iz * Math.sin(yaw);
     const wz = -ix * Math.sin(yaw) + iz * Math.cos(yaw);
@@ -1510,7 +1481,6 @@ class MetaTempleApp {
 
     if (this._listening) this._listenTick(dt);
     if (this.entered) {
-      this._crossZone(t);
       this._onZoneChange();
       this._promptTimer = (this._promptTimer || 0) + dt;
       if (this._promptTimer > 0.2) {

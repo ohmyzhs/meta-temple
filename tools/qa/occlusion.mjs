@@ -10,7 +10,7 @@
 // 0.1초마다 표본.
 // 기준: 막힘(effective) ≤ 5%, 카메라가 지붕·벽 안 = 0.
 //   raw       = 카메라→머리 선분이 가림체에 닿음
-//   effective = raw 이면서, 닿은 재질이 앱이 디더로 비추는 재질이 아니거나(material.userData.seeThrough) 그 순간 비춤 양(W.see.amt) < 0.5
+//   effective = raw 와 같다 — 앱은 2026-11-06 부터 가림체를 디더로 비추지 않고 카메라 팔로 비키거나 당긴다 (templeScene ARM, tools/qa/camera.mjs)
 //   inside    = 카메라에서 위·아래 광선이 모두 뒷면에 먼저 닿음(지붕 판 속) 또는 동·서/남·북 광선이 모두 뒷면(벽 상자 속), 1.5m 안,
 //               또는 법당 다락(아래로 천장 윗면, 위로 지붕)
 async (page) => {
@@ -114,9 +114,8 @@ async (page) => {
     const sample = () => {
       const cam = W.camera.position.clone(), h = head();
       const hits = hitsBetween(cam, h);
-      const amt = W.see?.amt ?? 0;
       const raw = hits.length > 0;
-      const eff = raw && hits.some((x) => !(x.object.userData.mat?.userData?.seeThrough && amt >= 0.5));
+      const eff = raw;
       return { raw, eff, inside: inside(cam), kind: hits[0]?.object.userData.kind, cam: cam.toArray().map((v) => +v.toFixed(2)), p: t.player.root.position.toArray().map((v) => +v.toFixed(2)) };
     };
     window.__occ = {
@@ -234,7 +233,7 @@ async (page) => {
     legs.push(`[${pol.name} ${pol.pitch}/${pol.dist}] 표본 ${ps.length} raw ${c('raw')} (${((c('raw') / ps.length) * 100).toFixed(1)}%) eff ${c('eff')} (${((c('eff') / ps.length) * 100).toFixed(1)}%) inside ${c('inside')}`);
   }
   const ms = await page.evaluate(() => window.__occ.timeRay(200));
-  const appMs = await page.evaluate(() => window.temple.world.occlusionMs ?? null);
+  const appMs = await page.evaluate(() => window.temple.world.armMs ?? null);
   const pct = (k) => ((all.filter((v) => v[k]).length / all.length) * 100).toFixed(1);
   const worst = all.filter((v) => v.eff || v.inside).slice(0, 16).map((v) => `${v.leg} p=${v.p} cam=${v.cam} ${v.inside ? 'INSIDE' : 'blocked'}(${v.kind})`);
   // 고정 구도: 일주문 지나며 · 법당 들어서며 · 법당 나서며 · 담 사이 길 (진행 방향 뒷모습, 드론 높이 0.75/10)

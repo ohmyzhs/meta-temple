@@ -379,7 +379,7 @@ function buildRocks(scene) {
     o.scale.set(s * (0.8 + r() * 0.5), s, s * (0.8 + r() * 0.5));
     o.updateMatrix();
     inst.setMatrixAt(i, o.matrix);
-    if (collide && s > 0.6) addCircleCollider(x, z, s * 0.8);
+    if (collide && s > 0.6) addCircleCollider(x, z, s * 0.8, s);
   });
   inst.castShadow = true;
   inst.receiveShadow = true;

@@ -210,7 +210,7 @@ export function buildVegetation(scene, quality) {
   }
   // 길 가까운 나무만 충돌
   for (const k of ['fir', 'pine', 'maple']) {
-    for (const [x, z, s] of spots[k]) if (Math.abs(x - pathX(z)) < 8 || z < 6 || trailDist(x, z) < 6) addCircleCollider(x, z, 0.45 * s);
+    for (const [x, z, s] of spots[k]) if (Math.abs(x - pathX(z)) < 8 || z < 6 || trailDist(x, z) < 6) addCircleCollider(x, z, 0.45 * s, 5 * s);
   }
 
   const bamboo = buildBamboo(scene, low);

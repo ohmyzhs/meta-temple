@@ -148,7 +148,7 @@ class RealWorld {
     proc.visible = false;
     if (s.half) {
       const h = s.half * s.scale;
-      addBoxCollider(x - h, z - h, x + h, z + h);
+      addBoxCollider(x - h, z - h, x + h, z + h, s.height ?? 9);
     }
     this.state.set(k, obj);
   }

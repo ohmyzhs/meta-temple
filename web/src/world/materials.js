@@ -15,6 +15,20 @@ import {
 } from './textures.js';
 import { ROOF_COVER_GLSL } from './layout.js';
 
+// 노멀맵 접선 틀이 0(멀리 있어 UV 미분이 0 으로 떨어진 폰 GPU, UV 가 한 점으로 모인 삼각형)이면 normalize(0) = NaN 이 되어
+// 그 면이 검게 나오고 블룸이 번진다 (사용자 2026-11-06: 폰에서 탑돌이 박석·마당이 검게). 모든 재질에서 그때는 원래 노멀을 쓴다.
+// 전역 조각을 바꾸므로 어떤 재질보다 먼저(이 모듈을 불러올 때) 한 번.
+{
+  const at = 'normal = normalize( tbn * mapN );';
+  const chunk = THREE.ShaderChunk.normal_fragment_maps;
+  if (chunk.includes(at))
+    THREE.ShaderChunk.normal_fragment_maps = chunk.replace(
+      at,
+      '{ vec3 pn = tbn * mapN; float pl = dot( pn, pn ); if ( pl > 1e-8 && pl < 1e8 ) normal = pn * inversesqrt( pl ); }'
+    );
+  else console.warn('[materials] three 노멀맵 조각이 바뀌어 NaN 막기를 못 붙였습니다');
+}
+
 export const envUniforms = {
   uTime: { value: 0 },
   uSnow: { value: 0 }, // 0..1 지붕·지면 눈 덮임
@@ -29,6 +43,9 @@ export const envUniforms = {
  */
 export function weatherable(mat, { snow = 1, wet = 1 } = {}) {
   const prev = mat.onBeforeCompile;
+  // 앞서 붙은 셰이더 주입(지면 섞기 ground-splat 등)의 키를 이어 붙인다 — 안 그러면 같은 키를 가진 다른 재질의 프로그램을
+  // three 가 다시 써서 지면이 흰 기본색으로 그려진다 (2026-11-06, 디더 투명 재질이 키를 바꿔 우연히 가리던 것)
+  const prevKey = mat.customProgramCacheKey?.() || '';
   mat.onBeforeCompile = (shader, r) => {
     prev?.call(mat, shader, r);
     shader.uniforms.uSnow = envUniforms.uSnow;
@@ -66,7 +83,7 @@ export function weatherable(mat, { snow = 1, wet = 1 } = {}) {
         roughnessFactor = mix(roughnessFactor, 0.85, snowMask);`
       );
   };
-  mat.customProgramCacheKey = () => `weather-${snow}-${wet}-${mat.type}`;
+  mat.customProgramCacheKey = () => `${prevKey}|weather-${snow}-${wet}-${mat.type}`;
   return mat;
 }
 

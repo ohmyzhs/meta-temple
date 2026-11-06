@@ -655,6 +655,7 @@ export function buildIljumun() {
   const b2 = new THREE.Mesh(new THREE.BoxGeometry(W * 2 + 1.7, 0.2, 0.5), m.green);
   b2.position.y = colH + 0.1;
   g.add(b2);
+  b1.userData.occluder = b2.userData.occluder = 'beam'; // 카메라 팔이 들보·현판 바로 밑에 붙지 않게 (templeScene ARM)
   // 다포 공포 (앞뒤로)
   const n = 7;
   const bi = new THREE.InstancedMesh(bracketGeometry(), bracketMaterial(), n * 2);
@@ -681,6 +682,7 @@ export function buildIljumun() {
     const p = new THREE.Mesh(new THREE.PlaneGeometry(2.3, 0.72), pmat);
     p.position.set(0, colH - 0.75, side * 0.21);
     p.rotation.y = side > 0 ? 0 : Math.PI;
+    p.userData.occluder = 'beam';
     g.add(p);
   }
   g.userData.columns = [[-W, 0], [W, 0]];
