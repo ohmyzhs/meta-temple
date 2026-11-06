@@ -307,22 +307,26 @@ export const BLOCKED_REPLIES = {
   too_long: '말씀이 길어 한 번에 다 담지 못했습니다. 가장 마음에 걸리는 것부터 짧게 들려주시겠어요?'
 };
 
+/** 차담 장면의 고정 대사 (이름을 넣지 않는다 — 미리 녹음한 목소리와 같은 문장이어야 해서) */
+export const TEA_LINES = {
+  hello: '어서 오십시오, 도반님. 찻물이 마침 알맞게 끓어 연잎차 한 잔 따라 드립니다. 무엇이든 편히 꺼내 놓으세요. 답을 드리기보다 먼저 듣겠습니다.',
+  back: '다시 오셨군요. 차를 새로 데웠습니다. 하시던 이야기, 이어서 들려주셔도 좋습니다.',
+  card: '죽비 한 자루를 건넵니다. 마음에 닿는 구절이면 간직해 두세요.',
+  // 끝인사 — 찻자리에서 일어날 때 (대화 나무의 작별 답과 같은 문장이라 녹음을 함께 쓴다)
+  bye: '살펴 가십시오. 산문을 나서는 걸음도 여기 앉아 있던 마음 그대로이기를 바랍니다. 찻물은 언제든 다시 데워 두겠습니다.'
+};
+
+/** 죽비 카드를 스님이 읽는 문장: 출처(괄호·낫표는 소리 내지 않는다) → 구절 → 풀이 */
+export function cardVoiceText(c) {
+  const src = c.source.replace(/\([^)]*\)/g, '').replace(/』\s*「/g, ', ').replace(/[『』「」]/g, '').replace(/\s+/g, ' ').trim();
+  return `${src}. ${c.quote} ${c.reflection}`;
+}
+const EMPTY_LINE = '찻물이 알맞게 우러났습니다. 서두르지 말고 숨을 한 번 고른 뒤, 떠오르는 만큼만 들려주세요.';
+
 /** 하루 AI 차담을 다 썼을 때 한 번 */
 export const COOLED_LINE = '찻물이 식었습니다. 오늘 나눈 차는 여기까지 하고, 내일 또 오세요. 남은 이야기는 미리 적어 둔 말로 조금 더 이어 가겠습니다.';
 
 /* ───────── 응답 생성 ───────── */
-function hasBatchim(word) {
-  const c = word.charCodeAt(word.length - 1);
-  return c >= 0xac00 && c <= 0xd7a3 && (c - 0xac00) % 28 !== 0;
-}
-const josa = (w, withB, withoutB) => w + (hasBatchim(w) ? withB : withoutB);
-
-const ECHO = [
-  (w) => `“${w}”, 그 한마디를 가만히 받아 둡니다.`,
-  (w) => `${josa(w, '이라는', '라는')} 말씀에 잠시 머물러 봅니다.`,
-  (w) => `말씀하신 ${josa(w, '을', '를')} 함께 조용히 바라보지요.`
-];
-
 const verseLine = (id) => {
   const c = CARD[id];
   return `“${c.quote}” — ${c.source}`;
@@ -347,13 +351,11 @@ export function localMonkResponse(text, history = []) {
   const flat = raw.replace(/\s+/g, '');
   let best = MONK_KB[MONK_KB.length - 1];
   let bestScore = 0;
-  let echoWord = null;
   for (const theme of MONK_KB) {
     const hits = theme.keys.filter(([k]) => flat.includes(k));
     if (hits.length > bestScore) {
       best = theme;
       bestScore = hits.length;
-      echoWord = hits.find(([, w]) => w)?.[1] || null;
     }
   }
 
@@ -362,12 +364,8 @@ export function localMonkResponse(text, history = []) {
   const body = pickFresh(best.replies, monkReplies);
   const verse = pickFresh(best.verses.map(verseLine), monkVerses);
 
-  let reply = body;
-  if (!raw) {
-    reply = '찻물이 알맞게 우러났습니다. 서두르지 말고 숨을 한 번 고른 뒤, 떠오르는 만큼만 들려주세요.';
-  } else if (echoWord) {
-    reply = `${ECHO[monkReplies.length % ECHO.length](echoWord)} ${body}`;
-  }
+  // 되짚는 첫 문장(“X”, 그 한마디를…)은 뺐다 — 스님 목소리를 미리 녹음해 두므로 글과 소리가 같은 문장이어야 한다
+  const reply = raw ? body : EMPTY_LINE;
   return { reply, verse, theme: best.id, suggestions: raw ? nextAfter(best.next, raw) : OPENING_SUGGESTIONS };
 }
 
@@ -376,3 +374,29 @@ export const REST_SUGGESTIONS = ['조금 더 이야기해도 될까요', '잠시
 function nextAfter(list, said) {
   return [...new Set([...(list || []), ...REST_SUGGESTIONS])].filter((x) => x !== said).slice(0, 3);
 }
+
+/* ───────── 스님 목소리 (미리 녹음) ─────────
+ * Typecast 권일 · 낮은 톤(tonedown) · 속도 0.8 (2026-11-06 사용자가 고름). tools/tts/ 가 아래 문장마다
+ * web/assets/audio/monk/<voiceKey>.mp3 를 만들고 index.json 에 키를 적는다. 글을 고치면 다시 돌린다 (없는 것만 만든다).
+ * AI 가 그때그때 지은 답은 여기 없다 — 목록에 없는 문장은 소리 없이 글로만. */
+export function voiceKey(text) {
+  // FNV-1a 32비트 — 문장이 같으면 같은 파일
+  let h = 0x811c9dc5;
+  for (const ch of String(text).normalize('NFC')) {
+    h ^= ch.codePointAt(0);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h.toString(16).padStart(8, '0');
+}
+
+export const MONK_VOICE_LINES = [
+  ...new Set([
+    ...Object.values(TEA_LINES),
+    EMPTY_LINE,
+    COOLED_LINE,
+    CRISIS_REPLY.reply,
+    ...Object.values(BLOCKED_REPLIES),
+    ...MONK_KB.flatMap((t) => t.replies),
+    ...DHARMA_CARDS.map(cardVoiceText)
+  ])
+];

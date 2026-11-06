@@ -919,7 +919,53 @@ body.tea-scene .modal-overlay.is-side {
 .tea-help a b { font-size: 20px; letter-spacing: 0.04em; }
 .tea-help-sub { color: var(--text-dim); }
 .tea-help-sub a { font-size: 12.5px; text-decoration: underline; }
-.tea-card .jukbi.is-compact .jukbi-card { height: 280px; }
+/* 죽비 층: 대사 상자를 거두고 가운데 큰 카드. 세로는 한 줄로, 낮은 가로 화면은 카드 왼쪽·단추 오른쪽 */
+.m-view.tea.is-jukbi > .tea-box, .m-view.tea.is-jukbi > .tea-replies, .m-view.tea.is-jukbi > .tea-compose { visibility: hidden; }
+.tea-jukbi[hidden] { display: none; }
+.tea-jukbi {
+  position: fixed; inset: 0; z-index: 3; pointer-events: auto;
+  display: flex; align-items: center; justify-content: center;
+  padding: calc(12px + var(--safe-t)) calc(12px + var(--safe-r)) calc(12px + var(--safe-b)) calc(12px + var(--safe-l));
+  background: radial-gradient(ellipse at 50% 45%, rgba(16, 13, 10, 0.3), rgba(10, 8, 6, 0.68));
+  -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+  animation: m-fade 0.35s var(--ease) both;
+}
+.tea-jukbi-panel {
+  width: min(380px, 100%); max-height: 100%; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin;
+  display: grid; grid-template-columns: 100%; grid-template-areas: 'head' 'stage' 'acts' 'kept' 'back';
+  padding: 12px 16px 6px; border-radius: 16px; color: var(--muk);
+  background-color: var(--m-paper);
+  background-image: var(--m-fiber), var(--m-grain), linear-gradient(180deg, #fbf8ef 0%, var(--m-paper) 45%, var(--m-paper-deep) 100%);
+  box-shadow: 0 0 0 1px rgba(120, 95, 60, 0.18), 0 30px 80px rgba(0, 0, 0, 0.45);
+  animation: m-rise 0.5s var(--ease) both;
+}
+.tea-jukbi-deck, .tea-jukbi .jukbi { display: contents; }
+.tea-jukbi-head { grid-area: head; display: flex; align-items: center; gap: 10px; }
+.tea-jukbi .jukbi-stage { grid-area: stage; padding-top: 4px; }
+.tea-jukbi .jukbi-card { width: min(300px, 100%, calc((100dvh - 290px) * 0.75)); min-width: 220px; }
+.tea-jukbi .m-actions { grid-area: acts; justify-content: center; flex-wrap: wrap; margin-top: 12px; }
+.tea-jukbi .jukbi-kept { grid-area: kept; text-align: center; margin: 6px 0 0; }
+.tea-jukbi-face { flex: none; width: 38px; height: 38px; }
+.tea-jukbi-face svg { display: block; width: 100%; height: 100%; }
+.tea-jukbi-line { flex: 1; min-width: 0; margin: 0; font-family: var(--font-serif); font-size: 13px; line-height: 1.6; color: var(--muk-soft); word-break: keep-all; }
+.tea-jukbi-line b { display: block; font-size: 12px; font-weight: 600; letter-spacing: 0.12em; color: var(--m-gold-ink); }
+.tea-jukbi-x {
+  flex: none; width: 48px; height: 48px; margin: -4px -10px 0 0; padding: 0; border: 0; border-radius: 50%;
+  display: grid; place-items: center; color: var(--muk-soft); background: none; cursor: pointer;
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+}
+.tea-jukbi-x .i { width: 20px; height: 20px; }
+.tea-jukbi-x:hover, .tea-jukbi-x:focus-visible { background: rgba(120, 95, 60, 0.1); color: var(--muk); outline: none; }
+.tea-jukbi-back { grid-area: back; justify-self: center; min-height: 48px; padding: 0 18px; font-size: 13px; }
+@media (max-height: 519px) {
+  .tea-jukbi-panel {
+    width: min(660px, 100%);
+    grid-template-columns: auto 1fr; column-gap: 18px; align-items: center;
+    grid-template-areas: 'stage head' 'stage acts' 'stage kept' 'stage back';
+  }
+  .tea-jukbi .jukbi-card { width: calc((100dvh - 56px) * 0.75); min-width: 0; }
+  .tea-jukbi .m-actions { margin-top: 4px; }
+}
 .tea-ai { margin: 8px 0 0; font-size: 11px; line-height: 1.5; color: rgba(243, 236, 220, 0.5); letter-spacing: 0.02em; }
 .tea-ai.is-ai { color: rgba(227, 201, 143, 0.75); }
 .tea-forget {
@@ -1108,6 +1154,20 @@ body.tea-scene .modal-overlay.is-side {
 .pf-reward-progress { font-size: 11px; color: var(--muk-soft); font-variant-numeric: tabular-nums; }
 .pf-cards li { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; margin-bottom: 8px; border-left: 2px solid var(--gold); background: rgba(255, 255, 255, 0.3); border-radius: 0 10px 10px 0; }
 .pf-cards .jk-quote { font-size: 14.5px; }
+/* 간직한 죽비: 스님 목소리로 듣기 (누르는 자리 48px) */
+.pf-cards li { position: relative; padding-right: 62px; }
+.pf-listen {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  width: 48px; height: 48px; padding: 0; border: 0; border-radius: 50%;
+  display: grid; place-items: center; cursor: pointer;
+  color: var(--m-gold-ink); background: rgba(138, 106, 46, 0.1);
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation; -webkit-user-select: none; user-select: none;
+  transition: background 0.2s;
+}
+.pf-listen .i { width: 20px; height: 20px; }
+.pf-listen:hover, .pf-listen:focus-visible { background: rgba(138, 106, 46, 0.22); outline: none; }
+.jk-listen { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.jk-listen .i { width: 18px; height: 18px; }
 .pf-privacy { margin-top: 24px; }
 
 /* ───────── 10. 산사 안내 ───────── */

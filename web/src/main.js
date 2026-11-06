@@ -1308,7 +1308,7 @@ class MetaTempleApp {
       return true;
     }
     if (this.modals.isOpen) {
-      this.modals.close();
+      this.modals.back(); // 창 안에 겹친 것(차담의 죽비 층)부터
       return true;
     }
     if (closeTop()) return true;

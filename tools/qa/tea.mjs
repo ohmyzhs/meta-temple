@@ -3,6 +3,7 @@
 // 확인: HUD 를 거두고 구도가 고정되는가 · 첫인사와 예상 응답 · AI 답(구절·AI 표시) · 1·2·3 키 · 직접 말하기 · 위기 109 · 오프라인 대화 나무 · 일어나면 HUD·카메라가 돌아오는가
 import { mkdirSync } from 'node:fs';
 import { launch, enter } from './lib.mjs';
+import { DHARMA_CARDS, TEA_LINES, voiceKey, cardVoiceText } from '../../web/src/data/dharmaTexts.js';
 
 const OUT = process.env.OUT;
 if (OUT) mkdirSync(OUT, { recursive: true });
@@ -46,6 +47,9 @@ for (const [w, h] of SIZES) {
   console.log(`— ${tag}`);
   const { ctx, page, touch, errors } = await enter(browser, [w, h], { init: () => localStorage.clear() });
   page.on('pageerror', (e) => console.log(`    pageerror: ${String(e.stack || e).split('\n').slice(0, 4).join(' | ')}`));
+  const voiceReqs = [];
+  page.on('request', (r) => r.url().includes('/assets/audio/monk/') && voiceReqs.push(r.url()));
+  await page.evaluate(() => (window.speechSynthesis.speak = () => { throw new Error('브라우저 음성 합성을 쓰면 안 된다'); }));
   await mock(page, 'ai');
   await toTea(page);
   await page.waitForTimeout(1000); // HUD 는 0.8초에 걸쳐 사라진다
@@ -57,11 +61,30 @@ for (const [w, h] of SIZES) {
   await page.click('.tea-say');
   await repliesShown(page);
   check((await page.locator('.tea-reply').count()) === 4, '예상 응답 3 + 직접 말하기');
+  check(voiceReqs.some((u) => /\/assets\/audio\/monk\/[0-9a-f]{8}\.mp3$/.test(u)) && (await page.evaluate(() => !!window.temple.sound._voiceStop)), `첫인사를 녹음한 목소리로 (${voiceReqs.length}개 받음)`);
   check(/AI/.test(await page.textContent('.tea-ai')), `AI 표시 「${await page.textContent('.tea-ai')}」`);
   const box = await page.locator('.tea-box').boundingBox();
   const all = await page.locator('.m-view.tea').boundingBox();
   check(all.y + all.height <= h + 1 && all.y >= 0, `대사 상자·응답이 화면 안 (위 ${Math.round(all.y)} · 높이 ${Math.round(all.height)} / ${h}, 상자 ${Math.round(box.height)})`);
   await shot(page, `${tag}-1-greet`);
+
+  // 죽비 층: 대사 상자를 거두고 가운데 큰 카드 — 화면 안에 다 들어오고(스크롤 없이), Esc 는 층만 닫는다
+  await page.click('[data-act="card"]');
+  await page.waitForSelector('.tea-jukbi:not([hidden]) .jukbi-card.is-flipped', { timeout: 5000 });
+  await page.waitForTimeout(1100); // 뒤집히는 0.95초
+  const jk = await page.evaluate(() => {
+    const panel = document.querySelector('.tea-jukbi-panel').getBoundingClientRect();
+    const card = document.querySelector('.tea-jukbi .jukbi-card').getBoundingClientRect();
+    const p = document.querySelector('.tea-jukbi-panel');
+    return { panel: [panel.left, panel.top, panel.right, panel.bottom].map(Math.round), card: [card.left, card.top, card.right, card.bottom].map(Math.round), scroll: p.scrollHeight - p.clientHeight, box: getComputedStyle(document.querySelector('.tea-box')).visibility };
+  });
+  const cx = (jk.card[0] + jk.card[2]) / 2;
+  check(jk.panel[0] >= 0 && jk.panel[1] >= 0 && jk.panel[2] <= w && jk.panel[3] <= h && jk.scroll <= 1, `죽비 층이 화면 안, 스크롤 없음 (패널 ${jk.panel.join(',')} · 넘침 ${jk.scroll}px)`);
+  check(jk.box === 'hidden' && (h < 520 || Math.abs(cx - w / 2) <= 2), `대사 상자 거둠 · 카드 가운데 (카드 중심 ${Math.round(cx)} / ${w / 2})`);
+  await shot(page, `${tag}-7-jukbi`);
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('.tea-jukbi[hidden]', { state: 'attached', timeout: 3000 });
+  check((await page.evaluate(() => window.temple.modals.current)) === 'tea_chat' && !(await page.isHidden('.tea-replies')), 'Esc 는 죽비 층만 닫고 차담은 그대로');
 
   // 고르기: 휴대폰은 누르고, 데스크톱은 1 키
   const before = await page.evaluate(() => window.temple.player.state);
@@ -204,6 +227,69 @@ for (const [w, h] of SIZES) {
   check((await settings()).startsWith('요즘 잠을'), '빈 메모가 오면 지난 메모 그대로');
   await page.click('.tea-forget');
   check((await settings()) === '' && !(await page.textContent('.tea-ai')).includes('기억'), '잊게 하기로 지움');
+  check(!errors.length, `페이지 오류 없음 ${errors[0] || ''}`);
+  await ctx.close();
+}
+// 목소리: 고정 대사만. 죽비는 건네는 말 다음에 구절, 일어나면 끝인사, 「오늘의 죽비」·보관함 「듣기」
+{
+  console.log('— voice·jukbi 390x844');
+  const { ctx, page, errors } = await enter(browser, [390, 844], { init: () => localStorage.clear() });
+  page.on('pageerror', (e) => console.log(`    pageerror: ${String(e.stack || e).split('\n').slice(0, 4).join(' | ')}`));
+  await mock(page, 'ai');
+  // 실제로 튼 소리를 적어 둔다 (원래 재생은 그대로)
+  await page.evaluate(() => {
+    const s = window.temple.sound;
+    const play = s.playVoice.bind(s);
+    window.__voices = [];
+    s.playVoice = (url, onEnd) => (window.__voices.push(url.split('/').pop().slice(0, 8)), play(url, onEnd));
+  });
+  const voices = () => page.evaluate(() => window.__voices.slice());
+  const cardKeys = new Set(DHARMA_CARDS.map((c) => voiceKey(cardVoiceText(c))));
+  await toTea(page);
+  await page.waitForTimeout(900);
+  await page.click('.tea-say');
+  await repliesShown(page);
+  check((await voices()).includes(voiceKey(TEA_LINES.hello)), '첫인사 목소리');
+  // AI 답은 소리 내지 않는다
+  await page.locator('.tea-reply').first().click();
+  await page.waitForSelector('.m-view.tea:not(.is-thinking)', { timeout: 10000 });
+  await page.click('.tea-say');
+  await repliesShown(page);
+  const afterAi = await voices();
+  check(afterAi.length === 1, `AI 답은 글로만 (튼 소리 ${afterAi.length}개)`);
+  // 죽비 층: 뒤집히면 구절을 읽는다. 뒤로가기는 층만 닫는다
+  await page.click('[data-act="card"]');
+  await page.waitForFunction((k) => window.__voices.some((v) => k.includes(v)), [...cardKeys], { timeout: 5000 });
+  check(cardKeys.has((await voices()).at(-1)), '죽비 층: 뒤집히면 구절을 읽음');
+  await page.waitForTimeout(1100);
+  await page.click('.tea-jukbi [data-act="keep"]');
+  await shot(page, 'voice-jukbi-390x844');
+  await page.goBack();
+  await page.waitForSelector('.tea-jukbi[hidden]', { state: 'attached', timeout: 3000 });
+  check((await page.evaluate(() => window.temple.modals.current)) === 'tea_chat', '뒤로가기는 죽비 층만 닫음');
+  // 일어나면 끝인사
+  await page.click('[data-act="leave"]');
+  await page.waitForTimeout(300);
+  check((await voices()).at(-1) === voiceKey(TEA_LINES.bye), '일어나면 끝인사');
+  await page.waitForFunction(() => !document.body.classList.contains('tea-scene'), null, { timeout: 5000 });
+  await page.waitForTimeout(1200);
+  // 「오늘의 죽비」 창: 뽑으면 읽는다
+  await page.evaluate(() => window.temple.modals.open('dharma_card'));
+  await page.click('.jukbi-card');
+  await page.waitForTimeout(400);
+  check(cardKeys.has((await voices()).at(-1)), '오늘의 죽비: 뽑으면 읽음');
+  await page.evaluate(() => window.temple.modals.close());
+  // 보관함: 간직한 죽비 「듣기」 — 차담 목소리를 꺼 두어도 직접 누르면 들린다
+  await page.evaluate(() => window.temple.store.setSetting('teaVoice', false));
+  await page.evaluate(() => window.temple.modals.open('profile'));
+  await page.waitForSelector('.pf-listen', { timeout: 3000 });
+  const n0 = (await voices()).length;
+  await page.click('.pf-listen');
+  await page.waitForTimeout(300);
+  const v2 = await voices();
+  check(v2.length === n0 + 1 && cardKeys.has(v2.at(-1)), '보관함 듣기 단추 (목소리 꺼도 직접 누르면)');
+  await page.locator('.pf-cards').scrollIntoViewIfNeeded();
+  await shot(page, 'voice-kept-390x844');
   check(!errors.length, `페이지 오류 없음 ${errors[0] || ''}`);
   await ctx.close();
 }
