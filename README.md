@@ -4,7 +4,7 @@
 
 > 말없이 함께 머물며 산사의 바람·풍경 소리를 듣고, 절·연등·사경·차담으로 마음을 비우는 웹 3D 디지털 안식처
 
-- 라이브: https://temple.lotiony.com (sound-temple.lotiony.com 연결 예정)
+- 라이브: https://sound-temple.lotiony.com · https://temple.lotiony.com (같은 서버. 수행 기록은 브라우저 저장이라 주소마다 따로)
 - 대문 로고: 처마 풍경 엠블럼 + 갈필 붓글씨 「사운드 템플」(생성형, `web/assets/brand/logo-sound-v1.webp`, 프롬프트 `docs/art/prompts/logo-sound-v1.txt`). 엠블럼만 떼어 상태판 낙관·사이트 아이콘(`emblem-v1.webp`, `web/assets/icons/`)으로도 쓴다.
 - 기획·설계 문서: [`docs/`](./docs) — 출시판 설계는 [`docs/superpowers/specs/2026-11-05-launch-upgrade-design.md`](./docs/superpowers/specs/2026-11-05-launch-upgrade-design.md), 단계별 계획·결과는 [`docs/superpowers/plans/`](./docs/superpowers/plans)
 
