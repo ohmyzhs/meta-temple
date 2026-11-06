@@ -152,7 +152,7 @@ function groundMaterial(col, nor, low) {
       );
   };
   mat.customProgramCacheKey = () => `ground-splat-${low}`;
-  return weatherable(mat, { snow: 1, wet: 1 });
+  return weatherable(mat, { snow: 1, wet: 1, trod: true }); // 다져진 길(terrain.js aTrod)은 눈이 덜 쌓인다
 }
 
 /* ───── 원경 산세: 생성 사진 띠 3겹 (낮·해질녘·밤을 시간에 맞춰 섞는다) ───── */

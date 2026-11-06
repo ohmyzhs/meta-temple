@@ -168,6 +168,10 @@
   scrollbar-width: thin;
   scrollbar-color: rgba(120, 95, 60, 0.3) transparent;
 }
+/* 표준 scrollbar-color 를 모르는 브라우저(옛 사파리)도 같은 가는 막대로 */
+.modal-body::-webkit-scrollbar, .tea-log::-webkit-scrollbar { width: 6px; }
+.modal-body::-webkit-scrollbar-track, .tea-log::-webkit-scrollbar-track { background: transparent; }
+.modal-body::-webkit-scrollbar-thumb, .tea-log::-webkit-scrollbar-thumb { background: rgba(120, 95, 60, 0.3); border-radius: 3px; }
 .m-view { animation: m-fade 0.5s var(--ease) both; }
 
 @keyframes m-fade { from { opacity: 0; } to { opacity: 1; } }

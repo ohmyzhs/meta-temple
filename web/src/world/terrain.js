@@ -105,6 +105,16 @@ function buildGroundMesh(x0, x1, z0, z1, res, holeFn) {
     colors[i * 3 + 2] = col.b;
   }
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  // 다져진 길 (눈이 덜 쌓인다): 순환 산책로·갈림길, 일주문 숲길
+  const trod = new Float32Array(pos.count);
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), z = pos.getZ(i);
+    const tr = nearestTrail(x, z);
+    let k = tr ? 1 - smooth(1.15, 1.95, tr.d) : 0;
+    if (z > 5 && z < 50) k = Math.max(k, (1 - smooth(1.3, 2.3, Math.abs(x - pathX(z)))) * smooth(52, 46, z));
+    trod[i] = k;
+  }
+  geo.setAttribute('aTrod', new THREE.BufferAttribute(trod, 1));
   geo.computeVertexNormals();
   return geo;
 }
@@ -120,7 +130,7 @@ export function buildTerrain(scene, quality) {
     nm.needsUpdate = true;
     return weatherable(
       new THREE.MeshStandardMaterial({ vertexColors: true, map, normalMap: nm, normalScale: new THREE.Vector2(0.6, 0.6), roughness: 0.95, metalness: 0 }),
-      { snow: 1, wet: 1 }
+      { snow: 1, wet: 1, trod: true }
     );
   };
   // 가까운 경내: 촘촘한 격자

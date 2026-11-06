@@ -121,3 +121,28 @@ test('lookout_view_open_toward_temple', () => {
   assert.ok(inLookoutView(l.x + Math.sin(a) * 12, l.z + Math.cos(a) * 12)); // 내려다보는 쪽
   assert.ok(!inLookoutView(l.x - Math.sin(a) * 6, l.z - Math.cos(a) * 6)); // 등 뒤
 });
+
+test('fences_mark_the_trail_edge', async () => {
+  const { fenceRuns, FENCE_OFF, LANTERNS, PATH_LAMPS } = await import('./trail.js');
+  const runs = fenceRuns();
+  const posts = runs.flatMap((r) => r.pts);
+  for (const p of posts) {
+    // 걸을 수 있는 띠 + 몸 반지름 밖
+    assert.ok(nearestTrail(p.x, p.z).d >= TRAIL_HALF + 0.32, `post in walk band ${p.x},${p.z}`);
+    assert.ok(!REST_SPOTS.some((r) => Math.hypot(r.x - p.x, r.z - p.z) < 2.4), 'post at a rest spot');
+    assert.ok(!crossingAt(p.x, p.z, 1), 'post on a crossing');
+    assert.ok(!(Math.abs(p.x - forestPathX(p.z)) < 6.5 && p.z > 5 && p.z < 47), 'post on the gate path');
+  }
+  for (const r of runs.filter((q) => q.path === trail)) for (const p of r.pts) assert.ok(!(p.s > DECK.s0 && p.s < DECK.s1), 'post on the deck');
+  // 순환로 양쪽 평균 60% 이상이 울타리·돌담
+  const len = runs.filter((r) => r.path === trail).reduce((n, r) => n + (r.pts.at(-1).s - r.pts[0].s), 0) / 2;
+  assert.ok(len / trail.length > 0.6, `coverage ${len / trail.length}`);
+  assert.ok(runs.some((r) => r.style === 'stone') && runs.some((r) => r.style === 'wood'));
+  assert.ok(PATH_LAMPS.length >= 18 && LANTERNS.length === 7);
+  assert.ok(FENCE_OFF > TRAIL_HALF + 0.32);
+});
+
+test('rest_seats_close_enough_to_count_as_trail', () => {
+  // layout.zoneAt 은 산책로 4.2m 안을 숲길로 본다 — 쉼터 앉는 자리가 모두 그 안이어야 앉았을 때 구역이 마당·다실로 바뀌지 않는다
+  for (const s of REST_SPOTS) assert.ok(nearestTrail(s.x, s.z).d < 4.0, `${s.id} ${nearestTrail(s.x, s.z).d}`);
+});

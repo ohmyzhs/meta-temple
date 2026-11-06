@@ -10,7 +10,9 @@ import { TempleScene } from './world/templeScene.js';
 import { AvatarManager } from './world/avatarManager.js';
 import { loadRig } from './world/avatarRig.js';
 import { wireState } from './core/avatarMotion.js';
-import { L, isWalkable, zoneAt, streamZ, walkHeight, canBuildCairn } from './world/layout.js';
+import { L, isWalkable, zoneAt, streamZ, walkHeight, canBuildCairn, pathX } from './world/layout.js';
+import { createMiniMap } from './ui/miniMap.js';
+import { scrollFade } from './ui/scrollFade.js';
 import { trail, REST_SIT_MSG } from './world/trail.js';
 import { placeStone, findJoinable, areaCount, AREA_CAP, AREA_RADIUS, GATE_ID } from './core/cairns.js';
 import { ModalManager } from './ui/modalManager.js';
@@ -911,6 +913,23 @@ class MetaTempleApp {
     setTimeout(then, 200);
   }
 
+  /** 지도·쉼터 목록에서 고른 쉼터로: 8m 안이면 걸어가고, 멀면 가림막 뒤에서 그 앞으로 옮겨 앉는다 */
+  _goRest(id) {
+    const s = this.temple.trail.spots.find((q) => q.id === id);
+    if (!s) return;
+    this.sound.init();
+    const p = this.player.root.position;
+    if (Math.hypot(p.x - s.stand.x, p.z - s.stand.z) < 8) return this._sitRest(s);
+    this._jump(s.stand.x, s.stand.z, s.ry, () => this._sitRest(s));
+  }
+
+  /** 장소 시트가 열려 있으면 지도 위 내 자리를 옮긴다 */
+  _syncMiniMap() {
+    if (!this.miniMap || $('#place-sheet').classList.contains('hidden')) return;
+    const p = this.player.root.position;
+    this.miniMap.setPlayer(p.x, p.z, this.player.heading);
+  }
+
   /** 고른 쉼터로 걸어가 앉는다: 가까우면 곧장, 산책로 위면 길을 따라(60m 안), 아니면 옮겨 간다 */
   _sitRest(s) {
     const pl = this.player, p = pl.root.position;
@@ -1111,6 +1130,7 @@ class MetaTempleApp {
     $('#hud-zone-name').textContent = info.name;
     $('#hud-zone-subtitle').textContent = info.subtitle;
     $$('[data-goto-zone]').forEach((b) => b.classList.toggle('active', b.dataset.gotoZone === z));
+    this.miniMap?.setHere(z);
     this._zoneRituals(z);
     if (this.entered) this.sound.setZone(z);
     if (z !== 'DAEUNGJEON') this.sound.stopTrack(); // 예불 듣기는 법당 안에서만
@@ -1174,10 +1194,29 @@ class MetaTempleApp {
       )
       .join('');
 
+    // 장소 시트의 작은 지도 + 산책길 쉼터 목록: 누르면 그리로 간다 (쉼터는 가서 앉는다)
+    this.miniMap = createMiniMap($('#minimap'), {
+      zones: Object.values(ZONES),
+      geo: { streamZ, pathX, L },
+      onPick: (m) => {
+        closeAll();
+        if (m.kind === 'zone') this.travelTo(m.id);
+        else this._goRest(m.id);
+      }
+    });
+    $('#rest-list').innerHTML = this.miniMap.markers
+      .filter((m) => m.kind === 'rest')
+      .map((m) => `<button class="ctl chip" type="button" data-goto-rest="${m.id}">${m.name}</button>`)
+      .join('');
+    $$('[data-goto-rest]').forEach((b) => b.addEventListener('click', () => this._goRest(b.dataset.gotoRest)));
+    $$('.sheet').forEach(scrollFade); // 스크롤 막대 대신 가장자리 흐림
+
     // 시트: 단추로 여닫고, 하위 시트는 ‹ 로 메뉴에 돌아가며, 바깥을 누르거나 Esc 로 닫는다
     $$('[data-sheet]').forEach((b) =>
       b.addEventListener('click', () => {
         toggleSheet(b.dataset.sheet);
+        if (b.dataset.sheet === 'place-sheet') $('#place-sheet').scrollTop = 0; // 열 때마다 지도부터
+        this._syncMiniMap();
         this._syncChips();
         this.sound.playUIClick();
       })
@@ -1187,7 +1226,7 @@ class MetaTempleApp {
     document.addEventListener('pointerdown', (e) => !e.target.closest?.('.sheet, [data-sheet], #modal-overlay') && closeAll());
     window.addEventListener('keydown', (e) => e.key === 'Escape' && !this.modals.isOpen && !this._listening && closeTop() && e.preventDefault(), true);
     // 장소 이동·몸짓·신행을 고르면 그 시트는 닫는다
-    $$('#place-sheet, #more-sheet').forEach((s) => s.addEventListener('click', (e) => e.target.closest('[data-goto-zone], [data-gesture], [data-ritual]') && closeAll()));
+    $$('#place-sheet, #more-sheet').forEach((s) => s.addEventListener('click', (e) => e.target.closest('[data-goto-zone], [data-goto-rest], [data-gesture], [data-ritual]') && closeAll()));
     $('#hud').addEventListener('click', (e) => {
       const r = e.target.closest('[data-ritual]');
       if (r) this.activate(r.dataset.ritual);
@@ -1515,6 +1554,7 @@ class MetaTempleApp {
       this._promptTimer = (this._promptTimer || 0) + dt;
       if (this._promptTimer > 0.2) {
         this._promptTimer = 0;
+        this._syncMiniMap();
         const n = this.modals.isOpen ? null : this._findNearby();
         if (n?.id !== this.nearby?.id || n?.cushionIndex !== this.nearby?.cushionIndex) {
           this.nearby = n;

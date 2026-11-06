@@ -69,7 +69,7 @@ export class Temple {
     this.cairn = new Cairn(scene, this.cairnPos);
     // 순환 산책로: 쉼터·작은 다리·갈림목 석등, 그리고 길가 돌탑
     this.trail = buildTrailProps(scene);
-    this.trail.lanterns.forEach(({ x, z, y }) => this.glowDecals.push({ x, z, y, r: 2.4, i: 0.5 }));
+    this.trail.lanterns.forEach(({ x, z, y, r, i }) => this.glowDecals.push({ x, z, y, r, i }));
     this.cairns = new CairnField(scene, quality);
     this._glowDecalsMesh();
   }

@@ -6,7 +6,7 @@
  */
 import * as THREE from 'three';
 import { terrainHeight, walkHeight, addCircleCollider, noise2 } from './layout.js';
-import { trail, REST_SPOTS, CROSSINGS, crossingY, DECK, deckRise } from './trail.js';
+import { trail, REST_SPOTS, CROSSINGS, crossingY, DECK, deckRise, fenceRuns, LANTERNS, PATH_LAMPS } from './trail.js';
 import { buildStoneLantern } from './architecture.js';
 import { mats } from './materials.js';
 
@@ -220,6 +220,49 @@ function buildDeck(scene, m) {
   scene.add(g);
 }
 
+/**
+ * 길과 바깥의 경계: 낮은 나무 울타리(기둥 + 가로대 둘) 와 낮은 돌담(돌 + 덮개돌). 자리는 trail.js fenceRuns().
+ * 공용 재질이라 정적 병합에 합쳐지고, 바깥 실사(outdoor.js)에서는 나무·돌 사진 질감이 입혀진다.
+ */
+function buildFences(scene, m) {
+  const g = new THREE.Group();
+  const postGeo = new THREE.BoxGeometry(0.1, 0.68, 0.1);
+  const railGeo = new THREE.BoxGeometry(0.06, 0.07, 1);
+  const wallGeo = new THREE.BoxGeometry(0.38, 1, 1);
+  const capGeo = new THREE.BoxGeometry(0.44, 0.07, 1);
+  let n = 0;
+  for (const run of fenceRuns()) {
+    const pts = run.pts.map((p) => ({ ...p, y: terrainHeight(p.x, p.z) }));
+    pts.forEach((p, i) => {
+      if (run.style === 'wood') g.add(mesh(postGeo, m.woodDark, p.x, p.y + 0.29, p.z));
+      const q = pts[i + 1];
+      if (!q) return;
+      const len = Math.hypot(q.x - p.x, q.z - p.z), yaw = Math.atan2(q.x - p.x, q.z - p.z), pitch = -Math.atan2(q.y - p.y, len);
+      const mx = (p.x + q.x) / 2, my = (p.y + q.y) / 2, mz = (p.z + q.z) / 2;
+      const put = (geo, mat, dy, h, extra = 0) => {
+        const o = mesh(geo, mat, mx, my + dy, mz);
+        o.rotation.order = 'YXZ';
+        o.rotation.y = yaw;
+        o.rotation.x = pitch;
+        o.scale.set(1, h, len + extra);
+        g.add(o);
+        n++;
+      };
+      if (run.style === 'wood') {
+        put(railGeo, m.woodDark, 0.28, 1, 0.08);
+        put(railGeo, m.woodLight, 0.55, 1, 0.08);
+      } else {
+        const h = 0.4 + 0.08 * noise2(mx * 0.7, mz * 0.7);
+        put(wallGeo, m.stoneDark, h / 2 - 0.06, h, 0.06);
+        put(capGeo, m.granite, h - 0.02, 1, 0.1);
+      }
+    });
+  }
+  g.userData.trailProp = true;
+  scene.add(g);
+  return n;
+}
+
 let SPRING_WATER;
 
 /**
@@ -237,6 +280,7 @@ export function buildTrailProps(scene) {
     scene.add(g);
   }
   buildDeck(scene, m);
+  buildFences(scene, m);
 
   for (const s of spots) {
     if (s.kind === 'bridge') continue; // 다리 자체가 쉼터
@@ -281,19 +325,21 @@ export function buildTrailProps(scene) {
   scene.add(flat);
   let shownMat = -1;
 
-  // 갈림목·다리·전망 바위 석등 (밤길 표시) — 산책로 바깥쪽 2.3m
+  // 갈림목·다리·전망 바위 석등과, 길을 따라 20m 마다 낮은 길 등 (밤에 바닥에 빛 웅덩이가 이어져 길이 보인다)
   const lanterns = [];
-  for (const sAt of [3, 93, 214, 288, 330, 344, 432]) {
-    const a = trail.at(sAt - 0.5), c = trail.at(sAt + 0.5), p = trail.at(sAt);
-    const l = Math.hypot(c.x - a.x, c.z - a.z) || 1;
-    const x = p.x + ((c.z - a.z) / l) * 2.3, z = p.z - ((c.x - a.x) / l) * 2.3;
-    const lan = buildStoneLantern(0.7);
-    const y = terrainHeight(x, z);
-    lan.position.set(x, y, z);
-    scene.add(lan);
-    addCircleCollider(x, z, 0.4);
-    lanterns.push({ x, z, y });
+  const lamps = new THREE.Group();
+  for (const [list, scale, r, i] of [[LANTERNS, 0.7, 2.4, 0.5], [PATH_LAMPS, 0.42, 1.9, 0.55]]) {
+    for (const { x, z } of list) {
+      const lan = buildStoneLantern(scale);
+      const y = terrainHeight(x, z);
+      lan.position.set(x, y, z);
+      lamps.add(lan);
+      if (scale > 0.5) addCircleCollider(x, z, 0.4); // 길 등은 걷는 띠 밖이라 충돌 없음
+      lanterns.push({ x, z, y, r, i });
+    }
   }
+  lamps.userData.trailProp = true;
+  scene.add(lamps);
 
   return {
     spots,

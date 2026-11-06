@@ -215,7 +215,7 @@ export function zoneAt(x, z) {
   if (x > hl.x0 - 0.2 && x < hl.x1 + 0.2 && z > hl.z0 && z < hl.z1 + 0.3) return 'DAEUNGJEON';
   // 순환 산책로는 마당·다실 마당 안으로 들어서기 전까지 어디든 숲길 (능선·대숲이 마당·다실로 잡히지 않게)
   const c = L.courtyard, t = L.teahouseTerrace;
-  if (!inRect(x, z, c.x0 - 0.5, c.x1 + 0.5, c.z0 - 3, c.z1 + 0.6) && !inRect(x, z, t.x0, t.x1, t.z0, t.z1) && (nearestTrail(x, z)?.d ?? 99) < 3) return 'FOREST';
+  if (!inRect(x, z, c.x0 - 0.5, c.x1 + 0.5, c.z0 - 3, c.z1 + 0.6) && !inRect(x, z, t.x0, t.x1, t.z0, t.z1) && (nearestTrail(x, z)?.d ?? 99) < 4.2) return 'FOREST'; // 4.2: 길가 쉼터 자리(중심선에서 3.2m까지)도
   if (x > L.teahouseTerrace.x0 + 0.4 || (x > 16.5 && z < -2.6 && z > -9.6 && x > L.teaLink.x0 + 1.4)) return 'TEAHOUSE';
   if (z <= L.courtyard.z1 + 0.6) return 'COURTYARD';
   return 'FOREST';
