@@ -56,7 +56,7 @@ export const ZONES = {
     name: '대웅전 법당 (침묵 수행)',
     subtitle: '말없이 나란히 앉아 절과 염주, 사경으로 내면을 비우는 성소',
     spawn: { x: 0, z: -21.2, ry: Math.PI },
-    rituals: ['practice_108', 'incense', 'sutra_copy', 'yebul']
+    rituals: ['practice_108', 'mala', 'incense', 'sutra_copy', 'yebul']
   },
   TEAHOUSE: {
     id: 'TEAHOUSE',
@@ -76,7 +76,8 @@ export const RITUALS = {
   burn_worry: { short: '소각', label: '번뇌 소각' },
   bell_strike: { short: '범종', label: '범종 타종' },
   circumambulate: { short: '탑돌이', label: '탑돌이' },
-  practice_108: { short: '108배', label: '108배 · 염주' },
+  practice_108: { short: '108배', label: '108배', icon: 'prostrate' },
+  mala: { short: '염주', label: '염주 돌리기', icon: 'practice_108' }, // 108배와 다른 자세라 창도 따로 (아이콘은 염주 그림)
   incense: { short: '헌향', label: '헌향 · 헌촉' },
   sutra_copy: { short: '사경', label: '사경' },
   yebul: { short: '예불', label: '예불 듣기' },

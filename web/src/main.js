@@ -43,6 +43,7 @@ function detectQuality() {
 
 // 장소 이동: 가림막(디졸브) 없이 바로 옮긴다 — 맵이 한 공간이라 디졸브는 어색하기만 했다 (사용자 2026-11-06 「제거해라」)
 const ARRIVAL = { pitch: 0.22, dist: 9 }; // 도착 구도: 입장 때와 같은 높이·거리, 방위는 도착해서 바라보는 쪽의 뒤 (법당 안은 실내 규칙이 줄인다)
+const MALA_MIN_MS = 600; // 염주 한 알 사이 최소 간격 — 광클릭으로 세지 않게 (사용자 요청, 한 알에 한 숨)
 const FP_TURN = 2.0; // 1인칭 A/D·조이스틱 좌우로 도는 빠르기(rad/s)
 // 1인칭 탑돌이: 걷는 방향에서 탑 쪽(오른쪽)으로 57° — 실측: 1000×640 은 탑 중심이 화면 x≈0.8, 375×812 는 탑 기단이 오른쪽 1/3 에 들고 왼쪽엔 앞길
 const FP_CIRCLE_LOOK = -1.0;
@@ -431,10 +432,15 @@ class MetaTempleApp {
       },
       onBow: () => this._doProstration(true),
       onMala: () => {
+        // 염주를 세는 곳은 여기 하나 (염주 창·가부좌 중 3 키). 너무 빠르면 세지 않고 false
+        const now = performance.now();
+        if (now - (this._malaAt || 0) < MALA_MIN_MS) return false;
+        this._malaAt = now;
         const unlocked = this.store.addStat('malaCount');
         this.sound.playBeadClick();
         this._afterUnlock(unlocked);
         this._updateHUD();
+        return true;
       },
       onSutraComplete: () => {
         const unlocked = this.store.addStat('sutraCopiedCount');
@@ -564,6 +570,8 @@ class MetaTempleApp {
       }
       case 'incense':
         return this._goAndDo(def, () => this._offerIncense());
+      case 'mala':
+        return this._practiceHere('mala');
       case 'practice_108': {
         // 좌복을 고른 경우에만 그 자리로 가서 앉은 뒤, 아니면 지금 선(앉은) 자리에서 그대로
         const mode = payload?.mode || 'prostrate';
@@ -1251,7 +1259,7 @@ class MetaTempleApp {
       }
       this.world.setFocusVignette(true);
     }
-    this.modals.open('practice_108', { mode });
+    this.modals.open(mode === 'mala' ? 'mala' : 'practice_108'); // 108배와 염주는 다른 자세라 창도 따로
   }
 
   _sitTea() {
@@ -1459,7 +1467,7 @@ class MetaTempleApp {
     const GENERAL = ['bow_half', 'incense', 'prostrate', 'meditate', 'tea', 'circumambulate'];
     const DOCK_GENERAL = new Set(['bow_half', 'incense', 'prostrate', 'meditate']); // 「더보기」에 원래 있던 탑돌이·다선은 제자리에서만 앞으로
     const rituals = [...(DOCK_RITUALS[z] || []), ...ZONES[z].rituals].filter((id, i, a) => a.indexOf(id) === i && !GENERAL.includes(id));
-    const btn = (id, cls, text) => `<button class="ctl ${cls}" type="button" data-ritual="${id}" title="${RITUALS[id].label}">${icon(id)}<span class="lbl">${text}</span></button>`;
+    const btn = (id, cls, text) => `<button class="ctl ${cls}" type="button" data-ritual="${id}" title="${RITUALS[id].label}">${icon(RITUALS[id].icon || id)}<span class="lbl">${text}</span></button>`;
     const tmp = document.createElement('div');
     const specials = rituals.map((id) => {
       tmp.innerHTML = btn(id, 'dock-btn ritual', RITUALS[id].short);
@@ -1659,12 +1667,12 @@ class MetaTempleApp {
         return;
       }
       if (typing() || !this.entered) return;
-      if (this.modals.isOpen && !this.modals.current?.match(/practice_108|tea_chat/)) return;
+      if (this.modals.isOpen && !this.modals.current?.match(/practice_108|mala|tea_chat/)) return;
       this.keys[e.code] = true;
       if (this._teaScene) return; // 차담 장면: 1·2·3 은 예상 응답을 고른다. 걷는 키만 남긴다 (걸으면 일어난다)
       const k = e.key;
       // 108배 패널이 열려 있으면 절·염주는 패널이 센다 (오늘 횟수가 어긋나지 않게)
-      if (this.modals.isOpen && this.modals.current === 'practice_108' && (k === ' ' || e.code === 'Space' || k === '2' || k === '3')) return;
+      if (this.modals.isOpen && this.modals.current?.match(/practice_108|mala/) && (k === ' ' || e.code === 'Space' || k === '2' || k === '3')) return;
       if (['1', '2', '3', '4', '5', '6'].includes(k)) {
         this.gesture(['bow_half', 'prostrate', 'meditate', 'incense', 'circumambulate', 'tea'][Number(k) - 1]);
       }
@@ -1860,7 +1868,7 @@ class MetaTempleApp {
 
     // 이동 입력 (카메라 기준)
     let ix = 0, iz = 0;
-    if (this.entered && !this._listening && !(this.modals.isOpen && !['practice_108', 'tea_chat'].includes(this.modals.current))) {
+    if (this.entered && !this._listening && !(this.modals.isOpen && !['practice_108', 'mala', 'tea_chat'].includes(this.modals.current))) {
       const k = this.keys;
       if (k.KeyW || k.ArrowUp) iz -= 1;
       if (k.KeyS || k.ArrowDown) iz += 1;
@@ -1900,7 +1908,7 @@ class MetaTempleApp {
     const yaw = fp ? pl.heading - Math.PI + this._fp.off : cam.yaw;
     const wx = ix * Math.cos(yaw) + iz * Math.sin(yaw);
     const wz = -ix * Math.sin(yaw) + iz * Math.cos(yaw);
-    if ((ix || iz) && this.modals.isOpen && this.modals.current === 'practice_108') this.modals.close();
+    if ((ix || iz) && this.modals.isOpen && ['practice_108', 'mala'].includes(this.modals.current)) this.modals.close();
     const night = this.world.env.night;
     this.avatars.update(dt, t, { x: wx, z: wz, face }, night); // 뛰지 않는다 (Shift 달리기 없앰 — WALK_SPEED 1.1m/s)
     this.temple.cairns.update(dt, pl.root.position.x, pl.root.position.z);

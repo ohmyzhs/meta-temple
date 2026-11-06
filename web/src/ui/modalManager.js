@@ -22,7 +22,8 @@ const VIEWS = {
   wish_tile: { title: '기와 불사', hanja: '瓦', sub: '검은 기와에 흰 붓으로, 오래 지킬 마음을 새깁니다.', render: '_tile' },
   stone_pagoda: { title: '소원 돌탑', hanja: '石塔', sub: '먼저 지나간 이들의 돌 위에 조약돌 하나를 얹습니다.', render: '_stone' },
   burn_worry: { title: '번뇌 소각', hanja: '燒', sub: '마음을 무겁게 하는 것을 적고, 불에 맡겨 보냅니다.', render: '_burn' },
-  practice_108: { title: '108배 · 염주', hanja: '百八', sub: '숨에 맞추어, 천천히.', render: '_practice', variant: 'side' },
+  practice_108: { title: '108배', hanja: '百八拜', sub: '숨에 맞추어, 천천히.', render: '_practice', variant: 'side', fold: true },
+  mala: { title: '염주', hanja: '念珠', sub: '한 알에 한 숨.', render: '_mala', variant: 'side' },
   sutra_copy: { title: '사경', hanja: '寫經', sub: '한 글자씩 따라 쓰며 흩어진 마음을 고릅니다.', render: '_sutra', variant: 'wide' },
   tea_chat: { title: '심검당 차담', hanja: '茶談', sub: '차 한 잔 사이에 두고, 편히 이야기하세요.', render: '_tea', variant: 'side' },
   yebul: { title: '예불 듣기', hanja: '禮佛', sub: '산사에서 실제로 올린 예불을 처음부터 끝까지.', render: '_yebul', variant: 'side' },
@@ -48,6 +49,7 @@ const STAT_LABELS = [
 const CARD_IDS = new Set(DHARMA_CARDS.map((c) => c.id));
 const BOW_CYCLE_MS = 8000; // 108배 연속 모드: 8초에 한 번 천천히 (큰절 한 번 7.6초 — core/avatarMotion.js PROSTRATE)
 const MALA_BEADS = 27; // 27주 단주 네 바퀴 = 108
+const AUTO_FOLD_MS = 3000; // 자동 108배를 시작하고 이만큼 뒤 창을 작은 막대로 접는다 (사용자 요청: 몇 초 뒤 자동으로)
 const TEA_MAX = 300; // 한 번에 건넬 수 있는 말 (server/monk.js MONK_LIMITS 와 같게)
 const TYPE_MS = 42; // 대사가 한 자씩 나오는 간격 — 누르면 바로 다 보인다
 // 스님 목소리: 미리 녹음한 문장 목록 (tools/tts/monk_voice.py). 한 번만 받는다
@@ -142,26 +144,36 @@ function lotusSvg(hex, size = 40) {
 function malaSvg() {
   const C = 120;
   const R = 92;
+  // 단주 27알 — 알마다 나뭇결 빛이 조금씩 다르고, 맨 위 모주(母珠)에는 붉은 술을 단다.
+  // 알은 [data-bead] 로 감싸 두고 돌릴 때 반대로 돌려(_mala render) 빛이 늘 왼쪽 위에 남게 한다.
+  const tones = ['#a8693b', '#97582f', '#b07440', '#8d5330', '#a36236', '#b9804b'];
   let beads = '';
   for (let i = 0; i < MALA_BEADS; i++) {
-    const a = ((-90 + (i * 360) / MALA_BEADS) * Math.PI) / 180;
+    const deg = -90 + (i * 360) / MALA_BEADS;
+    const a = (deg * Math.PI) / 180;
     const x = (C + R * Math.cos(a)).toFixed(2);
     const y = (C + R * Math.sin(a)).toFixed(2);
-    beads +=
-      i === 0
-        ? `<circle cx="${x}" cy="${y}" r="12.6" fill="url(#mala-guru)"/><circle cx="${x}" cy="${y}" r="3" fill="#8c2f22"/>`
-        : `<circle cx="${x}" cy="${y}" r="9.6" fill="url(#mala-wood)"/>`;
+    const o = `transform-origin:${x}px ${y}px`;
+    if (i === 0) {
+      beads += `<g transform="translate(${x} ${y}) rotate(${deg + 90})"><path class="mala-cord" d="M0 -12v-5"/><circle class="mala-tassel" cx="0" cy="-18.5" r="2.6"/><path class="mala-tassel" d="M-2.2 -20.5C-2.6 -26 -4.4 -33 -5.6 -38.5h11.2C4.4 -33 2.6 -26 2.2 -20.5z"/><path class="mala-tassel-line" d="M-2.6 -24l-1.4 13.5M0 -23v14.5M2.6 -24l1.4 13.5" transform="translate(0 -15)"/></g>`;
+      beads += `<g data-bead style="${o}"><circle cx="${x}" cy="${y}" r="13.2" fill="url(#mala-guru)"/><circle cx="${x}" cy="${y}" r="13.2" fill="url(#mala-shade)"/><ellipse cx="${(+x - 4.2).toFixed(2)}" cy="${(+y - 4.6).toFixed(2)}" rx="4.2" ry="2.8" fill="#fff" opacity=".42"/></g>`;
+    } else {
+      beads += `<g data-bead style="${o}"><circle cx="${x}" cy="${y}" r="9.8" fill="${tones[(i * 7) % tones.length]}"/><circle cx="${x}" cy="${y}" r="9.8" fill="url(#mala-shade)"/><ellipse cx="${(+x - 3.1).toFixed(2)}" cy="${(+y - 3.5).toFixed(2)}" rx="3.1" ry="2" fill="#fff" opacity=".38"/></g>`;
+    }
   }
   return `<svg viewBox="0 0 240 240" aria-hidden="true" focusable="false">
     <defs>
-      <radialGradient id="mala-wood" cx="35%" cy="30%" r="75%"><stop offset="0" stop-color="#d8a676"/><stop offset=".45" stop-color="#9a6136"/><stop offset="1" stop-color="#55301a"/></radialGradient>
-      <radialGradient id="mala-guru" cx="35%" cy="30%" r="75%"><stop offset="0" stop-color="#c98a6a"/><stop offset=".5" stop-color="#7c3a24"/><stop offset="1" stop-color="#3f1a10"/></radialGradient>
-      <radialGradient id="mala-halo"><stop offset="0" stop-color="#e6c27a" stop-opacity=".75"/><stop offset="1" stop-color="#e6c27a" stop-opacity="0"/></radialGradient>
+      <radialGradient id="mala-shade" cx="38%" cy="32%" r="72%"><stop offset="0" stop-color="#fff2dc" stop-opacity=".28"/><stop offset=".55" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#2a1208" stop-opacity=".55"/></radialGradient>
+      <radialGradient id="mala-guru" cx="35%" cy="30%" r="75%"><stop offset="0" stop-color="#d0866a"/><stop offset=".5" stop-color="#8a3a25"/><stop offset="1" stop-color="#3f1a10"/></radialGradient>
+      <radialGradient id="mala-halo"><stop offset="0" stop-color="#f0cf86" stop-opacity=".85"/><stop offset="1" stop-color="#f0cf86" stop-opacity="0"/></radialGradient>
+      <radialGradient id="mala-glow"><stop offset=".72" stop-color="#e8c070" stop-opacity="0"/><stop offset=".86" stop-color="#e8c070" stop-opacity=".55"/><stop offset="1" stop-color="#e8c070" stop-opacity="0"/></radialGradient>
     </defs>
-    <circle cx="${C}" cy="${C - R}" r="22" fill="url(#mala-halo)" class="mala-halo"/>
-    <path class="mala-tick" d="M113 4 L127 4 L120 12 Z"/>
+    <circle class="mala-glow" cx="${C}" cy="${C}" r="118" fill="url(#mala-glow)"/>
+    <ellipse class="mala-ground" cx="${C}" cy="${C + 8}" rx="${R + 6}" ry="${R + 4}" fill="none" stroke="rgba(60,35,20,.12)" stroke-width="16"/>
+    <circle class="mala-halo" cx="${C}" cy="${C - R}" r="24" fill="url(#mala-halo)"/>
+    <path class="mala-tick" d="M114 50 L126 50 L120 43 Z"/>
     <g class="mala-beads" data-beads>
-      <circle cx="${C}" cy="${C}" r="${R}" fill="none" stroke="#8c2f22" stroke-width="1.3" opacity=".7"/>
+      <circle cx="${C}" cy="${C}" r="${R}" fill="none" stroke="#8c2f22" stroke-width="1.6" opacity=".8"/>
       ${beads}
     </g>
   </svg>`;
@@ -198,6 +210,7 @@ export class ModalManager {
     this.subEl = document.getElementById('modal-subtitle');
     this.body = document.getElementById('modal-body');
     this.closeBtn = document.getElementById('modal-close-btn');
+    this.foldBtn = document.getElementById('modal-fold-btn'); // 창을 작은 막대로 접기 (VIEWS.fold 인 창만)
     this.win?.setAttribute('tabindex', '-1');
 
     this._type = null;
@@ -213,6 +226,7 @@ export class ModalManager {
     this._sutraIdx = 0;
 
     this.closeBtn?.addEventListener('click', () => this.close());
+    this.foldBtn?.addEventListener('click', () => this._view?.fold?.(true));
 
     // 배경을 눌러 닫기 — 창 안에서 시작한 드래그가 밖에서 끝나도 닫히지 않게
     let downOnOverlay = false;
@@ -268,6 +282,8 @@ export class ModalManager {
     this.win.className = `modal-window ${spec.variant || ''} m-${type.replace(/_/g, '-')}`;
     this.win.setAttribute('aria-modal', side ? 'false' : 'true');
     this.overlay.classList.toggle('is-side', side);
+    this.overlay.classList.remove('is-mini');
+    if (this.foldBtn) this.foldBtn.hidden = !spec.fold;
     this.titleEl.innerHTML = `${esc(spec.title)}${spec.hanja ? `<span class="m-hanja" lang="zh-Hant" aria-hidden="true">${spec.hanja}</span>` : ''}`;
     this.subEl.textContent = spec.sub;
     this.body.replaceChildren();
@@ -286,7 +302,7 @@ export class ModalManager {
     if (!this._type) return;
     this._teardown();
     this.overlay.classList.add('hidden');
-    this.overlay.classList.remove('is-side');
+    this.overlay.classList.remove('is-side', 'is-mini');
     this.win.className = 'modal-window';
     const back = this._returnFocus;
     this._returnFocus = null;
@@ -1034,15 +1050,14 @@ export class ModalManager {
     this._raf(frame);
   }
 
-  /* ═════════ 5. 108배 · 염주 (side) ═════════ */
-  _practice(payload) {
+  /* ═════════ 5. 108배 (side) — 자동으로 돌리면 몇 초 뒤 작은 막대로 접혀 화면을 비운다 ═════════ */
+  _practice() {
     const C = 2 * Math.PI * 60;
+    const c = 2 * Math.PI * 19;
+    const pauseSvg = '<svg class="i-pause" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/></svg>';
+    const playSvg = '<svg class="i-play" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 5.5v13l10.5-6.5z"/></svg>';
     const root = this._root(`
-      <div class="m-tabs" role="tablist" aria-label="수행 방식">
-        <button type="button" role="tab" data-tab="prostrate">큰절 108배</button>
-        <button type="button" role="tab" data-tab="mala">염주</button>
-      </div>
-      <section class="m-pane practice" data-pane="prostrate" role="tabpanel">
+      <section class="practice" data-full>
         <div class="practice-visual">
           <div class="bow-ring" data-ring>
             <svg viewBox="0 0 140 140" aria-hidden="true" focusable="false">
@@ -1061,50 +1076,58 @@ export class ModalManager {
           <p class="practice-stat">오늘 <b data-today-bows>0</b>배 · 누적 <b data-life-bows>0</b>배</p>
         </div>
       </section>
-      <section class="m-pane practice" data-pane="mala" role="tabpanel">
-        <div class="practice-visual">
-          <button type="button" class="mala" data-act="bead" aria-label="염주 한 알 넘기기">
-            ${malaSvg()}
-            <span class="mala-center" aria-hidden="true"><b data-mala>0</b><small>/ 108</small></span>
-          </button>
-        </div>
-        <div class="practice-side">
-          <p class="breath is-still">한 알에 한 숨</p>
-          <p class="practice-stat">오늘 <b data-today-mala>0</b>알 · 누적 <b data-life-mala>0</b>알</p>
-          <p class="m-hint">염주를 누르거나, 스페이스바를 누르거나, 아래로 쓸어 넘기세요. 스물일곱 알 단주를 네 바퀴 돌리면 백팔입니다.</p>
-          <p class="m-live" data-mala-live aria-live="polite"></p>
-        </div>
-      </section>`);
+      <div class="practice-mini" data-mini hidden>
+        <button type="button" class="pm-count" data-act="unfold" aria-label="108배 창 펼치기">
+          <svg viewBox="0 0 44 44" aria-hidden="true" focusable="false"><circle class="ring-bg" cx="22" cy="22" r="19"/><circle class="ring-fg" cx="22" cy="22" r="19" stroke-dasharray="${c.toFixed(2)}" stroke-dashoffset="${c.toFixed(2)}" data-mini-arc/></svg>
+          <b data-mini-bows>0</b>
+        </button>
+        <span class="pm-text"><b data-mini-breath>자동 108배</b><small>오늘 <span data-mini-today>0</span> / 108배</small></span>
+        <button type="button" class="pm-btn" data-act="auto" aria-label="멈추기">${pauseSvg}${playSvg}</button>
+        <button type="button" class="pm-btn" data-act="unfold" aria-label="108배 창 펼치기"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 14l5-5 5 5" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      </div>`);
 
     const $ = (s) => root.querySelector(s);
     const breath = $('[data-breath]');
-    const autoBtn = $('[data-act="auto"]');
+    const autoBtn = $('[data-full] [data-act="auto"]');
     const bowBtn = $('[data-act="bow"]');
     const ring = $('[data-ring]');
-    const beads = $('[data-beads]');
-    let tab = payload.mode === 'mala' ? 'mala' : 'prostrate';
+    const mini = $('[data-mini]');
     let auto = false;
     let gen = 0;
-    let rot = -(this._todayCounts().mala % MALA_BEADS) * (360 / MALA_BEADS);
+    let folded = false;
 
     const setBreath = (text) => {
       breath.classList.remove('is-shift');
       void breath.offsetWidth;
       breath.textContent = text;
       breath.classList.add('is-shift');
+      $('[data-mini-breath]').textContent = text;
     };
 
     const render = () => {
       const t = this._todayCounts();
       const s = this.store.stats;
+      const done = Math.min(t.bows, 108) / 108;
       $('[data-bows]').textContent = t.bows;
-      $('[data-arc]').setAttribute('stroke-dashoffset', (C * (1 - Math.min(t.bows, 108) / 108)).toFixed(2));
+      $('[data-arc]').setAttribute('stroke-dashoffset', (C * (1 - done)).toFixed(2));
+      $('[data-mini-arc]').setAttribute('stroke-dashoffset', (c * (1 - done)).toFixed(2));
+      $('[data-mini-bows]').textContent = t.bows;
+      $('[data-mini-today]').textContent = t.bows;
       $('[data-today-bows]').textContent = t.bows;
       $('[data-life-bows]').textContent = (s.bowCount || 0).toLocaleString('ko-KR');
-      $('[data-mala]').textContent = t.mala % 108 === 0 && t.mala > 0 ? 108 : t.mala % 108;
-      $('[data-today-mala]').textContent = t.mala;
-      $('[data-life-mala]').textContent = (s.malaCount || 0).toLocaleString('ko-KR');
-      beads.style.transform = `rotate(${rot}deg)`;
+      mini.dataset.auto = String(auto);
+      mini.querySelector('[data-act="auto"]').setAttribute('aria-label', auto ? '멈추기' : '자동 108배 이어 하기');
+    };
+
+    /** 접으면 횟수 고리·숨·멈춤·펼치기만 남은 작은 막대 (창 머리의 ﹀ 또는 자동 시작 몇 초 뒤) */
+    const fold = (on) => {
+      if (folded === on) return;
+      folded = on;
+      this.win.classList.toggle('is-mini', on);
+      this.overlay.classList.toggle('is-mini', on);
+      mini.hidden = !on;
+      $('[data-full]').hidden = on;
+      render();
     };
 
     const stopAuto = () => {
@@ -1114,6 +1137,7 @@ export class ModalManager {
       autoBtn.innerHTML = '자동 108배 <small>8초에 한 번</small>';
       bowBtn.disabled = false;
       ring.classList.remove('is-breathing');
+      render();
     };
 
     // 소리는 아바타가 낸다: 꿇고 엎드리고 일어설 때 도복 스치는 소리 (main.js onRustle).
@@ -1140,6 +1164,9 @@ export class ModalManager {
       autoBtn.textContent = '멈추기';
       bowBtn.disabled = true;
       auto = true;
+      render();
+      // 시작하고 잠시 뒤 창을 접어 절하는 모습이 보이게 (펼치기는 막대에서)
+      this._later(() => my === gen && fold(true), AUTO_FOLD_MS);
       // 들숨 4초 → 날숨에 절 → 절이 받아들여진 때부터 다시 4초. 아바타 동작이 8초보다 길어도 절을 건너뛰지 않는다.
       const inhale = () => {
         if (my !== gen) return;
@@ -1170,25 +1197,86 @@ export class ModalManager {
       this._later(() => my === gen && !auto && this._todayCounts().bows < 108 && setBreath('들이쉬며 합장'), BOW_CYCLE_MS / 2);
     };
 
+    this._on(root, 'click', (e) => {
+      const b = e.target.closest('button');
+      if (!b) return;
+      if (b.dataset.act === 'bow') manualBow();
+      else if (b.dataset.act === 'auto') (auto ? stopAuto() : startAuto());
+      else if (b.dataset.act === 'unfold') fold(false);
+    });
+
+    render();
+    bowBtn.setAttribute('data-autofocus', '');
+    return {
+      refresh: render,
+      fold,
+      reopen: () => fold(false),
+      destroy: stopAuto
+    };
+  }
+
+  /* ═════════ 5-2. 염주 (side) — 누르기·쓸어 넘기기·스페이스바, 한 알에 한 숨 ═════════ */
+  _mala() {
+    const root = this._root(`
+      <section class="practice mala-pane">
+        <div class="practice-visual">
+          <button type="button" class="mala" data-act="bead" aria-label="염주 한 알 넘기기">
+            ${malaSvg()}
+            <span class="mala-center" aria-hidden="true"><b data-mala>0</b><small>/ 108</small></span>
+          </button>
+        </div>
+        <div class="practice-side">
+          <p class="breath is-still" data-mala-breath>한 알에 한 숨</p>
+          <p class="practice-stat">오늘 <b data-today-mala>0</b>알 · 누적 <b data-life-mala>0</b>알</p>
+          <p class="m-hint">염주를 누르거나 아래로 쓸어 넘기세요. 스물일곱 알을 네 바퀴 돌리면 백팔입니다.</p>
+          <p class="m-live" data-mala-live aria-live="polite"></p>
+        </div>
+      </section>`);
+    const $ = (s) => root.querySelector(s);
+    const mala = $('.mala');
+    const beads = $('[data-beads]');
+    const each = [...root.querySelectorAll('[data-bead]')];
+    const breath = $('[data-mala-breath]');
+    let rot = -(this._todayCounts().mala % MALA_BEADS) * (360 / MALA_BEADS);
+
+    // 알마다 반대로 돌려 빛(왼쪽 위)이 늘 같은 쪽에 남게 — 줄과 술은 함께 돈다
+    const render = () => {
+      const t = this._todayCounts();
+      const s = this.store.stats;
+      beads.style.transform = `rotate(${rot}deg)`;
+      for (const el of each) el.style.transform = `rotate(${-rot}deg)`;
+      $('[data-mala]').textContent = t.mala % 108 === 0 && t.mala > 0 ? 108 : t.mala % 108;
+      $('[data-today-mala]').textContent = t.mala;
+      $('[data-life-mala]').textContent = (s.malaCount || 0).toLocaleString('ko-KR');
+    };
+    const pulse = (cls) => {
+      mala.classList.remove(cls);
+      void mala.offsetWidth;
+      mala.classList.add(cls);
+    };
+    let calmT = 0;
     const bead = () => {
+      // 너무 빠르면 main.js 가 세지 않는다 (광클릭으로 염주가 돌지 않게)
+      if (this.cb.onMala?.() === false) {
+        pulse('is-resist');
+        breath.textContent = '천천히, 한 알에 한 숨';
+        clearTimeout(calmT);
+        calmT = this._later(() => (breath.textContent = '한 알에 한 숨'), 1600);
+        return;
+      }
       const t = this._todayCounts();
       t.mala += 1;
       rot -= 360 / MALA_BEADS;
-      this.cb.onMala?.(); // 염주 소리는 main.js 가 낸다
       render();
+      pulse('is-tick');
+      if (t.mala % MALA_BEADS === 0) pulse('is-loop');
       if (t.mala % 108 === 0) {
+        pulse('is-complete');
         this._sfx('playChukbi');
         this._flash($('[data-mala-live]'), '백팔 염주 한 바퀴를 마쳤습니다.');
       }
     };
 
-    const setTab = this._tabs(root, (name) => {
-      tab = name;
-      if (name !== 'prostrate' && auto) stopAuto();
-    });
-
-    // 염주: 누르기 / 쓸어 넘기기 / 스페이스바
-    const mala = $('.mala');
     let sx = 0;
     let sy = 0;
     let swiped = false;
@@ -1203,35 +1291,22 @@ export class ModalManager {
         bead();
       }
     });
+    this._on(mala, 'click', () => {
+      if (swiped) swiped = false;
+      else bead();
+    });
     this._on(document, 'keydown', (e) => {
-      if (tab !== 'mala' || e.code !== 'Space' || e.repeat) return;
-      if (e.target.closest?.('input, textarea, select, button, [contenteditable="true"]')) return;
+      if ((e.code !== 'Space' && e.key !== '3') || e.repeat) return;
+      if (e.target.closest?.('input, textarea, select, [contenteditable="true"]')) return;
+      if (e.code === 'Space' && e.target.closest?.('button')) return; // 단추 위 스페이스는 그 단추가 누른다 (두 번 세지 않게)
       e.preventDefault();
       e.stopPropagation();
       bead();
     });
 
-    this._on(root, 'click', (e) => {
-      const b = e.target.closest('button');
-      if (!b) return;
-      if (b.dataset.tab) setTab(b.dataset.tab);
-      else if (b.dataset.act === 'bow') manualBow();
-      else if (b.dataset.act === 'auto') (auto ? stopAuto() : startAuto());
-      else if (b.dataset.act === 'bead') {
-        if (swiped) swiped = false;
-        else bead();
-      }
-    });
-
     render();
-    setTab(tab);
-    if (tab === 'mala') mala.setAttribute('data-autofocus', '');
-    else bowBtn.setAttribute('data-autofocus', '');
-    return {
-      refresh: render,
-      reopen: (p) => setTab(p.mode === 'mala' ? 'mala' : 'prostrate'),
-      destroy: stopAuto
-    };
+    mala.setAttribute('data-autofocus', '');
+    return { refresh: render };
   }
 
   /* ═════════ 6. 사경 (wide) ═════════ */
