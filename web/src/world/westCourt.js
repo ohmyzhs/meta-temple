@@ -16,15 +16,15 @@ const SEATS = [
   { id: 'wc_bench_e', kind: 'woodbench', x: -20.4, z: 2.0, look: [-27, 2.0] },
   { id: 'wc_bench_s', kind: 'woodbench', x: -26.3, z: 3.9, look: [-26.3, -12] },
   { id: 'wc_platform', kind: 'platform', x: -26.3, z: -31.0, look: [-26.3, -13] },
-  { id: 'hy_platform', kind: 'platform', x: -16.4, z: -29.2, look: [-16.4, -15] },
+  { id: 'hy_platform', kind: 'platform', x: -17.9, z: -29.2, look: [-17.9, -15] }, // 옆마당이 좁아져(대웅전 중층) 담 쪽으로
   { id: 'wc_stone_1', kind: 'stone', x: -31.6, z: 1.0, look: [-26, -6], seed: 13 },
   { id: 'wc_stone_2', kind: 'stone', x: -29.4, z: 3.6, look: [-26, -8], seed: 17 },
   { id: 'wc_stone_3', kind: 'stone', x: -22.0, z: -31.8, look: [-25, -18], seed: 23 },
-  { id: 'hy_stone', kind: 'stone', x: -14.4, z: -22.4, look: [-19, -22], seed: 29 }
+  { id: 'hy_stone', kind: 'stone', x: -17.6, z: -22.4, look: [-25, -22], seed: 29 }
 ];
 const SEAT_H = { woodbench: 0.46, platform: 0.46, stone: 0.42 };
 /** 석등 (밤에 마당 가장자리에 빛 웅덩이) */
-const LAMPS = [[-32.0, -13.0], [-20.3, -8.4], [-14.3, -31.8]];
+const LAMPS = [[-32.0, -13.0], [-20.3, -8.4], [-18.0, -31.8]];
 
 const BUILDERS = {
   /** 나무 벤치: 받침돌 둘 + 두꺼운 나무판 (등받이 없는 절집 벤치) */

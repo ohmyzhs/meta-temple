@@ -108,3 +108,7 @@ export const NATURE_PRESETS = [
 
 /** 잠자기 타이머(분) — 0 은 끔 */
 export const SLEEP_MINUTES = [0, 15, 30, 60];
+/** 자연의 소리 장면 한 편의 길이(분) — 「한 곡」은 이만큼 듣고 일어나고, 「연속」은 이만큼마다 다음 장면으로. 설계값(실측 아님), 바꿔도 된다 */
+export const SCENE_MINUTES = 10;
+/** 듣기 방식: 한 곡 → 연속 → 반복 */
+export const LISTEN_MODES = ['one', 'all', 'repeat'];

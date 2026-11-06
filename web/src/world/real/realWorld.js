@@ -28,16 +28,16 @@ export const SLOTS = {
   // 불상은 3D 모델 대신 생성형 사진(배경을 뺀 컷아웃)을 세운 판 — 사용자 결정 2026-11-06 「불상만 이미지로」.
   // 판 높이·자리는 절차적 불상(대좌·광배 포함)의 경계 상자를 그대로 따른다. 사진은 정면(+z)을 본다.
   buddha: { card: 'buddha/sakyamuni.webp', at: () => [0, 0, L.altar.z], loadWithin: 60 },
-  bodhiL: { card: 'buddha/bodhisattva_l.webp', at: () => [-3.6, 0, L.altar.z], loadWithin: 60 },
-  bodhiR: { card: 'buddha/bodhisattva_r.webp', at: () => [3.6, 0, L.altar.z], loadWithin: 60 },
+  bodhiL: { card: 'buddha/bodhisattva_l.webp', at: () => [-6.2, 0, L.altar.z], loadWithin: 60 },
+  bodhiR: { card: 'buddha/bodhisattva_r.webp', at: () => [6.2, 0, L.altar.z], loadWithin: 60 },
   // 후불벽: 생성형 벽면 사진 세 칸 (사용자 2026-11-06 「뒤 벽면도 더 디테일하게 생성형 이미지로」).
   // 기존 옻칠 판·탱화·액자(temple.js _hall)는 그대로 두고 바로 앞에 세운다 — 칸 이음매는 뒤 기둥(x ±2.8)이 가린다.
-  // 사진은 3:2 를 양옆 4%(기둥이 가리는 폭)만 잘라 비율을 지킨다 — 판 폭 = 칸 폭, 높이 = 폭 ÷ 비율, 위끝 = 후불벽 판 위끝
-// (temple.js: 기둥 4.4m − 0.05 = 4.35m, L.hall.floorY 부터). 아래 남는 부분은 불단과 기존 옻칠 판이 채운다.
-  wallC: { wall: [-2.8, 2.8], img: 'wall/hubul_center.webp', at: () => [0, 0, L.altar.z], loadWithin: 60 },
+  // 사진은 칸 비율(폭 ÷ 벽 높이)에 맞춰 둔다 — tools/spike/wall_fit.py 가 그림은 그대로 두고 맨 아래 세로 널판 띠만 늘린다.
+// 판 폭 = 칸 폭, 높이 = 폭 ÷ 비율(= 벽 높이, temple.js: 기둥 − 0.05), 위끝 = 후불벽 판 위끝.
+  wallC: { wall: [L.hall.xs[2], L.hall.xs[3]], img: 'wall/hubul_center.webp', at: () => [0, 0, L.altar.z], loadWithin: 60 },
   // 대웅전 5×3칸 확장(2026-11-06, session-3): 그림 판은 가운데 세 칸(기둥 ±2.8·±7.4)에만 — 바깥 두 칸은 옻칠 판 그대로
-  wallL: { wall: [L.hall.xs[1] + 0.15, -2.8], img: 'wall/hubul_left.webp', at: () => [-5.4, 0, L.altar.z], loadWithin: 60 },
-  wallR: { wall: [2.8, L.hall.xs[4] - 0.15], img: 'wall/hubul_right.webp', at: () => [5.4, 0, L.altar.z], loadWithin: 60 }
+  wallL: { wall: [L.hall.xs[1] + 0.15, L.hall.xs[2]], img: 'wall/hubul_left.webp', at: () => [L.hall.xs[1], 0, L.altar.z], loadWithin: 60 },
+  wallR: { wall: [L.hall.xs[3], L.hall.xs[4] - 0.15], img: 'wall/hubul_right.webp', at: () => [L.hall.xs[4], 0, L.altar.z], loadWithin: 60 }
 };
 const WALL_H = L.hall.colH - 0.05; // 후불벽 판 위끝 = 기둥 높이 − 0.05 (temple.js)
 const WALL_Z = 0.23; // L.hall.z0 에서 앞으로 (탱화 금테 앞면 0.185 보다 앞, 기둥 앞면 약 0.29 보다 뒤)

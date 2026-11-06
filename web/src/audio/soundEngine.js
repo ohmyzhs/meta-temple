@@ -339,6 +339,8 @@ export class TempleSoundEngine {
     this.areas = null; // 마당·다실·대숲 자리 (setAreas)
     this._sleep = null; // 잠자기 타이머 { left, t }
     this.onSleep = null; // 잠자기 타이머가 끝나 멈췄을 때
+    this._scene = null; // 자연의 소리 장면 한 편 { left, t } (setSceneTimer)
+    this.onSceneEnd = null;
   }
 
   /** 지금 화면이 꺼져도 소리를 살려 두는가 */
@@ -621,13 +623,35 @@ export class TempleSoundEngine {
     return this._sleep ? Math.max(0, this._sleep.left) : null;
   }
 
+  /** 자연의 소리 장면 한 편의 길이 (초, 0 이면 끔) — 잠자기 타이머처럼 재생 시간으로 센다. 다 되면 onSceneEnd (화면이 꺼져 있어도) */
+  setSceneTimer(sec) {
+    this._scene = sec > 0 ? { left: sec, t: this.ctx?.currentTime ?? 0 } : null;
+  }
+
+  /** 장면 한 편의 남은 시간(초) 또는 null */
+  get sceneLeft() {
+    return this._scene ? Math.max(0, this._scene.left) : null;
+  }
+
+  /** 타이머 c 에서 지난 재생 시간을 덜어 낸다 — 잠들었던 컨텍스트가 깨어난 첫 틱·양보 중·내가 멈춰 둔 예불은 세지 않는다 */
+  _spend(c, now) {
+    const dt = now - c.t;
+    c.t = now;
+    if (dt > 0 && dt <= 5 && !this._interrupted && !this._track?.heldByUser) c.left -= dt;
+  }
+
   _sleepTick(now) {
+    const sc = this._scene;
+    if (sc) {
+      this._spend(sc, now);
+      if (sc.left <= 0) {
+        this._scene = null;
+        this.onSceneEnd?.();
+      }
+    }
     const s = this._sleep;
     if (!s) return;
-    const dt = now - s.t;
-    s.t = now;
-    if (dt <= 0 || dt > 5 || this._interrupted) return; // 잠들었던 컨텍스트가 깨어난 첫 틱·양보 중은 세지 않는다
-    s.left -= dt;
+    this._spend(s, now);
     if (s.left <= SLEEP_FADE && !s.fading) {
       s.fading = true;
       this._ramp(this.master.gain, 0, Math.max(0.5, s.left));

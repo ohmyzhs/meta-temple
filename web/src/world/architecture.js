@@ -298,13 +298,90 @@ function bracketMaterial() {
   return bracketMat;
 }
 
+/**
+ * 중층 전각의 아랫지붕(차양): 벽 줄을 두르는 경사 지붕 띠. 가운데가 비어 있어 안쪽의 높게 트인 공간을 가르지 않는다.
+ * opts: x0,x1,z0,z1 (벽 줄, 로컬), y (벽에 붙는 높이), overhang(처마 내밈), drop(처마 끝까지 내려가는 높이),
+ *       lift(귀 솟음), thickness(서까래 두께). 처마 단면은 끝으로 갈수록 눕는 곡선 (한식 지붕처럼).
+ * UV: 윗면은 buildRoof 와 같이 미터/tile(0.55) — world/real/precinct.js 의 실사 기와 줄 간격이 그대로 맞는다.
+ */
+export function buildSkirtRoof({ x0, x1, z0, z1, y, overhang = 3, drop = 1.6, lift = 0.5, thickness = 0.3, segs = 24, rows = 6, tile = 0.55, shadows = true }) {
+  const m = mats();
+  const X0 = x0 - overhang, X1 = x1 + overhang, Z0 = z0 - overhang, Z1 = z1 + overhang;
+  // 네 변: [안쪽 시작, 안쪽 끝, 바깥 시작, 바깥 끝] — 위에서 보아 시계 반대 방향으로 돈다 (앞 +z → 오른쪽 +x → 뒤 → 왼쪽)
+  const sides = [
+    [[x0, z1], [x1, z1], [X0, Z1], [X1, Z1]],
+    [[x1, z1], [x1, z0], [X1, Z1], [X1, Z0]],
+    [[x1, z0], [x0, z0], [X1, Z0], [X0, Z0]],
+    [[x0, z0], [x0, z1], [X0, Z0], [X0, Z1]]
+  ];
+  const slope = Math.hypot(overhang, drop);
+  const top = { p: [], uv: [], i: [] }, under = { p: [], uv: [], i: [] }, edge = { p: [], uv: [], i: [] };
+  const L = (a, b, t) => a + (b - a) * t;
+  for (const [a0, a1, b0, b1] of sides) {
+    const grid = [];
+    for (let r = 0; r <= rows; r++) {
+      const sR = r / rows;
+      const row = [];
+      for (let c = 0; c <= segs; c++) {
+        const a = c / segs;
+        const ix = L(a0[0], a1[0], a), iz = L(a0[1], a1[1], a), ox = L(b0[0], b1[0], a), oz = L(b0[1], b1[1], a);
+        const x = L(ix, ox, sR), z = L(iz, oz, sR);
+        const corner = Math.max(0, 1 - Math.min(a, 1 - a) / 0.3) ** 2; // 변 양끝(귀)으로 갈수록 1
+        const yy = y - drop * (2 * sR - sR * sR) + lift * corner * sR * sR;
+        const along = Math.hypot(x - L(a0[0], b0[0], sR), z - L(a0[1], b0[1], sR)); // 이 줄 시작에서 잰 미터
+        row.push({ x, z, y: yy, u: along / tile, v: (sR * slope) / tile, sR });
+      }
+      grid.push(row);
+    }
+    const quadStrip = (buf, pick, flip) => {
+      const base = buf.p.length / 3;
+      for (const row of grid) for (const q of row) {
+        const [px, py, pz] = pick(q);
+        buf.p.push(px, py, pz);
+        buf.uv.push(q.u, q.v);
+      }
+      const W = segs + 1;
+      for (let r = 0; r < rows; r++) for (let c = 0; c < segs; c++) {
+        const i0 = base + r * W + c, i1 = i0 + 1, i2 = i0 + W, i3 = i2 + 1;
+        if (flip) buf.i.push(i0, i1, i2, i1, i3, i2);
+        else buf.i.push(i0, i2, i1, i1, i2, i3);
+      }
+    };
+    quadStrip(top, (q) => [q.x, q.y, q.z], false);
+    quadStrip(under, (q) => [q.x, q.y - thickness * (0.6 + 0.4 * (1 - q.sR)), q.z], true);
+    // 처마 끝 막음판
+    const base = edge.p.length / 3, last = grid[rows];
+    for (const q of last) {
+      edge.p.push(q.x, q.y, q.z, q.x, q.y - thickness * 0.6, q.z);
+      edge.uv.push(q.u, 0, q.u, 1);
+    }
+    for (let c = 0; c < segs; c++) {
+      const i0 = base + c * 2;
+      edge.i.push(i0, i0 + 1, i0 + 2, i0 + 2, i0 + 1, i0 + 3);
+    }
+  }
+  const g = new THREE.Group();
+  for (const [buf, mat] of [[top, m.roofTop], [under, m.roofUnder], [edge, m.roofEdge]]) {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(buf.p, 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(buf.uv, 2));
+    geo.setIndex(buf.i);
+    geo.computeVertexNormals();
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.castShadow = shadows;
+    mesh.receiveShadow = true;
+    g.add(mesh);
+  }
+  return g;
+}
+
 /* ───────────────────────── 전각 ───────────────────────── */
 
 /**
  * 전각 빌더. 정면은 +z.
  * opts: xs(기둥 x 좌표 배열), zs(기둥 z 좌표 배열), colH, colR, floorY(기둥 바닥 높이, 로컬),
  *       roof{type,overhang,height,lift}, front: 'open'|'doors'|'wall', sides/back: 'wall'|'doors'|'open',
- *       brackets(칸당 사이공포 수), plaque{text}
+ *       brackets(칸당 사이공포 수), plaque{text}, memberScale(창방·평방·공포 굵기 배율, 기본 1 — 아주 큰 전각용)
  */
 export function buildHanok(opts) {
   const {
@@ -319,6 +396,7 @@ export function buildHanok(opts) {
     brackets = 1,
     plaque = null,
     beamH = 0.38,
+    memberScale: k = 1,
     shadows = true
   } = opts;
   const m = mats();
@@ -364,15 +442,15 @@ export function buildHanok(opts) {
     g.add(mesh);
   };
   const by = colH - beamH / 2;
-  beam(x1 - x0 + 0.5, 'x', 0, z0, by, beamH, 0.26);
-  beam(x1 - x0 + 0.5, 'x', 0, z1, by, beamH, 0.26);
-  beam(z1 - z0 + 0.5, 'z', x0, (z0 + z1) / 2, by, beamH, 0.26);
-  beam(z1 - z0 + 0.5, 'z', x1, (z0 + z1) / 2, by, beamH, 0.26);
-  const py = colH + 0.09;
-  beam(x1 - x0 + 0.7, 'x', 0, z0, py, 0.18, 0.34);
-  beam(x1 - x0 + 0.7, 'x', 0, z1, py, 0.18, 0.34);
-  beam(z1 - z0 + 0.7, 'z', x0, (z0 + z1) / 2, py, 0.18, 0.34);
-  beam(z1 - z0 + 0.7, 'z', x1, (z0 + z1) / 2, py, 0.18, 0.34);
+  beam(x1 - x0 + 0.5, 'x', 0, z0, by, beamH, 0.26 * k);
+  beam(x1 - x0 + 0.5, 'x', 0, z1, by, beamH, 0.26 * k);
+  beam(z1 - z0 + 0.5, 'z', x0, (z0 + z1) / 2, by, beamH, 0.26 * k);
+  beam(z1 - z0 + 0.5, 'z', x1, (z0 + z1) / 2, by, beamH, 0.26 * k);
+  const py = colH + 0.09 * k;
+  beam(x1 - x0 + 0.7, 'x', 0, z0, py, 0.18 * k, 0.34 * k);
+  beam(x1 - x0 + 0.7, 'x', 0, z1, py, 0.18 * k, 0.34 * k);
+  beam(z1 - z0 + 0.7, 'z', x0, (z0 + z1) / 2, py, 0.18 * k, 0.34 * k);
+  beam(z1 - z0 + 0.7, 'z', x1, (z0 + z1) / 2, py, 0.18 * k, 0.34 * k);
 
   // 공포 (주상 + 칸마다 사이공포)
   const bPos = [];
@@ -391,13 +469,13 @@ export function buildHanok(opts) {
   addRow(zs, x1, 'z', 1);
   addRow(zs, x0, 'z', -1);
   const bInst = new THREE.InstancedMesh(bracketGeometry(), bracketMaterial(), bPos.length);
-  const bScale = Math.min(1.25, Math.max(0.7, colH / 3.8));
+  const bScale = Math.min(1.25 * k, Math.max(0.7, colH / 3.8));
   bPos.forEach(([axis, v, fixed, sign], i) => {
     if (axis === 'x') {
-      tmp.position.set(v, colH + 0.18, fixed);
+      tmp.position.set(v, colH + 0.18 * k, fixed);
       tmp.rotation.set(0, sign > 0 ? 0 : Math.PI, 0);
     } else {
-      tmp.position.set(fixed, colH + 0.18, v);
+      tmp.position.set(fixed, colH + 0.18 * k, v);
       tmp.rotation.set(0, sign > 0 ? Math.PI / 2 : -Math.PI / 2, 0);
     }
     tmp.scale.setScalar(bScale);
@@ -406,7 +484,7 @@ export function buildHanok(opts) {
   });
   bInst.castShadow = shadows;
   g.add(bInst);
-  const bracketTop = colH + 0.18 + 0.62 * bScale;
+  const bracketTop = colH + 0.18 * k + 0.62 * bScale;
 
   // 벽·창호
   const lat = latticeTextures();
@@ -494,7 +572,7 @@ export function buildHanok(opts) {
     const pw = plaque.width || (plaque.vertical ? 0.62 : 2.2);
     const ph = plaque.vertical ? pw * (420 / 180) : pw * (160 / 512);
     const pm = new THREE.Mesh(new THREE.BoxGeometry(pw, ph, 0.08), [m.woodDark, m.woodDark, m.woodDark, m.woodDark, new THREE.MeshStandardMaterial({ map: pt, roughness: 0.6, metalness: 0.1 }), m.woodDark]);
-    pm.position.set((x0 + x1) / 2, colH + 0.1 + ph * 0.25, z1 + 0.62);
+    pm.position.set((x0 + x1) / 2, colH + 0.1 * k + ph * 0.25, z1 + 0.62 * k);
     pm.rotation.x = -0.12;
     g.add(pm);
   }
