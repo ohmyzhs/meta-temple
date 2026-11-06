@@ -34,6 +34,12 @@ export const L = {
   bridge: { x: 0, halfLen: 3.6, halfWidth: 1.5, rise: 0.75 },
   courtyard: { x0: -18.6, x1: 18.6, z0: -15.4, z1: 4.6, y: 1.0 },
   courtStairs: { halfW: 2.2, z0: 4.6, z1: 7.0 },
+  // 서쪽 마당 (계절 행사 예비 마당 — 짚불 태우기 등을 나중에 여기서, 지금은 벤치·돌·그늘 쉼터만 가장자리에)
+  // 앞마당과 같은 높이. 앞마당 서쪽 담의 협문(westGate)과 대웅전 서쪽 옆마당(hallYard)으로 이어진다.
+  westCourt: { x0: -33, x1: -19.6, z0: -33, z1: 4.6 },
+  hallYard: { x0: -19.6, x1: -13.2, z0: -33, z1: -15.4 }, // x1 = 기단 서쪽 끝
+  westGate: { z0: -12.9, z1: -9.9 },
+  westReserve: { x: -26.3, z: -13, rx: 5, rz: 12 }, // 예비 마당 한가운데 비워 둘 타원 (소품·나무를 두지 않는다)
   pagoda: { x: 0, z: -5, radius: 4.5 },      // 탑돌이 반경 4.5m
   stoneLanternFront: { x: 0, z: -12.2 },
   bell: { x: 14.4, z: -12.0 },               // 범종각 (동쪽 담 통로를 비켜 둔다)
@@ -41,9 +47,15 @@ export const L = {
   tileRack: { x: -16.2, z: -4.5 },           // 기와 불사대 (동쪽을 봄)
   lanternRows: { xs: [-9.5, -6.5, -3.5, 3.5, 6.5, 9.5], z0: 1.8, z1: -12.6, y: 5.6 },
   hallStairs: { halfW: 2.6, z0: -15.4, z1: -18.6 },
-  stylobate: { x0: -10.2, x1: 10.2, z0: -32.4, z1: -18.6, y: 2.8 },
-  hall: { x0: -8, x1: 8, z0: -30.4, z1: -20.4, floorY: 3.0, height: 5.4 },
-  altar: { z: -28.2 },
+  stylobate: { x0: -13.2, x1: 13.2, z0: -35.4, z1: -18.6, y: 2.8 },
+  // 대웅전: 정면 5칸 × 측면 3칸 (22m × 13m, 설계 문서 요구 1 · 사용자 결정). 앞(z1)은 그대로 두고 뒤·옆으로 키웠다.
+  // 가운데 세 칸(±2.8, ±7.4)은 예전 법당과 같은 폭이라 후불벽 그림 판(world/real)이 그대로 맞는다.
+  hall: {
+    x0: -11, x1: 11, z0: -33.4, z1: -20.4, floorY: 3.0, colH: 5.0,
+    xs: [-11, -7.4, -2.8, 2.8, 7.4, 11],
+    zs: [-33.4, -29.0, -24.6, -20.4]
+  },
+  altar: { z: -31.2 }, // 불단 중심 = 뒷벽 + 2.2
   teahouseTerrace: { x0: 17.6, x1: 33, z0: -19, z1: -1, y: 1.2 },
   teaLink: { x0: 17.2, x1: 20, z0: -9.6, z1: -2.6 },
   pond: { x: 23.6, z: -3.7, rx: 3.6, rz: 2.2, waterY: 0.92 },
@@ -54,6 +66,25 @@ export const L = {
   spawn: { x: 0, z: 36 }
 };
 
+/** 경내 마당들 (모두 L.courtyard.y 높이): 앞마당 + 서쪽 마당 + 대웅전 서쪽 옆마당 */
+export const COURTS = [L.courtyard, L.westCourt, L.hallYard];
+export function inCourts(x, z, pad = 0) {
+  return COURTS.some((r) => inRect(x, z, r.x0 - pad, r.x1 + pad, r.z0 - pad, r.z1 + pad));
+}
+
+/** 마당 마사토 면인가 (담 밑 0.3m 까지, 앞 석축 쪽은 0.05m) — terrain.js 바닥색 · real/outdoor.js 바닥 층이 같이 쓴다 */
+export function onCourtGround(x, z) {
+  return COURTS.some((r) => x > r.x0 - 0.3 && x < r.x1 + 0.3 && z > r.z0 - 0.3 && z < r.z1 + 0.05);
+}
+
+/** 마당 면에서 가장 가까운 담·석축·기단까지 거리 (가장자리를 살짝 어둡게). 마당끼리 트인 곳은 가장자리가 아니다 */
+export function courtEdge(x, z) {
+  const c = L.courtyard, wc = L.westCourt, hy = L.hallYard;
+  if (z < c.z0) return Math.min(x - wc.x0, z - wc.z0, hy.x1 - x); // 서쪽 마당 북쪽 + 옆마당
+  if (x >= c.x0 - 0.5) return Math.min(x - c.x0, c.x1 - x, c.z1 - z, x > hy.x1 ? z - c.z0 : Infinity);
+  return Math.min(x - wc.x0, wc.z1 - z, c.x0 - 0.5 - x); // 서쪽 마당 남쪽: 앞마당과 사이 담까지
+}
+
 /* 숲길 중심선 — 완만한 S자 (식은 trail.js 에, 순환 산책로 갈림목이 같은 선을 쓴다) */
 export function pathX(z) {
   return forestPathX(z);
@@ -63,11 +94,11 @@ L.gate.x = pathX(L.gate.z);
 
 /**
  * 지붕이 덮는 곳: 이 상자 안, 이 높이 아래로는 비·눈·낙엽이 들이치지 않고 바닥이 젖거나 눈이 쌓이지 않는다.
- * [x0, z0, x1, z1, y] — y 는 지붕 밑면 최저점(위로 쏜 광선으로 잰 값: 대웅전 7.54, 심검당 4.77, 범종각 5.35, 정자 4.28)에서 0.1m 뺀 값.
+ * [x0, z0, x1, z1, y] — y 는 지붕 밑면 최저점(위로 쏜 광선으로 잰 값: 대웅전 8.19, 심검당 4.77, 범종각 5.35, 정자 4.28)에서 0.1m 뺀 값.
  * 상자는 처마 안쪽이라 처마 끝 바로 밖에는 비가 그대로 떨어진다.
  */
 export const ROOF_COVERS = [
-  [-10.5, -32.9, 10.5, -17.9, 7.44], // 대웅전
+  [-13.5, -35.9, 13.5, -17.9, 8.09], // 대웅전 (5×3칸: 기둥 줄에서 2.5m 밖까지, 밑면 최저 8.19 — 뒤 처마)
   [23.2, -18.5, 31.2, -6.5, 4.67], // 심검당
   [11.0, -15.4, 17.8, -8.6, 5.25], // 범종각
   [25.95, -4.9, 29.55, -1.3, 4.18] // 연못 정자
@@ -180,9 +211,16 @@ export function terrainHeight(x, z) {
 
   // 7. 대웅전 기단 & 뒤뜰
   const s = L.stylobate;
-  const back = rectMask(x, z, s.x0 - 4, s.x1 + 4, s.z0 - 5, s.z1, 4);
+  // 서쪽은 옆마당(hallYard)이 기단에 붙으므로 돋운 뒤뜰을 기단 안쪽(+2.5m)에서부터 낮춘다 — 옆마당 북쪽 담 너머로 흙이 솟지 않게
+  const back = rectMask(x, z, s.x0 + 2.5, s.x1 + 4, s.z0 - 5, s.z1, 4);
   h = lerp(h, Math.max(h, s.y + 0.3), back * smooth(s.z1, s.z0, z));
   if (rectMask(x, z, s.x0, s.x1, s.z0, s.z1, 0)) h = s.y;
+
+  // 7b. 서쪽 마당·대웅전 옆마당: 앞마당 높이로 평평하게 (담 밑까지). 담 밖 낮은 땅은 둑처럼 완만히 돋운다
+  const wc = L.westCourt, hy = L.hallYard;
+  const bank = Math.max(rectMask(x, z, wc.x0 - 0.9, c.x0, wc.z0 - 0.9, wc.z1, 2.5) * (z < wc.z1 ? 1 : 0), rectMask(x, z, hy.x0, hy.x1, hy.z0 - 0.9, hy.z1, 2.5)); // 앞(남)은 석축이 맡는다
+  if (bank > 0 && !(x >= s.x0 && x <= s.x1 && z >= s.z0 && z <= s.z1)) h = lerp(h, Math.max(h, c.y - 0.08), bank);
+  if (inRect(x, z, wc.x0 - 0.9, c.x0, wc.z0 - 0.9, wc.z1) || (x < hy.x1 && inRect(x, z, hy.x0, hy.x1, hy.z0 - 0.9, hy.z1))) h = c.y;
 
   // 8. 계단 경사로
   const cs = L.courtStairs;
@@ -215,7 +253,7 @@ export function zoneAt(x, z) {
   if (x > hl.x0 - 0.2 && x < hl.x1 + 0.2 && z > hl.z0 && z < hl.z1 + 0.3) return 'DAEUNGJEON';
   // 순환 산책로는 마당·다실 마당 안으로 들어서기 전까지 어디든 숲길 (능선·대숲이 마당·다실로 잡히지 않게)
   const c = L.courtyard, t = L.teahouseTerrace;
-  if (!inRect(x, z, c.x0 - 0.5, c.x1 + 0.5, c.z0 - 3, c.z1 + 0.6) && !inRect(x, z, t.x0, t.x1, t.z0, t.z1) && ((nearestTrail(x, z)?.d ?? 99) < 4.2 || onForestFloor(x, z))) return 'FOREST'; // 4.2: 길가 쉼터 자리, 그 밖은 열린 숲 바닥
+  if (!inRect(x, z, c.x0 - 0.5, c.x1 + 0.5, c.z0 - 3, c.z1 + 0.6) && !inCourts(x, z, 0.6) && !inRect(x, z, t.x0, t.x1, t.z0, t.z1) && ((nearestTrail(x, z)?.d ?? 99) < 4.2 || onForestFloor(x, z))) return 'FOREST'; // 4.2: 길가 쉼터 자리, 그 밖은 열린 숲 바닥
   if (x > L.teahouseTerrace.x0 + 0.4 || (x > 16.5 && z < -2.6 && z > -9.6 && x > L.teaLink.x0 + 1.4)) return 'TEAHOUSE';
   if (z <= L.courtyard.z1 + 0.6) return 'COURTYARD';
   return 'FOREST';
@@ -255,7 +293,7 @@ export function onForestFloor(x, z) {
   if (Math.abs(z - streamZ(x)) < 3.2) return false;
   for (const b of [L.bamboo, L.bambooEast]) if (inRect(x, z, b.x0 - 0.6, b.x1 + 0.6, b.z0 - 0.6, b.z1 + 0.6)) return false;
   const c = L.courtyard, t = L.teahouseTerrace, s = L.stylobate;
-  if (inRect(x, z, c.x0 - 2.5, c.x1 + 2.5, c.z0 - 4, c.z1 + 3.5)) return false;
+  if (inRect(x, z, c.x0 - 2.5, c.x1 + 2.5, c.z0 - 4, c.z1 + 3.5) || inCourts(x, z, 2.5)) return false;
   if (inRect(x, z, t.x0 - 1, t.x1 + 1, t.z0 - 5, t.z1 + 1)) return false;
   if (inRect(x, z, s.x0 - 4, s.x1 + 4, s.z0 - 6, s.z1)) return false;
   return gentle(x, z);
@@ -269,6 +307,11 @@ export function isOnPath(x, z) {
     if (tr.path === trail && deckRise(tr.s) > 0 && tr.d > DECK.halfW) return false; // 데크 판 밖은 허공
     return Math.abs(z - streamZ(x)) >= 2.6 || !!crossingAt(x, z);
   }
+  // 서쪽 마당·옆마당 (담에서 0.5m 안쪽, 기단 옆면에서 0.4m), 앞마당 서쪽 담의 협문 — 법당 계단 띠 판정보다 먼저
+  const wc = L.westCourt, hy = L.hallYard, g = L.westGate;
+  if (inRect(x, z, wc.x0 + 0.5, wc.x1, wc.z0 + 0.5, wc.z1)) return true;
+  if (inRect(x, z, hy.x0, hy.x1 - 0.4, hy.z0 + 0.5, hy.z1 + 0.01)) return true;
+  if (inRect(x, z, wc.x1 - 0.01, L.courtyard.x0 + 0.51, g.z0 + 0.3, g.z1 - 0.3)) return true;
   // 숲길 (계곡은 다리로만 건넌다)
   if (z > L.courtStairs.z1 - 0.2 && z < 47) {
     if (Math.abs(x - pathX(z)) > 6.5) return false;
@@ -377,6 +420,7 @@ export function isClearForTree(x, z, margin = 0) {
   if (Math.abs(z - streamZ(x)) < 2.6 && Math.abs(x) < 70) return false;
   const c = L.courtyard;
   if (inRect(x, z, c.x0 - 2.5 - margin, c.x1 + 2.5 + margin, c.z0 - 2 - margin, c.z1 + 1)) return false;
+  if (inCourts(x, z, 2.5 + margin)) return false;
   const s = L.stylobate;
   if (inRect(x, z, s.x0 - 3 - margin, s.x1 + 3 + margin, s.z0 - 3 - margin, s.z1 + 2)) return false;
   const t = L.teahouseTerrace;

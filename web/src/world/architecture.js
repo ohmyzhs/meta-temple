@@ -584,6 +584,7 @@ export function buildPagoda() {
 }
 
 /** 팔각 석등. 화사석 안의 불빛은 nightGlow 로 밤에 켜진다. 바닥 원점. */
+let LANTERN_GLOW = null;
 export function buildStoneLantern(scale = 1) {
   const m = mats();
   const g = new THREE.Group();
@@ -609,10 +610,9 @@ export function buildStoneLantern(scale = 1) {
     p.castShadow = true;
     g.add(p);
   }
-  const glow = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.2, 0.2, 0.42, 8),
-    nightGlow(new THREE.MeshStandardMaterial({ color: 0x3a3022, emissive: 0xffb466, emissiveIntensity: 3.2, roughness: 1 }), 1)
-  );
+  // 심지 재질은 석등끼리 하나 — 정적 병합이 석등마다 그리기 호출을 따로 만들지 않게
+  LANTERN_GLOW ||= nightGlow(new THREE.MeshStandardMaterial({ color: 0x3a3022, emissive: 0xffb466, emissiveIntensity: 3.2, roughness: 1 }), 1);
+  const glow = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.42, 8), LANTERN_GLOW);
   glow.position.y = y + 0.24;
   g.add(glow);
   y += 0.48;
@@ -761,6 +761,7 @@ export function buildBellPavilion() {
 }
 
 /** 돌담 + 기와 지붕 (x 축 방향, 길이 len). 원점 = 담 아래 중앙 */
+let WALL_PLASTER = null;
 export function buildWall(len, h = 1.55) {
   const m = mats();
   const g = new THREE.Group();
@@ -769,7 +770,9 @@ export function buildWall(len, h = 1.55) {
   stone.castShadow = true;
   stone.receiveShadow = true;
   g.add(stone);
-  const plaster = new THREE.Mesh(new THREE.BoxGeometry(len, h * 0.45, 0.5), new THREE.MeshStandardMaterial({ map: plasterTexture(), color: 0xd9ccb0, roughness: 1 }));
+  // 회벽 재질은 담끼리 하나 (담마다 새로 만들면 병합이 담 수만큼 그리기 호출을 남긴다)
+  WALL_PLASTER ||= new THREE.MeshStandardMaterial({ map: plasterTexture(), color: 0xd9ccb0, roughness: 1 });
+  const plaster = new THREE.Mesh(new THREE.BoxGeometry(len, h * 0.45, 0.5), WALL_PLASTER);
   plaster.position.y = h * 0.55 + h * 0.225;
   plaster.castShadow = true;
   g.add(plaster);
