@@ -80,6 +80,7 @@ function rimMaterial(color, rimColor, rimPower = 2.2, rimStrength = 0.9, extra =
 const STYLE = {
   monk: { robe: 0x6f6d68, kasa: 0x7a3b2b, skin: '#e9d4b2', sock: 0xf2efe6, shoe: 0x3a3a3a },
   resident: { robe: 0x6f6b62, kasa: 0x8a4a2a, skin: '#e9d5b5', sock: 0xf2efe6, shoe: 0x2a2a2a },
+  tea_master: { robe: 0x4d453c, kasa: 0x6e5236, skin: '#dcc3a6', sock: 0xece6da, shoe: 0x2a2a2a }, // 차담 스님 (블렌더 몸이 없을 때)
   ink_wanderer: { robe: 0x1e1e22, kasa: 0x3a3a40, skin: '#e8dcc6', sock: 0xd8d4ca, shoe: 0x1a1a1a }
 };
 
@@ -838,7 +839,7 @@ export class AvatarManager {
     this.scene.add(hallMonk.root);
     this.visitors.push({ av: hallMonk, plan: { role: 'resident' }, t: 0, pause: 0 });
     const ms = this.temple.monkSeat;
-    const teaMonk = new Avatar('monk', { name: '심검당 선사', variant: 'resident' });
+    const teaMonk = new Avatar('monk', { name: '심검당 선사', variant: 'tea_master' }); // 중년 스님 — avatarRig.js LOOKS
     teaMonk.root.position.set(ms.x, ms.y, ms.z);
     teaMonk.heading = ms.ry;
     teaMonk.sitting = true;
