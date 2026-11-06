@@ -97,15 +97,54 @@
     <div id="joystick" class="joystick" aria-hidden="true"><div class="joy-knob"></div></div>
 
     <!-- 시트: 한 번에 하나만 보인다 (ui/sheets.js). 하위 시트(data-parent)는 위에 쌓여 뒤로가기로 하나씩 닫힌다 -->
+    <!-- 메뉴: 오른쪽 패널 한 장 — 시간·날씨 / 시점·모습 / 소리 / 기록·도움말·출처를 묶음째 바로 누른다 (소리 크기만 한 단계 안) -->
     <section class="sheet hidden" id="menu-sheet" aria-label="메뉴">
       <header class="sheet-head"><h2>메뉴</h2><button class="ctl" type="button" data-sheet-close data-icon="close" aria-label="닫기"></button></header>
-      <div class="sheet-grid">
-        <button class="ctl tile" type="button" data-sheet="pop-env" data-icon="time_weather"><span class="lbl">시간·날씨</span></button>
-        <button class="ctl tile" type="button" data-sheet="pop-sound" id="sound-tool" data-icon="sound"><span class="lbl">소리</span></button>
-        <button class="ctl tile" type="button" data-sheet="pop-self" data-icon="self"><span class="lbl">내 모습</span></button>
-        <button class="ctl tile" type="button" id="record-btn" data-icon="record"><span class="lbl">수행 기록</span></button>
-        <button class="ctl tile" type="button" id="help-btn" data-icon="help"><span class="lbl">도움말</span></button>
-        <button class="ctl tile" type="button" id="credits-btn" data-icon="credits"><span class="lbl">자료 출처</span></button>
+      <div class="menu-body">
+        <div class="menu-group mg-time">
+          <h3 class="sheet-sub">시간</h3>
+          <div class="chip-row menu-chips menu-time" data-group="time">
+            <button class="ctl chip" type="button" data-time="realtime" id="realtime-chip"><b>실시간</b><small>지금</small></button>
+            <button class="ctl chip" type="button" data-time="dawn"><b>새벽</b><small>05시</small></button>
+            <button class="ctl chip" type="button" data-time="day"><b>한낮</b><small>13시</small></button>
+            <button class="ctl chip" type="button" data-time="sunset"><b>노을</b><small>18시</small></button>
+            <button class="ctl chip" type="button" data-time="night"><b>밤</b><small>22시</small></button>
+          </div>
+          <h3 class="sheet-sub">날씨</h3>
+          <div class="chip-row menu-chips menu-3" data-group="weather">
+            <button class="ctl chip" type="button" data-weather="clear">맑음</button>
+            <button class="ctl chip" type="button" data-weather="rain">산사 봄비</button>
+            <button class="ctl chip" type="button" data-weather="snow">겨울 설경</button>
+          </div>
+        </div>
+        <div class="menu-group mg-self">
+          <h3 class="sheet-sub">시점 <kbd>V</kbd></h3>
+          <div class="chip-row menu-chips menu-2" data-group="camera">
+            <button class="ctl chip" type="button" data-camera="third">3인칭 동석</button>
+            <button class="ctl chip" type="button" data-camera="first">1인칭 몰입</button>
+          </div>
+          <h3 class="sheet-sub">모습</h3>
+          <div class="chip-row menu-chips menu-3" data-group="avatar">
+            <button class="ctl chip" type="button" data-avatar="monk">목각 동자승</button>
+            <button class="ctl chip" type="button" data-avatar="ink_wanderer">삿갓 행자</button>
+            <button class="ctl chip" type="button" data-avatar="lantern_spirit">등불 정령</button>
+          </div>
+        </div>
+        <div class="menu-group mg-sound">
+          <div class="pop-row">
+            <h3 class="sheet-sub">입체 ASMR</h3>
+            <button class="ctl chip" type="button" id="audio-toggle-btn">켜기</button>
+          </div>
+          <div class="chip-row menu-chips menu-2">
+            <button class="ctl chip" type="button" id="nature-listen-btn">자연의 소리 듣기</button>
+            <button class="ctl chip" type="button" data-sheet="pop-sound" id="sound-tool">소리 크기·설정 ›</button>
+          </div>
+        </div>
+      </div>
+      <div class="menu-links">
+        <button class="ctl" type="button" id="record-btn" data-icon="record"><span class="lbl">수행 기록</span></button>
+        <button class="ctl" type="button" id="help-btn" data-icon="help"><span class="lbl">도움말</span></button>
+        <button class="ctl" type="button" id="credits-btn" data-icon="credits"><span class="lbl">자료 출처</span></button>
       </div>
     </section>
 
@@ -136,32 +175,8 @@
       </div>
     </section>
 
-    <section class="sheet hidden" id="pop-env" data-parent="menu-sheet" aria-label="시간·날씨">
-      <header class="sheet-head"><button class="ctl" type="button" data-sheet-back data-icon="back" aria-label="메뉴로"></button><h2>시간·날씨</h2><button class="ctl" type="button" data-sheet-close data-icon="close" aria-label="닫기"></button></header>
-      <h3 class="sheet-sub">시간</h3>
-      <div class="chip-row" data-group="time">
-        <button class="ctl chip" type="button" data-time="realtime">실시간</button>
-        <button class="ctl chip" type="button" data-time="dawn">새벽 05시</button>
-        <button class="ctl chip" type="button" data-time="day">한낮 13시</button>
-        <button class="ctl chip" type="button" data-time="sunset">노을 18시</button>
-        <button class="ctl chip" type="button" data-time="night">밤 22시</button>
-      </div>
-      <h3 class="sheet-sub">날씨</h3>
-      <div class="chip-row" data-group="weather">
-        <button class="ctl chip" type="button" data-weather="clear">맑음</button>
-        <button class="ctl chip" type="button" data-weather="rain">산사 봄비</button>
-        <button class="ctl chip" type="button" data-weather="snow">겨울 설경</button>
-      </div>
-      <p class="pop-note" id="realtime-note"></p>
-    </section>
-
     <section class="sheet hidden" id="pop-sound" data-parent="menu-sheet" aria-label="소리">
       <header class="sheet-head"><button class="ctl" type="button" data-sheet-back data-icon="back" aria-label="메뉴로"></button><h2>소리</h2><button class="ctl" type="button" data-sheet-close data-icon="close" aria-label="닫기"></button></header>
-      <div class="pop-row">
-        <h3 class="sheet-sub">입체 ASMR</h3>
-        <button class="ctl chip" type="button" id="audio-toggle-btn">켜기</button>
-      </div>
-      <button class="ctl chip nature-listen" type="button" id="nature-listen-btn">자연의 소리 듣기 <small>장면을 골라 오래 · 잠자기 타이머</small></button>
       <label class="slider"><span>자연 환경음 <small>계곡·솔바람·산새·빗소리</small></span><input id="vol-nature" type="range" min="0" max="1" step="0.05" /></label>
       <label class="slider"><span>사찰 공간음 <small>풍경·독송·범종</small></span><input id="vol-temple" type="range" min="0" max="1" step="0.05" /></label>
       <label class="slider"><span>수행 효과음 <small>목탁·죽비·염주·발걸음</small></span><input id="vol-sfx" type="range" min="0" max="1" step="0.05" /></label>
@@ -170,21 +185,6 @@
         <button class="ctl chip" type="button" id="bg-audio-btn" aria-pressed="true">켜짐</button>
       </div>
       <p class="pop-note">폰 화면이 꺼지거나 다른 앱으로 가도 산사 소리와 예불이 이어집니다. 전화나 다른 소리가 나면 잠시 멈췄다가 끝나면 다시 이어집니다.</p>
-    </section>
-
-    <section class="sheet hidden" id="pop-self" data-parent="menu-sheet" aria-label="내 모습">
-      <header class="sheet-head"><button class="ctl" type="button" data-sheet-back data-icon="back" aria-label="메뉴로"></button><h2>내 모습</h2><button class="ctl" type="button" data-sheet-close data-icon="close" aria-label="닫기"></button></header>
-      <h3 class="sheet-sub">모습</h3>
-      <div class="chip-row" data-group="avatar">
-        <button class="ctl chip" type="button" data-avatar="monk">목각 동자승</button>
-        <button class="ctl chip" type="button" data-avatar="ink_wanderer">삿갓 행자</button>
-        <button class="ctl chip" type="button" data-avatar="lantern_spirit">등불 정령</button>
-      </div>
-      <h3 class="sheet-sub">시점 <kbd>V</kbd></h3>
-      <div class="chip-row" data-group="camera">
-        <button class="ctl chip" type="button" data-camera="third">3인칭 동석</button>
-        <button class="ctl chip" type="button" data-camera="first">1인칭 몰입</button>
-      </div>
     </section>
   </div>
 

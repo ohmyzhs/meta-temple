@@ -1480,12 +1480,16 @@ class MetaTempleApp {
     const s = this.store.state.settings;
     $$('[data-time]').forEach((b) => b.classList.toggle('active', b.dataset.time === (s.time || 'realtime')));
     $$('[data-weather]').forEach((b) => b.classList.toggle('active', b.dataset.weather === (s.weather || 'clear')));
-    $$('#pop-self [data-avatar]').forEach((b) => b.classList.toggle('active', b.dataset.avatar === this.store.profile.avatarStyle));
+    $$('#menu-sheet [data-avatar]').forEach((b) => b.classList.toggle('active', b.dataset.avatar === this.store.profile.avatarStyle));
     $$('[data-camera]').forEach((b) => b.classList.toggle('active', b.dataset.camera === this.world.cam.mode));
     const v = s.volumes;
     ['nature', 'temple', 'sfx'].forEach((ch) => ($(`#vol-${ch}`).value = v[ch]));
     const h = kstHour();
-    $('#realtime-note').textContent = `실시간: 지금 한국 시각 ${String(Math.floor(h)).padStart(2, '0')}:${String(Math.floor((h % 1) * 60)).padStart(2, '0')}에 맞춰 하늘이 바뀝니다. 매일 05시·18시에 예불 종이 울립니다.`;
+    // 「실시간」 칩: 지금 한국 시각 (그 시각에 맞춰 하늘이 바뀐다 — 매일 05시·18시에 예불 종)
+    const hm = `${String(Math.floor(h)).padStart(2, '0')}:${String(Math.floor((h % 1) * 60)).padStart(2, '0')}`;
+    const rt = $('#realtime-chip');
+    rt.querySelector('small').textContent = hm;
+    rt.title = `지금 한국 시각 ${hm}에 맞춰 하늘이 바뀝니다. 매일 05시·18시에 예불 종이 울립니다.`;
   }
 
   _syncSoundButton() {
@@ -1646,7 +1650,7 @@ class MetaTempleApp {
         this._syncChips();
       })
     );
-    $$('#pop-self [data-avatar]').forEach((b) =>
+    $$('#menu-sheet [data-avatar]').forEach((b) =>
       b.addEventListener('click', () => {
         this.store.setAvatarStyle(b.dataset.avatar);
         this._rebuildPlayer();
