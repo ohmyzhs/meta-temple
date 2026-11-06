@@ -17,8 +17,10 @@ import { RigBody, rigLib, RIG_STYLES } from './avatarRig.js';
 import { pickMotion, MOVING, SEATED, PROSTRATE } from '../core/avatarMotion.js';
 
 const TAU = Math.PI * 2;
-/** 이동 빠르기 (m/s) — 경내·숲길·탑돌이·참배객 모두 같다. 천천히 걷고 뛰지 않는다 (2026-11-06 사용자 결정). */
-export const WALK_SPEED = 1.1;
+/** 이동 빠르기 (m/s) — 경내·숲길·탑돌이·참배객 모두 같다. 걷고 뛰지 않는다 (2026-11-06 사용자 결정: 1.1 → 1.3). */
+export const WALK_SPEED = 1.3;
+/** 조이스틱을 이만큼(반지름 비율) 밀면 다 빠르기 — 그 안은 비례. 예전엔 기울기를 두 번 곱해 반쯤 밀면 1/4 빠르기였다 */
+export const FULL_TILT = 0.55;
 const damp = (a, b, k, dt) => a + (b - a) * (1 - Math.exp(-k * dt));
 function angleDamp(a, b, k, dt) {
   let d = ((b - a + Math.PI) % TAU + TAU) % TAU - Math.PI;
@@ -861,7 +863,10 @@ export class AvatarManager {
     this.scene.add(teaMonk.root);
     this.teaMonk = teaMonk;
     this.visitors.push({ av: teaMonk, plan: { role: 'resident' }, t: 0, pause: 0 });
-    this.visitors.forEach((v) => (v.av.root.rotation.y = v.av.heading));
+    this.visitors.forEach((v) => {
+      v.av.root.rotation.y = v.av.heading;
+      v.av.labelEl.classList.add('npc'); // 산사식구(참배객·스님) — 실제 접속한 사람과 이름표를 달리한다
+    });
   }
 
   _initVisitor(v, i, used) {
@@ -1060,8 +1065,8 @@ export class AvatarManager {
       this.moveTarget = null;
       this.circling = null;
       if (pl.busy) pl.seq = null;
-      const sp = WALK_SPEED * Math.min(len, 1);
-      const nx = p.x + (input.x / len) * sp * dt * Math.min(len, 1), nz = p.z + (input.z / len) * sp * dt * Math.min(len, 1);
+      const sp = WALK_SPEED * Math.min(len / FULL_TILT, 1);
+      const nx = p.x + (input.x / len) * sp * dt, nz = p.z + (input.z / len) * sp * dt;
       const m = stepMove(p.x, p.z, nx, nz);
       speed = Math.hypot(m.x - p.x, m.z - p.z) / dt;
       p.x = m.x;
@@ -1131,7 +1136,7 @@ export class AvatarManager {
         continue;
       }
       if (v.plan.role !== 'resident') this._updateVisitor(v, dt, t);
-      this._crowdLod(v.av, view, dt, t, night, 9, 3, 0.85);
+      this._crowdLod(v.av, view, dt, t, night, 9, 3, 1); // 이름표는 먹 상자째 흐려지므로 가까이선 끝까지 진하게 (흰 하늘 위 대비)
     }
     for (const r of this.remote.values()) {
       const before = _prev.copy(r.av.root.position);
@@ -1139,10 +1144,10 @@ export class AvatarManager {
       const moved = dt > 0 ? r.av.root.position.distanceTo(before) / dt : 0;
       r.av.speed = damp(r.av.speed, r.av.root.position.distanceTo(r.target) > 0.05 ? moved : 0, 6, dt);
       r.av.root.rotation.y = angleDamp(r.av.root.rotation.y, r.ry, 8, dt);
-      this._crowdLod(r.av, view, dt, t, night, 14, 4, 0.95);
+      this._crowdLod(r.av, view, dt, t, night, 14, 4, 1);
     }
     this._crowdShadows(view);
-    setLabel(pl, pl.speed > 0.3 ? 0 : 0.75);
+    setLabel(pl, pl.speed > 0.3 ? 0 : 1);
   }
 
   /** 이 프레임의 카메라 시야 (카메라가 없으면 — 시험 등 — 모두 보이는 것으로) */
@@ -1191,7 +1196,8 @@ export class AvatarManager {
       settlePose(av, t, night);
     }
     const every = d < CROWD.everyFrame ? 1 : d < CROWD.everyOther ? 2 : 3;
-    if (++av._lodSkip >= every) {
+    av._lodSkip = (av._lodSkip || 0) + 1; // 처음부터 보이던 사람은 _lodSkip 이 없어(undefined → NaN) 몸이 영영 멈춰 있었다
+    if (av._lodSkip >= every) {
       av._lodSkip = 0;
       av.update(av._lodDt, t, night);
       av._lodDt = 0;

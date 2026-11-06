@@ -5,11 +5,12 @@
  */
 import {
   generateDharmaName,
+  OLD_PREFIXES,
   INITIAL_LANTERNS,
   INITIAL_TILES,
   INITIAL_STONES
 } from '../data/templeData.js';
-import { checkText } from './moderation.js';
+import { checkText, NAME_MAX } from './moderation.js';
 import { CAIRN_ID_RE } from './cairns.js';
 
 // 키 이름은 파일럿 그대로 둔다 (옛 방문자 기록을 그대로 읽으려고). 내용의 판은 schemaVersion 으로 구분한다.
@@ -103,6 +104,21 @@ function fresh() {
  * 저장된 기록을 지금 판(v3)으로. v1·v2 는 profile.userId 를 profileId 로 옮긴다.
  * 모르는 값·빠진 값은 기본값으로 채워, 이미 쌓인 기록이 사라지지 않게 한다.
  */
+/**
+ * 법명은 10자까지(NAME_MAX, 2026-11-06). 그보다 긴 옛 법명은 들어올 때 줄인다 —
+ * 옛 자동 법명은 이름은 두고 꾸밈말만 줄인 것으로(「은은한 향기 나는 조약돌」→「향기 머문 조약돌」),
+ * 직접 지은 것은 앞 10자로. 줄인 것이 거름을 못 지나면 새 자동 법명.
+ */
+export function shortenName(name) {
+  if ([...name].length <= NAME_MAX) return name;
+  for (const [o, n] of Object.entries(OLD_PREFIXES)) {
+    const s = name.startsWith(o + ' ') ? n + name.slice(o.length) : '';
+    if (s && [...s].length <= NAME_MAX) return s;
+  }
+  const r = checkText([...name].slice(0, NAME_MAX).join(''), { kind: 'name' });
+  return r.ok ? r.text : generateDharmaName();
+}
+
 export function migrateState(raw) {
   const base = fresh();
   if (!raw || typeof raw !== 'object' || !raw.profile) return base;
@@ -128,6 +144,7 @@ export function migrateState(raw) {
     empathized: Array.isArray(raw.empathized) ? raw.empathized : [],
     reported: Array.isArray(raw.reported) ? raw.reported.filter((x) => typeof x === 'string') : []
   };
+  if (typeof p.dharmaName === 'string' && p.dharmaName) out.profile.dharmaName = shortenName(p.dharmaName);
   // v1 연등은 pos 를 갖고 있었다 — 자리는 이제 연등 줄이 정하므로 버린다.
   const rawLanterns = Array.isArray(raw.lanterns) ? raw.lanterns : [];
   const missingInit = base.lanterns.filter((b) => !rawLanterns.some((l) => l.id === b.id || (l.author === b.author && l.wish === b.wish)));
@@ -172,6 +189,8 @@ export class TempleStore {
     }
     this.isReturning = !!(raw && raw.profile);
     this.state = migrateState(raw);
+    const was = raw?.profile?.dharmaName;
+    if (typeof was === 'string' && was !== this.state.profile.dharmaName) this.renamedFrom = was; // 긴 옛 법명을 줄였다 — 들어설 때 알린다 (main.js)
     this._listeners = new Set();
     this.save();
   }

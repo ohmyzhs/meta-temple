@@ -292,7 +292,7 @@ def bake(arm):
         act.use_frame_range = True
         act.frame_start, act.frame_end = 0, n
         act.use_fake_user = True
-        meta['clips'][name] = {'duration': n / FPS, 'loop': loop, **({'speed': 1.1} if name == 'walk' else {})}
+        meta['clips'][name] = {'duration': n / FPS, 'loop': loop, **({'speed': 1.3} if name == 'walk' else {})}  # 게임 걸음 1.3m/s
         arm.animation_data.action = None
     return meta
 

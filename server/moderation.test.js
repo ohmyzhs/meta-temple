@@ -46,15 +46,16 @@ test('wish_length_and_empty', () => {
 
 test('name_rules', () => {
   assert.equal(NAME_MIN, 2);
-  assert.equal(NAME_MAX, 14);
+  assert.equal(NAME_MAX, 10);
   assert.equal(name('').reason, 'empty');
   assert.equal(name('가').reason, 'too_short');
-  assert.equal(name('가'.repeat(15)).reason, 'too_long');
+  assert.equal(name('가'.repeat(11)).reason, 'too_long');
+  assert.equal(name('가'.repeat(10)).ok, true);
   for (const s of ['관리자', '운영자', 'admin', '청연산사']) assert.equal(name(s).reason, 'reserved', s);
   assert.equal(name('달빛🌙').reason, 'chars');
   assert.equal(name('씨발').reason, 'abuse');
   assert.equal(name('청풍 스님').ok, true);
-  assert.equal(name('Moon Walker').ok, true);
+  assert.equal(name('Moon River').ok, true);
 });
 
 test('normalize_examples', () => {

@@ -12,6 +12,7 @@ import { loadRig } from './world/avatarRig.js';
 import { wireState } from './core/avatarMotion.js';
 import { L, COURTS, isWalkable, zoneAt, streamZ, walkHeight, canBuildCairn, pathX, resolveCollisions } from './world/layout.js';
 import { createPathfinder, pathLength } from './world/pathfind.js';
+import { SKY_TOTAL, BURN } from './world/burnPaper.js';
 import { createMiniMap } from './ui/miniMap.js';
 import { scrollFade } from './ui/scrollFade.js';
 import { trail, loop, J1, REST_SIT_MSG, REST_GROUND_MSG, REST_SPOTS } from './world/trail.js';
@@ -44,7 +45,14 @@ function detectQuality() {
 
 // 장소 이동: 가림막(디졸브) 없이 바로 옮긴다 — 맵이 한 공간이라 디졸브는 어색하기만 했다 (사용자 2026-11-06 「제거해라」)
 const ARRIVAL = { pitch: 0.22, dist: 9 }; // 도착 구도: 입장 때와 같은 높이·거리, 방위는 도착해서 바라보는 쪽의 뒤 (법당 안은 실내 규칙이 줄인다)
+const MALA_MIN_MS = 3000; // 염주 한 알 사이 최소 간격 3초 — 광클릭으로 세지 않게 (사용자 결정 2026-11-06, 한 알에 한 숨)
 const FP_TURN = 2.0; // 1인칭 A/D·조이스틱 좌우로 도는 빠르기(rad/s)
+// 자동 걷기 (모바일): 조이스틱을 앞으로 끝까지 밀어 AUTO_HOLD 초 버티면 손을 떼도 앞으로 걷는다.
+// 걷는 중 조이스틱을 좌우로 밀면 AUTO_TURN rad/s 로 방향만 돌고, 아래로 당기거나 한 번 톡 누르면 멈춘다.
+const AUTO_HOLD = 0.6, AUTO_TURN = 1.2;
+// 눌렀다 끌어서 걷기: 바닥을 HOLD_WALK_MS 동안 누르고 있으면 손가락 밑으로 걸어간다 (빨리 끌면 지금처럼 카메라가 돈다)
+const HOLD_WALK_MS = 300;
+const REPLY_DELAY_MS = 600; // 도반의 합장을 받고 돌아서 답례하기까지 (바로 하면 기계 같다)
 // 1인칭 탑돌이: 걷는 방향에서 탑 쪽(오른쪽)으로 57° — 실측: 1000×640 은 탑 중심이 화면 x≈0.8, 375×812 는 탑 기단이 오른쪽 1/3 에 들고 왼쪽엔 앞길
 const FP_CIRCLE_LOOK = -1.0;
 const wrapAngle = (a) => Math.atan2(Math.sin(a), Math.cos(a));
@@ -107,6 +115,18 @@ class MetaTempleApp {
       if (open) field.input.focus();
     });
     $('#intro-enter').addEventListener('click', () => this._enter());
+    // 대문은 글을 덜어 낸다: 법명·모습은 칩 하나로 접어 두고, 누르면 고르는 칸이 열린다
+    const panel = $('#intro-who-panel');
+    const syncWho = () => {
+      $('#intro-who-name').textContent = $('#intro-dharma-name').textContent;
+      $('#intro-who-av').textContent = $('.avatar-card[aria-checked="true"] b')?.textContent || '';
+    };
+    syncWho();
+    new MutationObserver(syncWho).observe(panel, { subtree: true, childList: true, characterData: true, attributeFilter: ['aria-checked'] });
+    $('#intro-who').addEventListener('click', (e) => {
+      panel.hidden = !panel.hidden;
+      e.currentTarget.setAttribute('aria-expanded', String(!panel.hidden));
+    });
   }
 
   /** 법명 바꾸기 (custom = 직접 지은 이름 → 거름 통과 필요). 화면·내 아바타·실시간 동석에 함께 반영 */
@@ -148,6 +168,7 @@ class MetaTempleApp {
     }
     const temple = this.world.temple;
     this.temple = temple;
+    temple.paperBurn.warm(this.world.renderer, this.world.camera, this.world.scene, this.world.composer?.readBuffer); // 첫 소각에서 셰이더를 만드느라 멈칫하지 않게
     this.avatars = new AvatarManager(this.world.scene, temple, {
       onStep: (surface) => this.sound.playFootstep(surface),
       onRustle: (strength, len) => this.sound.playRobeRustle(strength, len), // 큰절·앉고 일어설 때 도복 스치는 소리
@@ -277,6 +298,11 @@ class MetaTempleApp {
     setTimeout(() => {
       this.toast('산문에 들어섰습니다. 천천히 걸어 보세요 · WASD 또는 바닥을 눌러 이동');
       if (isNewDay && streak > 1) setTimeout(() => this.toast(`🍃 ${streak}일째 이어진 발걸음입니다`), 2600);
+      if (this.store.renamedFrom) {
+        // 법명이 10자로 줄어든 뒤 처음 들어온 옛 방문자 (state.js shortenName)
+        setTimeout(() => this.toast(`법명을 10자 안으로 줄였습니다 · 『${this.store.profile.dharmaName}』`), 1800);
+        delete this.store.renamedFrom;
+      }
     }, 900);
     this.live = new LiveLink({
       onPeers: (peers, count) => {
@@ -416,17 +442,24 @@ class MetaTempleApp {
         this.modals.close();
         this._walkToCairn(id);
       },
-      onBurnWorry: () => {
-        // 내용은 받지 않는다 — 저장·전송하지 않음
+      onBurnWorry: (paper) => {
+        // 글은 받지 않는다 — 저장·전송하지 않음. 창이 그린 쪽지 그림(paper)만 화로로 날려 태우고 픽셀까지 지운다
+        if (paper && this.entered) return this._burnPaper(paper);
         this.temple.flareBrazier();
         this.sound.playFireWhoosh();
+        return false;
       },
       onBow: () => this._doProstration(true),
       onMala: () => {
+        // 염주를 세는 곳은 여기 하나 (염주 창·가부좌 중 3 키). 너무 빠르면 세지 않고 false
+        const now = performance.now();
+        if (now - (this._malaAt || 0) < MALA_MIN_MS) return false;
+        this._malaAt = now;
         const unlocked = this.store.addStat('malaCount');
         this.sound.playBeadClick();
         this._afterUnlock(unlocked);
         this._updateHUD();
+        return true;
       },
       onSutraComplete: () => {
         const unlocked = this.store.addStat('sutraCopiedCount');
@@ -477,7 +510,54 @@ class MetaTempleApp {
     if (r) this.world.ripples.spawn(r.av.root.position, { color: '#f2c46d', maxR: 2.4, life: 1.8 });
     this.sound.playBlessing();
     const replied = performance.now() - (this._lastBowAt || 0) < 6000;
-    this.toast(replied ? `『${name}』 도반이 합장으로 답례합니다` : `『${name}』 도반이 합장으로 인사합니다 · 1 을 눌러 답례`);
+    if (replied) return this.toast(`『${name}』 도반이 합장으로 답례합니다`);
+    // 먼저 인사받았다: 그 도반 쪽으로 돌아서 합장 반배로 답례한다 (서 있을 때 저절로).
+    // 내 답례는 상대에게 '답례'로 가므로(상대가 막 합장했으니) 서로 끝없이 주고받지 않는다.
+    this._bowFrom = { id, name, at: performance.now() };
+    const pl = this.player;
+    if (!pl.sitting && !pl.busy && !this._blockingModal()) {
+      setTimeout(() => this._replyBow(), REPLY_DELAY_MS);
+      this.toast(`『${name}』 도반이 합장으로 인사합니다 · 마주 보고 답례합니다`);
+    } else this._showReply(name); // 앉아 있거나 다른 몸짓 중이면 단추 하나로
+  }
+
+  /** 지금 걸음을 막는 창이 열려 있나 (수행 창은 걸으며 닫히므로 막지 않는다) */
+  _blockingModal() {
+    return this.modals?.isOpen && !['practice_108', 'mala', 'tea_chat'].includes(this.modals.current);
+  }
+
+  /** 막 합장해 온 도반(6초 안)을 바라보고 합장 반배. 앉아 있으면 앉은 채 합장 인사만 보낸다 */
+  _replyBow() {
+    this._hideReply();
+    const pl = this.player;
+    const from = this._bowFrom && performance.now() - this._bowFrom.at < 6000 ? this._bowFrom : null;
+    const r = from && this.avatars.remote.get(from.id);
+    if (pl.sitting) {
+      this.live?.bow();
+      this._lastBowAt = performance.now();
+      this.world.ripples.spawn(pl.root.position, { maxR: 2.4, life: 1.8 });
+      return this.toast(from ? `앉은 채 『${from.name}』 도반께 합장으로 답례했습니다` : '앉은 채 합장했습니다');
+    }
+    if (r) {
+      const p = pl.root.position, q = r.av.root.position;
+      pl.heading = Math.atan2(q.x - p.x, q.z - p.z);
+    }
+    this._bowFrom = null;
+    this.gesture('bow_half');
+  }
+
+  _showReply(name) {
+    const b = $('#reply-btn');
+    if (!b) return;
+    $('#reply-text').textContent = `『${name}』께 합장 답례`;
+    b.classList.remove('hidden');
+    clearTimeout(this._replyHide);
+    this._replyHide = setTimeout(() => this._hideReply(), 6000);
+  }
+
+  _hideReply() {
+    clearTimeout(this._replyHide);
+    $('#reply-btn')?.classList.add('hidden');
   }
 
   _afterUnlock(list = []) {
@@ -556,6 +636,8 @@ class MetaTempleApp {
       }
       case 'incense':
         return this._goAndDo(def, () => this._offerIncense());
+      case 'mala':
+        return this._practiceHere('mala');
       case 'practice_108': {
         // 좌복을 고른 경우에만 그 자리로 가서 앉은 뒤, 아니면 지금 선(앉은) 자리에서 그대로
         const mode = payload?.mode || 'prostrate';
@@ -1304,7 +1386,7 @@ class MetaTempleApp {
       }
       this.world.setFocusVignette(true);
     }
-    this.modals.open('practice_108', { mode });
+    this.modals.open(mode === 'mala' ? 'mala' : 'practice_108'); // 108배와 염주는 다른 자세라 창도 따로
   }
 
   _sitTea() {
@@ -1352,6 +1434,62 @@ class MetaTempleApp {
       : { pos: V(s.x - 0.55, s.y + 0.7, s.z + 1.6), look: V(m.x - 0.15, m.y + 0.03, m.z), dur: 1 };
   }
 
+  /**
+   * 번뇌 소각: 적은 쪽지가 손앞에서 화로로 날아 들어가 불꽃이 되어 사라진다. 나는 화로를 보며 천천히 합장한다.
+   * 반배 몸짓(triggerAction 'bow_half')을 쓰지 않으므로 참배객 답례·축복음(띠링)·인사 신호가 없다 — 서버에는 합장 자세만 간다.
+   * 옆에서 나와 화로를 함께 담고, 다 타면 원래 시점으로. 걸으면 바로 풀린다 (종이는 그대로 다 탄다).
+   */
+  _burnPaper(canvas) {
+    const pl = this.player, p = pl.root.position, b = L.brazier, y = L.courtyard.y;
+    this.modals.close();
+    this.avatars.moveTarget = null;
+    if (pl.sitting) this.avatars.standUp();
+    const dx = b.x - p.x, dz = b.z - p.z, d = Math.hypot(dx, dz) || 1, ux = dx / d, uz = dz / d;
+    pl.heading = Math.atan2(ux, uz);
+    pl.setState('circumambulate'); // 선 채 두 손을 모은 합장 (gassho)
+    // 옆에서 보는 구도: 나·화로를 잇는 선의 양옆 가운데 마당 쪽 (뒤의 기와걸이·담을 피해서)
+    const side = [[-uz, ux], [uz, -ux]].sort((A, B) => Math.hypot(b.x + A[0] * 3, b.z + A[1] * 3) - Math.hypot(b.x + B[0] * 3, b.z + B[1] * 3))[0];
+    const tall = innerWidth / innerHeight < 0.85;
+    const D = tall ? 4.6 : 3.4, H = tall ? 2.4 : 1.75, mx = (p.x + b.x) / 2, mz = (p.z + b.z) / 2;
+    const pos = new THREE.Vector3(mx + side[0] * D + ux * 0.6, y + H, mz + side[1] * D + uz * 0.6); // 화로 쪽으로 조금: 내 얼굴과 모은 두 손이 보이게
+    const look = new THREE.Vector3(mx + ux * 0.3, y + 0.95, mz + uz * 0.3);
+    this.world.setShot({ pos, look, dur: 1 });
+    this._burnHold = true;
+    const from = new THREE.Vector3(p.x + ux * 0.42, p.y + 1.05, p.z + uz * 0.42); // 모은 두 손 앞
+    const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    this.temple.burnPaper(canvas, from, pos, {
+      instant: still,
+      onIgnite: () => {
+        this.temple.flareBrazier();
+        this.sound.playFireWhoosh();
+        this.sound.flareBrazier?.(SKY_TOTAL); // 화로 타닥 소리를 하늘로 솟는 불길 길이만큼 키웠다 줄인다 (소리 세션의 훅 — 없으면 건너뜀)
+        // 불똥이 하늘로 솟는 동안 카메라도 천천히 올려다본다
+        if (!still)
+          setTimeout(() => {
+            if (!this._burnHold) return;
+            // 조금 물러나며 살짝만 올려다본다: 화로가 화면 아래에 남고, 불기둥이 위로 솟아 화면 밖(하늘)으로 사라진다
+            const lookTo = new THREE.Vector3(b.x, y + 2.4, b.z);
+            const to = pos.clone().addScaledVector(pos.clone().sub(look).setY(0).normalize(), 2.2).setY(pos.y + 0.3);
+            this.world.setShot({ pos, look, to, lookTo, dur: 3.0 });
+          }, 1000);
+      },
+      onDone: () => {
+        this.toast('🔥 흔적 없이 사라졌습니다 · 깊게 한 번 내쉬어 보세요');
+        // 하늘로 솟은 마지막 불똥이 사라질 무렵 원래 시점으로 (종이는 불붙고 BURN 초 뒤에 다 탄다)
+        setTimeout(() => this._endBurnHold(), still ? 900 : (SKY_TOTAL - BURN) * 1000);
+      }
+    });
+    return true;
+  }
+
+  /** 소각 구도를 푼다: 원래 시점으로, 합장을 내린다 */
+  _endBurnHold() {
+    if (!this._burnHold) return;
+    this._burnHold = false;
+    this.world.setShot(null);
+    if (this.player.state === 'circumambulate' && !this.avatars.circling) this.player.setState('idle');
+  }
+
   /** 차담에서 일어남: 원래 보던 구도와 HUD 로 */
   _leaveTea() {
     const tea = this._teaScene;
@@ -1374,6 +1512,8 @@ class MetaTempleApp {
     const zone = zoneAt(p.x, p.z);
     switch (name) {
       case 'bow_half': {
+        if (this._bowFrom && performance.now() - this._bowFrom.at < 6000 && !this.player.busy) return this._replyBow(); // 인사해 온 도반께 답례
+        this._hideReply();
         const d = this.avatars.triggerAction('bow_half');
         if (d) {
           this.live?.bow();
@@ -1451,12 +1591,16 @@ class MetaTempleApp {
 
   _updateHUD() {
     const p = this.store.profile, s = p.stats;
-    $('#hud-dharma-name').textContent = p.dharmaName;
-    $('#hud-merit-summary').textContent = `절 ${s.bowCount}배 · 염주 ${s.malaCount}알 · 연등 ${s.lanternCount}등`;
+    $('#hud-dharma-name').textContent = $('#hud-dharma-name-big').textContent = p.dharmaName;
+    const n = (v) => (v || 0).toLocaleString('ko-KR');
+    $('#hud-bows').textContent = n(s.bowCount);
+    $('#hud-mala').textContent = n(s.malaCount);
+    $('#hud-lanterns').textContent = n(s.lanternCount);
     if (this.avatars) {
       const real = this.live?.count || 0;
-      $('#hud-presence').textContent = real > 0 ? `지금 도반 ${real}명이 말없이 함께 머무는 중` : `지금은 홀로 머무는 중 · 산사 식구 ${this.avatars.npcCount}명`;
-      $('#hud-presence-count').textContent = real > 0 ? real : '';
+      $('#hud-presence-count').textContent = real > 0 ? `도반 ${real}명과 함께` : '홀로 머무는 중';
+      $('#hud-presence').textContent = real > 0 ? `지금 도반 ${real}명이 말없이 함께 머뭅니다` : '지금은 홀로 머뭅니다';
+      $('#hud-presence-sub').textContent = `산사 식구 ${this.avatars.npcCount}명이 곁에 있습니다`;
     }
   }
 
@@ -1465,9 +1609,6 @@ class MetaTempleApp {
     const z = zoneAt(p.x, p.z);
     if (z === this.zone && !force) return;
     this.zone = z;
-    const info = ZONES[z];
-    $('#hud-zone-name').textContent = info.name;
-    $('#hud-zone-subtitle').textContent = info.subtitle;
     $$('[data-goto-zone]').forEach((b) => b.classList.toggle('active', b.dataset.gotoZone === z));
     this.miniMap?.setHere(z);
     this._zoneRituals(z);
@@ -1517,7 +1658,7 @@ class MetaTempleApp {
     const GENERAL = ['bow_half', 'incense', 'prostrate', 'meditate', 'tea', 'circumambulate'];
     const DOCK_GENERAL = new Set(['bow_half', 'incense', 'prostrate', 'meditate']); // 「더보기」에 원래 있던 탑돌이·다선은 제자리에서만 앞으로
     const rituals = [...(DOCK_RITUALS[z] || []), ...ZONES[z].rituals].filter((id, i, a) => a.indexOf(id) === i && !GENERAL.includes(id));
-    const btn = (id, cls, text) => `<button class="ctl ${cls}" type="button" data-ritual="${id}" title="${RITUALS[id].label}">${icon(id)}<span class="lbl">${text}</span></button>`;
+    const btn = (id, cls, text) => `<button class="ctl ${cls}" type="button" data-ritual="${id}" title="${RITUALS[id].label}">${icon(RITUALS[id].icon || id)}<span class="lbl">${text}</span></button>`;
     const tmp = document.createElement('div');
     const specials = rituals.map((id) => {
       tmp.innerHTML = btn(id, 'dock-btn ritual', RITUALS[id].short);
@@ -1577,6 +1718,8 @@ class MetaTempleApp {
     // 그림 아이콘을 채우고 장소 목록을 만든다
     $$('[data-icon]').forEach((el) => el.insertAdjacentHTML('afterbegin', icon(el.dataset.icon)));
     // 몸짓 단추(독·더보기를 오간다)와 숲길의 「산책」 단추
+    // 상태판은 오른쪽 위 장소·메뉴 단추 묶음이 남긴 너비까지만 (장소 이름 길이에 따라 변한다)
+    new ResizeObserver(([e]) => document.documentElement.style.setProperty('--hud-top-w', `${Math.ceil(e.target.getBoundingClientRect().width)}px`)).observe($('.hud-top'));
     this._gestureBtns = Object.fromEntries($$('[data-gesture]').map((b) => [b.dataset.gesture, b]));
     const sb = document.createElement('div');
     sb.innerHTML = `<button class="ctl dock-btn ritual" type="button" id="stroll-btn" title="자동 산책 — 순환 산책로를 천천히 걷습니다" aria-pressed="false"><svg class="i" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><g fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 3.8c1.6 0 2.4 1.6 2.2 3.6-.2 2-1.2 3.2-2.4 3.2S6.4 9.4 6.4 7.5c0-2 .6-3.7 2.1-3.7z"/><path d="M7 12.6l2.8.3-.4 2.4c-.2 1-1 1.5-1.8 1.4-.9-.1-1.3-.9-1.1-1.8z"/><path d="M15.5 7.8c1.5 0 2.1 1.7 2.1 3.7s-1 3.1-2.2 3.1-2.2-1.2-2.4-3.2c-.2-2 .9-3.6 2.5-3.6z"/><path d="M14 16.6l2.8-.3.5 2.3c.2 1-.3 1.7-1.1 1.8-.8.1-1.6-.4-1.8-1.4z"/></g></svg><span class="lbl">산책</span></button>`;
@@ -1720,12 +1863,12 @@ class MetaTempleApp {
         return;
       }
       if (typing() || !this.entered) return;
-      if (this.modals.isOpen && !this.modals.current?.match(/practice_108|tea_chat/)) return;
+      if (this.modals.isOpen && !this.modals.current?.match(/practice_108|mala|tea_chat/)) return;
       this.keys[e.code] = true;
       if (this._teaScene) return; // 차담 장면: 1·2·3 은 예상 응답을 고른다. 걷는 키만 남긴다 (걸으면 일어난다)
       const k = e.key;
       // 108배 패널이 열려 있으면 절·염주는 패널이 센다 (오늘 횟수가 어긋나지 않게)
-      if (this.modals.isOpen && this.modals.current === 'practice_108' && (k === ' ' || e.code === 'Space' || k === '2' || k === '3')) return;
+      if (this.modals.isOpen && this.modals.current?.match(/practice_108|mala/) && (k === ' ' || e.code === 'Space' || k === '2' || k === '3')) return;
       if (['1', '2', '3', '4', '5', '6'].includes(k)) {
         this.gesture(['bow_half', 'prostrate', 'meditate', 'incense', 'circumambulate', 'tea'][Number(k) - 1]);
       }
@@ -1746,8 +1889,20 @@ class MetaTempleApp {
     el.addEventListener('pointerdown', (e) => {
       el.setPointerCapture(e.pointerId);
       pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      if (pointers.size === 1) down = { x: e.clientX, y: e.clientY, t: performance.now(), moved: 0 };
+      if (pointers.size === 1) {
+        down = { x: e.clientX, y: e.clientY, t: performance.now(), moved: 0 };
+        // 바닥을 눌러 버티면 손가락 밑으로 걸어간다 (끄는 대로 따라감, 떼면 멈춤)
+        const mine = down;
+        clearTimeout(this._holdTimer);
+        this._holdTimer = setTimeout(() => {
+          if (down === mine && mine.moved <= 8 && pointers.size === 1 && this.entered && !this._listening && !this._blockingModal()) {
+            this._holdWalk = { x: mine.x, y: mine.y, next: 0 };
+            this._setAutoWalk(false);
+          }
+        }, HOLD_WALK_MS);
+      }
       if (pointers.size === 2) {
+        this._endHoldWalk();
         const [a, b] = [...pointers.values()];
         pinch = Math.hypot(a.x - b.x, a.y - b.y);
         down = null;
@@ -1776,18 +1931,31 @@ class MetaTempleApp {
         pinch = d;
         return;
       }
+      if (this._holdWalk) {
+        this._holdWalk.x = e.clientX;
+        this._holdWalk.y = e.clientY;
+        return; // 끌어 걷는 동안은 카메라를 돌리지 않는다
+      }
       if (down) down.moved += Math.abs(dx) + Math.abs(dy);
       if (!down || down.moved > 5) this.world.orbit(dx, dy);
     });
     const up = (e) => {
       pointers.delete(e.pointerId);
       if (pointers.size < 2) pinch = 0;
+      clearTimeout(this._holdTimer);
+      if (this._holdWalk) {
+        this._endHoldWalk();
+        down = null;
+        return;
+      }
       if (down && down.moved <= 6 && performance.now() - down.t < 450 && this.entered && !this._listening) this._click(e.clientX, e.clientY);
       down = null;
     };
     el.addEventListener('pointerup', up);
     el.addEventListener('pointercancel', (e) => {
       pointers.delete(e.pointerId);
+      clearTimeout(this._holdTimer);
+      this._endHoldWalk();
       down = null;
     });
     el.addEventListener('wheel', (e) => {
@@ -1811,24 +1979,102 @@ class MetaTempleApp {
       const reach = r.width * 0.3; // 조이스틱 크기(116/96px)에 비례
       knob.style.transform = `translate(${x * reach}px, ${y * reach}px)`;
     };
+    let jdown = null; // { t, far(앞으로 끝까지 민 시작 시각), moved }
     joy.addEventListener('pointerdown', (e) => {
       jid = e.pointerId;
       joy.setPointerCapture(jid);
+      jdown = { t: performance.now(), far: null, moved: 0 };
       setJoy(e);
       this.sound.init();
     });
-    joy.addEventListener('pointermove', (e) => e.pointerId === jid && setJoy(e));
+    joy.addEventListener('pointermove', (e) => {
+      if (e.pointerId !== jid) return;
+      setJoy(e);
+      jdown.moved = Math.max(jdown.moved, Math.hypot(this.joy.x, this.joy.z));
+      if (this.autoWalk) {
+        // 자동 걷기 중: 좌우만 방향(가운데 0.25 는 곧장), 아래로 당기면 멈춤
+        if (this.joy.z > 0.35) this._setAutoWalk(false);
+        else this.joy = { x: Math.abs(this.joy.x) < 0.25 ? 0 : this.joy.x, z: 0 };
+        return;
+      }
+      // 앞으로 끝까지(위 80% 넘게, 좌우 45% 안) 밀어 AUTO_HOLD 초 버티면 자동 걷기
+      const far = this.joy.z < -0.8 && Math.abs(this.joy.x) < 0.45;
+      jdown.far = far ? jdown.far ?? performance.now() : null;
+    });
     const jend = () => {
+      const tap = jdown && performance.now() - jdown.t < 220 && jdown.moved < 0.3;
+      if (this.autoWalk && tap) this._setAutoWalk(false); // 톡 누르면 멈춤
       jid = null;
+      jdown = null;
       this.joy = { x: 0, z: 0 };
-      knob.style.transform = '';
+      knob.style.transform = this.autoWalk ? 'translate(0, -30%)' : '';
     };
+    this._joyHeld = () => jdown && jdown.far != null && (performance.now() - jdown.far) / 1000 >= AUTO_HOLD;
     joy.addEventListener('pointerup', jend);
     joy.addEventListener('pointercancel', jend);
+    $('#reply-btn')?.addEventListener('click', () => {
+      this.sound.init();
+      this._replyBow();
+    });
+  }
+
+  /** 자동 걷기 켜기·끄기 (조이스틱에 표시) */
+  _setAutoWalk(on) {
+    if (!!this.autoWalk === on) return;
+    this.autoWalk = on;
+    this._autoStuck = 0;
+    const joy = $('#joystick');
+    joy?.classList.toggle('auto', on);
+    if (!on && joy) joy.querySelector('.joy-knob').style.transform = '';
+    if (on) {
+      navigator.vibrate?.(15);
+      if (!this._autoTold) {
+        this._autoTold = true;
+        this.toast('자동 걷기 · 조이스틱을 좌우로 밀면 방향, 아래로 당기거나 톡 누르면 멈춥니다');
+      }
+    }
+  }
+
+  /** 자동 걷기: 조이스틱을 앞으로 버티면 켜고, 막혀서 못 가거나 앉고·창이 열리면 끈다 */
+  _autoWalkTick(dt, input) {
+    if (!this.autoWalk && this._joyHeld?.()) this._setAutoWalk(true);
+    if (!this.autoWalk) return;
+    const pl = this.player;
+    if (this._listening || this._blockingModal() || pl.sitting) return this._setAutoWalk(false);
+    // 벽·난간에 막혀 1초 넘게 거의 못 가면 멈춘다
+    this._autoStuck = input && !pl.busy && pl.speed < 0.3 ? (this._autoStuck || 0) + dt : 0;
+    if (this._autoStuck > 1) this._setAutoWalk(false);
+  }
+
+  /** 눌렀다 끌어 걷기: 손가락 밑 바닥을 0.1초마다 다시 골라 그리로 걷는다 */
+  _holdWalkTick(dt) {
+    const h = this._holdWalk;
+    if (!h) return;
+    h.next -= dt;
+    if (h.next > 0) return;
+    h.next = 0.1;
+    const hit = this.world.pick(h.x, h.y);
+    const pt = hit?.point;
+    if (!pt || !isWalkable(pt.x, pt.z)) return;
+    const A = this.avatars;
+    if (this.player.sitting) A.standUp();
+    A.circling = null;
+    A.moveTarget = { x: pt.x, z: pt.z };
+    if (!h.mark || Math.hypot(h.mark.x - pt.x, h.mark.z - pt.z) > 0.8) {
+      h.mark = { x: pt.x, z: pt.z };
+      this.world.ripples.spawn(new THREE.Vector3(pt.x, walkHeight(pt.x, pt.z), pt.z), { color: '#f3ecdc', maxR: 0.5, life: 0.6 });
+    }
+  }
+
+  _endHoldWalk() {
+    if (!this._holdWalk) return;
+    this._holdWalk = null;
+    this.avatars.moveTarget = null; // 떼면 그 자리에 선다
   }
 
   _click(x, y) {
     this.sound.init();
+    this._setAutoWalk(false);
     const hit = this.world.pick(x, y);
     if (!hit) return;
     if (hit.kind === 'lantern' && hit.id) return this.activate('wish_lantern', { lanternId: hit.id });
@@ -1922,15 +2168,24 @@ class MetaTempleApp {
 
     // 이동 입력 (카메라 기준)
     let ix = 0, iz = 0;
-    if (this.entered && !this._listening && !(this.modals.isOpen && !['practice_108', 'tea_chat'].includes(this.modals.current))) {
+    if (this.entered && !this._listening && !(this.modals.isOpen && !['practice_108', 'mala', 'tea_chat'].includes(this.modals.current))) {
       const k = this.keys;
       if (k.KeyW || k.ArrowUp) iz -= 1;
       if (k.KeyS || k.ArrowDown) iz += 1;
       if (k.KeyA || k.ArrowLeft) ix -= 1;
       if (k.KeyD || k.ArrowRight) ix += 1;
-      ix += this.joy.x;
-      iz += this.joy.z;
+      if (this.autoWalk) {
+        // 자동 걷기: 앞으로. 조이스틱 좌우는 방향 돌리기 (1인칭은 아래 돌아보기가, 3인칭은 카메라 방위를 돌린다)
+        iz -= 1;
+        if (this.world.cam.mode === 'first') ix += this.joy.x;
+        else this.world.cam.yaw -= this.joy.x * AUTO_TURN * dt;
+        if (this.player.busy || this.player.sitting) iz = 0; // 절하는 동안·앉으면 멈춰 서 있다 (자동 걷기는 그대로)
+      } else {
+        ix += this.joy.x;
+        iz += this.joy.z;
+      }
       if ((ix || iz) && this._teaScene) this.modals.current === 'tea_chat' ? this.modals.close() : this._leaveTea(); // 걸으면 찻자리에서 일어난다
+      if ((ix || iz) && this._burnHold) this._endBurnHold(); // 걸으면 소각 구도·합장을 푼다
     }
     // 1인칭: 시선과 몸이 함께 돈다. 좌우 키·조이스틱·끌기는 돌아보기(게걸음 없음),
     // 걷기·탑돌이·좌복에 앉기처럼 몸이 스스로 돌면 시선도 따라 돈다. 앉아 있거나 걸어가는 중에 끌면 고개만 돌린다.
@@ -1958,13 +2213,15 @@ class MetaTempleApp {
       cam.turn = 0;
     }
     // 3인칭: 탑돌이·눌러서 걸어가기 동안 카메라가 등 뒤로 천천히 따라 돈다 (키·조이스틱으로 걸을 때는 사용자가 방위를 쥔다)
-    cam.follow = !fp && !this._listening && (A.circling || A.moveTarget) && !ix && !iz ? pl.heading : null;
+    cam.follow = !fp && !this._listening && !this._holdWalk && (A.circling || A.moveTarget) && !ix && !iz ? pl.heading : null;
+    this._holdWalkTick(dt);
+    this._autoWalkTick(dt, ix || iz);
     const yaw = fp ? pl.heading - Math.PI + this._fp.off : cam.yaw;
     const wx = ix * Math.cos(yaw) + iz * Math.sin(yaw);
     const wz = -ix * Math.sin(yaw) + iz * Math.cos(yaw);
-    if ((ix || iz) && this.modals.isOpen && this.modals.current === 'practice_108') this.modals.close();
+    if ((ix || iz) && this.modals.isOpen && ['practice_108', 'mala'].includes(this.modals.current)) this.modals.close();
     const night = this.world.env.night;
-    this.avatars.update(dt, t, { x: wx, z: wz, face }, night); // 뛰지 않는다 (Shift 달리기 없앰 — WALK_SPEED 1.1m/s)
+    this.avatars.update(dt, t, { x: wx, z: wz, face }, night); // 뛰지 않는다 (Shift 달리기 없앰 — WALK_SPEED 1.3m/s)
     this.temple.cairns.update(dt, pl.root.position.x, pl.root.position.z);
     this._strollTick(dt);
     if (fp) cam.yaw = pl.root.rotation.y - Math.PI + this._fp.off;
