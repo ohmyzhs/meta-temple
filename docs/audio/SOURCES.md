@@ -1,7 +1,9 @@
 # 자연의 소리 늘리기 — 1단계 소리 목록과 출처 (2026-11-06 조사)
 
 나중에 토스로 돈을 받을 계획이라 **상업적 이용이 되는 것만** 후보로 올렸다.
-쓸 수 있는 것: 공공누리 제1유형, 제3유형(변경 금지 — 자르기·섞기 불가), CC0, Pixabay License, 산 로열티프리.
+쓸 수 있는 것: 공공누리 제1유형, 제3유형(변경 금지 — 자르기·섞기 불가), CC0, Pixabay License.
+
+사용자 결정(2026-11-06): **유료 음원은 쓰지 않는다(산 로열티프리 포함)** · **직접 녹음은 없다** · **폭포는 경내에 없으니 뺀다** · **경내를 걸을 때의 발소리와 행동 효과음도 녹음으로 개선한다** (아래 3장).
 뺀 것: 공공누리 2·4유형, CC BY-NC, BBC Sound Effects. CC BY 는 상업 가능하지만 허용 목록 밖이라 따로 표시했다.
 
 ## 0. 먼저 알아 둘 것
@@ -49,16 +51,13 @@
 
 ### 국립공원공단 「자연의소리」 (공공데이터포털, 공공누리 1유형) — 원본은 MP4 영상, 소리만 뽑는다
 
-#### 계곡 여울·폭포
+#### 계곡 여울
 
 | 원본 | 링크 | 라이선스 | 길이 | 오디오 | 크기 | 비고 |
 |---|---|---|---|---|---|---|
 | 지리산산골짜기의물소리 | [data.go.kr/15076211](https://www.data.go.kr/data/15076211/fileData.do) | 1유형 | 5:00 | AAC 48k 2ch 192k | 168MB | 현재 계곡 원본 |
 | 북한산원도봉계곡의여름 | [data.go.kr/15076158](https://www.data.go.kr/data/15076158/fileData.do) | 1유형 | 5:00 | AAC 48k 2ch 192k | 168MB |  |
 | 태백산검룡소가는길 | [data.go.kr/15076213](https://www.data.go.kr/data/15076213/fileData.do) | 1유형 | 5:00 | AAC 48k 2ch 192k | 168MB |  |
-| 덕유산천일폭포 | [data.go.kr/15076134](https://www.data.go.kr/data/15076134/fileData.do) | 1유형 | 5:00 | AAC 48k 2ch 192k | 168MB | 폭포 |
-| 변산반도내변산직소폭포 | [data.go.kr/15076176](https://www.data.go.kr/data/15076176/fileData.do) | 1유형 | 5:00 | AAC 48k 2ch 192k | 168MB | 폭포 |
-| 설악산 대승폭포 | [data.go.kr/15076218](https://www.data.go.kr/data/15076218/fileData.do) | 1유형 | 5:06 | AAC 48k 2ch 384k | 178MB | 폭포 |
 | 지리산중봉골물떨어지는소리 | [data.go.kr/15076194](https://www.data.go.kr/data/15076194/fileData.do) | 1유형 | 5:00 | AAC 48k 2ch 192k | 168MB | 작은 물줄기 |
 | 지리산 화엄계곡 치유 탐방로 | [data.go.kr/15076215](https://www.data.go.kr/data/15076215/fileData.do) | 1유형 | 5:05 | AAC 48k 2ch 384k | 178MB | 탐방로 — 발소리 가능 |
 
@@ -156,8 +155,6 @@
 |---|---|---|---|---|---|---|---|
 | 계곡 | 화개천계곡_새벽 빠른계류 | [13372472](https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?wrtSn=13372472&menuNo=200020) | 1유형 | 3:13 | MP3 320k 48k | ≈7.7MB | |
 | 계곡 | 지리산 형제봉 계곡 작은 폭포 거품 | [13372468](https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?wrtSn=13372468&menuNo=200020) | 1유형 | 2:29 | MP3 320k 48k | ≈6.0MB | 가까운 물 |
-| 폭포 | 내변산 직소폭포_폭포 소리 정면 | [13372602](https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?wrtSn=13372602&menuNo=200020) | 1유형 | 2:32 | MP3 320k 48k | ≈6.1MB | |
-| 폭포 | 치악산 작은 폭포 웅덩이 낙수 | [13372449](https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?wrtSn=13372449&menuNo=200020) | 1유형 | 3:04 | MP3 320k 48k | ≈7.4MB | |
 | 비 | 가리산 숲속에 쏟아지는 비 | [13372573](https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?wrtSn=13372573&menuNo=200020) | 1유형 | 2:46 | MP3 320k 48k | ≈6.6MB | |
 | 낙숫물 | 소청도 빗물받이 가느다란 물소리 | [13372511](https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?wrtSn=13372511&menuNo=200020) | 1유형 | 2:34 | MP3 320k 48k | ≈6.2MB | 처마 낙숫물 대용 |
 | 낙숫물 | 백령도 빗물받이 관로 물소리 | [13372521](https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?wrtSn=13372521&menuNo=200020) | 1유형 | 2:10 | MP3 320k 48k | ≈5.2MB | 관로 울림(금속성) 가능 |
@@ -209,7 +206,37 @@
 | 모닥불 | Crackle Fireplace Campfire | [402289](https://pixabay.com/sound-effects/nature-crackle-fireplace-campfire-402289/) | 2:14 | CapaholiczSFX | |
 
 
-<!-- FREESOUND -->
+### Freesound (CC0 — 상업 가능, 출처 표시 의무 없음) — 원본(WAV/FLAC) 받기는 로그인 필요
+
+한국 녹음이 거의 없어(서울 올림픽공원 겨울새 하나), 국내 출처에 없는 것을 채우는 데만 쓴다.
+소쩍새(*Otus sunia*)·한국 매미·목탁·한국 풍경의 CC0 녹음은 없었다.
+
+| 장면 | 원본 | 링크 | 길이 | 오디오 | 크기 | 비고 |
+|---|---|---|---|---|---|---|
+| 계곡 | Mountain Stream … Torrente Pettorina | [869104](https://freesound.org/people/bassimat/sounds/869104/) | 6:58 | WAV 48k/32 스테레오 | 153MB | 돌로미티 급류 |
+| 낙숫물 | Rain gutter zleb 003 | [652260](https://freesound.org/people/frenkfurth/sounds/652260/) | 10:06 | WAV 48k/16 스테레오 | 111MB | 빗물받이 낙수 |
+| 소나기·천둥 | mountain forest thunderstorm | [398016](https://freesound.org/people/chromakei/sounds/398016/) | 4:18 | FLAC 48k/16 스테레오 | 19.8MB | 처마 밑 창가, 소나기 처음부터 끝까지 |
+| 먼 천둥 | Dry storm thunders | [796529](https://freesound.org/people/fran_marenco/sounds/796529/) | 3:48 | WAV 48k/24 스테레오 | 63MB | 수 km 밖 계곡 천둥 |
+| 대숲 | Birds, wind through bamboo … Japan (Binaural) | [843520](https://freesound.org/people/tomasloos/sounds/843520/) | 3:26 | WAV 48k/24 스테레오 | 57MB | 일본 돗토리 대숲 |
+| 솔바람 | silent windy pine forest | [670307](https://freesound.org/people/bruno.auzet/sounds/670307/) | 5:34 | WAV 48k/24 스테레오 | 92MB | 겨울 고목 소나무 큰 바람 |
+| 새벽 산새 | zenkojibells_norm | [514135](https://freesound.org/people/earthmonkey1/sounds/514135/) | 6:04 | WAV 44.1k/16 스테레오 | 61MB | 일본 3월 06시, 1:30부터 먼 절 종 |
+| 겨울새 | December Bird | [837717](https://freesound.org/people/dareumfield/sounds/837717/) | 7:13 | WAV 48k/32 스테레오 | 159MB | 서울 올림픽공원 12월 — 도시 소음 확인 |
+| 부엉이 | Hibou Grand Duc | [471507](https://freesound.org/people/barkenov/sounds/471507/) | 2:21 | WAV 44.1k/24 스테레오 | 36MB | 수리부엉이(겨울에 욺) |
+| 부엉이 | eagle owl | [701135](https://freesound.org/people/bruno.auzet/sounds/701135/) | 1:24 | WAV 96k/32 스테레오 | 62MB | 수리부엉이, 배경 제거됨 |
+| 개구리 | Pool Frogs with birds | [513978](https://freesound.org/people/remmert/sounds/513978/) | 6:38 | WAV 48k/16 스테레오 | 73MB | 참개구리와 같은 속 |
+| 매미 | Taiwan Alishan … Dense Cicada Chorus | [860235](https://freesound.org/people/BayTsai/sounds/860235/) | 0:56 | WAV 48k/32 스테레오 | 21MB | |
+| 풀벌레 | Japan_Kashiwa_Insects_Far_and_Upclose | [365257](https://freesound.org/people/RutgerMuller/sounds/365257/) | 3:22 | WAV 96k/24 스테레오 | 111MB | 일본 10월 말 |
+| 눈 밟기 | Footsteps on snow (clean) | [611277](https://freesound.org/people/xkeril/sounds/611277/) | 0:45 | WAV 48k/24 모노 | 6.3MB | 깨끗한 발걸음 모음 |
+| 눈 밟기 | Walking through a snowy forest | [180962](https://freesound.org/people/morosopher/sounds/180962/) | 7:17 | FLAC 44.1k/16 스테레오 | 25MB | 영하 10℃ 눈 숲 |
+| 겨울 고요 | Snow Silence – Winter Soundscape | [842985](https://freesound.org/people/shouya_trumpet/sounds/842985/) | 13:56 | WAV 48k/16 스테레오 | 153MB | 일본 효고, 눈 오는 중 솔바람·먼 까마귀 |
+| 겨울 고요 | Appalachian Snowy Afternoon 1 | [719851](https://freesound.org/people/lakewoodsound/sounds/719851/) | 2:31 | FLAC 96k/24 스테레오 | 43MB | 약한 바람, 새 몇 |
+| 범종 | temple bell 001 | [668646](https://freesound.org/people/tec_studio/sounds/668646/) | 0:44 | WAV 44.1k/24 모노 | 5.7MB | 1532년 일본 청동 범종, 긴 여운 |
+| 풍경 | Soleri Windbell | [181973](https://freesound.org/people/stomachache/sounds/181973/) | 0:08 | WAV 44.1k/24 스테레오 | 2.2MB | 청동 단일 종 — 풍경과 가장 비슷 |
+| 마당 쓸기 | sweepingleaves | [648933](https://freesound.org/people/anaroja/sounds/648933/) | 3:18 | WAV 48k/16 스테레오 | 36MB | 정원 낙엽 쓸기 |
+| 찻물 | Pouring tea | [395615](https://freesound.org/people/BeeProductive/sounds/395615/) | 0:14 | WAV 48k/24 스테레오 | 4.1MB | |
+| 모닥불 | Campfire 02 | [729396](https://freesound.org/people/HECKFRICKER/sounds/729396/) | 4:27 | WAV 44.1k/16 스테레오 | 45MB | 근접, 무가공 |
+| 화로 | Aachen Burning Fireplace | [501417](https://freesound.org/people/visionear/sounds/501417/) | 11:54 | WAV 48k/24 스테레오 | 196MB | 실내 벽난로 |
+
 
 ## 2. 추천 묶음 (승인 받을 것)
 
@@ -220,7 +247,7 @@
 |---|---|---|---|
 | A. 다시 자르기 (지금 쓰는 원본) | 국립공원공단 15076211 계곡 · 15076128 빗소리 · 15076196 솔바람 · 15076183 곤줄박이 · 15076181 산솔새 · 15076169 풀벌레 · 15076172 샘물 · 15076137 염불 · 15068173 범종 · 15076195 풍탁 | 10 | 1,967MB |
 | B. 국립공원공단 새로 | 15076158 원도봉계곡 · 15076171 구룡사 비오는 날 · 15076164 연화봉 바람 · 15076188 흰배지빠귀(새벽) · 15076180 되지빠귀(새벽) · 15076187 뻐꾸기(초여름) · 15076225 미래사 차의 시간 | 7 | 1,195MB |
-| C. 공유마당 1유형 | 13372472 화개천 계류 · 13372602 직소폭포 · 13372573 가리산 비 · 13372511 빗물받이(낙숫물) · 13372546 먼 천둥 · 13287859 죽녹원 대숲 · 13371662 소쩍새 · 13371671 솔부엉이 · 13372012 북방산개구리 · 13371634 논 청개구리 · 13372522 영원사 매미 · 13371638 소요산매미 · 13371688 백련사 귀뚜라미 · 13372528 만봉사 범종 · 13287375 대빗자루 · 13287478 화로 | 16 | ≈98MB |
+| C. 공유마당 1유형 | 13372472 화개천 계류 · 13372573 가리산 비 · 13372511 빗물받이(낙숫물) · 13372546 먼 천둥 · 13287859 죽녹원 대숲 · 13371662 소쩍새 · 13371671 솔부엉이 · 13372012 북방산개구리 · 13371634 논 청개구리 · 13372522 영원사 매미 · 13371638 소요산매미 · 13371688 백련사 귀뚜라미 · 13372528 만봉사 범종 · 13287375 대빗자루 · 13287478 화로 | 15 | ≈92MB |
 | D. 빈 곳 채우기 | 겨울 눈 밟기 · 겨울 숲 · 모닥불 — 아래 Freesound/Pixabay 후보 중에서 | 3 | 수 MB |
 | E. (선택) 예불 음질 | 무위사 15076174 · 개암사 15076175 를 스테레오로 다시 뽑기 (백양사는 A 의 15076137) | 2 | 333MB |
 

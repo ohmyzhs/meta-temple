@@ -25,7 +25,6 @@ export const SHOTS_AT_ENTRY = [];
  */
 export const NATURE_PRESETS = [
   { id: 'valley', title: '계곡 물가', note: '여울 물소리와 한낮 산새', time: 'day', month: 6, weather: 'clear', mix: { stream: 1.6, birds: 0.8, wind: 0.6 } },
-  { id: 'falls', title: '폭포 아래', note: '쏟아지는 물줄기', time: 'day', month: 7, weather: 'clear', mix: { falls: 1, birds: 0.5, wind: 0.4 } },
   { id: 'rain', title: '산사의 비', note: '처마 낙숫물과 먼 천둥', time: 'day', month: 6, weather: 'rain', mix: { rain: 1.3, stream: 0.5, wind: 0.7 }, chimes: true },
   { id: 'pines', title: '솔바람·대숲', note: '소나무와 대나무를 지나는 바람', time: 'day', month: 10, weather: 'clear', mix: { wind: 1.6, bamboo: 1.2, birds: 0.4 }, chimes: true },
   { id: 'dawn', title: '새벽 숲', note: '지빠귀가 깨우는 산', time: 'dawn', month: 5, weather: 'clear', mix: { birds: 1.2, stream: 0.4, wind: 0.4 } },

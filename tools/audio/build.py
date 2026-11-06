@@ -15,6 +15,10 @@
        봉우리가 -1 dBTP 를 넘을 때만 리미터가 닿는다.
   3) 반복 이음새: 배경은 끝 XF 초를 처음 XF 초에 등전력 교차 페이드로 겹친다 → 파일 끝에서 처음으로 이어 돌아도 이음새가 없다
   4) 인코딩: m4a (AAC, 48kHz, 스테레오 128k / 모노 80k) + mp3 (같은 비트레이트, AAC 를 못 푸는 브라우저용)
+
+효과음 묶음(kind: sprite): 걸음·딸깍처럼 짧은 소리를 구간에서 자동으로 찾아(에너지 봉우리) 하나씩 잘라
+  slot 초 간격으로 한 파일에 담는다 — 엔진은 칸 하나(i·slot 부터 len 초)를 골라 튼다. 재질마다 파일 하나만 받으면 된다.
+  manifest: { kind: 'sprite', n: 최대 개수, slot: 칸 길이, len: 소리 길이, gap: 봉우리 사이 최소 간격, starts: [수동 시각…] }
 """
 import json
 import os
@@ -63,10 +67,67 @@ def aac_codec():
     return 'aac_at' if ' aac_at ' in enc else 'aac'
 
 
-def build_piece(src, out, a, b, kind, ch, lufs, tmp):
+def make_sprite(cut, out_wav, ch, n=12, slot=0.6, length=0.45, gap=0.3, starts=None, pre=0.02):
+    """구간에서 짧은 소리를 찾아 slot 간격으로 늘어놓는다. 반환: 담은 개수"""
+    import numpy as np
+    raw = subprocess.check_output(['ffmpeg', '-v', 'error', '-i', str(cut), '-f', 'f32le', '-ac', str(ch), '-ar', '48000', '-'])
+    y = np.frombuffer(raw, dtype=np.float32).reshape(-1, ch)
+    sr, hop = 48000, 120  # 2.5ms
+    mono = np.abs(y).mean(axis=1)
+    win = 480  # 10ms 이동 평균
+    env = np.sqrt(np.convolve(mono ** 2, np.ones(win) / win, mode='same'))[::hop]
+    if starts:
+        onsets = [int(t * sr) for t in starts]
+    else:
+        thr = max(np.percentile(env, 50) * 4, env.max() * 0.08)
+        peaks = []
+        for i in np.argsort(env)[::-1]:
+            if env[i] < thr:
+                break
+            if all(abs(i - j) * hop > gap * sr for j in peaks):
+                peaks.append(i)
+        onsets = []
+        for i in sorted(peaks):
+            j = i
+            while j > 0 and env[j] > env[i] * 0.25:
+                j -= 1
+            onsets.append(max(0, j * hop - int(pre * sr)))
+        # 가장 큰 n 개가 아니라 고르게 — 너무 큰 쿵·너무 작은 것 빼기: 봉우리 크기 가운데 쪽 n 개
+        if len(onsets) > n:
+            amp = [env[min(len(env) - 1, o // hop + int(0.05 * sr / hop))] for o in onsets]
+            mid = np.argsort(np.abs(np.array(amp) - np.median(amp)))[:n]
+            onsets = sorted(onsets[k] for k in mid)
+    L = int(length * sr)
+    out = np.zeros((int(slot * sr) * len(onsets), ch), dtype=np.float32)
+    fi, fo = int(0.003 * sr), int(0.12 * sr)
+    ramp = np.ones(L, dtype=np.float32)
+    ramp[:fi] = np.linspace(0, 1, fi)
+    ramp[-fo:] = np.cos(np.linspace(0, np.pi / 2, fo)) ** 2
+    for k, o in enumerate(onsets):
+        seg = y[o:o + L].copy()
+        if len(seg) < L:
+            seg = np.pad(seg, ((0, L - len(seg)), (0, 0)))
+        seg *= ramp[:, None]
+        rms = np.sqrt((seg[: int(0.25 * sr)] ** 2).mean()) or 1
+        seg *= 0.1 / rms  # 걸음마다 같은 크기로 (전체 크기는 뒤에서 LUFS 로)
+        p = k * int(slot * sr)
+        out[p:p + L] = seg
+    peak = np.abs(out).max() or 1
+    if peak > 0.9:
+        out *= 0.9 / peak
+    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-f', 'f32le', '-ac', str(ch), '-ar', '48000', '-i', '-', '-c:a', 'pcm_f32le', str(out_wav)], input=out.tobytes(), check=True)
+    return len(onsets)
+
+
+def build_piece(src, out, a, b, kind, ch, lufs, tmp, sprite=None):
     base = f'aresample=48000,highpass=f=25' + (',pan=mono|c0=0.5*c0+0.5*c1' if ch == 1 else '')
     cut = tmp / 'cut.wav'
     ff(['-ss', str(a), '-to', str(b), '-i', str(src), '-vn', '-af', base, '-ac', str(ch), '-c:a', 'pcm_f32le', str(cut)])
+    count = None
+    if kind == 'sprite':
+        sp = tmp / 'sprite.wav'
+        count = make_sprite(cut, sp, ch, **(sprite or {}))
+        cut = sp
     i, tp = loudness(cut)
     target = BED_LUFS if kind == 'bed' else lufs
     gain = target - i
@@ -90,7 +151,7 @@ def build_piece(src, out, a, b, kind, ch, lufs, tmp):
     br = RATE[ch]
     ff(['-i', str(final), '-c:a', aac_codec(), '-b:a', br, '-ar', '48000', '-movflags', '+faststart', str(out.with_suffix('.m4a'))])
     ff(['-i', str(final), '-c:a', 'libmp3lame', '-b:a', br, '-ar', '48000', str(out.with_suffix('.mp3'))])
-    return i, gain, bool(lim)
+    return i, gain, bool(lim), count
 
 
 def cmd_build(names):
@@ -107,8 +168,11 @@ def cmd_build(names):
             continue
         ch = 1 if e.get('mono') else 2
         with tempfile.TemporaryDirectory() as t:
-            i, gain, lim = build_piece(src, OUT / e['out'], e['from'], e['to'], e.get('kind', 'bed'), ch, e.get('lufs'), Path(t))
-        print(f'✓ {e["out"]:<22} {e["from"]:>6.1f}–{e["to"]:<6.1f}s  원래 {i:6.1f} LUFS → {gain:+5.1f} dB{"  (리미터)" if lim else ""}')
+            sp = {k: e[k] for k in ('n', 'slot', 'len', 'gap', 'starts') if k in e}
+            if 'len' in sp:
+                sp['length'] = sp.pop('len')
+            i, gain, lim, count = build_piece(src, OUT / e['out'], e['from'], e['to'], e.get('kind', 'bed'), ch, e.get('lufs'), Path(t), sp)
+        print(f'✓ {e["out"]:<22} {e["from"]:>6.1f}–{e["to"]:<6.1f}s  원래 {i:6.1f} LUFS → {gain:+5.1f} dB{"  (리미터)" if lim else ""}{f"  {count}칸" if count else ""}')
         done += 1
     print(f'{done}개 만듦 → {OUT}')
 
