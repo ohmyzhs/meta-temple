@@ -584,3 +584,45 @@ function branchSide(b) {
   const t = tangentOn(trail, b.s), q = b.path.at(4), c = trail.at(b.s);
   return Math.sign(-t.z * (q.x - c.x) + t.x * (q.z - c.z)) || 1;
 }
+
+/* ───── 산책로 둘레 숲 바닥 (길에서 FLOOR_REACH m 안을 걸어 들어갈 수 있다) ─────
+ * 울타리·데크 난간이 있는 곳은 길 가장자리에서 막는다 (울타리 틈·갈림목·쉼터 입구로 드나든다).
+ */
+export const FLOOR_REACH = 10;
+const FAR = PATHS.map((P) => new Polyline(P.pts, FLOOR_REACH + 2, 4));
+
+/** 세 길 가운데 가장 가까운 거리 (FLOOR_REACH+2 m 까지, 그 밖은 Infinity) */
+export function trailDistFar(x, z) {
+  let d = Infinity;
+  for (const P of FAR) {
+    const n = P.nearest(x, z);
+    if (n && n.d < d) d = n.d;
+  }
+  return d;
+}
+
+/** 길별·쪽별 울타리 구간 [s0, s1] (fenceRuns 를 한 번만 잰다) */
+let FENCE_SPANS = null;
+function fenceSpans() {
+  if (FENCE_SPANS) return FENCE_SPANS;
+  FENCE_SPANS = new Map();
+  for (const r of fenceRuns()) {
+    const k = `${PATHS.indexOf(r.path)}:${r.side}`;
+    if (!FENCE_SPANS.has(k)) FENCE_SPANS.set(k, []);
+    FENCE_SPANS.get(k).push([r.pts[0].s - 0.6, r.pts[r.pts.length - 1].s + 0.6]);
+  }
+  return FENCE_SPANS;
+}
+
+/** 길 가장자리 울타리·데크 난간 띠 위인가 (이 띠는 넘어 다닐 수 없다) */
+export function fenceBarrier(x, z) {
+  const n = nearestTrail(x, z);
+  if (!n || n.d <= TRAIL_HALF - 0.05) return false;
+  const P = n.path;
+  if (P === trail && n.s > DECK.s0 && n.s < DECK.s1) return n.d < DECK.halfW + 1.1; // 데크 난간
+  if (n.d > FENCE_OFF + 0.55) return false;
+  const nm = normalOn(P, n.s);
+  const side = Math.sign((x - n.x) * nm.x + (z - n.z) * nm.z) || 1;
+  const spans = fenceSpans().get(`${PATHS.indexOf(P)}:${side}`);
+  return !!spans && spans.some(([a, b]) => n.s >= a && n.s <= b);
+}

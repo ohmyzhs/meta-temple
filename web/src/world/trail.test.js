@@ -168,3 +168,29 @@ test('signposts_guide_the_loop', async () => {
   for (let i = 1; i < ss.length; i++) assert.ok(ss[i] - ss[i - 1] < 70, `gap ${ss[i - 1]}→${ss[i]}`);
   assert.ok(loop.length > 440);
 });
+
+test('forest_floor_fences_block_and_gaps_open', async () => {
+  const { fenceRuns, fenceBarrier, trailDistFar, FLOOR_REACH, FENCE_OFF } = await import('./trail.js');
+  // 울타리 기둥과 길 사이(기둥에서 길 쪽 0.3m)는 막혀 있다
+  let blocked = 0, total = 0;
+  for (const r of fenceRuns()) {
+    for (const p of r.pts.slice(1, -1)) {
+      const n = r.path.nearest(p.x, p.z);
+      const q = { x: p.x + ((n.x - p.x) / n.d) * 0.3, z: p.z + ((n.z - p.z) / n.d) * 0.3 };
+      total++;
+      if (fenceBarrier(q.x, q.z)) blocked++;
+    }
+  }
+  assert.ok(blocked / total > 0.97, `barrier ${blocked}/${total}`);
+  // 쉼터 입구(쉼터 앉는 자리 쪽)는 열려 있다
+  for (const s of REST_SPOTS) assert.ok(!fenceBarrier(s.stand.x, s.stand.z), s.id);
+  // 길 위는 막이 아니다
+  for (let s = 0; s < trail.length; s += 7) { const p = trail.at(s); assert.ok(!fenceBarrier(p.x, p.z)); }
+  // 먼 거리 질의 = 가까운 거리 질의 (8m 안), 12m 밖은 Infinity
+  for (let s = 5; s < trail.length; s += 37) {
+    const p = trail.at(s);
+    assert.ok(Math.abs(trailDistFar(p.x + 3, p.z) - nearestTrail(p.x + 3, p.z).d) < 1e-6);
+  }
+  assert.equal(trailDistFar(200, 200), Infinity);
+  assert.ok(FENCE_OFF < FLOOR_REACH);
+});

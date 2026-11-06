@@ -13,7 +13,7 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { L, terrainHeight, walkHeight, zoneAt, clamp, lerp, colliders } from './layout.js';
+import { L, terrainHeight, walkHeight, zoneAt, clamp, lerp, collidersNear } from './layout.js';
 import { envUniforms } from './materials.js';
 import { setAnisotropy } from './textures.js';
 import { buildTerrain, waterUniforms, ridgeUniforms } from './terrain.js';
@@ -442,7 +442,7 @@ export class TempleScene {
       }
     }
     if (skipColliders) return false;
-    for (const c of colliders) {
+    for (const c of collidersNear(q.x, q.z)) {
       if (q.y - base > 6.5) continue;
       if (c.type === 'c') {
         if (Math.hypot(q.x - c.x, q.z - c.z) < c.r + 0.25) return true;

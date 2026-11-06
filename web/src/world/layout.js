@@ -4,7 +4,7 @@
  * 단위 m, +Y 위, -Z 북쪽(산 쪽). 스폰은 (0, 0, 34) 일주문 남쪽.
  */
 import { ImprovedNoise } from 'three/addons/math/ImprovedNoise.js';
-import { forestPathX, nearestTrail, setTrailProfile, crossingAt, crossingY, deckRise, deckRiseAt, DECK, trail, TRAIL_HALF, REST_SPOTS, inLookoutView } from './trail.js';
+import { forestPathX, nearestTrail, setTrailProfile, crossingAt, crossingY, deckRise, deckRiseAt, DECK, trail, TRAIL_HALF, REST_SPOTS, inLookoutView, trailDistFar, fenceBarrier, FLOOR_REACH } from './trail.js';
 
 const perlin = new ImprovedNoise();
 export const noise2 = (x, z) => perlin.noise(x, 0.37, z);
@@ -215,7 +215,7 @@ export function zoneAt(x, z) {
   if (x > hl.x0 - 0.2 && x < hl.x1 + 0.2 && z > hl.z0 && z < hl.z1 + 0.3) return 'DAEUNGJEON';
   // 순환 산책로는 마당·다실 마당 안으로 들어서기 전까지 어디든 숲길 (능선·대숲이 마당·다실로 잡히지 않게)
   const c = L.courtyard, t = L.teahouseTerrace;
-  if (!inRect(x, z, c.x0 - 0.5, c.x1 + 0.5, c.z0 - 3, c.z1 + 0.6) && !inRect(x, z, t.x0, t.x1, t.z0, t.z1) && (nearestTrail(x, z)?.d ?? 99) < 4.2) return 'FOREST'; // 4.2: 길가 쉼터 자리(중심선에서 3.2m까지)도
+  if (!inRect(x, z, c.x0 - 0.5, c.x1 + 0.5, c.z0 - 3, c.z1 + 0.6) && !inRect(x, z, t.x0, t.x1, t.z0, t.z1) && ((nearestTrail(x, z)?.d ?? 99) < 4.2 || onForestFloor(x, z))) return 'FOREST'; // 4.2: 길가 쉼터 자리, 그 밖은 열린 숲 바닥
   if (x > L.teahouseTerrace.x0 + 0.4 || (x > 16.5 && z < -2.6 && z > -9.6 && x > L.teaLink.x0 + 1.4)) return 'TEAHOUSE';
   if (z <= L.courtyard.z1 + 0.6) return 'COURTYARD';
   return 'FOREST';
@@ -225,7 +225,44 @@ function inRect(x, z, x0, x1, z0, z1) {
   return x >= x0 && x <= x1 && z >= z0 && z <= z1;
 }
 
+/** 걸을 수 있는 땅: 길(엄격) + 산책로 둘레 숲 바닥 */
 export function isWalkable(x, z) {
+  return isOnPath(x, z) || onForestFloor(x, z);
+}
+
+const SLOPE = new Map(); // 1m 칸 → 걸을 만한가 (지형 기울기 45% 아래)
+function gentle(x, z) {
+  const gx = Math.floor(x), gz = Math.floor(z), k = gx * 4096 + gz;
+  let v = SLOPE.get(k);
+  if (v === undefined) {
+    const cx = gx + 0.5, cz = gz + 0.5, e = 0.8;
+    const hx = (terrainHeight(cx + e, cz) - terrainHeight(cx - e, cz)) / (2 * e);
+    const hz = (terrainHeight(cx, cz + e) - terrainHeight(cx, cz - e)) / (2 * e);
+    v = Math.hypot(hx, hz) < 0.45;
+    SLOPE.set(k, v);
+  }
+  return v;
+}
+
+/**
+ * 산책로 둘레 숲 바닥 (중간 방안): 길에서 FLOOR_REACH(10m) 안, 울타리 띠·계곡·대숲·경내(마당·다실 마당·법당 둘레)·가파른 비탈 밖.
+ * 0.45m 지형 격자 안이라 발이 땅에 맞는다. 나무·큰 바위는 충돌체가 있다 (vegetation.js·terrain.js).
+ */
+export function onForestFloor(x, z) {
+  if (x < -60 || x > 60 || z < -56 || z > 60) return false;
+  if (trailDistFar(x, z) > FLOOR_REACH) return false;
+  if (fenceBarrier(x, z)) return false;
+  if (Math.abs(z - streamZ(x)) < 3.2) return false;
+  for (const b of [L.bamboo, L.bambooEast]) if (inRect(x, z, b.x0 - 0.6, b.x1 + 0.6, b.z0 - 0.6, b.z1 + 0.6)) return false;
+  const c = L.courtyard, t = L.teahouseTerrace, s = L.stylobate;
+  if (inRect(x, z, c.x0 - 2.5, c.x1 + 2.5, c.z0 - 4, c.z1 + 3.5)) return false;
+  if (inRect(x, z, t.x0 - 1, t.x1 + 1, t.z0 - 5, t.z1 + 1)) return false;
+  if (inRect(x, z, s.x0 - 4, s.x1 + 4, s.z0 - 6, s.z1)) return false;
+  return gentle(x, z);
+}
+
+/** 길만 (산책로 띠·숲길·경내) — 나무를 심지 않는 자리 판단에 쓴다 */
+export function isOnPath(x, z) {
   // 순환 산책로 (계곡은 작은 나무다리로만 건넌다)
   const tr = nearestTrail(x, z);
   if (tr && tr.d <= TRAIL_HALF) {
@@ -260,17 +297,36 @@ export function isWalkable(x, z) {
 
 /* ───── 충돌체 (원·축정렬 박스, 2D) ───── */
 export const colliders = [];
+// 4m 칸 격자: 칸마다 그 칸에 닿는 충돌체 (몸 반지름·카메라 여유 0.6m 포함). 숲 바닥을 열며 나무 충돌체가 수백 개 늘어 한 걸음마다 다 훑지 않게
+const CGRID = new Map(), CCELL = 4, CPAD = 0.6;
+function gridAdd(c, x0, z0, x1, z1) {
+  for (let gx = Math.floor((x0 - CPAD) / CCELL); gx <= Math.floor((x1 + CPAD) / CCELL); gx++) {
+    for (let gz = Math.floor((z0 - CPAD) / CCELL); gz <= Math.floor((z1 + CPAD) / CCELL); gz++) {
+      const k = gx * 4096 + gz;
+      if (!CGRID.has(k)) CGRID.set(k, []);
+      CGRID.get(k).push(c);
+    }
+  }
+}
+/** (x,z) 칸에 닿는 충돌체들 (몸·카메라 반지름 0.6m 까지는 빠짐없이) */
+export function collidersNear(x, z) {
+  return CGRID.get(Math.floor(x / CCELL) * 4096 + Math.floor(z / CCELL)) || [];
+}
 export function addCircleCollider(x, z, r) {
-  colliders.push({ type: 'c', x, z, r });
+  const c = { type: 'c', x, z, r };
+  colliders.push(c);
+  gridAdd(c, x - r, z - r, x + r, z + r);
 }
 export function addBoxCollider(x0, z0, x1, z1) {
-  colliders.push({ type: 'b', x0: Math.min(x0, x1), z0: Math.min(z0, z1), x1: Math.max(x0, x1), z1: Math.max(z0, z1) });
+  const c = { type: 'b', x0: Math.min(x0, x1), z0: Math.min(z0, z1), x1: Math.max(x0, x1), z1: Math.max(z0, z1) };
+  colliders.push(c);
+  gridAdd(c, c.x0, c.z0, c.x1, c.z1);
 }
 
 /** 반경 r 인 몸을 (x,z)로 옮길 때 충돌을 밀어낸 위치를 돌려준다 */
 export function resolveCollisions(x, z, r = 0.32) {
   for (let iter = 0; iter < 2; iter++) {
-    for (const c of colliders) {
+    for (const c of collidersNear(x, z)) {
       if (c.type === 'c') {
         const dx = x - c.x, dz = z - c.z;
         const d = Math.hypot(dx, dz), min = c.r + r;
@@ -313,7 +369,7 @@ export function stepMove(x, z, nx, nz, r = 0.32) {
 
 /* 나무 심기 금지 영역 */
 export function isClearForTree(x, z, margin = 0) {
-  if (isWalkable(x, z)) return false;
+  if (isOnPath(x, z)) return false; // 열린 숲 바닥에는 나무를 그대로 심는다 (충돌체로 비켜 걷는다)
   if ((nearestTrail(x, z)?.d ?? 99) < 3.4 + margin) return false;
   for (const s of REST_SPOTS) if (Math.hypot(x - s.x, z - s.z) < 4 + margin) return false;
   if (inLookoutView(x, z)) return false;
