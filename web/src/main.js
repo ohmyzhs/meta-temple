@@ -28,6 +28,8 @@ import { installBackGuard } from './ui/backGuard.js';
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
 
+const PERF = new URLSearchParams(location.search).has('perf'); // ?perf=1: 성능 표 (_perfHud)
+
 function detectQuality() {
   const q = new URLSearchParams(location.search).get('q');
   if (q === 'low' || q === 'high') return q;
@@ -64,7 +66,6 @@ class MetaTempleApp {
     this.zone = null;
     this.entered = false;
     this.clock = new THREE.Clock();
-    this.frameTimes = [];
     this._initIntro();
     this._boot();
   }
@@ -163,6 +164,7 @@ class MetaTempleApp {
         this.temple?.trail.hideMat(); // 돗자리는 일어서면 걷는다
       }
     });
+    this.avatars.camera = this.world.camera; // 시야 밖 사람은 그리지도 몸을 계산하지도 않는다 (avatarManager _crowdLod)
     this._rebuildPlayer();
     this.avatars.spawnAmbientVisitors();
     // 블렌더 아바타(GLB 2개)는 산사를 다 지은 뒤에 받기 시작한다 — 느린 망에서 입장을 늦추지 않게(같이 받으면 Fast 3G 에서 입장이 수 초 늦었다).
@@ -268,6 +270,10 @@ class MetaTempleApp {
       onPeers: (peers, count) => {
         this.avatars.syncRemotePeers(peers);
         this.avatars.setNpcBudget(Math.max(4, 11 - count)); // 실제 도반이 늘면 NPC 참배객을 줄인다
+      },
+      onPeerUpdates: (peers, ids, count) => {
+        this.avatars.updateRemotePeers(peers, ids);
+        this.avatars.setNpcBudget(Math.max(4, 11 - count));
       },
       onBow: (from) => this._onPeerBow(from)
     });
@@ -1249,7 +1255,9 @@ class MetaTempleApp {
    */
   _zoneRituals(z) {
     const DOCK_SLOTS = 6; // 「더보기」 빼고 (360px 폰 세로까지 48px 단추가 들어가는 수)
-    const PLACE_GESTURES = { COURTYARD: ['circumambulate'], DAEUNGJEON: ['incense'], TEAHOUSE: ['tea'] };
+    const PLACE_GESTURES = { COURTYARD: ['circumambulate'], DAEUNGJEON: ['incense'] };
+    // 다실에서는 「다선」을 숨긴다: 찻자리 4m 안에서 누르면 「차담」과 똑같이 찻자리에 앉는다 (gesture 'tea') — 같은 일을 하는 단추 둘
+    const HIDE = { TEAHOUSE: ['tea'] };
     const GENERAL = ['bow_half', 'incense', 'prostrate', 'meditate', 'tea', 'circumambulate'];
     const DOCK_GENERAL = new Set(['bow_half', 'incense', 'prostrate', 'meditate']); // 「더보기」에 원래 있던 탑돌이·다선은 제자리에서만 앞으로
     const rituals = [...(DOCK_RITUALS[z] || []), ...ZONES[z].rituals].filter((id, i, a) => a.indexOf(id) === i && !GENERAL.includes(id));
@@ -1263,7 +1271,9 @@ class MetaTempleApp {
     for (const g of PLACE_GESTURES[z] || []) specials.push({ node: this._gestureBtns[g], gesture: g });
     const front = specials.slice(0, DOCK_SLOTS), spill = specials.slice(DOCK_SLOTS);
     const used = new Set(front.map((s) => s.gesture).filter(Boolean));
-    const general = GENERAL.filter((g) => !used.has(g));
+    const hidden = HIDE[z] || [];
+    hidden.forEach((g) => this._gestureBtns[g].remove());
+    const general = GENERAL.filter((g) => !used.has(g) && !hidden.includes(g));
     const room = DOCK_SLOTS - front.length;
     const inDock = general.filter((g) => DOCK_GENERAL.has(g)).slice(0, room);
     const toMore = general.filter((g) => !inDock.includes(g));
@@ -1626,6 +1636,7 @@ class MetaTempleApp {
     requestAnimationFrame(() => this._loop());
     const dt = Math.min(this.clock.getDelta(), 0.1);
     this._frame(dt, this.clock.elapsedTime);
+    if (PERF) this._perfHud();
   }
 
   /** 한 프레임 (테스트에서 dt 를 직접 넣어 돌릴 수 있게 분리) */
@@ -1707,7 +1718,7 @@ class MetaTempleApp {
         this._phase = ph;
         this.sound.setTimeOfDay(ph);
       }
-      this._adaptQuality(dt);
+      this._adaptQuality();
       if (this.live) {
         const pl = this.player;
         if (pl.seq && pl.seq !== this._seqRef) {
@@ -1721,23 +1732,61 @@ class MetaTempleApp {
     this.world.render();
   }
 
-  /** 첫 5초 프레임 시간을 재서 너무 무거우면 해상도를 낮춘다 */
-  _adaptQuality(dt) {
-    if (this._adapted) return;
-    const since = performance.now() - this.enteredAt;
-    if (since < 1500) return;
-    if (document.hidden) return;
-    this.frameTimes.push(dt);
-    // 탭이 가려져 프레임이 멈췄던 구간은 표본이 모자라므로 더 모은다
-    if (since < 6500 || this.frameTimes.length < 90) return;
-    this._adapted = true;
-    const sorted = [...this.frameTimes].sort((a, b) => a - b);
-    const med = sorted[Math.floor(sorted.length / 2)] * 1000;
-    this.medianFrameMs = med;
-    if (med > 30 && this.world.pixelRatio > 1) {
-      this.world.setPixelRatio(Math.max(1, this.world.pixelRatio - 0.35));
-      console.info(`[quality] median ${med.toFixed(1)}ms → pixelRatio ${this.world.pixelRatio}`);
+  /**
+   * 화면 배율 자동 조절 (계속): 실제 프레임 간격 평균(구간 시간 ÷ 프레임 수 — 끊김이 묻히지 않게)이 ADAPT.slow 를 넘는 곳에서는 배율을 0.25 씩 내리고,
+   * 넉넉한 곳에서 ADAPT.okFor 동안 ADAPT.ok 안이면 처음 배율까지 0.25 씩 되올린다. 바꾼 뒤 3초는 쉰다 (후처리 버퍼를 다시 잡으니).
+   * 올린 지 10초 안에 다시 내려야 하면 1분은 올리지 않는다 — 오르내림이 되풀이되지 않게.
+   */
+  _adaptQuality() {
+    const ADAPT = { slow: 22, ok: 17.5, slowFor: 2000, okFor: 6000, rest: 3000, step: 0.25, min: 1 };
+    const now = performance.now();
+    const A = (this._adapt ||= { last: now, start: this.world.pixelRatio, changedAt: now, raisedAt: -1e9, noRaiseUntil: 0, ts: [] });
+    const gap = now - A.last;
+    A.last = now;
+    if (document.hidden || gap > 250 || now - this.enteredAt < 1500) return void (A.ts.length = 0); // 탭이 가려졌다 돌아온 틈은 뺀다
+    A.ts.push(gap);
+    if (A.ts.length > 900) A.ts.splice(0, A.ts.length - 900);
+    const span = (ms) => { let t = 0, n = 0; for (let i = A.ts.length - 1; i >= 0 && t < ms; i--) (t += A.ts[i]), n++; return t >= ms ? A.ts.slice(-n) : null; };
+    const avg = (a) => a.reduce((x, y) => x + y, 0) / a.length;
+    const recent = span(1000);
+    if (recent) this.frameMs = avg(recent);
+    if (now - A.changedAt < ADAPT.rest) return;
+    const W = this.world, set = (pr) => {
+      W.setPixelRatio(+pr.toFixed(2));
+      A.changedAt = now;
+      A.ts.length = 0;
+      console.info(`[quality] frame ${this.frameMs?.toFixed(1)}ms → pixelRatio ${W.pixelRatio}`);
+    };
+    const slow = span(ADAPT.slowFor), ok = span(ADAPT.okFor);
+    if (slow && avg(slow) > ADAPT.slow && W.pixelRatio > ADAPT.min) {
+      if (now - A.raisedAt < 10000) A.noRaiseUntil = now + 60000;
+      set(Math.max(ADAPT.min, W.pixelRatio - ADAPT.step));
+    } else if (ok && avg(ok) < ADAPT.ok && W.pixelRatio < A.start && now > A.noRaiseUntil) {
+      A.raisedAt = now;
+      set(Math.min(A.start, W.pixelRatio + ADAPT.step));
     }
+  }
+
+  /** ?perf=1 — 폰에서 직접 볼 수 있는 성능 표: fps · 프레임 ms · 화면 배율 · 그리기 호출 · 삼각형 */
+  _perfHud() {
+    const R = this.world.renderer;
+    if (!this._perfEl) {
+      this._perfEl = document.createElement('div');
+      this._perfEl.style.cssText = 'position:fixed;left:8px;top:calc(env(safe-area-inset-top) + 64px);z-index:99;padding:6px 8px;border-radius:8px;background:rgba(0,0,0,.62);color:#e8f3dc;font:12px/1.45 ui-monospace,monospace;pointer-events:none;white-space:pre';
+      document.body.appendChild(this._perfEl);
+      R.info.autoReset = false;
+      this._perfAt = performance.now();
+      this._perfN = 0;
+    }
+    const info = R.info.render, calls = info.calls, tris = info.triangles;
+    R.info.reset();
+    this._perfN++;
+    const now = performance.now();
+    if (now - this._perfAt < 500) return;
+    const fps = (this._perfN * 1000) / (now - this._perfAt);
+    this._perfAt = now;
+    this._perfN = 0;
+    this._perfEl.textContent = `${fps.toFixed(0)} fps · ${this.frameMs?.toFixed(1) ?? '-'} ms\npr ${this.world.pixelRatio} (${this.quality})\n${calls} calls · ${Math.round(tris / 1000)}k tri`;
   }
 }
 

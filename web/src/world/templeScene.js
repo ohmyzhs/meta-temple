@@ -52,6 +52,7 @@ const DAY_GRADE = { sat: 0.18, contrast: 0.06 };
  *  2) 그래도 막히면 막힌 곳 앞으로 바로 당긴다(들어올 때는 그 프레임에 — 벽·기둥 속이 화면을 덮지 않게), 트이면 천천히(outRate) 다시 늘인다.
  * 가림체를 투명하게 비우지 않는다 (사용자 2026-11-06 「투명화 말고 가리지 않게 쫓아다니는 카메라」). tools/qa/camera.mjs·occlusion.mjs 로 확인.
  */
+const OCC_CELL = 2; // 가림체 조각 칸 (m) — 카메라가 조각 구 안에 드는 일이 드물 만큼 작게
 const ARM = {
   r: 0.3, // 팔 굵기 (카메라 근평면이 물체에 닿지 않을 만큼)
   ahead: 0.7, // 미리 보는 굵기: 카메라 쪽 끝(cap)에서만 더한다 — 닿기 전에 비키기 시작하고, 못 비키면 미리 부드럽게 당긴다
@@ -434,23 +435,54 @@ export class TempleScene {
   /**
    * 카메라 가림체: 지붕·담·벽·천장(architecture.js·temple.js 가 userData.occluder 로 표시).
    * 광선 검사용 양면 대리 메쉬(장면에 넣지 않음) — 카메라 팔이 이것을 뚫고 나가지 않는다.
+   * 세계 좌표 삼각형을 OCC_CELL 칸으로 나눈 작은 조각들: 지붕 하나가 반지름 18m 구라, 그 안(법당)에서 쏜 광선은
+   * 구·거리 컷을 못 받고 지붕 삼각형 전부를 훑었다 (법당 한 프레임 광선 50줄 × 수만 개 = 34ms). 조각은 경계 상자까지 재 둔다.
    */
   _collectOccluders() {
     this.scene.updateMatrixWorld(true);
     const proxyMat = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
-    const out = [];
+    const cells = new Map();
+    const v = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
     this.scene.traverse((o) => {
-      const kind = o.userData.occluder;
-      if (!kind || !o.isMesh || o.isInstancedMesh) return;
-      const p = new THREE.Mesh(o.geometry, proxyMat);
-      p.matrixAutoUpdate = false;
-      p.matrix.copy(o.matrixWorld);
-      p.matrixWorld.copy(o.matrixWorld);
-      p.userData.kind = kind;
-      out.push(p);
+      if (!o.userData.occluder || !o.isMesh || o.isInstancedMesh) return;
+      const pos = o.geometry.attributes.position, idx = o.geometry.index;
+      const n = idx ? idx.count : pos.count;
+      for (let i = 0; i + 2 < n; i += 3) {
+        for (let k = 0; k < 3; k++) v[k].fromBufferAttribute(pos, idx ? idx.getX(i + k) : i + k).applyMatrix4(o.matrixWorld);
+        const c = (a) => Math.floor((v[0][a] + v[1][a] + v[2][a]) / 3 / OCC_CELL);
+        const key = `${c('x')},${c('y')},${c('z')}`;
+        let arr = cells.get(key);
+        if (!arr) cells.set(key, (arr = []));
+        for (const p of v) arr.push(p.x, p.y, p.z);
+      }
     });
+    const out = [];
+    for (const arr of cells.values()) {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(arr, 3));
+      g.computeBoundingSphere();
+      g.computeBoundingBox();
+      const p = new THREE.Mesh(g, proxyMat);
+      p.matrixAutoUpdate = false; // 세계 좌표 그대로 (단위 행렬)
+      out.push(p);
+    }
     this.occRay = new THREE.Raycaster();
     return out;
+  }
+
+  /** 초점 둘레 reach m 안에 닿는 가림체 조각만 (초점이 0.5m 안에서 움직이는 동안은 지난 목록을 그대로 — 여유 0.5m 를 더해 둔다) */
+  _occNear(focus, reach) {
+    const c = (this._occCache ||= { at: new THREE.Vector3(1e9, 0, 0), r: 0, list: [] });
+    if (c.at.distanceToSquared(focus) > 0.25 || reach > c.r) {
+      c.at.copy(focus);
+      c.r = Math.max(reach, 8);
+      c.list.length = 0;
+      for (const o of this.occluders) {
+        const s = o.geometry.boundingSphere;
+        if (s.center.distanceTo(focus) - s.radius < c.r + 0.5) c.list.push(o);
+      }
+    }
+    return c.list;
   }
 
   /**
@@ -469,6 +501,7 @@ export class TempleScene {
       side.normalize().multiplyScalar(rv);
       const up = _armB.crossVectors(side, dir).normalize().multiplyScalar(rv);
       const ray = this.occRay;
+      const near = this._occNear(focus, len + rv + 0.1); // 광선 다섯 줄이 닿을 수 있는 가장 먼 곳: 굵기 rv 만큼 비켜 len 까지
       for (let i = 0; i < 5; i++) {
         const o = _armC.copy(focus).addScaledVector(dir, from);
         if (i === 1) o.add(side);
@@ -479,7 +512,7 @@ export class TempleScene {
         ray.near = 0;
         ray.far = free - from;
         if (ray.far <= 0) break;
-        const h = ray.intersectObjects(this.occluders, false)[0];
+        const h = ray.intersectObjects(near, false)[0];
         if (h) free = from + h.distance;
       }
     }

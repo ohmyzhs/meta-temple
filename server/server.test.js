@@ -75,6 +75,23 @@ test('ws_bad_name_replaced', async () => {
   b.close();
 });
 
+test('ws_v2_gets_pv_with_roster_v1_gets_peers', async () => {
+  const open = () => new Promise((res) => { const w = new WebSocket(`ws://127.0.0.1:${PORT}/ws`); w.on('open', () => res(w)); });
+  const v1 = await open(), v2 = await open(), mover = await open();
+  const got = { v1: null, v2: null };
+  v1.on('message', (d) => { const m = JSON.parse(d); if (m.t === 'peers' && m.peers.length) got.v1 ||= m; });
+  v2.on('message', (d) => { const m = JSON.parse(d); if (m.t === 'pv' && m.ids?.length) got.v2 ||= m; });
+  v1.send(JSON.stringify({ t: 'hello', name: '옛날', style: 'monk' }));
+  v2.send(JSON.stringify({ t: 'hello', v: 2, name: '새것', style: 'monk' }));
+  mover.send(JSON.stringify({ t: 'hello', v: 2, name: '걷는이', style: 'monk' }));
+  mover.send(JSON.stringify({ t: 's', x: 2, y: 0, z: 34, ry: 0, a: 'walk', n: 0 }));
+  for (let i = 0; i < 30 && !(got.v1 && got.v2); i++) await new Promise((r) => setTimeout(r, 100));
+  assert.ok(got.v1, 'v1 still gets full peers');
+  assert.ok(got.v2, 'v2 gets pv with roster');
+  assert.ok(got.v2.peers.some((r) => r[1] === '걷는이'));
+  [v1, v2, mover].forEach((w) => w.close());
+});
+
 test('old_client_compat', async () => {
   const w = await new Promise((res) => { const s = new WebSocket(`ws://127.0.0.1:${PORT}/ws`); s.on('open', () => res(s)); });
   w.send(JSON.stringify({ t: 'hello', style: 'monk' })); // 이름 없는 옛 형식

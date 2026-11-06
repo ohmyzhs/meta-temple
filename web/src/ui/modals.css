@@ -867,12 +867,11 @@ body.tea-scene .modal-overlay.is-side {
   overscroll-behavior: contain;
   scrollbar-width: thin;
   color: var(--hanji-50);
-  background: linear-gradient(180deg, rgba(22, 18, 14, 0.78), rgba(14, 11, 9, 0.86));
+  /* 뒤 흐림(backdrop-filter) 없이 조금 더 짙게: 3D 화면이 매 프레임 바뀌어 흐림을 매번 다시 하고, 한 자씩 쓰일 때마다 또 한다 (폰에서 무겁다) */
+  background: linear-gradient(180deg, rgba(22, 18, 14, 0.86), rgba(14, 11, 9, 0.92));
   border: 1px solid rgba(201, 163, 90, 0.3);
   border-radius: 16px;
   box-shadow: 0 18px 50px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(243, 236, 220, 0.06);
-  -webkit-backdrop-filter: blur(12px) saturate(1.1);
-  backdrop-filter: blur(12px) saturate(1.1);
   animation: m-rise 0.55s var(--ease) both;
 }
 .m-view.tea.is-composing .tea-box { max-height: calc(var(--vvh, 100dvh) - 96px); }

@@ -29,18 +29,17 @@ const DEFAULT_STATS = {
   teaChats: 0
 };
 
+// Intl 서식기는 만들 때가 비싸다 (매 프레임 부르는 kstHour 가 프레임마다 새로 만들었다) — 한 번 만들어 둔다
+const KST_DATE = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' });
+const KST_HM = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+
 export function kstDateString(d = new Date()) {
   // YYYY-MM-DD in Asia/Seoul
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' }).format(d);
+  return KST_DATE.format(d);
 }
 
 export function kstHour(d = new Date()) {
-  const parts = new Intl.DateTimeFormat('en-GB', {
-    timeZone: 'Asia/Seoul',
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23'
-  }).formatToParts(d);
+  const parts = KST_HM.formatToParts(d);
   const h = Number(parts.find((p) => p.type === 'hour').value);
   const m = Number(parts.find((p) => p.type === 'minute').value);
   return h + m / 60;

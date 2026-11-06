@@ -1058,7 +1058,10 @@ class LanternSystem {
     this.mesh = new THREE.InstancedMesh(geo, mat, this.max);
     this.mesh.count = 0;
     this.mesh.castShadow = false;
-    this.mesh.frustumCulled = false;
+    // 화면 밖이면 그리지 않는다: 줄에 걸린 자리(흔들림은 몇 cm)를 감싸는 구 + 1m (커지는 연등 1.25배 포함).
+    // 떨어져 들어오는 연등(anim)이 있는 동안만 늘 그린다 — 출발점이 어디든 (update)
+    this.mesh.boundingSphere = new THREE.Sphere().setFromPoints(this.slots);
+    this.mesh.boundingSphere.radius += 1;
     this.scene.add(this.mesh);
     this.list = [];
     this.anim = new Map(); // id → {from, t}
@@ -1125,6 +1128,7 @@ class LanternSystem {
       this.mesh.setMatrixAt(i, o.matrix);
     }
     this.mesh.instanceMatrix.needsUpdate = true;
+    this.mesh.frustumCulled = this.anim.size === 0;
   }
 }
 
