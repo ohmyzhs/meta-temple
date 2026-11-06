@@ -270,7 +270,7 @@ export class RigBody {
     this.current = next;
   }
 
-  /** speed: 실제 이동 속도(m/s) — 걷기 클립은 1.1m/s 로 구웠고, 그보다 느리면(조이스틱 반쯤) 그만큼 느리게 (발이 미끄러지지 않게) */
+  /** speed: 실제 이동 속도(m/s) — 걷기 클립은 1.3m/s 로 구웠고, 그보다 느리면(조이스틱 반쯤) 그만큼 느리게 (발이 미끄러지지 않게) */
   update(dt, speed, onStep, onRustle) {
     if (this._then && this.current && this.current.time >= this.current.getClip().duration - 1e-3) {
       const n = this._then;

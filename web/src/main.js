@@ -47,6 +47,12 @@ function detectQuality() {
 const ARRIVAL = { pitch: 0.22, dist: 9 }; // 도착 구도: 입장 때와 같은 높이·거리, 방위는 도착해서 바라보는 쪽의 뒤 (법당 안은 실내 규칙이 줄인다)
 const MALA_MIN_MS = 3000; // 염주 한 알 사이 최소 간격 3초 — 광클릭으로 세지 않게 (사용자 결정 2026-11-06, 한 알에 한 숨)
 const FP_TURN = 2.0; // 1인칭 A/D·조이스틱 좌우로 도는 빠르기(rad/s)
+// 자동 걷기 (모바일): 조이스틱을 앞으로 끝까지 밀어 AUTO_HOLD 초 버티면 손을 떼도 앞으로 걷는다.
+// 걷는 중 조이스틱을 좌우로 밀면 AUTO_TURN rad/s 로 방향만 돌고, 아래로 당기거나 한 번 톡 누르면 멈춘다.
+const AUTO_HOLD = 0.6, AUTO_TURN = 1.2;
+// 눌렀다 끌어서 걷기: 바닥을 HOLD_WALK_MS 동안 누르고 있으면 손가락 밑으로 걸어간다 (빨리 끌면 지금처럼 카메라가 돈다)
+const HOLD_WALK_MS = 300;
+const REPLY_DELAY_MS = 600; // 도반의 합장을 받고 돌아서 답례하기까지 (바로 하면 기계 같다)
 // 1인칭 탑돌이: 걷는 방향에서 탑 쪽(오른쪽)으로 57° — 실측: 1000×640 은 탑 중심이 화면 x≈0.8, 375×812 는 탑 기단이 오른쪽 1/3 에 들고 왼쪽엔 앞길
 const FP_CIRCLE_LOOK = -1.0;
 const wrapAngle = (a) => Math.atan2(Math.sin(a), Math.cos(a));
@@ -504,7 +510,54 @@ class MetaTempleApp {
     if (r) this.world.ripples.spawn(r.av.root.position, { color: '#f2c46d', maxR: 2.4, life: 1.8 });
     this.sound.playBlessing();
     const replied = performance.now() - (this._lastBowAt || 0) < 6000;
-    this.toast(replied ? `『${name}』 도반이 합장으로 답례합니다` : `『${name}』 도반이 합장으로 인사합니다 · 1 을 눌러 답례`);
+    if (replied) return this.toast(`『${name}』 도반이 합장으로 답례합니다`);
+    // 먼저 인사받았다: 그 도반 쪽으로 돌아서 합장 반배로 답례한다 (서 있을 때 저절로).
+    // 내 답례는 상대에게 '답례'로 가므로(상대가 막 합장했으니) 서로 끝없이 주고받지 않는다.
+    this._bowFrom = { id, name, at: performance.now() };
+    const pl = this.player;
+    if (!pl.sitting && !pl.busy && !this._blockingModal()) {
+      setTimeout(() => this._replyBow(), REPLY_DELAY_MS);
+      this.toast(`『${name}』 도반이 합장으로 인사합니다 · 마주 보고 답례합니다`);
+    } else this._showReply(name); // 앉아 있거나 다른 몸짓 중이면 단추 하나로
+  }
+
+  /** 지금 걸음을 막는 창이 열려 있나 (수행 창은 걸으며 닫히므로 막지 않는다) */
+  _blockingModal() {
+    return this.modals?.isOpen && !['practice_108', 'mala', 'tea_chat'].includes(this.modals.current);
+  }
+
+  /** 막 합장해 온 도반(6초 안)을 바라보고 합장 반배. 앉아 있으면 앉은 채 합장 인사만 보낸다 */
+  _replyBow() {
+    this._hideReply();
+    const pl = this.player;
+    const from = this._bowFrom && performance.now() - this._bowFrom.at < 6000 ? this._bowFrom : null;
+    const r = from && this.avatars.remote.get(from.id);
+    if (pl.sitting) {
+      this.live?.bow();
+      this._lastBowAt = performance.now();
+      this.world.ripples.spawn(pl.root.position, { maxR: 2.4, life: 1.8 });
+      return this.toast(from ? `앉은 채 『${from.name}』 도반께 합장으로 답례했습니다` : '앉은 채 합장했습니다');
+    }
+    if (r) {
+      const p = pl.root.position, q = r.av.root.position;
+      pl.heading = Math.atan2(q.x - p.x, q.z - p.z);
+    }
+    this._bowFrom = null;
+    this.gesture('bow_half');
+  }
+
+  _showReply(name) {
+    const b = $('#reply-btn');
+    if (!b) return;
+    $('#reply-text').textContent = `『${name}』께 합장 답례`;
+    b.classList.remove('hidden');
+    clearTimeout(this._replyHide);
+    this._replyHide = setTimeout(() => this._hideReply(), 6000);
+  }
+
+  _hideReply() {
+    clearTimeout(this._replyHide);
+    $('#reply-btn')?.classList.add('hidden');
   }
 
   _afterUnlock(list = []) {
@@ -1459,6 +1512,8 @@ class MetaTempleApp {
     const zone = zoneAt(p.x, p.z);
     switch (name) {
       case 'bow_half': {
+        if (this._bowFrom && performance.now() - this._bowFrom.at < 6000 && !this.player.busy) return this._replyBow(); // 인사해 온 도반께 답례
+        this._hideReply();
         const d = this.avatars.triggerAction('bow_half');
         if (d) {
           this.live?.bow();
@@ -1832,8 +1887,20 @@ class MetaTempleApp {
     el.addEventListener('pointerdown', (e) => {
       el.setPointerCapture(e.pointerId);
       pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      if (pointers.size === 1) down = { x: e.clientX, y: e.clientY, t: performance.now(), moved: 0 };
+      if (pointers.size === 1) {
+        down = { x: e.clientX, y: e.clientY, t: performance.now(), moved: 0 };
+        // 바닥을 눌러 버티면 손가락 밑으로 걸어간다 (끄는 대로 따라감, 떼면 멈춤)
+        const mine = down;
+        clearTimeout(this._holdTimer);
+        this._holdTimer = setTimeout(() => {
+          if (down === mine && mine.moved <= 8 && pointers.size === 1 && this.entered && !this._listening && !this._blockingModal()) {
+            this._holdWalk = { x: mine.x, y: mine.y, next: 0 };
+            this._setAutoWalk(false);
+          }
+        }, HOLD_WALK_MS);
+      }
       if (pointers.size === 2) {
+        this._endHoldWalk();
         const [a, b] = [...pointers.values()];
         pinch = Math.hypot(a.x - b.x, a.y - b.y);
         down = null;
@@ -1862,18 +1929,31 @@ class MetaTempleApp {
         pinch = d;
         return;
       }
+      if (this._holdWalk) {
+        this._holdWalk.x = e.clientX;
+        this._holdWalk.y = e.clientY;
+        return; // 끌어 걷는 동안은 카메라를 돌리지 않는다
+      }
       if (down) down.moved += Math.abs(dx) + Math.abs(dy);
       if (!down || down.moved > 5) this.world.orbit(dx, dy);
     });
     const up = (e) => {
       pointers.delete(e.pointerId);
       if (pointers.size < 2) pinch = 0;
+      clearTimeout(this._holdTimer);
+      if (this._holdWalk) {
+        this._endHoldWalk();
+        down = null;
+        return;
+      }
       if (down && down.moved <= 6 && performance.now() - down.t < 450 && this.entered && !this._listening) this._click(e.clientX, e.clientY);
       down = null;
     };
     el.addEventListener('pointerup', up);
     el.addEventListener('pointercancel', (e) => {
       pointers.delete(e.pointerId);
+      clearTimeout(this._holdTimer);
+      this._endHoldWalk();
       down = null;
     });
     el.addEventListener('wheel', (e) => {
@@ -1897,24 +1977,102 @@ class MetaTempleApp {
       const reach = r.width * 0.3; // 조이스틱 크기(116/96px)에 비례
       knob.style.transform = `translate(${x * reach}px, ${y * reach}px)`;
     };
+    let jdown = null; // { t, far(앞으로 끝까지 민 시작 시각), moved }
     joy.addEventListener('pointerdown', (e) => {
       jid = e.pointerId;
       joy.setPointerCapture(jid);
+      jdown = { t: performance.now(), far: null, moved: 0 };
       setJoy(e);
       this.sound.init();
     });
-    joy.addEventListener('pointermove', (e) => e.pointerId === jid && setJoy(e));
+    joy.addEventListener('pointermove', (e) => {
+      if (e.pointerId !== jid) return;
+      setJoy(e);
+      jdown.moved = Math.max(jdown.moved, Math.hypot(this.joy.x, this.joy.z));
+      if (this.autoWalk) {
+        // 자동 걷기 중: 좌우만 방향(가운데 0.25 는 곧장), 아래로 당기면 멈춤
+        if (this.joy.z > 0.35) this._setAutoWalk(false);
+        else this.joy = { x: Math.abs(this.joy.x) < 0.25 ? 0 : this.joy.x, z: 0 };
+        return;
+      }
+      // 앞으로 끝까지(위 80% 넘게, 좌우 45% 안) 밀어 AUTO_HOLD 초 버티면 자동 걷기
+      const far = this.joy.z < -0.8 && Math.abs(this.joy.x) < 0.45;
+      jdown.far = far ? jdown.far ?? performance.now() : null;
+    });
     const jend = () => {
+      const tap = jdown && performance.now() - jdown.t < 220 && jdown.moved < 0.3;
+      if (this.autoWalk && tap) this._setAutoWalk(false); // 톡 누르면 멈춤
       jid = null;
+      jdown = null;
       this.joy = { x: 0, z: 0 };
-      knob.style.transform = '';
+      knob.style.transform = this.autoWalk ? 'translate(0, -30%)' : '';
     };
+    this._joyHeld = () => jdown && jdown.far != null && (performance.now() - jdown.far) / 1000 >= AUTO_HOLD;
     joy.addEventListener('pointerup', jend);
     joy.addEventListener('pointercancel', jend);
+    $('#reply-btn')?.addEventListener('click', () => {
+      this.sound.init();
+      this._replyBow();
+    });
+  }
+
+  /** 자동 걷기 켜기·끄기 (조이스틱에 표시) */
+  _setAutoWalk(on) {
+    if (!!this.autoWalk === on) return;
+    this.autoWalk = on;
+    this._autoStuck = 0;
+    const joy = $('#joystick');
+    joy?.classList.toggle('auto', on);
+    if (!on && joy) joy.querySelector('.joy-knob').style.transform = '';
+    if (on) {
+      navigator.vibrate?.(15);
+      if (!this._autoTold) {
+        this._autoTold = true;
+        this.toast('자동 걷기 · 조이스틱을 좌우로 밀면 방향, 아래로 당기거나 톡 누르면 멈춥니다');
+      }
+    }
+  }
+
+  /** 자동 걷기: 조이스틱을 앞으로 버티면 켜고, 막혀서 못 가거나 앉고·창이 열리면 끈다 */
+  _autoWalkTick(dt, input) {
+    if (!this.autoWalk && this._joyHeld?.()) this._setAutoWalk(true);
+    if (!this.autoWalk) return;
+    const pl = this.player;
+    if (this._listening || this._blockingModal() || pl.sitting) return this._setAutoWalk(false);
+    // 벽·난간에 막혀 1초 넘게 거의 못 가면 멈춘다
+    this._autoStuck = input && !pl.busy && pl.speed < 0.3 ? (this._autoStuck || 0) + dt : 0;
+    if (this._autoStuck > 1) this._setAutoWalk(false);
+  }
+
+  /** 눌렀다 끌어 걷기: 손가락 밑 바닥을 0.1초마다 다시 골라 그리로 걷는다 */
+  _holdWalkTick(dt) {
+    const h = this._holdWalk;
+    if (!h) return;
+    h.next -= dt;
+    if (h.next > 0) return;
+    h.next = 0.1;
+    const hit = this.world.pick(h.x, h.y);
+    const pt = hit?.point;
+    if (!pt || !isWalkable(pt.x, pt.z)) return;
+    const A = this.avatars;
+    if (this.player.sitting) A.standUp();
+    A.circling = null;
+    A.moveTarget = { x: pt.x, z: pt.z };
+    if (!h.mark || Math.hypot(h.mark.x - pt.x, h.mark.z - pt.z) > 0.8) {
+      h.mark = { x: pt.x, z: pt.z };
+      this.world.ripples.spawn(new THREE.Vector3(pt.x, walkHeight(pt.x, pt.z), pt.z), { color: '#f3ecdc', maxR: 0.5, life: 0.6 });
+    }
+  }
+
+  _endHoldWalk() {
+    if (!this._holdWalk) return;
+    this._holdWalk = null;
+    this.avatars.moveTarget = null; // 떼면 그 자리에 선다
   }
 
   _click(x, y) {
     this.sound.init();
+    this._setAutoWalk(false);
     const hit = this.world.pick(x, y);
     if (!hit) return;
     if (hit.kind === 'lantern' && hit.id) return this.activate('wish_lantern', { lanternId: hit.id });
@@ -2014,8 +2172,16 @@ class MetaTempleApp {
       if (k.KeyS || k.ArrowDown) iz += 1;
       if (k.KeyA || k.ArrowLeft) ix -= 1;
       if (k.KeyD || k.ArrowRight) ix += 1;
-      ix += this.joy.x;
-      iz += this.joy.z;
+      if (this.autoWalk) {
+        // 자동 걷기: 앞으로. 조이스틱 좌우는 방향 돌리기 (1인칭은 아래 돌아보기가, 3인칭은 카메라 방위를 돌린다)
+        iz -= 1;
+        if (this.world.cam.mode === 'first') ix += this.joy.x;
+        else this.world.cam.yaw -= this.joy.x * AUTO_TURN * dt;
+        if (this.player.busy || this.player.sitting) iz = 0; // 절하는 동안·앉으면 멈춰 서 있다 (자동 걷기는 그대로)
+      } else {
+        ix += this.joy.x;
+        iz += this.joy.z;
+      }
       if ((ix || iz) && this._teaScene) this.modals.current === 'tea_chat' ? this.modals.close() : this._leaveTea(); // 걸으면 찻자리에서 일어난다
       if ((ix || iz) && this._burnHold) this._endBurnHold(); // 걸으면 소각 구도·합장을 푼다
     }
@@ -2045,13 +2211,15 @@ class MetaTempleApp {
       cam.turn = 0;
     }
     // 3인칭: 탑돌이·눌러서 걸어가기 동안 카메라가 등 뒤로 천천히 따라 돈다 (키·조이스틱으로 걸을 때는 사용자가 방위를 쥔다)
-    cam.follow = !fp && !this._listening && (A.circling || A.moveTarget) && !ix && !iz ? pl.heading : null;
+    cam.follow = !fp && !this._listening && !this._holdWalk && (A.circling || A.moveTarget) && !ix && !iz ? pl.heading : null;
+    this._holdWalkTick(dt);
+    this._autoWalkTick(dt, ix || iz);
     const yaw = fp ? pl.heading - Math.PI + this._fp.off : cam.yaw;
     const wx = ix * Math.cos(yaw) + iz * Math.sin(yaw);
     const wz = -ix * Math.sin(yaw) + iz * Math.cos(yaw);
     if ((ix || iz) && this.modals.isOpen && ['practice_108', 'mala'].includes(this.modals.current)) this.modals.close();
     const night = this.world.env.night;
-    this.avatars.update(dt, t, { x: wx, z: wz, face }, night); // 뛰지 않는다 (Shift 달리기 없앰 — WALK_SPEED 1.1m/s)
+    this.avatars.update(dt, t, { x: wx, z: wz, face }, night); // 뛰지 않는다 (Shift 달리기 없앰 — WALK_SPEED 1.3m/s)
     this.temple.cairns.update(dt, pl.root.position.x, pl.root.position.z);
     this._strollTick(dt);
     if (fp) cam.yaw = pl.root.rotation.y - Math.PI + this._fp.off;

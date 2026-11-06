@@ -332,19 +332,28 @@ body:has(#intro:not(.leaving):not(.hidden)) .name-label { visibility: hidden; }
   animation: pop-in 0.25s var(--ease);
 }
 .prompt kbd { color: var(--gold); border-color: var(--gold-soft); }
-#prompt-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#prompt-text, #reply-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .joystick {
   display: none;
-  position: absolute; left: calc(22px + var(--safe-l)); bottom: calc(var(--gap) + var(--safe-b));
-  width: 116px; height: 116px; border-radius: 50%;
-  background: rgba(20, 17, 14, 0.35); border: 1px solid var(--line);
+  position: absolute; left: calc(18px + var(--safe-l)); bottom: calc(var(--gap) + var(--safe-b));
+  width: 148px; height: 148px; border-radius: 50%;
+  background: rgba(20, 17, 14, 0.38); border: 1px solid var(--line);
   touch-action: none;
 }
 .joy-knob {
-  position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; margin: -23px 0 0 -23px;
-  border-radius: 50%; background: rgba(243, 236, 220, 0.18); border: 1px solid var(--gold-soft);
+  position: absolute; left: 50%; top: 50%; width: 60px; height: 60px; margin: -30px 0 0 -30px;
+  border-radius: 50%; background: rgba(243, 236, 220, 0.2); border: 1px solid var(--gold-soft);
 }
+/* 자동 걷기: 금빛 테두리 + 위쪽에 '자동' — 좌우로 밀면 방향, 아래로 당기거나 톡 누르면 멈춤 */
+.joystick.auto { border-color: var(--gold); box-shadow: 0 0 0 2px var(--gold-soft), 0 0 18px rgba(242, 196, 109, 0.35); }
+.joystick.auto .joy-knob { background: rgba(242, 196, 109, 0.32); border-color: var(--gold); }
+.joystick.auto::after {
+  content: '자동'; position: absolute; left: 50%; top: -24px; translate: -50% 0;
+  font-family: var(--font-serif); font-size: 12px; color: var(--gold); letter-spacing: 0.1em; pointer-events: none;
+}
+/* 도반의 합장에 답례 (앉아 있거나 다른 몸짓 중일 때 6초) — 신행 안내 바로 위 */
+.prompt.reply { bottom: calc(var(--gap) + var(--safe-b) + var(--dock-h) + 66px); box-shadow: inset 0 0 0 1px var(--gold), var(--shadow); }
 
 /* 시트 — 넓은 화면은 오른쪽 위 단추 아래 패널(더보기는 독 위), 폰 세로는 아래에서 올라오는 시트 */
 .sheet {
@@ -476,7 +485,8 @@ body:has(#intro:not(.leaving):not(.hidden)) .name-label { visibility: hidden; }
 @media (pointer: coarse) and (max-width: 599px) and (min-height: 520px) {
   /* 폰 세로: 조이스틱은 독 위 왼쪽, 신행 안내는 그 오른쪽 */
   .joystick { bottom: calc(var(--gap) + var(--safe-b) + var(--dock-h) + 12px); }
-  .prompt { left: auto; right: calc(var(--gap) + var(--safe-r)); translate: none; bottom: calc(var(--gap) + var(--safe-b) + var(--dock-h) + 12px); max-width: calc(100vw - 166px - var(--safe-l)); }
+  .prompt { left: auto; right: calc(var(--gap) + var(--safe-r)); translate: none; bottom: calc(var(--gap) + var(--safe-b) + var(--dock-h) + 12px); max-width: calc(100vw - 194px - var(--safe-l)); }
+  .prompt.reply { bottom: calc(var(--gap) + var(--safe-b) + var(--dock-h) + 70px); }
 }
 
 /* short: 폰 가로 — 위는 현판 · 장소 · 메뉴, 아래는 낮은 독 */
@@ -495,8 +505,8 @@ body:has(#intro:not(.leaving):not(.hidden)) .name-label { visibility: hidden; }
   .cc-tile { min-height: 52px; gap: 2px; padding: 4px 2px; }
   .toast-stack { top: calc(64px + var(--safe-t)); width: min(440px, 60vw); }
   .toast { font-size: 12px; padding: 7px 14px; border-radius: 14px; }
-  .joystick { width: 96px; height: 96px; left: calc(16px + var(--safe-l)); }
-  .joy-knob { width: 40px; height: 40px; margin: -20px 0 0 -20px; }
+  .joystick { width: 122px; height: 122px; left: calc(14px + var(--safe-l)); }
+  .joy-knob { width: 50px; height: 50px; margin: -25px 0 0 -25px; }
   /* 기본: 마우스 가로 창 — 중앙 정렬. 터치면 조이스틱 오른쪽으로 비킨다 */
   .intro-title { margin-top: 3vh; gap: 8px; }
   .intro-logo { width: min(300px, 42vw); }

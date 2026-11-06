@@ -73,7 +73,7 @@ test('큰절 시각이 구운 GLB(monk.json)와 같다', async () => {
   assert.ok(Math.abs(c.foreheadMinAt - PROSTRATE.forehead) < 1 / 30 + 1e-6, '이마가 정한 때 바닥에 닿는다');
   for (const n of ['stand_up', 'sit_down']) assert.ok(meta.clips[n], n);
   assert.ok(!meta.clips.run, '달리기는 없앴다');
-  assert.ok(Math.abs(meta.clips.walk.speed - 1.1) < 1e-6, '걷기는 게임 이동 속도(1.1m/s)로 굽는다');
+  assert.ok(Math.abs(meta.clips.walk.speed - 1.3) < 1e-6, '걷기는 게임 이동 속도(1.3m/s)로 굽는다');
 });
 
 test('넓힌 동작: 상태마다 제 클립, 다실 선사는 앉은 채 찻잔을 건넨다', async () => {

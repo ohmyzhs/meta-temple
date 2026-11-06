@@ -20,6 +20,10 @@ async (page) => {
   await enter(base + '/?q=low');
   lines.push(await page.evaluate(() => {
     const t = window.temple, A = t.avatars;
+    // 군중 최적화(_crowdLod)는 화면 밖·45m 밖 도반의 몸 계산을 건너뛴다 — 이 검사는 멀리 있는 도반도 보아야 하므로 시야 판정을 끈다
+    const cam = A.camera;
+    A.camera = null;
+    window.__restoreCam = () => (A.camera = cam);
     let clock = 50;
     const step = (n) => { for (let i = 0; i < n; i++) t._frame(1 / 30, (clock += 1 / 30)); };
     const peers = (x) => [
@@ -52,6 +56,7 @@ async (page) => {
     A.syncRemotePeers(peers(x).map((p) => (p.id === 'p1' ? { ...p, actionSeq: 4 } : p)));
     step(3);
     out.push(`큰절 다시: ${before.toFixed(2)}s → ${p1.rig.current.time.toFixed(2)}s (${p1.rig.current.time < before ? 'PASS' : 'FAIL'})`);
+    window.__restoreCam();
     return `(a) 섞인 도반 ${ok ? 'PASS' : 'FAIL'}\n  ` + out.join('\n  ');
   }));
   lines.push(await page.evaluate(async () => {

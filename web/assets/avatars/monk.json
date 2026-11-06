@@ -19,30 +19,30 @@
    "foreheadMinAt": 0.0
   },
   "walk": {
-   "duration": 0.6666666666666666,
+   "duration": 0.6,
    "loop": true,
-   "speed": 1.1,
-   "cycle": 0.6666666666666666,
-   "eyeMin": 0.9209,
-   "eyeMax": 0.924,
-   "foreheadMin": 1.0589,
-   "foreheadMinAt": 0.16666666666666666,
+   "speed": 1.3,
+   "cycle": 0.6,
+   "eyeMin": 0.9109,
+   "eyeMax": 0.914,
+   "foreheadMin": 1.0488,
+   "foreheadMinAt": 0.13333333333333333,
    "legs": {
     "worst": {
      "knee": [
-      24,
-      0.67
+      25,
+      0.6
      ],
      "twist": [
       5,
-      0.0
+      0.6
      ]
     },
     "crossFrames": 0,
     "rows": [
      {
       "t": 0.0,
-      "kneeL": 24,
+      "kneeL": 25,
       "twistL": 5,
       "kneeR": 9,
       "twistR": 0,
@@ -50,73 +50,73 @@
      },
      {
       "t": 0.1,
-      "kneeL": 13,
-      "twistL": 2,
-      "kneeR": 2,
-      "twistR": 3,
+      "kneeL": 11,
+      "twistL": 1,
+      "kneeR": 0,
+      "twistR": 4,
       "cross": false
      },
      {
       "t": 0.2,
-      "kneeL": 0,
-      "twistL": 1,
-      "kneeR": 11,
+      "kneeL": 2,
+      "twistL": 2,
+      "kneeR": 14,
       "twistR": 4,
       "cross": false
      },
      {
       "t": 0.3,
-      "kneeL": 8,
-      "twistL": 1,
-      "kneeR": 23,
+      "kneeL": 9,
+      "twistL": 0,
+      "kneeR": 25,
       "twistR": 5,
       "cross": false
      },
      {
       "t": 0.4,
-      "kneeL": 6,
-      "twistL": 3,
-      "kneeR": 17,
-      "twistR": 3,
+      "kneeL": 0,
+      "twistL": 4,
+      "kneeR": 11,
+      "twistR": 1,
       "cross": false
      },
      {
       "t": 0.5,
-      "kneeL": 7,
+      "kneeL": 14,
       "twistL": 4,
-      "kneeR": 4,
-      "twistR": 0,
+      "kneeR": 2,
+      "twistR": 2,
       "cross": false
      },
      {
       "t": 0.6,
-      "kneeL": 20,
-      "twistL": 4,
-      "kneeR": 6,
-      "twistR": 1,
+      "kneeL": 25,
+      "twistL": 5,
+      "kneeR": 9,
+      "twistR": 0,
       "cross": false
      }
     ]
    }
   },
   "walk_chasu": {
-   "duration": 0.6666666666666666,
+   "duration": 0.6,
    "loop": true,
-   "speed": 1.1,
-   "cycle": 0.6666666666666666,
-   "eyeMin": 0.9211,
-   "eyeMax": 0.923,
-   "foreheadMin": 1.0589,
-   "foreheadMinAt": 0.16666666666666666
+   "speed": 1.3,
+   "cycle": 0.6,
+   "eyeMin": 0.9112,
+   "eyeMax": 0.913,
+   "foreheadMin": 1.049,
+   "foreheadMinAt": 0.13333333333333333
   },
   "walk_gassho": {
-   "duration": 0.6666666666666666,
+   "duration": 0.6,
    "loop": true,
-   "speed": 1.1,
-   "cycle": 0.6666666666666666,
-   "eyeMin": 0.8938,
-   "eyeMax": 0.9053,
-   "foreheadMin": 1.0298,
+   "speed": 1.3,
+   "cycle": 0.6,
+   "eyeMin": 0.8838,
+   "eyeMax": 0.8951,
+   "foreheadMin": 1.0198,
    "foreheadMinAt": 0.0
   },
   "bow_half": {
