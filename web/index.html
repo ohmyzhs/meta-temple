@@ -37,27 +37,38 @@
         <div class="intro-loading-bar"><span id="intro-progress"></span></div>
         <p id="intro-loading-text">산문을 여는 중…</p>
       </div>
-      <h1 class="intro-title"><span class="hanja">清蓮山寺</span><span class="hangul">청연산사</span></h1>
-      <p class="intro-lede">말없이 함께 머물며, 바람과 풍경 소리 속에서<br />잠시 마음을 내려놓는 웹 산사입니다.</p>
-      <div class="intro-name">
-        <span class="intro-label">오늘의 법명</span>
-        <strong id="intro-dharma-name">—</strong>
-        <button id="intro-rename" class="link-btn" type="button">다시 받기</button>
-        <button id="intro-custom" class="link-btn" type="button" aria-expanded="false" aria-controls="intro-name-form">직접 짓기</button>
+      <!-- 대문: 붓글씨 로고(생성형, docs/art/prompts/logo-cal-v1.txt) + 한글 이름 · 이어폰 한 줄 · 법명 칩(누르면 법명·모습 고르기) · 들어서기 -->
+      <h1 class="intro-title">
+        <span class="intro-logo"><img src="./assets/brand/logo-cal-v1.webp" width="1100" height="330" alt="清蓮山寺" fetchpriority="high" /><span class="intro-seal" aria-hidden="true">淸蓮</span></span>
+        <span class="intro-hangul">청연산사</span>
+      </h1>
+      <p class="intro-ear"><svg class="i" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><g fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3.5" y="14" width="4" height="6.5" rx="1.6"/><rect x="16.5" y="14" width="4" height="6.5" rx="1.6"/></g></svg>이어폰을 끼고 들어오세요</p>
+      <div class="intro-actions">
+        <button id="intro-who" class="intro-who" type="button" aria-expanded="false" aria-controls="intro-who-panel" aria-label="법명과 모습 바꾸기">
+          <span class="intro-who-name" id="intro-who-name"></span><span class="intro-who-av" id="intro-who-av"></span>
+          <svg class="i intro-chev" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <div class="intro-who-panel" id="intro-who-panel" hidden>
+          <div class="intro-name">
+            <span class="intro-label">오늘의 법명</span>
+            <strong id="intro-dharma-name">—</strong>
+            <button id="intro-rename" class="link-btn" type="button">다시 받기</button>
+            <button id="intro-custom" class="link-btn" type="button" aria-expanded="false" aria-controls="intro-name-form">직접 짓기</button>
+          </div>
+          <form id="intro-name-form" class="name-form hidden" autocomplete="off">
+            <input id="intro-name-input" type="text" aria-label="법명 직접 짓기" enterkeyhint="done" />
+            <button type="submit" class="name-ok">정하기</button>
+            <p class="name-hint" data-hint aria-live="polite"></p>
+          </form>
+          <div class="intro-avatars" role="radiogroup" aria-label="모습 고르기">
+            <button class="avatar-card" data-avatar="monk" role="radio"><span class="avatar-glyph" data-icon="meditate"></span><b>목각 동자승</b></button>
+            <button class="avatar-card" data-avatar="ink_wanderer" role="radio"><span class="avatar-glyph" data-icon="self"></span><b>삿갓 수묵 행자</b></button>
+            <button class="avatar-card" data-avatar="lantern_spirit" role="radio"><span class="avatar-glyph" data-icon="wish_lantern"></span><b>연꽃 등불 정령</b></button>
+          </div>
+          <p id="intro-streak" class="intro-streak"></p>
+        </div>
+        <button id="intro-enter" class="enter-btn" type="button" disabled>산문에 들어서기</button>
       </div>
-      <form id="intro-name-form" class="name-form hidden" autocomplete="off">
-        <input id="intro-name-input" type="text" aria-label="법명 직접 짓기" enterkeyhint="done" />
-        <button type="submit" class="name-ok">정하기</button>
-        <p class="name-hint" data-hint aria-live="polite"></p>
-      </form>
-      <p id="intro-streak" class="intro-streak"></p>
-      <div class="intro-avatars" role="radiogroup" aria-label="모습 고르기">
-        <button class="avatar-card" data-avatar="monk" role="radio"><span class="avatar-glyph">🧘</span><b>목각 동자승</b><small>백자·회색 장삼</small></button>
-        <button class="avatar-card" data-avatar="ink_wanderer" role="radio"><span class="avatar-glyph">🎋</span><b>삿갓 수묵 행자</b><small>먹빛 도포·삿갓</small></button>
-        <button class="avatar-card" data-avatar="lantern_spirit" role="radio"><span class="avatar-glyph">🪷</span><b>연꽃 등불 정령</b><small>떠도는 작은 빛</small></button>
-      </div>
-      <button id="intro-enter" class="enter-btn" type="button" disabled>산문에 들어서기</button>
-      <p class="intro-hint">소리와 함께하면 더 좋습니다 · 이어폰 권장</p>
     </div>
   </section>
 
@@ -65,16 +76,19 @@
   <!-- 누르는 것은 모두 <button class="ctl"> — 그림 아이콘(data-icon, main.js 가 채움) + 짧은 글자, 48px 이상 -->
   <div id="hud" class="hud hidden">
     <header class="hud-plaque collapsed" id="hud-plaque">
-      <button class="ctl plaque-head" id="plaque-toggle" type="button" aria-expanded="false" aria-controls="plaque-body" aria-label="이곳 안내와 내 기록">
-        <span class="plaque-temple">清蓮山寺</span>
-        <span class="plaque-count"><span class="dot"></span><span id="hud-presence-count"></span></span>
+      <!-- 상태판: 낙관 + 법명 + 함께 있는 사람. 펼치면 법명(붓글씨) · 절·염주·연등 · 동석. 지금 장소는 오른쪽 위 장소 단추에만 -->
+      <button class="ctl plaque-head" id="plaque-toggle" type="button" aria-expanded="false" aria-controls="plaque-body" aria-label="내 법명과 수행, 함께 있는 도반">
+        <span class="pq-seal" aria-hidden="true">淸蓮</span>
+        <span class="pq-id"><b id="hud-dharma-name"></b><small><span class="dot"></span><span id="hud-presence-count"></span></small></span>
       </button>
       <div class="plaque-body" id="plaque-body">
-        <p class="plaque-zone" id="hud-zone-name"></p>
-        <p id="hud-zone-subtitle" class="plaque-sub"></p>
-        <p class="plaque-me"><span id="hud-dharma-name"></span></p>
-        <p id="hud-merit-summary" class="plaque-merit"></p>
-        <p class="plaque-presence"><span class="dot"></span><span id="hud-presence">도반 0명 말없이 동석 중</span></p>
+        <p class="pq-name" id="hud-dharma-name-big"></p>
+        <ul class="pq-stats">
+          <li><span data-icon="prostrate"></span><b id="hud-bows">0</b><small>절</small></li>
+          <li><span data-icon="practice_108"></span><b id="hud-mala">0</b><small>염주</small></li>
+          <li><span data-icon="wish_lantern"></span><b id="hud-lanterns">0</b><small>연등</small></li>
+        </ul>
+        <p class="pq-presence"><span class="dot"></span><span><span id="hud-presence"></span><small id="hud-presence-sub"></small></span></p>
       </div>
     </header>
 

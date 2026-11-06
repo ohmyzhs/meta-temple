@@ -106,6 +106,18 @@ class MetaTempleApp {
       if (open) field.input.focus();
     });
     $('#intro-enter').addEventListener('click', () => this._enter());
+    // 대문은 글을 덜어 낸다: 법명·모습은 칩 하나로 접어 두고, 누르면 고르는 칸이 열린다
+    const panel = $('#intro-who-panel');
+    const syncWho = () => {
+      $('#intro-who-name').textContent = $('#intro-dharma-name').textContent;
+      $('#intro-who-av').textContent = $('.avatar-card[aria-checked="true"] b')?.textContent || '';
+    };
+    syncWho();
+    new MutationObserver(syncWho).observe(panel, { subtree: true, childList: true, characterData: true, attributeFilter: ['aria-checked'] });
+    $('#intro-who').addEventListener('click', (e) => {
+      panel.hidden = !panel.hidden;
+      e.currentTarget.setAttribute('aria-expanded', String(!panel.hidden));
+    });
   }
 
   /** 법명 바꾸기 (custom = 직접 지은 이름 → 거름 통과 필요). 화면·내 아바타·실시간 동석에 함께 반영 */
@@ -1386,12 +1398,16 @@ class MetaTempleApp {
 
   _updateHUD() {
     const p = this.store.profile, s = p.stats;
-    $('#hud-dharma-name').textContent = p.dharmaName;
-    $('#hud-merit-summary').textContent = `절 ${s.bowCount}배 · 염주 ${s.malaCount}알 · 연등 ${s.lanternCount}등`;
+    $('#hud-dharma-name').textContent = $('#hud-dharma-name-big').textContent = p.dharmaName;
+    const n = (v) => (v || 0).toLocaleString('ko-KR');
+    $('#hud-bows').textContent = n(s.bowCount);
+    $('#hud-mala').textContent = n(s.malaCount);
+    $('#hud-lanterns').textContent = n(s.lanternCount);
     if (this.avatars) {
       const real = this.live?.count || 0;
-      $('#hud-presence').textContent = real > 0 ? `지금 도반 ${real}명이 말없이 함께 머무는 중` : `지금은 홀로 머무는 중 · 산사 식구 ${this.avatars.npcCount}명`;
-      $('#hud-presence-count').textContent = real > 0 ? real : '';
+      $('#hud-presence-count').textContent = real > 0 ? `도반 ${real}명과 함께` : '홀로 머무는 중';
+      $('#hud-presence').textContent = real > 0 ? `지금 도반 ${real}명이 말없이 함께 머뭅니다` : '지금은 홀로 머뭅니다';
+      $('#hud-presence-sub').textContent = `산사 식구 ${this.avatars.npcCount}명이 곁에 있습니다`;
     }
   }
 
@@ -1400,9 +1416,6 @@ class MetaTempleApp {
     const z = zoneAt(p.x, p.z);
     if (z === this.zone && !force) return;
     this.zone = z;
-    const info = ZONES[z];
-    $('#hud-zone-name').textContent = info.name;
-    $('#hud-zone-subtitle').textContent = info.subtitle;
     $$('[data-goto-zone]').forEach((b) => b.classList.toggle('active', b.dataset.gotoZone === z));
     this.miniMap?.setHere(z);
     this._zoneRituals(z);
@@ -1506,6 +1519,8 @@ class MetaTempleApp {
     // 그림 아이콘을 채우고 장소 목록을 만든다
     $$('[data-icon]').forEach((el) => el.insertAdjacentHTML('afterbegin', icon(el.dataset.icon)));
     // 몸짓 단추(독·더보기를 오간다)와 숲길의 「산책」 단추
+    // 상태판은 오른쪽 위 장소·메뉴 단추 묶음이 남긴 너비까지만 (장소 이름 길이에 따라 변한다)
+    new ResizeObserver(([e]) => document.documentElement.style.setProperty('--hud-top-w', `${Math.ceil(e.target.getBoundingClientRect().width)}px`)).observe($('.hud-top'));
     this._gestureBtns = Object.fromEntries($$('[data-gesture]').map((b) => [b.dataset.gesture, b]));
     const sb = document.createElement('div');
     sb.innerHTML = `<button class="ctl dock-btn ritual" type="button" id="stroll-btn" title="자동 산책 — 순환 산책로를 천천히 걷습니다" aria-pressed="false"><svg class="i" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><g fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 3.8c1.6 0 2.4 1.6 2.2 3.6-.2 2-1.2 3.2-2.4 3.2S6.4 9.4 6.4 7.5c0-2 .6-3.7 2.1-3.7z"/><path d="M7 12.6l2.8.3-.4 2.4c-.2 1-1 1.5-1.8 1.4-.9-.1-1.3-.9-1.1-1.8z"/><path d="M15.5 7.8c1.5 0 2.1 1.7 2.1 3.7s-1 3.1-2.2 3.1-2.2-1.2-2.4-3.2c-.2-2 .9-3.6 2.5-3.6z"/><path d="M14 16.6l2.8-.3.5 2.3c.2 1-.3 1.7-1.1 1.8-.8.1-1.6-.4-1.8-1.4z"/></g></svg><span class="lbl">산책</span></button>`;

@@ -1,0 +1,8 @@
+# 대문 붓글씨 로고 (2026-11-06) — Codex CLI 내장 gpt-image 로 생성, 결과 그림에서 가짜 글자 낙관을 지우고 밝기를 투명도로 바꿔 web/assets/brand/logo-cal-v1.webp (1100×330) 로 저장. 낙관은 CSS(淸蓮).
+
+Image to generate (landscape 3:1, high resolution, 2400x800 or larger):
+Traditional East Asian brush calligraphy of exactly four Chinese characters written left to right in ONE horizontal line: 清 蓮 山 寺 (the name of a Korean Buddhist mountain temple, "Cheongyeonsansa"). Every character must be the correct standard form: 清 (three-dot water radical on the left + 青 on the right), 蓮 (grass radical on top, 辶 walk radical wrapping 車), 山, 寺 (土 above 寸).
+Style: dignified Korean temple name-board calligraphy between regular script and semi-cursive (haeseo / haengseo), thick confident strokes with natural dry-brush texture at the ends of strokes, generous balanced spacing, like a calligrapher's master copy for a temple hyeonpan.
+Colors: warm ivory ink (#F3ECDC) on a perfectly flat, pure black background (#000000). No paper texture, no shadows, no frame, no vignette.
+Add exactly one small square vermilion seal stamp (#B7402A) with carved white lines at the lower right, clearly separated from the characters.
+Nothing else in the image: no other text, no signature, no border, no watermark.
