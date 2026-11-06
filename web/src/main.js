@@ -1040,7 +1040,7 @@ class MetaTempleApp {
       this.toast(k.ground ? REST_GROUND_MSG : REST_SIT_MSG[s.kind]);
       if (!this._restHinted) {
         this._restHinted = true; // 처음 앉았을 때 한 번만
-        setTimeout(() => pl.seat?.kind === 'rest' && this.toast('🎧 아래 「예불 들으며 쉬기」를 누르면 이 자리에서 경치를 보며 예불을 듣습니다'), 2600);
+        setTimeout(() => pl.seat?.kind === 'rest' && this.toast('🎧 아래 「예불 듣기」·「자연의 소리 듣기」를 누르면 이 자리에서 경치를 보며 듣습니다'), 2600);
       }
     };
     const st = slot.stand;
@@ -1708,6 +1708,7 @@ class MetaTempleApp {
     );
     $$('[data-gesture]').forEach((b) => b.addEventListener('click', () => this.gesture(b.dataset.gesture)));
     $('#prompt').addEventListener('click', () => this.nearby && this._activateNearby());
+    $('#prompt-alt').addEventListener('click', () => this.nearby?.alt && this.activate(this.nearby.alt.id));
   }
 
   /* ───────── 입력 ───────── */
@@ -1733,6 +1734,7 @@ class MetaTempleApp {
         this._syncChips();
       }
       if (e.code === 'KeyE' && this.nearby) this._activateNearby();
+      if (e.code === 'KeyR' && this.nearby?.alt) this.activate(this.nearby.alt.id);
       if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
     });
     window.addEventListener('keyup', (e) => (this.keys[e.code] = false));
@@ -1876,8 +1878,8 @@ class MetaTempleApp {
         bd = d;
       }
     }
-    // 쉼터에 앉아 있으면 그 자리에서 소리 듣기 (알약 → 자연의 소리 장면, 그 아래 예불 목록으로)
-    if (!best && this.player.seat?.kind === 'rest') best = { id: 'nature', label: '소리 들으며 쉬기' };
+    // 쉼터에 앉아 있으면 그 자리에서 듣기 — 예불(E)과 자연의 소리(R) 알약 둘, 어느 쪽이든 한 번에
+    if (!best && this.player.seat?.kind === 'rest') best = { id: 'yebul', label: '예불 듣기', alt: { id: 'nature', label: '자연의 소리 듣기' } };
     // 순환 산책로·서쪽 마당: 쉼터(1.4m 안), 숲길이면 없을 때 멈춰 선 자리의 돌탑
     if (!best && (zone === 'FOREST' || zone === 'COURTYARD') && !this.player.sitting) {
       for (const s of this.temple.trail.spots) {
@@ -1980,6 +1982,8 @@ class MetaTempleApp {
           this.nearby = n;
           $('#prompt').classList.toggle('hidden', !n);
           if (n) $('#prompt-text').textContent = n.label;
+          $('#prompt-alt').classList.toggle('hidden', !n?.alt);
+          if (n?.alt) $('#prompt-alt-text').textContent = n.alt.label;
         }
         $$('[data-gesture]').forEach((b) => b.classList.toggle('active', this.player.state === b.dataset.gesture || (b.dataset.gesture === 'meditate' && this.player.state === 'meditate')));
         this._updateHUD();

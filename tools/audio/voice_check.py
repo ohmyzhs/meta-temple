@@ -13,6 +13,7 @@ ap.add_argument('paths', nargs='+', help='폴더(안의 *.m4a) 또는 파일')
 ap.add_argument('--model', default='small')
 ap.add_argument('--allow', default='chant-', help='이 이름으로 시작하는 조각은 목소리가 있어도 된다')
 ap.add_argument('--json')
+ap.add_argument('--no-vad', action='store_true', help='VAD 없이 전부 받아쓴다 — 물소리 아래 작은 말소리까지 (헛받아쓰기가 늘어 귀로 확인)')
 a = ap.parse_args()
 
 files = []
@@ -23,7 +24,7 @@ out, bad = [], []
 for f in files:
     # PyAV 판이 faster-whisper 와 맞지 않아 ffmpeg 로 16kHz 모노 PCM 을 직접 넘긴다
     pcm = np.frombuffer(subprocess.check_output(['ffmpeg', '-v', 'error', '-i', f, '-f', 'f32le', '-ac', '1', '-ar', '16000', '-']), dtype=np.float32)
-    segs, _ = model.transcribe(pcm, language='ko', vad_filter=True, beam_size=1, condition_on_previous_text=False)
+    segs, _ = model.transcribe(pcm, language='ko', vad_filter=not a.no_vad, beam_size=1, condition_on_previous_text=False)
     hits = [(round(s.start, 1), round(s.end, 1), s.text.strip()) for s in segs if s.text.strip()]
     name = os.path.basename(f)
     allowed = name.startswith(a.allow) if a.allow else False

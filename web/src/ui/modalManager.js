@@ -1706,8 +1706,10 @@ export class ModalManager {
           </button>
         </li>`).join('')}
       </ul>
-      <p class="m-hint">고르면 화면이 바뀌어 좌복에 홀로 앉아 처음부터 끝까지 듣습니다. Esc 나 「일어나기」로 돌아옵니다.</p>`);
+      <p class="m-hint">고르면 화면이 바뀌어 좌복에 홀로 앉아 처음부터 끝까지 듣습니다. Esc 나 「일어나기」로 돌아옵니다.</p>
+      <p class="m-hint"><button type="button" class="m-link" data-nature>자연의 소리 듣기 →</button></p>`);
     this._on(root, 'click', (e) => {
+      if (e.target.closest('[data-nature]')) return this.open('nature');
       const b = e.target.closest('.yebul-item');
       if (b) this.cb.onYebul?.(YEBUL_TRACKS.find((x) => x.id === b.dataset.id));
     });
