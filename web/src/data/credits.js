@@ -31,12 +31,10 @@ export const CREDITS = {
     { use: "개구리", title: "백령도 진촌리 논에서 우는 청개구리 집단음", by: "(재)전주정보문화산업진흥원", license: "공공누리 제1유형", url: "https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?wrtSn=13371634&menuNo=200020" },
     { use: "법당 염불", title: "자연의소리_내장산백양사염불소리", by: "국립공원공단", license: "공공누리 제1유형", url: "https://www.data.go.kr/data/15076137/fileData.do" },
     { use: "연못 샘물", title: "자연의소리_월출산도갑사미륵전샘터", by: "국립공원공단", license: "공공누리 제1유형", url: "https://www.data.go.kr/data/15076172/fileData.do" },
-    { use: "범종", title: "자연의소리_지리산 화엄사 범종 타종", by: "국립공원공단", license: "공공누리 제1유형", url: "https://www.data.go.kr/data/15068173/fileData.do" },
     { use: "범종", title: "망경대산 만봉사 범종 소리", by: "(재)전주정보문화산업진흥원", license: "공공누리 제1유형", url: "https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?wrtSn=13372528&menuNo=200020" },
     { use: "처마 풍경(풍탁)", title: "자연의소리_지리산화엄사풍탁소리", by: "국립공원공단", license: "공공누리 제1유형", url: "https://www.data.go.kr/data/15076195/fileData.do" },
     { use: "마당 쓰는 소리", title: "전통사물_대나무빗자루_쓸다", by: "(재)전주정보문화산업진흥원", license: "공공누리 제1유형", url: "https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?wrtSn=13287375&menuNo=200020" },
     { use: "화롯불", title: "Campfire 02", by: "HECKFRICKER (Freesound)", license: "CC0", url: "https://freesound.org/s/729396/" },
-    { use: "수리부엉이", title: "Hibou Grand Duc", by: "barkenov (Freesound)", license: "CC0", url: "https://freesound.org/s/471507/" },
     { use: "개구리", title: "Pool Frogs with birds (Pelophylax lessonae)", by: "remmert (Freesound)", license: "CC0", url: "https://freesound.org/s/513978/" },
     { use: "돌풍", title: "silent windy pine forest", by: "bruno.auzet (Freesound)", license: "CC0", url: "https://freesound.org/s/670307/" },
     { use: "먼 천둥", title: "Dry storm thunders", by: "fran_marenco (Freesound)", license: "CC0", url: "https://freesound.org/s/796529/" },
@@ -55,6 +53,7 @@ export const CREDITS = {
     { use: "도복 스침", title: "Cotton clothes rustling", by: "khenshom (Freesound)", license: "CC0", url: "https://freesound.org/s/481075/" },
     { use: "한지", title: "종이_넘기는_소리", by: "(재)전주정보문화산업진흥원", license: "공공누리 제1유형", url: "https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?wrtSn=13372326&menuNo=200020" },
     { use: "붓", title: "전통사물_붓_쓰다_글씨_천천히_ver.1", by: "(재)전주정보문화산업진흥원", license: "공공누리 제1유형", url: "https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?wrtSn=13287388&menuNo=200020" },
+    { use: "수리부엉이", title: "Hibou Grand Duc", by: "barkenov (Freesound)", license: "CC0", url: "https://freesound.org/s/471507/" },
   // </nature-sounds>
     ...[
       ['목탁', '자연의소리_내장산학바위산사목탁소리', 15076130],

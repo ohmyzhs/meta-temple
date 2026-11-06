@@ -47,7 +47,7 @@ const S = (base, n) => Array.from({ length: n }, (_, i) => `${base}-${i + 1}`);
 /** 원샷 이름 → 파일 이름들, 또는 { sprite, n, slot, len } (한 파일에 n 칸 — tools/audio sprite) */
 export const NATURE_SHOTS = {
   gust: S('gust-pine', 5), // 솔숲 바람이 부풀었다 가라앉는 곳 (예전 gust-1~6 은 내레이션이 섞여 뺐다 — 이름을 바꿔 캐시와 섞이지 않게)
-  bell: ['bell-hwaeom-1', 'bell-hwaeom-2', 'bell-manbong-1'],
+  bell: ['bell-manbong-1'], // 사용자 2026-11-07: 범종은 만봉사 소리가 가장 낫다 (화엄사 두 조각은 뺐다)
   chime: { sprite: 'chime', n: 8, slot: 4, len: 3.8 },
   scops: S('scops', 4),
   owl: S('owl', 3),

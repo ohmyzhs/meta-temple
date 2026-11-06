@@ -40,7 +40,7 @@ const airTone = (d) => 16000 / (1 + Math.max(0, d - 3) / 9); // 3m 16kHz · 12m 
 
 // 레이어 크기: base × 같은 이름 칸의 시간대(t)·날씨(w)·구역(z) 배율 — 바람·비·산새·풀벌레·매미는 산 어디서나 (자리와 무관)
 const LAYERS = {
-  wind: { base: 0.07, w: 'wind', z: 'wind' }, // 돌풍만 싣는다 — 가장 센 돌풍도 나머지 소리보다 크지 않게 (사용자 2026-11-06 「바람이 너무 크다」, tools/qa/wind.mjs: 0.3 에서 산문 +12.1dB)
+  wind: { base: 0.06, w: 'wind', z: 'wind' }, // 돌풍만 싣는다 — 가장 센 돌풍도 나머지 소리보다 크지 않게 (사용자 2026-11-06 「바람이 너무 크다」, tools/qa/wind.mjs: 0.3 에서 산문 +12.1dB · 800Hz 걷은 돌풍 0.07 에서 -0.7dB)
   rain: { base: 0.3, w: 'rain' },
   birds: { base: 0.3, t: 'birds', w: 'birds', z: 'birds', max: 1.6, fade: 6 },
   crickets: { base: 0.06, t: 'crickets', w: 'crickets' },

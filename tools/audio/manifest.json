@@ -1,5 +1,5 @@
 {
- "_": "자연의 소리 원본(sources)과 자를 구간(pieces). python3 tools/audio/build.py build — 원본은 tools/audio/raw/ (git 밖, 받는 곳은 url). 구간은 build.py scan(단기 음량이 고른 곳)과 스펙트로그램으로 골랐다. 2026-11-06: 경주남산(15076196)은 명상 내레이션 영상이라 뺐다 — 받아쓰기(tools/audio/voice_check.py)로 확인.",
+ "_": "자연의 소리 원본(sources)과 자를 구간(pieces). python3 tools/audio/build.py build — 원본은 tools/audio/raw/ (git 밖, 받는 곳은 url). 구간은 build.py scan(단기 음량이 고른 곳)과 스펙트로그램으로 골랐다. 2026-11-06: 경주남산(15076196)은 명상 내레이션 영상이라 뺐다 — 받아쓰기(tools/audio/voice_check.py)로 확인. 2026-11-06: 돌풍(gust-pine)은 800Hz 위를 걷는다(lp) — 솔바람의 쉬익 띠가 물소리로 들려 산꼭대기에서도 물소리가 났다. 검사: tools/audio/water_check.py",
  "sources": {
   "knps-stream": {
    "file": "knps-15076211.m4a",
@@ -148,13 +148,6 @@
    "license": "공공누리 제1유형",
    "url": "https://www.data.go.kr/data/15076172/fileData.do"
   },
-  "knps-bell": {
-   "file": "knps-15068173.m4a",
-   "title": "자연의소리_지리산 화엄사 범종 타종",
-   "by": "국립공원공단",
-   "license": "공공누리 제1유형",
-   "url": "https://www.data.go.kr/data/15068173/fileData.do"
-  },
   "gongu-bell": {
    "file": "gongu-13372528.mp3",
    "title": "망경대산 만봉사 범종 소리",
@@ -182,13 +175,6 @@
    "by": "HECKFRICKER (Freesound)",
    "license": "CC0",
    "url": "https://freesound.org/s/729396/"
-  },
-  "fs-eagleowl": {
-   "file": "fs-471507.wav",
-   "title": "Hibou Grand Duc",
-   "by": "barkenov (Freesound)",
-   "license": "CC0",
-   "url": "https://freesound.org/s/471507/"
   },
   "fs-frogs": {
    "file": "fs-513978.wav",
@@ -315,6 +301,13 @@
    "by": "(재)전주정보문화산업진흥원",
    "license": "공공누리 제1유형",
    "url": "https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?wrtSn=13287388&menuNo=200020"
+  },
+  "fs-eagleowl": {
+   "file": "fs-471507.wav",
+   "title": "Hibou Grand Duc",
+   "by": "barkenov (Freesound)",
+   "license": "CC0",
+   "url": "https://freesound.org/s/471507/"
   }
  },
  "pieces": [
@@ -492,24 +485,6 @@
    "src": "knps-spring",
    "from": 223,
    "to": 273,
-   "mono": true
-  },
-  {
-   "out": "bell-hwaeom-1",
-   "src": "knps-bell",
-   "from": 26.6,
-   "to": 54.0,
-   "kind": "shot",
-   "lufs": -22,
-   "mono": true
-  },
-  {
-   "out": "bell-hwaeom-2",
-   "src": "knps-bell",
-   "from": 84.6,
-   "to": 112.5,
-   "kind": "shot",
-   "lufs": -22,
    "mono": true
   },
   {
@@ -996,7 +971,8 @@
    "from": 55.6,
    "to": 63.1,
    "kind": "shot",
-   "lufs": -25
+   "lufs": -25,
+   "lp": 800
   },
   {
    "out": "gust-pine-2",
@@ -1004,7 +980,8 @@
    "from": 192.1,
    "to": 199.6,
    "kind": "shot",
-   "lufs": -25
+   "lufs": -25,
+   "lp": 800
   },
   {
    "out": "gust-pine-3",
@@ -1012,7 +989,8 @@
    "from": 274.5,
    "to": 282.0,
    "kind": "shot",
-   "lufs": -25
+   "lufs": -25,
+   "lp": 800
   },
   {
    "out": "gust-pine-4",
@@ -1020,7 +998,8 @@
    "from": 296.8,
    "to": 304.3,
    "kind": "shot",
-   "lufs": -25
+   "lufs": -25,
+   "lp": 800
   },
   {
    "out": "gust-pine-5",
@@ -1028,7 +1007,8 @@
    "from": 315.4,
    "to": 322.9,
    "kind": "shot",
-   "lufs": -25
+   "lufs": -25,
+   "lp": 800
   }
  ]
 }
