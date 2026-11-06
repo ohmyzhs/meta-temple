@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { envUniforms } from './materials.js';
 import { ROOF_COVER_GLSL } from './layout.js';
-import { softDotTexture, smokeTexture, flameTexture } from './textures.js';
+import { softDotTexture, smokeTexture, flameTexture, tongueTexture } from './textures.js';
 
 function rand(seed) {
   let s = seed;
@@ -30,7 +30,10 @@ export function makeEmitter({
   texture = 'smoke',
   additive = false,
   drift = 0.3,
-  seed = 1
+  seed = 1,
+  color2 = null, // 수명 끝의 색 (없으면 color 그대로) — 불꽃은 밑이 희고 위로 갈수록 붉게
+  upright = false, // 곧게 선 불꽃: 입자를 거의 돌리지 않는다 (혀 모양 그림이 옆으로 눕지 않게)
+  spawn = 0 // >0 이면 한 번만: start() 뒤 spawn 초 동안 하나씩 태어나 life 동안 끝까지 오르고 사라진다 (되풀이 없음)
 }) {
   const r = rand(seed);
   const g = new THREE.BufferGeometry();
@@ -44,13 +47,15 @@ export function makeEmitter({
   }
   g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   g.setAttribute('seed', new THREE.BufferAttribute(seeds, 4));
-  const map = texture === 'flame' ? flameTexture() : texture === 'dot' ? softDotTexture() : smokeTexture();
+  const map = texture === 'flame' ? flameTexture() : texture === 'tongue' ? tongueTexture() : texture === 'dot' ? softDotTexture() : smokeTexture();
   const uniforms = {
     uTime: envUniforms.uTime,
     uWind: envUniforms.uWind,
     uIntensity: { value: 1 },
     uMap: { value: map },
     uColor: { value: new THREE.Color(color) },
+    uColor2: { value: new THREE.Color(color2 || color) },
+    uRot: { value: upright ? 0.18 : 1 },
     uSpread: { value: spread },
     uRise: { value: rise },
     uLife: { value: life },
@@ -58,7 +63,9 @@ export function makeEmitter({
     uGrow: { value: grow },
     uOpacity: { value: opacity },
     uDrift: { value: drift },
-    uPx: { value: 1 }
+    uPx: { value: 1 },
+    uStart: { value: -1e6 },
+    uSpawn: { value: spawn }
   };
   const mat = new THREE.ShaderMaterial({
     uniforms,
@@ -67,10 +74,11 @@ export function makeEmitter({
     blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending,
     vertexShader: `
       attribute vec4 seed;
-      uniform float uTime, uWind, uIntensity, uSpread, uRise, uLife, uSize, uGrow, uDrift, uPx;
+      uniform float uTime, uWind, uIntensity, uSpread, uRise, uLife, uSize, uGrow, uDrift, uPx, uStart, uSpawn;
       varying float vAge; varying float vSeed;
       void main() {
-        float age = fract(uTime / uLife + seed.x);
+        // 되풀이: 고리형 수명 / 한 번만(uSpawn>0): 태어나기 전·다 산 뒤는 나이 0·1 (둘 다 투명)
+        float age = uSpawn > 0.0 ? clamp((uTime - uStart - seed.x * uSpawn) / uLife, 0.0, 1.0) : fract(uTime / uLife + seed.x);
         vAge = age; vSeed = seed.w;
         float spd = mix(0.6, 1.0, uIntensity);
         vec3 p = position;
@@ -83,21 +91,22 @@ export function makeEmitter({
         gl_PointSize = s * uPx * 300.0 / -mv.z;
       }`,
     fragmentShader: `
-      uniform sampler2D uMap; uniform vec3 uColor; uniform float uOpacity; uniform float uIntensity;
+      uniform sampler2D uMap; uniform vec3 uColor, uColor2; uniform float uOpacity; uniform float uIntensity; uniform float uRot;
       varying float vAge; varying float vSeed;
       void main() {
         vec2 uv = gl_PointCoord;
-        float a = sin(vSeed * 6.28);
+        float a = sin(vSeed * 6.28) * uRot;
         uv = (mat2(cos(a), -sin(a), sin(a), cos(a)) * (uv - 0.5)) + 0.5;
         vec4 t = texture2D(uMap, uv);
         float fade = smoothstep(0.0, 0.12, vAge) * (1.0 - smoothstep(0.55, 1.0, vAge));
-        gl_FragColor = vec4(uColor * t.rgb, t.a * uOpacity * fade * uIntensity);
+        gl_FragColor = vec4(mix(uColor, uColor2, smoothstep(0.05, 0.85, vAge)) * t.rgb, t.a * uOpacity * fade * uIntensity);
         #include <colorspace_fragment>
       }`
   });
   const pts = new THREE.Points(g, mat);
   pts.frustumCulled = false;
   pts.userData.uniforms = uniforms;
+  pts.userData.start = () => (uniforms.uStart.value = envUniforms.uTime.value); // 한 번만 입자: 지금부터 태어난다
   return pts;
 }
 
