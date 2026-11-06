@@ -10,7 +10,7 @@ import { TempleScene } from './world/templeScene.js';
 import { AvatarManager } from './world/avatarManager.js';
 import { loadRig } from './world/avatarRig.js';
 import { wireState } from './core/avatarMotion.js';
-import { L, isWalkable, zoneAt, streamZ, walkHeight, canBuildCairn, pathX } from './world/layout.js';
+import { L, COURTS, isWalkable, zoneAt, streamZ, walkHeight, canBuildCairn, pathX } from './world/layout.js';
 import { createMiniMap } from './ui/miniMap.js';
 import { scrollFade } from './ui/scrollFade.js';
 import { trail, loop, J1, REST_SIT_MSG } from './world/trail.js';
@@ -263,6 +263,7 @@ class MetaTempleApp {
     this.sound.onSleep = () => this._listening?.nature && this.exitListening({ keepPaused: true });
     this.sound.init();
     this.sound.setEmitters(this._emitters());
+    this.sound.setAreas({ courts: COURTS, tea: L.teahouseTerrace, hall: L.hall, groves: [L.bamboo, L.bambooEast] }); // 소리가 자리를 따르게 (담 가림·대숲 자리)
     this.sound.loadRecordings('./assets/audio/'); // 실제 녹음 — 받는 동안은 합성음
     this.sound.setWeather(this.world.weatherName);
     this.sound.setTimeOfDay(this.world.phase);
@@ -317,7 +318,7 @@ class MetaTempleApp {
 
   _emitters() {
     const stream = [];
-    for (let x = -36; x <= 36; x += 6) stream.push({ x, y: -0.4, z: streamZ(x) });
+    for (let x = -48; x <= 48; x += 4) stream.push({ x, y: -0.4, z: streamZ(x) }); // 보이는 물길 그대로 (terrain.js buildWater 와 같은 범위)
     const h = L.hall;
     const chimes = [
       { x: h.x0 - 2.5, y: 9, z: h.z1 + 2.5 },

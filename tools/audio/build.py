@@ -5,6 +5,8 @@
   python3 tools/audio/build.py check <원본파일> [--every 60]   스펙트로그램 PNG (사람 소리·잡음 눈으로 확인)
   python3 tools/audio/build.py build [이름...]                 manifest.json 대로 만들기 (이름을 주면 그것만)
   python3 tools/audio/build.py report                          만든 파일의 길이·LUFS·크기 표
+  python3 tools/audio/build.py scan <원본> [--len 50] [--skip 15]  배경으로 쓸 만한 고른 구간 찾기 (3초 단기 음량이 들쭉날쭉하지 않은 곳)
+  python3 tools/audio/build.py credits                         web/src/data/credits.js 의 자연의 소리 출처를 manifest 대로 다시 쓴다
 
 원본 폴더: AUDIO_RAW (기본 tools/audio/raw/ — git 에 넣지 않는다). 출처·라이선스는 manifest.json 의 sources.
 
@@ -113,14 +115,14 @@ def make_sprite(cut, out_wav, ch, n=12, slot=0.6, length=0.45, gap=0.3, starts=N
         p = k * int(slot * sr)
         out[p:p + L] = seg
     peak = np.abs(out).max() or 1
-    if peak > 0.9:
-        out *= 0.9 / peak
+    if peak > 0.8:
+        out *= 0.8 / peak  # -1.9 dBFS — 리미터(-1 dBTP)가 닿지 않게
     subprocess.run(['ffmpeg', '-v', 'error', '-y', '-f', 'f32le', '-ac', str(ch), '-ar', '48000', '-i', '-', '-c:a', 'pcm_f32le', str(out_wav)], input=out.tobytes(), check=True)
     return len(onsets)
 
 
-def build_piece(src, out, a, b, kind, ch, lufs, tmp, sprite=None):
-    base = f'aresample=48000,highpass=f=25' + (',pan=mono|c0=0.5*c0+0.5*c1' if ch == 1 else '')
+def build_piece(src, out, a, b, kind, ch, lufs, tmp, sprite=None, hp=25):
+    base = f'aresample=48000,highpass=f={hp}' + (',pan=mono|c0=0.5*c0+0.5*c1' if ch == 1 else '')
     cut = tmp / 'cut.wav'
     ff(['-ss', str(a), '-to', str(b), '-i', str(src), '-vn', '-af', base, '-ac', str(ch), '-c:a', 'pcm_f32le', str(cut)])
     count = None
@@ -129,8 +131,8 @@ def build_piece(src, out, a, b, kind, ch, lufs, tmp, sprite=None):
         count = make_sprite(cut, sp, ch, **(sprite or {}))
         cut = sp
     i, tp = loudness(cut)
-    target = BED_LUFS if kind == 'bed' else lufs
-    gain = target - i
+    target = lufs if lufs is not None else BED_LUFS  # 배경은 -24 (돌풍 섞인 바람처럼 봉우리가 큰 것은 manifest 에서 더 낮게)
+    gain = 0.0 if kind == 'sprite' and lufs is None else target - i  # 효과음 묶음은 봉우리로 맞춰 두었다 — 크기는 엔진에서
     lim = f',alimiter=limit={10 ** (TP_MAX / 20):.4f}:attack=5:release=80:level=0' if tp + gain > TP_MAX else ''
     lev = tmp / 'lev.wav'
     ff(['-i', str(cut), '-af', f'volume={gain:.2f}dB{lim}', '-c:a', 'pcm_f32le', str(lev)])
@@ -171,7 +173,7 @@ def cmd_build(names):
             sp = {k: e[k] for k in ('n', 'slot', 'len', 'gap', 'starts') if k in e}
             if 'len' in sp:
                 sp['length'] = sp.pop('len')
-            i, gain, lim, count = build_piece(src, OUT / e['out'], e['from'], e['to'], e.get('kind', 'bed'), ch, e.get('lufs'), Path(t), sp)
+            i, gain, lim, count = build_piece(src, OUT / e['out'], e['from'], e['to'], e.get('kind', 'bed'), ch, e.get('lufs'), Path(t), sp, e.get('hp', 25))
         print(f'✓ {e["out"]:<22} {e["from"]:>6.1f}–{e["to"]:<6.1f}s  원래 {i:6.1f} LUFS → {gain:+5.1f} dB{"  (리미터)" if lim else ""}{f"  {count}칸" if count else ""}')
         done += 1
     print(f'{done}개 만듦 → {OUT}')
@@ -205,6 +207,61 @@ def cmd_check(path, every=60.0):
     print(f'{out} 에 {len(list(out.glob("*.png")))}장 (길이 {d:.0f}초)')
 
 
+def short_term(path):
+    """3초 단기 음량(LUFS)을 0.1초마다 — ebur128 의 S 값"""
+    err = ff(['-i', str(path), '-vn', '-af', 'ebur128', '-f', 'null', '-'])
+    return [float(m.group(1)) for m in re.finditer(r' S:\s*(-?[\d.]+)', err)]
+
+
+def cmd_scan(path, length=50.0, skip=15.0, k=4):
+    """편집 이음·돌풍·사람 소리처럼 갑자기 튀는 곳을 피해, 단기 음량이 고른 구간 k 개 (겹치지 않게)"""
+    S = short_term(path)
+    dt = 0.1
+    n, w = len(S), int(length / dt)
+    lo, hi = int(skip / dt), n - int(5 / dt)
+    cands = []
+    for a in range(lo, hi - w, 10):
+        seg = sorted(S[a:a + w])
+        spread = seg[int(len(seg) * 0.98)] - seg[int(len(seg) * 0.02)]
+        cands.append((spread, a))
+    picked = []
+    for spread, a in sorted(cands):
+        if all(abs(a - b) >= w for _, b in picked):
+            picked.append((spread, a))
+        if len(picked) >= k:
+            break
+    med = sorted(S[lo:hi])[(hi - lo) // 2]
+    print(f'{Path(path).name}: 길이 {n * dt:.0f}초 · 단기 음량 가운데 {med:.1f} LUFS')
+    for spread, a in sorted(picked, key=lambda x: x[1]):
+        seg = S[a:a + w]
+        print(f'  {a * dt:6.1f}–{(a + w) * dt:6.1f}s  흔들림 {spread:4.1f} LU  평균 {sum(seg) / len(seg):6.1f}')
+
+
+# 조각 이름 앞부분 → 「자료 출처」에 적을 쓰는 곳
+USE = {'stream': '계곡 물소리', 'rain': '빗소리', 'wind': '솔바람', 'winter': '겨울 숲 고요', 'bamboo': '대숲 바람', 'birds': '산새', 'crickets': '가을 풀벌레',
+       'cicadas': '여름 매미', 'frogs': '개구리', 'chant': '법당 염불', 'spring': '연못 샘물', 'fire': '화롯불', 'gust': '돌풍', 'bell': '범종', 'chime': '처마 풍경(풍탁)',
+       'scops': '소쩍새', 'owl': '솔부엉이', 'eagleowl': '수리부엉이', 'thunder': '먼 천둥', 'drip': '낙숫물', 'sweep': '마당 쓰는 소리', 'step': '발소리',
+       'chukbi': '죽비', 'beads': '염주', 'pebble': '돌탑 조약돌', 'paper': '한지', 'robe': '도복 스침', 'brush': '붓', 'paperfire': '번뇌 소각(종이 타는 소리)', 'pour': '차 따르기'}
+
+
+def cmd_credits():
+    m = json.loads(MANIFEST.read_text())
+    uses = {}
+    for p in m['pieces']:
+        uses.setdefault(p['src'], set()).add(USE.get(p['out'].split('-')[0], p['out']))
+    rows = []
+    for k, src in m['sources'].items():
+        if k in uses:
+            u = ' · '.join(sorted(uses[k]))
+            rows.append(f"    {{ use: {json.dumps(u, ensure_ascii=False)}, title: {json.dumps(src['title'], ensure_ascii=False)}, by: {json.dumps(src['by'], ensure_ascii=False)}, license: {json.dumps(src['license'], ensure_ascii=False)}, url: {json.dumps(src['url'])} }}")
+    path = ROOT / 'web/src/data/credits.js'
+    js = path.read_text()
+    a, b = js.index('  // <nature-sounds>'), js.index('  // </nature-sounds>')
+    js = js[:a] + '  // <nature-sounds> tools/audio/build.py credits 가 manifest.json 으로 다시 쓴다 — 손으로 고치지 말 것\n' + ',\n'.join(rows) + ',\n' + js[b:]
+    path.write_text(js)
+    print(f'{len(rows)}개 출처 → {path}')
+
+
 if __name__ == '__main__':
     a = sys.argv[1:]
     if not a:
@@ -213,6 +270,11 @@ if __name__ == '__main__':
         cmd_build(a[1:])
     elif a[0] == 'report':
         cmd_report()
+    elif a[0] == 'credits':
+        cmd_credits()
+    elif a[0] == 'scan':
+        opt = lambda k, d: float(a[a.index(k) + 1]) if k in a else d
+        cmd_scan(a[1], opt('--len', 50.0), opt('--skip', 15.0), int(opt('--k', 4)))
     elif a[0] == 'check':
         cmd_check(a[1], float(a[a.index('--every') + 1]) if '--every' in a else 60.0)
     else:

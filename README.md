@@ -16,7 +16,7 @@ meta-temple/
 │   ├── 02-spatial-and-avatar-design.md
 │   └── 03-technical-specification.md
 ├── web/                      # 배포 루트 — 이 폴더만 서버에 올라간다
-│   ├── assets/audio/         # 실제 녹음 (국립공원공단 자연의소리, 공공누리 제1유형)
+│   ├── assets/audio/         # 실제 녹음 — nature/ 는 tools/audio/build.py 가 만든 자연의 소리·효과음 (출처 manifest.json)
 │   ├── index.html            # 입장 화면 · HUD · 모달 뼈대 · Three.js import map
 │   └── src/
 │       ├── main.js           # 앱 진입점: 입장 → 월드 생성 → 입력·HUD·신행 연결 → 루프
@@ -85,7 +85,9 @@ npm start
 
 ## 소리의 출처
 
-`web/assets/audio/` 의 녹음은 모두 **국립공원공단 「자연의소리」**(공공데이터포털, **공공누리 제1유형: 출처표시**)의 영상에서 소리만 잘라 쓴 것입니다(구간 편집·음량 조정·MP3 압축). 항목별 원본 링크는 `web/src/data/soundCredits.js` 와 사이트의 「산사 안내 → 소리의 출처」에 있습니다.
+`web/assets/audio/` 의 녹음은 **국립공원공단 「자연의소리」**(공공데이터포털)·**공유마당**(공공누리 제1유형: 출처표시)과 **Freesound CC0** 녹음에서 구간을 잘라(음량 -24 LUFS·이음새 교차 페이드·AAC/MP3) 만든 것입니다. 원본·구간은 `tools/audio/manifest.json`, 조사와 라이선스 확인은 `docs/audio/SOURCES.md`, 항목별 링크는 `web/src/data/credits.js` 와 사이트의 「자료 출처」에 있습니다.
+
+소리는 자리를 따른다: 계곡·연못·대숲·화로·독송·범종·풍경 같은 자리 소리는 `soundEngine.js` 의 `PLACED` 표(배경)와 `_spot()`(원샷)에 위치·모양·세기만 주면 같은 전파 법칙(거리 퍼짐·숲 초과 감쇠·담 가림·공기 흡수)을 받는다. 바람·비·산새·풀벌레·매미는 산 어디서나 시간대·날씨·계절(달)로만. 검사: `tools/qa/sound-map.mjs`(산책로 자리별 크기), `tools/qa/levels.mjs`(녹음·합성 크기 맞춤).
 
 ## 이어서 할 일 (docs/03 §4 로드맵 훅)
 

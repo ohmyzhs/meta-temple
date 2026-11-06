@@ -1694,7 +1694,7 @@ export class ModalManager {
     const cur = () => this.store.state.settings.natureSleep ?? 30;
     const label = (m) => (m ? `${m}분` : '끄기');
     const root = this._root(`
-      <div class="sutra-group"><span class="sutra-group-label">잠자기 타이머</span>
+      <div class="sutra-group nature-sleep"><span class="sutra-group-label">잠자기 타이머</span>
         <div class="sutra-chips" role="tablist" aria-label="잠자기 타이머">${SLEEP_MINUTES.map((m) => `<button type="button" role="tab" class="m-chip" data-sleep="${m}" aria-selected="${m === cur()}">${label(m)}</button>`).join('')}</div>
       </div>
       <ul class="yebul-list">${NATURE_PRESETS.map((p) => `

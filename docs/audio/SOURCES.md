@@ -254,3 +254,37 @@
 - 합계(A~D): 36개 안팎, **약 3.3GB** (거의 국립공원공단 영상). 원본은 저장소 밖(작업용 임시 폴더)에 두고, 잘라 인코딩한 결과만 커밋한다.
 - 목탁(15076130)은 지금 쓰는 0.2초 원샷으로 충분해 다시 받지 않는다.
 - 공유마당 받기에는 「이용범위 동의」 체크와 첫 1회 설문 제출이 들어간다 — 이것도 함께 승인 받는다.
+
+## 3. 발소리·행동 효과음 (사용자 요청 2026-11-06 추가)
+
+경내 땅 재질: 법당 마루(`floor`) · 바깥 나무 데크·다리(`deck`) · 박석·징검돌(`stone`) · 마사토 마당(`gravel`) · 흙길(`earth`) · 가을 숲길 낙엽(`leaves`, 10~11월) · 눈(`snow`, 눈 오는 날 바깥).
+재질마다 연속으로 걷는 녹음 하나에서 걸음을 자동으로 잘라 한 파일(칸 묶음)로 만들고, 엔진이 칸을 번갈아(같은 걸음 연달아 X) 높이 ±7%·크기 0.8~1.1 로 흔들어 튼다.
+
+| 쓰는 곳 | 추천 원본 | 링크 | 라이선스 | 길이 | 오디오 | 크기 | 대안 |
+|---|---|---|---|---|---|---|---|
+| 마사토 마당 | Footsteps Gravel Stones – Walk (Vrymaa) | [825854](https://freesound.org/s/825854/) | CC0 | 38s | WAV 48k/16 모노 | 3.5MB | 352870 흙+자갈 · 331478 안뜰 쇄석 |
+| 흙길 | Footsteps forest (Juno24) | [474113](https://freesound.org/s/474113/) | CC0 | 23s | WAV 48k/16 모노 | 2.1MB | 869611 숲 흙 · 공유마당 13264265(CC BY) |
+| 가을 낙엽 | Walk in dry leaves in the forest (devy32) | [437455](https://freesound.org/s/437455/) | CC0 | 1:21 | WAV 48k/24 모노 | 11.1MB | 274833 |
+| 법당 마루 | footsteps socks wood (Yuval) | [210770](https://freesound.org/s/210770/) | CC0 | 38s | WAV 48k/24 모노 | 5.2MB | 공유마당 13287282 버선_나무위_걷다(1유형, 96k/32k) · 635054 맨발 |
+| 나무 데크·다리 | Footsteps – Wood Deck, Sneakers (PMarcy) | [399309](https://freesound.org/s/399309/) | CC0 | 57s | WAV 48k/24 모노 | 7.8MB | 공유마당 13287239 고무신_나무위(1유형) |
+| 박석·돌계단 | Stone Steps (Phil25) | [208103](https://freesound.org/s/208103/) | CC0 | 9s | WAV 48k/32 스테레오 | 3.2MB | 677069(실내 울림 큼) · 13264173(CC BY) |
+| 눈 | Footsteps on snow (clean) (xkeril) | [611277](https://freesound.org/s/611277/) | CC0 | 45s | WAV 48k/24 모노 | 6.3MB | 613849 등산화 12걸음 · 333422 |
+| 죽비 | Wooden staff hitting hand (eveninx) | [434979](https://freesound.org/s/434979/) | CC0 | 12s | MP3 44.1k 모노 | 0.5MB | Pixabay 81238 Sticks Clapping |
+| 염주 | Beads – Manipulation (Vrymaa) | [807390](https://freesound.org/s/807390/) | CC0 | 36s | WAV 48k/16 모노 | 3.3MB | 공유마당 13287405 염주_만지다(1유형) |
+| 돌탑 조약돌 | rocks on rocks (_StudentofSound_) | [703519](https://freesound.org/s/703519/) | CC0 | 12s | WAV 48k/24 스테레오 | 3.4MB | 567701 |
+| 번뇌 소각(종이 불) | burning-paper (15GKovacovaJulie) | [461075](https://freesound.org/s/461075/) | CC0 | 10s | WAV 48k/16 스테레오 | 1.9MB | 528662(1:05) |
+| 차 따르기 | Tea Pouring (mdayalan) | [240125](https://freesound.org/s/240125/) | CC0 | 8s | WAV 48k/24 모노 | 1.2MB | 849313 도자기 잔 |
+| 한지 | 종이_넘기는_소리 (JICA) | [13372326](https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?wrtSn=13372326&menuNo=200020) | 1유형 | 6s | MP3 320k/48k | ≈0.3MB | 13287479 화선지_펼치다 |
+| 도복 스침 | Cotton clothes rustling (khenshom) | [481075](https://freesound.org/s/481075/) | CC0 | 39s | WAV 48k/32 스테레오 | 14.1MB | 공유마당 13287378 무명옷_옷소리(1유형) |
+| 붓 | 전통사물_붓_쓰다_글씨_천천히 | [13287388](https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?wrtSn=13287388&menuNo=200020) | 1유형 | 35s | MP3 96k/48k | ≈0.4MB | 650350 Ink.wav |
+
+목탁은 지금 쓰는 국립공원공단 원샷 그대로. 합장 화음·연등·UI 딸깍은 녹음 대상이 아니라 합성 그대로.
+
+## 4. 받은 뒤 알게 된 것 (2026-11-06)
+
+- **국립공원공단 영상 몇 개는 같은 소리를 이어 붙여 5분을 채웠다** (파형 상관 0.8~0.99): 연화봉 바람 약 31초 · 되지빠귀 105초 · 산솔새 97초 · 곤줄박이 156초 · 뻐꾸기 191초 · 풍탁 178초 · 화엄사 범종 223초. 공유마당 만봉사 범종은 타종 하나를 6번 복사했다.
+  → 한 주기 안에서만 잘랐다. 연화봉 바람은 31초에 큰 순간음이 있어 뺐다.
+- 영상 앞 수십 초에 도입부(음악 같은 소리)가 있는 것이 있어(백련사 빗소리) 앞부분은 쓰지 않았다.
+- 구룡사 비 오는 날은 0~200초 내내 풍경 같은 음정 소리가 깔려 있어 210~260초만 썼다.
+- 담양 죽녹원은 0~180초에 사람 발걸음(초당 2번꼴 낮은 쿵)이 있어 180초 뒤 40초만, 300Hz 아래를 걷어 썼다.
+- 북방산개구리(13372012)는 -52 LUFS 로 너무 작아(올리면 잡음이 커진다) 쓰지 않았다.

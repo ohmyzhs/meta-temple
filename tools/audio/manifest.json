@@ -1,0 +1,1109 @@
+{
+ "_": "자연의 소리 원본(sources)과 자를 구간(pieces). python3 tools/audio/build.py build — 원본은 tools/audio/raw/ (git 밖, 받는 곳은 url). 구간은 build.py scan(단기 음량이 고른 곳)과 스펙트로그램으로 골랐다.",
+ "sources": {
+  "knps-stream": {
+   "file": "knps-15076211.m4a",
+   "title": "자연의소리_지리산산골짜기의물소리",
+   "by": "국립공원공단",
+   "license": "공공누리 제1유형",
+   "url": "https://www.data.go.kr/data/15076211/fileData.do"
+  },
+  "knps-stream2": {
+   "file": "knps-15076158.m4a",
+   "title": "자연의소리_북한산원도봉계곡의여름",
+   "by": "국립공원공단",
+   "license": "공공누리 제1유형",
+   "url": "https://www.data.go.kr/data/15076158/fileData.do"
+  },
+  "gongu-stream": {
+   "file": "gongu-13372472.mp3",
+   "title": "화개천계곡_새벽 빠른계류",
+   "by": "(재)전주정보문화산업진흥원",
+   "license": "공공누리 제1유형",
+   "url": "https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?wrtSn=13372472&menuNo=200020"
+  },
+  "knps-rain": {
+   "file": "knps-15076128.m4a",
+   "title": "자연의소리_덕유산구천동백련사빗소리",
+   "by": "국립공원공단",
+   "license": "공공누리 제1유형",
+   "url": "https://www.data.go.kr/data/15076128/fileData.do"
+  },
+  "knps-rain2": {
+   "file": "knps-15076171.m4a",
+   "title": "자연의소리_치악산구룡사비오는날풍경",
+   "by": "국립공원공단",
+   "license": "공공누리 제1유형",
+   "url": "https://www.data.go.kr/data/15076171/fileData.do"
+  },
+  "gongu-rain": {
+   "file": "gongu-13372573.mp3",
+   "title": "가리산 숲속에 쏟아지는 비",
+   "by": "(재)전주정보문화산업진흥원",
+   "license": "공공누리 제1유형",
+   "url": "https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?wrtSn=13372573&menuNo=200020"
+  },
+  "gongu-drip": {
+   "file": "gongu-13372511.mp3",
+   "title": "소청도 빗물받이 가느다란 물소리",
+   "by": "(재)전주정보문화산업진흥원",
+   "license": "공공누리 제1유형",
+   "url": "https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?wrtSn=13372511&menuNo=200020"
+  },
+  "gongu-thunder": {
+   "file": "gongu-13372546.mp3",
+   "title": "봉산전망대 폭우와 멀리서 들리는 천둥소리",
+   "by": "(재)전주정보문화산업진흥원",
+   "license": "공공누리 제1유형",
+   "url": "https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?wrtSn=13372546&menuNo=200020"
+  },
+  "knps-pine": {
+   "file": "knps-15076196.m4a",
+   "title": "자연의소리_경주남산의소나무숲과용장사",
+   "by": "국립공원공단",
+   "license": "공공누리 제1유형",
+   "url": "https://www.data.go.kr/data/15076196/fileData.do"
+  },
+  "gongu-bamboo": {
+   "file": "gongu-13287859.mp3",
+   "title": "숲_담양_죽녹원_오후_공간음",
+   "by": "(재)전주정보문화산업진흥원",
+   "license": "공공누리 제1유형",
+   "url": "https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?wrtSn=13287859&menuNo=200020"
+  },
+  "knps-gonjul": {
+   "file": "knps-15076183.m4a",
+   "title": "자연의소리_속리산곤줄박이소리",
+   "by": "국립공원공단",
+   "license": "공공누리 제1유형",
+   "url": "https://www.data.go.kr/data/15076183/fileData.do"
+  },
+  "knps-sansol": {
+   "file": "knps-15076181.m4a",
+   "title": "자연의소리_속리산 사내리 산솔새 소리",
+   "by": "국립공원공단",
+   "license": "공공누리 제1유형",
+   "url": "https://www.data.go.kr/data/15076181/fileData.do"
+  },
+  "knps-thrush": {
+   "file": "knps-15076188.m4a",
+   "title": "자연의소리_속리산 화양동 흰배지빠귀 소리",
+   "by": "국립공원공단",
+   "license": "공공누리 제1유형",
+   "url": "https://www.data.go.kr/data/15076188/fileData.do"
+  },
+  "knps-thrush2": {
+   "file": "knps-15076180.m4a",
+   "title": "자연의소리_속리산 되지빠귀 소리",
+   "by": "국립공원공단",
+   "license": "공공누리 제1유형",
+   "url": "https://www.data.go.kr/data/15076180/fileData.do"
+  },
+  "knps-cuckoo": {
+   "file": "knps-15076187.m4a",
+   "title": "자연의소리_속리산 뻐꾸기 소리",
+   "by": "국립공원공단",
+   "license": "공공누리 제1유형",
+   "url": "https://www.data.go.kr/data/15076187/fileData.do"
+  },
+  "gongu-scops": {
+   "file": "gongu-13371662.mp3",
+   "title": "소쩍새 울음소리, 산청 밤머리재",
+   "by": "(재)전주정보문화산업진흥원",
+   "license": "공공누리 제1유형",
+   "url": "https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?wrtSn=13371662&menuNo=200020"
+  },
+  "gongu-owl": {
+   "file": "gongu-13371671.mp3",
+   "title": "솔부엉이 두 마리가 우는 소리 (늘솔길공원)",
+   "by": "(재)전주정보문화산업진흥원",
+   "license": "공공누리 제1유형",
+   "url": "https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?wrtSn=13371671&menuNo=200020"
+  },
+  "gongu-cricket": {
+   "file": "gongu-13371688.mp3",
+   "title": "청솔귀뚜라미들의 노래, 가을밤 강진 백련사",
+   "by": "(재)전주정보문화산업진흥원",
+   "license": "공공누리 제1유형",
+   "url": "https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?wrtSn=13371688&menuNo=200020"
+  },
+  "gongu-cicada": {
+   "file": "gongu-13371638.mp3",
+   "title": "지리산둘레길 소요산매미",
+   "by": "(재)전주정보문화산업진흥원",
+   "license": "공공누리 제1유형",
+   "url": "https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?wrtSn=13371638&menuNo=200020"
+  },
+  "gongu-frog": {
+   "file": "gongu-13371634.mp3",
+   "title": "백령도 진촌리 논에서 우는 청개구리 집단음",
+   "by": "(재)전주정보문화산업진흥원",
+   "license": "공공누리 제1유형",
+   "url": "https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?wrtSn=13371634&menuNo=200020"
+  },
+  "knps-chant": {
+   "file": "knps-15076137.m4a",
+   "title": "자연의소리_내장산백양사염불소리",
+   "by": "국립공원공단",
+   "license": "공공누리 제1유형",
+   "url": "https://www.data.go.kr/data/15076137/fileData.do"
+  },
+  "knps-spring": {
+   "file": "knps-15076172.m4a",
+   "title": "자연의소리_월출산도갑사미륵전샘터",
+   "by": "국립공원공단",
+   "license": "공공누리 제1유형",
+   "url": "https://www.data.go.kr/data/15076172/fileData.do"
+  },
+  "knps-bell": {
+   "file": "knps-15068173.m4a",
+   "title": "자연의소리_지리산 화엄사 범종 타종",
+   "by": "국립공원공단",
+   "license": "공공누리 제1유형",
+   "url": "https://www.data.go.kr/data/15068173/fileData.do"
+  },
+  "gongu-bell": {
+   "file": "gongu-13372528.mp3",
+   "title": "망경대산 만봉사 범종 소리",
+   "by": "(재)전주정보문화산업진흥원",
+   "license": "공공누리 제1유형",
+   "url": "https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?wrtSn=13372528&menuNo=200020"
+  },
+  "knps-chime": {
+   "file": "knps-15076195.m4a",
+   "title": "자연의소리_지리산화엄사풍탁소리",
+   "by": "국립공원공단",
+   "license": "공공누리 제1유형",
+   "url": "https://www.data.go.kr/data/15076195/fileData.do"
+  },
+  "gongu-sweep": {
+   "file": "gongu-13287375.mp3",
+   "title": "전통사물_대나무빗자루_쓸다",
+   "by": "(재)전주정보문화산업진흥원",
+   "license": "공공누리 제1유형",
+   "url": "https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?wrtSn=13287375&menuNo=200020"
+  },
+  "fs-winter": {
+   "file": "fs-719851.flac",
+   "title": "Appalachian Snowy Afternoon 1",
+   "by": "lakewoodsound (Freesound)",
+   "license": "CC0",
+   "url": "https://freesound.org/s/719851/"
+  },
+  "fs-fire": {
+   "file": "fs-729396.wav",
+   "title": "Campfire 02",
+   "by": "HECKFRICKER (Freesound)",
+   "license": "CC0",
+   "url": "https://freesound.org/s/729396/"
+  },
+  "fs-eagleowl": {
+   "file": "fs-471507.wav",
+   "title": "Hibou Grand Duc",
+   "by": "barkenov (Freesound)",
+   "license": "CC0",
+   "url": "https://freesound.org/s/471507/"
+  },
+  "fs-frogs": {
+   "file": "fs-513978.wav",
+   "title": "Pool Frogs with birds (Pelophylax lessonae)",
+   "by": "remmert (Freesound)",
+   "license": "CC0",
+   "url": "https://freesound.org/s/513978/"
+  },
+  "fs-pine": {
+   "file": "fs-670307.wav",
+   "title": "silent windy pine forest",
+   "by": "bruno.auzet (Freesound)",
+   "license": "CC0",
+   "url": "https://freesound.org/s/670307/"
+  },
+  "fs-thunder": {
+   "file": "fs-796529.wav",
+   "title": "Dry storm thunders",
+   "by": "fran_marenco (Freesound)",
+   "license": "CC0",
+   "url": "https://freesound.org/s/796529/"
+  },
+  "fs-gravel": {
+   "file": "fs-825854.wav",
+   "title": "Footsteps Gravel Stones - Walk",
+   "by": "Vrymaa (Freesound)",
+   "license": "CC0",
+   "url": "https://freesound.org/s/825854/"
+  },
+  "fs-earth": {
+   "file": "fs-474113.wav",
+   "title": "Footsteps forest",
+   "by": "Juno24 (Freesound)",
+   "license": "CC0",
+   "url": "https://freesound.org/s/474113/"
+  },
+  "fs-leaves": {
+   "file": "fs-437455.wav",
+   "title": "Walk in dry leaves in the forest",
+   "by": "devy32 (Freesound)",
+   "license": "CC0",
+   "url": "https://freesound.org/s/437455/"
+  },
+  "fs-floor": {
+   "file": "fs-210770.wav",
+   "title": "footsteps socks wood",
+   "by": "Yuval (Freesound)",
+   "license": "CC0",
+   "url": "https://freesound.org/s/210770/"
+  },
+  "fs-deck": {
+   "file": "fs-399309.wav",
+   "title": "Footsteps - Wood Deck, Sneakers",
+   "by": "PMarcy (Freesound)",
+   "license": "CC0",
+   "url": "https://freesound.org/s/399309/"
+  },
+  "fs-stone": {
+   "file": "fs-208103.wav",
+   "title": "Stone Steps",
+   "by": "Phil25 (Freesound)",
+   "license": "CC0",
+   "url": "https://freesound.org/s/208103/"
+  },
+  "fs-snow": {
+   "file": "fs-611277.wav",
+   "title": "Footsteps on snow (clean)",
+   "by": "xkeril (Freesound)",
+   "license": "CC0",
+   "url": "https://freesound.org/s/611277/"
+  },
+  "fs-chukbi": {
+   "file": "fs-434979.mp3",
+   "title": "Wooden staff hitting hand",
+   "by": "eveninx (Freesound)",
+   "license": "CC0",
+   "url": "https://freesound.org/s/434979/"
+  },
+  "fs-beads": {
+   "file": "fs-807390.wav",
+   "title": "Beads - Manipulation",
+   "by": "Vrymaa (Freesound)",
+   "license": "CC0",
+   "url": "https://freesound.org/s/807390/"
+  },
+  "fs-pebble": {
+   "file": "fs-703519.wav",
+   "title": "rocks on rocks",
+   "by": "_StudentofSound_ (Freesound)",
+   "license": "CC0",
+   "url": "https://freesound.org/s/703519/"
+  },
+  "fs-paperfire": {
+   "file": "fs-461075.wav",
+   "title": "1.10_burning-paper",
+   "by": "15GKovacovaJulie (Freesound)",
+   "license": "CC0",
+   "url": "https://freesound.org/s/461075/"
+  },
+  "fs-pour": {
+   "file": "fs-240125.wav",
+   "title": "Tea Pouring",
+   "by": "mdayalan (Freesound)",
+   "license": "CC0",
+   "url": "https://freesound.org/s/240125/"
+  },
+  "fs-robe": {
+   "file": "fs-481075.wav",
+   "title": "Cotton clothes rustling",
+   "by": "khenshom (Freesound)",
+   "license": "CC0",
+   "url": "https://freesound.org/s/481075/"
+  },
+  "gongu-paper": {
+   "file": "gongu-13372326.mp3",
+   "title": "종이_넘기는_소리",
+   "by": "(재)전주정보문화산업진흥원",
+   "license": "공공누리 제1유형",
+   "url": "https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?wrtSn=13372326&menuNo=200020"
+  },
+  "gongu-brush": {
+   "file": "gongu-13287388.mp3",
+   "title": "전통사물_붓_쓰다_글씨_천천히_ver.1",
+   "by": "(재)전주정보문화산업진흥원",
+   "license": "공공누리 제1유형",
+   "url": "https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?wrtSn=13287388&menuNo=200020"
+  }
+ },
+ "pieces": [
+  {
+   "out": "stream-jiri-1",
+   "src": "knps-stream",
+   "from": 46,
+   "to": 96,
+   "mono": true
+  },
+  {
+   "out": "stream-jiri-2",
+   "src": "knps-stream",
+   "from": 174,
+   "to": 224,
+   "mono": true
+  },
+  {
+   "out": "stream-dobong-1",
+   "src": "knps-stream2",
+   "from": 15,
+   "to": 65,
+   "mono": true
+  },
+  {
+   "out": "stream-dobong-2",
+   "src": "knps-stream2",
+   "from": 177,
+   "to": 227,
+   "mono": true
+  },
+  {
+   "out": "stream-hwagae-1",
+   "src": "gongu-stream",
+   "from": 53,
+   "to": 103,
+   "mono": true
+  },
+  {
+   "out": "stream-hwagae-2",
+   "src": "gongu-stream",
+   "from": 103,
+   "to": 153,
+   "mono": true
+  },
+  {
+   "out": "rain-baekryeon-1",
+   "src": "knps-rain",
+   "from": 116,
+   "to": 166
+  },
+  {
+   "out": "rain-baekryeon-2",
+   "src": "knps-rain",
+   "from": 212,
+   "to": 262
+  },
+  {
+   "out": "rain-garisan-1",
+   "src": "gongu-rain",
+   "from": 15,
+   "to": 65
+  },
+  {
+   "out": "rain-garisan-2",
+   "src": "gongu-rain",
+   "from": 74,
+   "to": 124
+  },
+  {
+   "out": "rain-guryong-1",
+   "src": "knps-rain2",
+   "from": 210,
+   "to": 260
+  },
+  {
+   "out": "bamboo-juknok-1",
+   "src": "gongu-bamboo",
+   "from": 180,
+   "to": 220,
+   "mono": true,
+   "hp": 300
+  },
+  {
+   "out": "birds-thrush-1",
+   "src": "knps-thrush",
+   "from": 15,
+   "to": 65,
+   "hp": 200
+  },
+  {
+   "out": "birds-thrush-2",
+   "src": "knps-thrush",
+   "from": 130,
+   "to": 180,
+   "hp": 200
+  },
+  {
+   "out": "birds-thrush-3",
+   "src": "knps-thrush",
+   "from": 230,
+   "to": 280,
+   "hp": 200
+  },
+  {
+   "out": "crickets-baekryeon-1",
+   "src": "gongu-cricket",
+   "from": 20,
+   "to": 70,
+   "mono": true
+  },
+  {
+   "out": "crickets-baekryeon-2",
+   "src": "gongu-cricket",
+   "from": 72,
+   "to": 122,
+   "mono": true
+  },
+  {
+   "out": "cicadas-jiri-1",
+   "src": "gongu-cicada",
+   "from": 85,
+   "to": 135
+  },
+  {
+   "out": "cicadas-jiri-2",
+   "src": "gongu-cicada",
+   "from": 135,
+   "to": 185
+  },
+  {
+   "out": "frogs-baekryeong-1",
+   "src": "gongu-frog",
+   "from": 74,
+   "to": 124,
+   "mono": true
+  },
+  {
+   "out": "chant-baekyang-1",
+   "src": "knps-chant",
+   "from": 45,
+   "to": 95,
+   "mono": true
+  },
+  {
+   "out": "chant-baekyang-2",
+   "src": "knps-chant",
+   "from": 125,
+   "to": 175,
+   "mono": true
+  },
+  {
+   "out": "chant-baekyang-3",
+   "src": "knps-chant",
+   "from": 178,
+   "to": 228,
+   "mono": true
+  },
+  {
+   "out": "spring-dogap-1",
+   "src": "knps-spring",
+   "from": 22,
+   "to": 72,
+   "mono": true
+  },
+  {
+   "out": "spring-dogap-2",
+   "src": "knps-spring",
+   "from": 121,
+   "to": 171,
+   "mono": true
+  },
+  {
+   "out": "spring-dogap-3",
+   "src": "knps-spring",
+   "from": 223,
+   "to": 273,
+   "mono": true
+  },
+  {
+   "out": "gust-1",
+   "src": "knps-pine",
+   "from": 13.3,
+   "to": 20.8,
+   "kind": "shot",
+   "lufs": -25
+  },
+  {
+   "out": "gust-2",
+   "src": "knps-pine",
+   "from": 35.4,
+   "to": 42.9,
+   "kind": "shot",
+   "lufs": -25
+  },
+  {
+   "out": "gust-3",
+   "src": "knps-pine",
+   "from": 87.3,
+   "to": 94.8,
+   "kind": "shot",
+   "lufs": -25
+  },
+  {
+   "out": "gust-4",
+   "src": "knps-pine",
+   "from": 156.8,
+   "to": 164.3,
+   "kind": "shot",
+   "lufs": -25
+  },
+  {
+   "out": "gust-5",
+   "src": "knps-pine",
+   "from": 202.2,
+   "to": 209.7,
+   "kind": "shot",
+   "lufs": -25
+  },
+  {
+   "out": "gust-6",
+   "src": "knps-pine",
+   "from": 328.4,
+   "to": 335.9,
+   "kind": "shot",
+   "lufs": -25
+  },
+  {
+   "out": "bell-hwaeom-1",
+   "src": "knps-bell",
+   "from": 26.6,
+   "to": 54.0,
+   "kind": "shot",
+   "lufs": -22,
+   "mono": true
+  },
+  {
+   "out": "bell-hwaeom-2",
+   "src": "knps-bell",
+   "from": 84.6,
+   "to": 112.5,
+   "kind": "shot",
+   "lufs": -22,
+   "mono": true
+  },
+  {
+   "out": "bell-manbong-1",
+   "src": "gongu-bell",
+   "from": 16.8,
+   "to": 39.3,
+   "kind": "shot",
+   "lufs": -22,
+   "mono": true
+  },
+  {
+   "out": "scops-1",
+   "src": "gongu-scops",
+   "from": 10,
+   "to": 24,
+   "kind": "shot",
+   "lufs": -24,
+   "mono": true
+  },
+  {
+   "out": "scops-2",
+   "src": "gongu-scops",
+   "from": 60,
+   "to": 74,
+   "kind": "shot",
+   "lufs": -24,
+   "mono": true
+  },
+  {
+   "out": "scops-3",
+   "src": "gongu-scops",
+   "from": 120,
+   "to": 134,
+   "kind": "shot",
+   "lufs": -24,
+   "mono": true
+  },
+  {
+   "out": "scops-4",
+   "src": "gongu-scops",
+   "from": 150,
+   "to": 164,
+   "kind": "shot",
+   "lufs": -24,
+   "mono": true
+  },
+  {
+   "out": "owl-1",
+   "src": "gongu-owl",
+   "from": 3,
+   "to": 20,
+   "kind": "shot",
+   "lufs": -24,
+   "mono": true,
+   "hp": 250
+  },
+  {
+   "out": "owl-2",
+   "src": "gongu-owl",
+   "from": 30,
+   "to": 47,
+   "kind": "shot",
+   "lufs": -24,
+   "mono": true,
+   "hp": 250
+  },
+  {
+   "out": "owl-3",
+   "src": "gongu-owl",
+   "from": 55,
+   "to": 72,
+   "kind": "shot",
+   "lufs": -24,
+   "mono": true,
+   "hp": 250
+  },
+  {
+   "out": "thunder-1",
+   "src": "gongu-thunder",
+   "from": 76,
+   "to": 96,
+   "kind": "shot",
+   "lufs": -24
+  },
+  {
+   "out": "thunder-2",
+   "src": "gongu-thunder",
+   "from": 144,
+   "to": 164,
+   "kind": "shot",
+   "lufs": -24
+  },
+  {
+   "out": "drip",
+   "src": "gongu-drip",
+   "from": 20,
+   "to": 100,
+   "kind": "sprite",
+   "mono": true,
+   "lufs": -28,
+   "n": 12,
+   "slot": 0.5,
+   "len": 0.35,
+   "gap": 0.25
+  },
+  {
+   "out": "sweep-1",
+   "src": "gongu-sweep",
+   "from": 0.5,
+   "to": 36,
+   "kind": "shot",
+   "lufs": -26
+  },
+  {
+   "out": "wind-namsan-1",
+   "src": "knps-pine",
+   "from": 60,
+   "to": 110,
+   "lufs": -28
+  },
+  {
+   "out": "wind-namsan-2",
+   "src": "knps-pine",
+   "from": 180,
+   "to": 230,
+   "lufs": -28
+  },
+  {
+   "out": "wind-namsan-3",
+   "src": "knps-pine",
+   "from": 262,
+   "to": 312,
+   "lufs": -28
+  },
+  {
+   "out": "birds-gonjul-1",
+   "src": "knps-gonjul",
+   "from": 15,
+   "to": 65,
+   "hp": 200
+  },
+  {
+   "out": "birds-gonjul-2",
+   "src": "knps-gonjul",
+   "from": 65,
+   "to": 115,
+   "hp": 200
+  },
+  {
+   "out": "birds-gonjul-3",
+   "src": "knps-gonjul",
+   "from": 115,
+   "to": 165,
+   "hp": 200
+  },
+  {
+   "out": "birds-sansol-1",
+   "src": "knps-sansol",
+   "from": 15,
+   "to": 63,
+   "hp": 200
+  },
+  {
+   "out": "birds-sansol-2",
+   "src": "knps-sansol",
+   "from": 63,
+   "to": 111,
+   "hp": 200
+  },
+  {
+   "out": "birds-thrush2-1",
+   "src": "knps-thrush2",
+   "from": 15,
+   "to": 65,
+   "hp": 200
+  },
+  {
+   "out": "birds-thrush2-2",
+   "src": "knps-thrush2",
+   "from": 65,
+   "to": 115,
+   "hp": 200
+  },
+  {
+   "out": "birds-cuckoo-1",
+   "src": "knps-cuckoo",
+   "from": 20,
+   "to": 70,
+   "hp": 200
+  },
+  {
+   "out": "birds-cuckoo-2",
+   "src": "knps-cuckoo",
+   "from": 130,
+   "to": 180,
+   "hp": 200
+  },
+  {
+   "out": "chime",
+   "src": "knps-chime",
+   "from": 0,
+   "to": 178,
+   "kind": "sprite",
+   "mono": true,
+   "lufs": -25,
+   "slot": 4,
+   "len": 3.8,
+   "starts": [
+    14.2,
+    26.7,
+    32.7,
+    46.0,
+    97.2,
+    103.0,
+    114.9,
+    122.6
+   ]
+  },
+  {
+   "out": "winter-appalachia-1",
+   "src": "fs-winter",
+   "from": 12,
+   "to": 62,
+   "lufs": -32
+  },
+  {
+   "out": "winter-appalachia-2",
+   "src": "fs-winter",
+   "from": 84,
+   "to": 134,
+   "lufs": -32
+  },
+  {
+   "out": "fire-camp-1",
+   "src": "fs-fire",
+   "from": 17,
+   "to": 67,
+   "mono": true,
+   "lufs": -37
+  },
+  {
+   "out": "fire-camp-2",
+   "src": "fs-fire",
+   "from": 167,
+   "to": 217,
+   "mono": true,
+   "lufs": -37
+  },
+  {
+   "out": "fire-camp-3",
+   "src": "fs-fire",
+   "from": 218,
+   "to": 264,
+   "mono": true,
+   "lufs": -37
+  },
+  {
+   "out": "frogs-pool-1",
+   "src": "fs-frogs",
+   "from": 45,
+   "to": 95
+  },
+  {
+   "out": "frogs-pool-2",
+   "src": "fs-frogs",
+   "from": 102,
+   "to": 152
+  },
+  {
+   "out": "frogs-pool-3",
+   "src": "fs-frogs",
+   "from": 191,
+   "to": 241
+  },
+  {
+   "out": "wind-pine-1",
+   "src": "fs-pine",
+   "from": 5,
+   "to": 55,
+   "lufs": -28
+  },
+  {
+   "out": "wind-pine-2",
+   "src": "fs-pine",
+   "from": 111,
+   "to": 161,
+   "lufs": -28
+  },
+  {
+   "out": "wind-pine-3",
+   "src": "fs-pine",
+   "from": 206,
+   "to": 256,
+   "lufs": -28
+  },
+  {
+   "out": "thunder-far-1",
+   "src": "fs-thunder",
+   "from": 13.5,
+   "to": 33,
+   "kind": "shot",
+   "lufs": -24
+  },
+  {
+   "out": "thunder-far-2",
+   "src": "fs-thunder",
+   "from": 70.5,
+   "to": 90,
+   "kind": "shot",
+   "lufs": -28
+  },
+  {
+   "out": "thunder-far-3",
+   "src": "fs-thunder",
+   "from": 161.5,
+   "to": 179,
+   "kind": "shot",
+   "lufs": -24
+  },
+  {
+   "out": "thunder-far-4",
+   "src": "fs-thunder",
+   "from": 193.8,
+   "to": 213,
+   "kind": "shot",
+   "lufs": -24
+  },
+  {
+   "out": "eagleowl-1",
+   "src": "fs-eagleowl",
+   "from": 10,
+   "to": 21,
+   "kind": "shot",
+   "lufs": -26,
+   "mono": true,
+   "hp": 120
+  },
+  {
+   "out": "eagleowl-2",
+   "src": "fs-eagleowl",
+   "from": 35,
+   "to": 43.5,
+   "kind": "shot",
+   "lufs": -26,
+   "mono": true,
+   "hp": 120
+  },
+  {
+   "out": "eagleowl-3",
+   "src": "fs-eagleowl",
+   "from": 55.5,
+   "to": 70,
+   "kind": "shot",
+   "lufs": -26,
+   "mono": true,
+   "hp": 120
+  },
+  {
+   "out": "eagleowl-4",
+   "src": "fs-eagleowl",
+   "from": 88,
+   "to": 99,
+   "kind": "shot",
+   "lufs": -26,
+   "mono": true,
+   "hp": 120
+  },
+  {
+   "out": "step-gravel",
+   "src": "fs-gravel",
+   "from": 0,
+   "to": 38.1,
+   "kind": "sprite",
+   "mono": true,
+   "n": 12,
+   "slot": 0.6,
+   "len": 0.45
+  },
+  {
+   "out": "step-earth",
+   "src": "fs-earth",
+   "from": 0,
+   "to": 23.4,
+   "kind": "sprite",
+   "mono": true,
+   "n": 10,
+   "slot": 0.6,
+   "len": 0.45
+  },
+  {
+   "out": "step-leaves",
+   "src": "fs-leaves",
+   "from": 0,
+   "to": 80.8,
+   "kind": "sprite",
+   "mono": true,
+   "n": 14,
+   "slot": 0.7,
+   "len": 0.55
+  },
+  {
+   "out": "step-floor",
+   "src": "fs-floor",
+   "from": 0,
+   "to": 38.1,
+   "kind": "sprite",
+   "mono": true,
+   "n": 12,
+   "slot": 0.6,
+   "len": 0.45
+  },
+  {
+   "out": "step-deck",
+   "src": "fs-deck",
+   "from": 0,
+   "to": 56.6,
+   "kind": "sprite",
+   "mono": true,
+   "n": 14,
+   "slot": 0.7,
+   "len": 0.55
+  },
+  {
+   "out": "step-stone",
+   "src": "fs-stone",
+   "from": 0,
+   "to": 8.6,
+   "kind": "sprite",
+   "mono": true,
+   "n": 8,
+   "slot": 0.5,
+   "len": 0.4,
+   "gap": 0.25
+  },
+  {
+   "out": "step-snow",
+   "src": "fs-snow",
+   "from": 0,
+   "to": 45.4,
+   "kind": "sprite",
+   "mono": true,
+   "n": 12,
+   "slot": 0.7,
+   "len": 0.55
+  },
+  {
+   "out": "chukbi",
+   "src": "fs-chukbi",
+   "from": 0,
+   "to": 11.5,
+   "kind": "sprite",
+   "mono": true,
+   "n": 6,
+   "slot": 0.6,
+   "len": 0.35
+  },
+  {
+   "out": "beads",
+   "src": "fs-beads",
+   "from": 0,
+   "to": 36.3,
+   "kind": "sprite",
+   "mono": true,
+   "n": 12,
+   "slot": 0.4,
+   "len": 0.25,
+   "gap": 0.2
+  },
+  {
+   "out": "pebble",
+   "src": "fs-pebble",
+   "from": 0,
+   "to": 12.3,
+   "kind": "sprite",
+   "mono": true,
+   "n": 6,
+   "slot": 0.8,
+   "len": 0.6
+  },
+  {
+   "out": "paper",
+   "src": "gongu-paper",
+   "from": 0,
+   "to": 6.3,
+   "kind": "sprite",
+   "mono": true,
+   "n": 5,
+   "slot": 0.9,
+   "len": 0.8,
+   "gap": 0.5
+  },
+  {
+   "out": "robe",
+   "src": "fs-robe",
+   "from": 0,
+   "to": 38.4,
+   "kind": "sprite",
+   "mono": true,
+   "n": 10,
+   "slot": 1.0,
+   "len": 0.9,
+   "gap": 0.8
+  },
+  {
+   "out": "brush",
+   "src": "gongu-brush",
+   "from": 0,
+   "to": 35.2,
+   "kind": "sprite",
+   "mono": true,
+   "n": 10,
+   "slot": 0.5,
+   "len": 0.4,
+   "gap": 0.4
+  },
+  {
+   "out": "paperfire-1",
+   "src": "fs-paperfire",
+   "from": 0,
+   "to": 10.2,
+   "kind": "shot",
+   "lufs": -37
+  },
+  {
+   "out": "pour-1",
+   "src": "fs-pour",
+   "from": 0,
+   "to": 8.1,
+   "kind": "shot",
+   "lufs": -36,
+   "mono": true
+  }
+ ]
+}

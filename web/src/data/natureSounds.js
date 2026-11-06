@@ -9,14 +9,85 @@
  * 원샷(SHOTS): 짧은 소리 묶음 — 처음 쓸 때 받는다 (gust·bell·chime·moktak 은 입장할 때).
  */
 
-/** 배경 이름 → { layer, level, pieces } */
-export const NATURE_BEDS = {};
+const SUMMER_BIRDS = [4, 5, 6, 7, 8, 9]; // 산솔새·지빠귀는 여름 철새
+const P = (names, tags) => names.map((f) => ({ f, ...tags }));
+const N = (base, n, tags) => P(Array.from({ length: n }, (_, i) => `${base}-${i + 1}`), tags);
 
-/** 원샷 이름 → 파일 이름들 */
-export const NATURE_SHOTS = {};
+/**
+ * 배경 이름 → { layer, level, replaces?, pieces } — level 은 tools/qa/levels.mjs 로 합성음과 같은 크기가 되게 실측한 값
+ * (합성음이 없는 레이어는 -24 LUFS 녹음끼리 크기를 맞춰 둔 값)
+ */
+export const NATURE_BEDS = {
+  stream: { layer: 'stream', replaces: 'stream', level: 2.7, /* 예전 3.5(-26.3 LUFS) → -24.1 */ pieces: [...N('stream-jiri', 2), ...N('stream-dobong', 2), ...N('stream-hwagae', 2)] },
+  rain: { layer: 'rain', replaces: 'rain', level: 3.2, pieces: [...N('rain-baekryeon', 2), ...N('rain-garisan', 2), ...N('rain-guryong', 1)] },
+  // 늘 깔리는 솔바람 (돌풍 녹음 gust 는 그 위에 가끔). 겨울엔 눈 내린 숲의 고요를 섞는다
+  wind: { layer: 'wind', level: 4.0, /* 합성 바람과 같은 크기(5.77, levels.mjs)의 0.7 — 돌풍 녹음이 위에 얹힌다 */ pieces: [...N('wind-namsan', 3, { months: [3, 4, 5, 6, 7, 8, 9, 10, 11] }), ...N('wind-pine', 3), ...N('winter-appalachia', 2, { months: [12, 1, 2] })] },
+  bamboo: { layer: 'bamboo', level: 0.474, pieces: N('bamboo-juknok', 1) } /* 돗토리 대숲 녹음은 실개천이 섞여 뺐다 — 물 없는 대숲에서 물소리가 나지 않게 */,
+  // 산새 둘을 겹친다 (예전 birds·birds2 처럼) — 시간대·달마다 그때 우는 새만
+  birds: { layer: 'birds', replaces: 'birds', level: 0.95, pieces: birdPieces() },
+  birds2: { layer: 'birds', replaces: 'birds2', level: 0.6, pieces: birdPieces() },
+  crickets: { layer: 'crickets', replaces: 'insects', level: 3.3, /* 예전 4.9(스테레오 -24.3) → 모노 -24.0 은 두 채널로 퍼지며 3dB 커진다 */ pieces: N('crickets-baekryeon', 2, { months: [8, 9, 10, 11] }) },
+  cicadas: { layer: 'cicadas', level: 1.43, /* 한낮 숲 산새(0.3×1.5×0.95)와 같은 크기 */ pieces: N('cicadas-jiri', 2, { months: [7, 8] }) } /* 영원사 매미는 계류 물소리가 커서 뺐다 */,
+  frogs: { layer: 'frogs', level: 0.66, /* 밤 풀벌레(0.06×3.3)와 같은 크기 */ pieces: [...N('frogs-baekryeong', 1, { months: [5, 6, 7] }), ...N('frogs-pool', 3, { months: [4, 5, 6, 7] })] },
+  chant: { layer: 'chant', replaces: 'chant', level: 0.98, pieces: N('chant-baekyang', 3) },
+  spring: { layer: 'spring', replaces: 'spring', level: 0.98, pieces: N('spring-dogap', 3) },
+  fire: { layer: 'brazier', level: 22.7, /* 모닥불 녹음은 -37 LUFS 로 낮춰 두었다(봉우리가 커서) */ pieces: N('fire-camp', 3) }
+};
 
-/** 입장할 때 미리 받는 원샷 */
-export const SHOTS_AT_ENTRY = [];
+function birdPieces() {
+  return [
+    ...N('birds-gonjul', 3, { time: ['dawn', 'day'] }), // 곤줄박이 — 텃새
+    ...N('birds-sansol', 2, { time: ['dawn', 'day'], months: SUMMER_BIRDS }),
+    ...N('birds-thrush', 3, { time: ['dawn', 'sunset'], months: [4, 5, 6, 7, 8, 9, 10] }), // 흰배지빠귀 — 새벽·해질녘
+    ...N('birds-thrush2', 2, { time: ['dawn', 'sunset'], months: [5, 6, 7, 8, 9] }), // 되지빠귀
+    ...N('birds-cuckoo', 2, { time: ['day'], months: [5, 6, 7] }) // 뻐꾸기 — 초여름 낮
+  ];
+}
+
+const S = (base, n) => Array.from({ length: n }, (_, i) => `${base}-${i + 1}`);
+/** 원샷 이름 → 파일 이름들, 또는 { sprite, n, slot, len } (한 파일에 n 칸 — tools/audio sprite) */
+export const NATURE_SHOTS = {
+  gust: S('gust', 6),
+  bell: ['bell-hwaeom-1', 'bell-hwaeom-2', 'bell-manbong-1'],
+  chime: { sprite: 'chime', n: 8, slot: 4, len: 3.8 },
+  scops: S('scops', 4),
+  owl: S('owl', 3),
+  eagleowl: S('eagleowl', 4),
+  thunder: ['thunder-1', 'thunder-2', ...S('thunder-far', 4)],
+  drip: { sprite: 'drip', n: 12, slot: 0.5, len: 0.35 },
+  sweep: ['sweep-1'],
+  // 발소리 (재질별)
+  'step-gravel': { sprite: 'step-gravel', n: 12, slot: 0.6, len: 0.45 },
+  'step-earth': { sprite: 'step-earth', n: 10, slot: 0.6, len: 0.45 },
+  'step-leaves': { sprite: 'step-leaves', n: 14, slot: 0.7, len: 0.55 },
+  'step-floor': { sprite: 'step-floor', n: 12, slot: 0.6, len: 0.45 },
+  'step-deck': { sprite: 'step-deck', n: 14, slot: 0.7, len: 0.55 },
+  'step-stone': { sprite: 'step-stone', n: 8, slot: 0.5, len: 0.4 },
+  'step-snow': { sprite: 'step-snow', n: 12, slot: 0.7, len: 0.55 },
+  // 행동 효과음
+  chukbi: { sprite: 'chukbi', n: 6, slot: 0.6, len: 0.35 },
+  beads: { sprite: 'beads', n: 12, slot: 0.4, len: 0.25 },
+  pebble: { sprite: 'pebble', n: 6, slot: 0.8, len: 0.6 },
+  paper: { sprite: 'paper', n: 3, slot: 0.9, len: 0.8 },
+  robe: { sprite: 'robe', n: 10, slot: 1.0, len: 0.9 },
+  brush: { sprite: 'brush', n: 10, slot: 0.5, len: 0.4 },
+  paperfire: ['paperfire-1'],
+  pour: ['pour-1']
+};
+
+/** 밤새가 우는 달 — 소쩍새·솔부엉이는 여름 철새, 수리부엉이는 겨울에 운다 */
+export const NIGHT_CALLS = { scops: [4, 5, 6, 7, 8], owl: [5, 6, 7, 8, 9], eagleowl: [10, 11, 12, 1, 2, 3] };
+
+/** 입장할 때 미리 받는 원샷 (돌풍·범종·풍경 — 첫 구역에서 바로 들린다) */
+export const SHOTS_AT_ENTRY = ['gust', 'bell', 'chime'];
+
+/** 구역에 들어서면 미리 받아 둘 행동 효과음 (첫 동작부터 녹음으로) */
+export const FOLEY_BY_ZONE = {
+  FOREST: ['pebble'],
+  COURTYARD: ['paperfire', 'paper', 'brush', 'sweep'],
+  DAEUNGJEON: ['beads', 'robe', 'paper', 'brush'],
+  TEAHOUSE: ['pour', 'chukbi', 'paper']
+};
 
 /**
  * 「자연의 소리 듣기」 장면 — 쉼터(또는 선 자리)에 앉아 길게 듣는다. 잠자기 타이머 15·30·60분.

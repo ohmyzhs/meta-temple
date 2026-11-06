@@ -1375,3 +1375,7 @@ body.tea-scene .modal-overlay.is-side {
 .lantern-detail .m-report { display: block; margin: 6px auto 0; }
 .giwa-item .m-report { display: block; margin: 2px auto 0; }
 .stone-item .m-report, .lantern-item .m-report { margin-left: auto; align-self: center; }
+
+/* 자연의 소리 듣기: 옆 패널이 좁아 타이머 라벨을 위로 쌓는다 */
+.sutra-group.nature-sleep { flex-direction: column; align-items: stretch; gap: 6px; margin-bottom: 14px; }
+.nature-sleep .sutra-group-label { width: auto; }
