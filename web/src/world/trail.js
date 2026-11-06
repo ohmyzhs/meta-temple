@@ -335,17 +335,17 @@ export function setTrailProfile(heightFn) {
  * 예불 듣기(1인칭)는 vista 쪽을(없으면 look 쪽을) listenPitch 만큼 내려다본다. view: 그 쪽으로 나무를 비우는 거리(m).
  */
 const REST_DEFS = [
-  { id: 'deck_bench', kind: 'bench', s: 38, side: -1, off: 0.85, look: [-24, 40], seatH: 0.46, onDeck: true, listenPitch: -0.06 },
-  { id: 'bridge', kind: 'bridge', s: 98.8, side: 0, off: 0, look: [-20, 14.6] },
-  { id: 'stump_a', kind: 'stump', s: 117, side: -1, off: 2.2, look: [-30, 0], seatH: 0.42, view: 14, listenPitch: -0.04 },
-  { id: 'stump_b', kind: 'stump', s: 120.5, side: -1, off: 2.5, look: [-30, -4], seatH: 0.36, view: 14, listenPitch: -0.06 },
-  { id: 'spring', kind: 'spring', s: 147, side: -1, off: 2.3, look: [-60, -26], seatH: 0.36, vista: [-30, -12], view: 18, listenPitch: -0.03 },
-  { id: 'lookout', kind: 'lookout', s: 221, side: 1, off: 3.2, look: [6, -10], seatH: 0.95, view: 34, vista: [20, -6], listenPitch: 0.1 },
-  { id: 'mat_ridge', kind: 'mat', s: 241, side: 1, off: 2.4, look: [12, -10], seatH: 0.03, view: 24, listenPitch: 0.1 },
-  { id: 'bench_bamboo', kind: 'bench', s: 282, side: 1, off: 2.1, look: [30, -14], seatH: 0.46, view: 22, listenPitch: 0.02 },
-  { id: 'mat_stream', kind: 'mat', s: 322, side: -1, off: 2.4, look: [33, 16], seatH: 0.03 },
-  { id: 'bench_stream', kind: 'bench', s: 347, side: 1, off: 2.2, look: [10, 12], seatH: 0.46, view: 12 },
-  { id: 'stump_c', kind: 'stump', s: 408, side: 1, off: 2.3, look: [12, 36], seatH: 0.4, view: 12, listenPitch: -0.05 }
+  { id: 'deck_bench', name: '전나무숲 데크', kind: 'bench', s: 38, side: -1, off: 0.85, look: [-24, 40], seatH: 0.46, onDeck: true, listenPitch: -0.06 },
+  { id: 'bridge', name: '나무다리', kind: 'bridge', s: 98.8, side: 0, off: 0, look: [-20, 14.6] },
+  { id: 'stump_a', name: '숲속 그루터기', kind: 'stump', s: 117, side: -1, off: 2.2, look: [-30, 0], seatH: 0.42, view: 14, listenPitch: -0.04 },
+  { id: 'stump_b', name: '숲속 그루터기', kind: 'stump', s: 120.5, side: -1, off: 2.5, look: [-30, -4], seatH: 0.36, view: 14, listenPitch: -0.06 },
+  { id: 'spring', name: '약수터', kind: 'spring', s: 147, side: -1, off: 2.3, look: [-60, -26], seatH: 0.36, vista: [-30, -12], view: 18, listenPitch: -0.03 },
+  { id: 'lookout', name: '전망 바위', kind: 'lookout', s: 221, side: 1, off: 3.2, look: [6, -10], seatH: 0.95, view: 34, vista: [20, -6], listenPitch: 0.1 },
+  { id: 'mat_ridge', name: '능선 돗자리', kind: 'mat', s: 241, side: 1, off: 2.4, look: [12, -10], seatH: 0.03, view: 24, listenPitch: 0.1 },
+  { id: 'bench_bamboo', name: '대숲 쉼터', kind: 'bench', s: 282, side: 1, off: 2.1, look: [30, -14], seatH: 0.46, view: 22, listenPitch: 0.02 },
+  { id: 'mat_stream', name: '계곡 돗자리', kind: 'mat', s: 322, side: -1, off: 2.4, look: [33, 16], seatH: 0.03 },
+  { id: 'bench_stream', name: '징검다리 쉼터', kind: 'bench', s: 347, side: 1, off: 2.2, look: [10, 12], seatH: 0.46, view: 12 },
+  { id: 'stump_c', name: '남쪽 숲 그루터기', kind: 'stump', s: 408, side: 1, off: 2.3, look: [12, 36], seatH: 0.4, view: 12, listenPitch: -0.05 }
 ];
 
 export const REST_LABEL = {
@@ -402,4 +402,84 @@ export function inLookoutView(x, z) {
     if (along > -2 && Math.abs(dx * vz - dz * vx) < 3 + Math.max(along, 0) * 0.55) return true;
   }
   return false;
+}
+
+/* ───── 길과 바깥의 경계 (낮은 울타리·돌담) · 길 등 ─────
+ * 걸을 수 있는 띠(TRAIL_HALF)와 몸 반지름(0.32m) 밖에 울타리를 세워 "여기까지가 길"을 보인다.
+ * 갈림목·건너는 곳·데크(제 난간이 있다)·쉼터 입구·석등 자리·넓은 숲길(일주문 길)에는 세우지 않는다.
+ */
+export const FENCE_OFF = TRAIL_HALF + 0.4;
+const FENCE_STEP = 2;
+/** 돌담 구간 (순환로 s): 능선 비탈(깎은 언덕 쪽은 석축처럼)과 계곡 북쪽 기슭. 나머지는 나무 울타리 */
+const STONE_RUNS = [
+  [148, 256],
+  [300, 330]
+];
+
+/** 진행 방향 오른쪽 법선 (P 위 s) */
+function normalOn(P, s) {
+  const a = P.at(s - 0.5), b = P.at(s + 0.5);
+  const tx = b.x - a.x, tz = b.z - a.z, l = Math.hypot(tx, tz) || 1;
+  return { x: -tz / l, z: tx / l };
+}
+function offsetOn(P, s, side, off) {
+  const c = P.at(s), n = normalOn(P, s);
+  return { x: c.x + n.x * side * off, z: c.z + n.z * side * off, s };
+}
+
+/** 갈림목·전망 자리 석등 (순환로 s, 오른쪽 2.3m) */
+export const LANTERNS = [3, 93, 214, 288, 330, 344, 432].map((s) => offsetOn(trail, s, 1, 2.3));
+
+/** 길 등: 순환로를 따라 약 20m 마다 좌우 번갈아 (밤길 표시). 데크 구간은 난간 바로 밖 */
+export const PATH_LAMPS = (() => {
+  const out = [];
+  let side = -1;
+  for (let s = 14; s < trail.length - 6; s += 20) {
+    side = -side;
+    const onDeck = s > DECK.s0 && s < DECK.s1;
+    let p = offsetOn(trail, s, side, onDeck ? DECK.halfW + 0.55 : FENCE_OFF + 0.65);
+    const busy = (q) => REST_SPOTS.some((r) => Math.hypot(r.x - q.x, r.z - q.z) < 3) || LANTERNS.some((l) => Math.hypot(l.x - q.x, l.z - q.z) < 4) || crossingAt(q.x, q.z, 3);
+    if (busy(p)) p = offsetOn(trail, s, -side, onDeck ? DECK.halfW + 0.55 : FENCE_OFF + 0.65);
+    if (busy(p)) continue;
+    out.push(p);
+  }
+  return out;
+})();
+
+/**
+ * 울타리 줄들: [{ style: 'wood'|'stone', path, side, pts: [{x,z,s}] }] — 기둥(돌담 마디) 자리가 FENCE_STEP 간격.
+ * 연속으로 세울 수 있는 자리끼리 한 줄이 된다.
+ */
+export function fenceRuns() {
+  const runs = [];
+  const nearOther = (P, q) => PATHS.some((Q) => Q !== P && (Q.nearest(q.x, q.z)?.d ?? 99) < 2.6);
+  const blocked = (P, q) => {
+    if (q.s < 3 || q.s > P.length - 3) return true;
+    if (crossingAt(q.x, q.z, 1.6)) return true;
+    if (P === trail && q.s > DECK.s0 - 1.5 && q.s < DECK.s1 + 1.5) return true;
+    if (REST_SPOTS.some((r) => Math.hypot(r.x - q.x, r.z - q.z) < 2.4)) return true;
+    if (LANTERNS.some((l) => Math.hypot(l.x - q.x, l.z - q.z) < 1.0) || PATH_LAMPS.some((l) => Math.hypot(l.x - q.x, l.z - q.z) < 0.6)) return true;
+    if (q.z > 5 && q.z < 47 && Math.abs(q.x - forestPathX(q.z)) < 6.5) return true; // 일주문 숲길 (넓은 길)
+    if (nearOther(P, q)) return true;
+    return (P.nearest(q.x, q.z)?.d ?? 0) < FENCE_OFF - 0.05; // 굽은 안쪽에서 길 쪽으로 파고드는 자리
+  };
+  for (const P of PATHS) {
+    for (const side of [-1, 1]) {
+      let cur = null;
+      for (let s = 0; s <= P.length; s += FENCE_STEP) {
+        const q = offsetOn(P, s, side, FENCE_OFF);
+        const style = P === trail && STONE_RUNS.some(([a, b]) => s >= a && s <= b) ? 'stone' : 'wood';
+        if (blocked(P, q)) {
+          cur = null;
+          continue;
+        }
+        if (!cur || cur.style !== style) {
+          cur = { style, path: P, side, pts: cur && cur.style !== style ? [cur.pts[cur.pts.length - 1]] : [] };
+          runs.push(cur);
+        }
+        cur.pts.push(q);
+      }
+    }
+  }
+  return runs.filter((r) => r.pts.length >= 2);
 }

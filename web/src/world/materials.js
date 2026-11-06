@@ -26,18 +26,20 @@ export const envUniforms = {
 /**
  * 위를 향한 면에 눈을 얹고, 비가 오면 어둡고 매끈하게.
  * instanced 메쉬는 instanceMatrix 를 포함해 월드 노멀을 계산한다.
+ * trod: 지오메트리의 aTrod(0..1, 사람이 다녀 다져진 길) 만큼 눈을 덜 얹는다 — 눈 온 날에도 길이 보이게 (지면만).
  */
-export function weatherable(mat, { snow = 1, wet = 1 } = {}) {
+export function weatherable(mat, { snow = 1, wet = 1, trod = false } = {}) {
   const prev = mat.onBeforeCompile;
   mat.onBeforeCompile = (shader, r) => {
     prev?.call(mat, shader, r);
     shader.uniforms.uSnow = envUniforms.uSnow;
     shader.uniforms.uWet = envUniforms.uWet;
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying float vUpY;\nvarying float vCover;\n' + ROOF_COVER_GLSL)
+      .replace('#include <common>', '#include <common>\nvarying float vUpY;\nvarying float vCover;\n' + (trod ? 'attribute float aTrod;\nvarying float vTrod;\n' : '') + ROOF_COVER_GLSL)
       .replace(
         '#include <worldpos_vertex>',
         `#include <worldpos_vertex>
+        ${trod ? 'vTrod = aTrod;' : ''}
         {
           vec3 wn = normal;
           vec4 wp = vec4(transformed, 1.0);
@@ -50,13 +52,14 @@ export function weatherable(mat, { snow = 1, wet = 1 } = {}) {
         }`
       );
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying float vUpY;\nvarying float vCover;\nuniform float uSnow;\nuniform float uWet;')
+      .replace('#include <common>', '#include <common>\nvarying float vUpY;\nvarying float vCover;\nuniform float uSnow;\nuniform float uWet;' + (trod ? '\nvarying float vTrod;' : ''))
       .replace(
         '#include <color_fragment>',
         `#include <color_fragment>
         float dry = 1.0 - vCover; // 지붕 밑은 젖지도, 눈이 쌓이지도 않는다
-        float snowMask = uSnow * ${snow.toFixed(2)} * smoothstep(0.25, 0.7, vUpY) * dry;
+        float snowMask = uSnow * ${snow.toFixed(2)} * smoothstep(0.25, 0.7, vUpY) * dry${trod ? ' * (1.0 - 0.88 * vTrod)' : ''};
         diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.9, 0.92, 0.96), snowMask);
+        ${trod ? 'diffuseColor.rgb *= 1.0 - 0.32 * uSnow * vTrod * dry; // 밟아 다진 눈길: 젖어 어둡게' : ''}
         diffuseColor.rgb *= mix(1.0, 0.62, uWet * ${wet.toFixed(2)} * (1.0 - snowMask) * dry);`
       )
       .replace(
@@ -66,7 +69,7 @@ export function weatherable(mat, { snow = 1, wet = 1 } = {}) {
         roughnessFactor = mix(roughnessFactor, 0.85, snowMask);`
       );
   };
-  mat.customProgramCacheKey = () => `weather-${snow}-${wet}-${mat.type}`;
+  mat.customProgramCacheKey = () => `weather-${snow}-${wet}-${trod ? 't' : ''}-${mat.type}`;
   return mat;
 }
 
