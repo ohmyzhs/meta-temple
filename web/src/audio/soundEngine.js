@@ -584,6 +584,23 @@ export class TempleSoundEngine {
   }
 
   /**
+   * 점검용 (브라우저 콘솔): temple.sound.solo('birds') 처럼 한 레이어만 남겨 듣는다 — null 이면 원래대로.
+   * 레이어: wind rain birds crickets cicadas frogs stream spring bamboo brazier kettle chant
+   */
+  solo(name = null) {
+    this._solo = name || null;
+    this._mix(0.3);
+    return this.playing();
+  }
+
+  /** 점검용: 지금 들리는(목표 크기 > 0) 배경과 그 녹음 조각 이름 */
+  playing() {
+    return (this._nbeds || [])
+      .filter((b) => b.on || b.pending)
+      .map((b) => ({ bed: b.name, layer: Object.keys(LAYERS).find((k) => this.L[k] === b.layer), piece: b.buffer?._f, next: b.nextBuf?._f, level: +b.layer.level.gain._target.toFixed(3) }));
+  }
+
+  /**
    * 번뇌 소각: 쪽지가 화로에 닿은 순간 부른다 — 화로 타닥 소리가 dur 초 동안 세졌다가(+5dB) 처음 크기로 잦아든다.
    * 화면의 불(temple.brazier.flare 1→0)과 같은 모양. 화로 소리의 크기·거리는 전파 법칙 그대로
    */
@@ -1338,6 +1355,7 @@ export class TempleSoundEngine {
         if (src && layer.tone) this._ramp(layer.tone.frequency, airTone(src.d), dur);
       }
       if (def.duck && this._track) g = 0;
+      if (this._solo && this._solo !== name) g = 0; // 점검: 한 레이어만 (solo)
       if (def.flare && this._flare) {
         // 번뇌 소각: 쪽지가 숯불에 닿은 뒤 불이 세졌다가 잦아든다 (flareBrazier)
         const left = 1 - (this.ctx.currentTime - this._flare.t0) / this._flare.dur;
@@ -1828,6 +1846,7 @@ export class TempleSoundEngine {
     const gen = bed.gen;
     bed.pending = this._decode(p.f)
       .then((buf) => {
+        buf._f = p.f; // 점검용: 지금 어떤 조각인지 (playing)
         if (bed.gen === gen) bed[slot] = buf;
       })
       .catch((err) => console.warn('[soundEngine] 자연의 소리를 못 받았습니다:', p.f, err?.message || err))

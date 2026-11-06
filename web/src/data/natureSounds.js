@@ -21,7 +21,7 @@ export const NATURE_BEDS = {
   stream: { layer: 'stream', replaces: 'stream', level: 2.7, /* 예전 3.5(-26.3 LUFS) → -24.1 */ pieces: [...N('stream-jiri', 2), ...N('stream-dobong', 2), ...N('stream-hwagae', 2)] },
   rain: { layer: 'rain', replaces: 'rain', level: 3.2, pieces: [...N('rain-baekryeon', 2), ...N('rain-garisan', 2), ...N('rain-guryong', 1)] },
   // 늘 깔리는 솔바람 (돌풍 녹음 gust 는 그 위에 가끔). 겨울엔 눈 내린 숲의 고요를 섞는다
-  wind: { layer: 'wind', level: 4.0, /* 합성 바람과 같은 크기(5.77, levels.mjs)의 0.7 — 돌풍 녹음이 위에 얹힌다 */ pieces: [...N('wind-namsan', 3, { months: [3, 4, 5, 6, 7, 8, 9, 10, 11] }), ...N('wind-pine', 3), ...N('winter-appalachia', 2, { months: [12, 1, 2] })] },
+  wind: { layer: 'wind', level: 2.4, /* 합성 바람과 같은 크기(3.43, levels.mjs · wind-pine-1)의 0.7 — 돌풍 녹음이 위에 얹힌다. 예전 4.0 은 경주남산 조각(5.77) 기준 */ pieces: [...N('wind-pine', 3), ...N('winter-appalachia', 2, { months: [12, 1, 2] })] }, // 경주남산 솔바람은 명상 내레이션이 섞여 뺐다
   bamboo: { layer: 'bamboo', level: 0.474, pieces: N('bamboo-juknok', 1) } /* 돗토리 대숲 녹음은 실개천이 섞여 뺐다 — 물 없는 대숲에서 물소리가 나지 않게 */,
   // 산새 둘을 겹친다 (예전 birds·birds2 처럼) — 시간대·달마다 그때 우는 새만
   birds: { layer: 'birds', replaces: 'birds', level: 0.95, pieces: birdPieces() },
@@ -47,7 +47,7 @@ function birdPieces() {
 const S = (base, n) => Array.from({ length: n }, (_, i) => `${base}-${i + 1}`);
 /** 원샷 이름 → 파일 이름들, 또는 { sprite, n, slot, len } (한 파일에 n 칸 — tools/audio sprite) */
 export const NATURE_SHOTS = {
-  gust: S('gust', 6),
+  gust: S('gust-pine', 5), // 솔숲 바람이 부풀었다 가라앉는 곳 (예전 gust-1~6 은 내레이션이 섞여 뺐다 — 이름을 바꿔 캐시와 섞이지 않게)
   bell: ['bell-hwaeom-1', 'bell-hwaeom-2', 'bell-manbong-1'],
   chime: { sprite: 'chime', n: 8, slot: 4, len: 3.8 },
   scops: S('scops', 4),

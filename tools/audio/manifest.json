@@ -1,5 +1,5 @@
 {
- "_": "자연의 소리 원본(sources)과 자를 구간(pieces). python3 tools/audio/build.py build — 원본은 tools/audio/raw/ (git 밖, 받는 곳은 url). 구간은 build.py scan(단기 음량이 고른 곳)과 스펙트로그램으로 골랐다.",
+ "_": "자연의 소리 원본(sources)과 자를 구간(pieces). python3 tools/audio/build.py build — 원본은 tools/audio/raw/ (git 밖, 받는 곳은 url). 구간은 build.py scan(단기 음량이 고른 곳)과 스펙트로그램으로 골랐다. 2026-11-06: 경주남산(15076196)은 명상 내레이션 영상이라 뺐다 — 받아쓰기(tools/audio/voice_check.py)로 확인.",
  "sources": {
   "knps-stream": {
    "file": "knps-15076211.m4a",
@@ -56,13 +56,6 @@
    "by": "(재)전주정보문화산업진흥원",
    "license": "공공누리 제1유형",
    "url": "https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?wrtSn=13372546&menuNo=200020"
-  },
-  "knps-pine": {
-   "file": "knps-15076196.m4a",
-   "title": "자연의소리_경주남산의소나무숲과용장사",
-   "by": "국립공원공단",
-   "license": "공공누리 제1유형",
-   "url": "https://www.data.go.kr/data/15076196/fileData.do"
   },
   "gongu-bamboo": {
    "file": "gongu-13287859.mp3",
@@ -509,54 +502,6 @@
    "mono": true
   },
   {
-   "out": "gust-1",
-   "src": "knps-pine",
-   "from": 13.3,
-   "to": 20.8,
-   "kind": "shot",
-   "lufs": -25
-  },
-  {
-   "out": "gust-2",
-   "src": "knps-pine",
-   "from": 35.4,
-   "to": 42.9,
-   "kind": "shot",
-   "lufs": -25
-  },
-  {
-   "out": "gust-3",
-   "src": "knps-pine",
-   "from": 87.3,
-   "to": 94.8,
-   "kind": "shot",
-   "lufs": -25
-  },
-  {
-   "out": "gust-4",
-   "src": "knps-pine",
-   "from": 156.8,
-   "to": 164.3,
-   "kind": "shot",
-   "lufs": -25
-  },
-  {
-   "out": "gust-5",
-   "src": "knps-pine",
-   "from": 202.2,
-   "to": 209.7,
-   "kind": "shot",
-   "lufs": -25
-  },
-  {
-   "out": "gust-6",
-   "src": "knps-pine",
-   "from": 328.4,
-   "to": 335.9,
-   "kind": "shot",
-   "lufs": -25
-  },
-  {
    "out": "bell-hwaeom-1",
    "src": "knps-bell",
    "from": 26.6,
@@ -685,27 +630,6 @@
    "to": 36,
    "kind": "shot",
    "lufs": -26
-  },
-  {
-   "out": "wind-namsan-1",
-   "src": "knps-pine",
-   "from": 60,
-   "to": 110,
-   "lufs": -28
-  },
-  {
-   "out": "wind-namsan-2",
-   "src": "knps-pine",
-   "from": 180,
-   "to": 230,
-   "lufs": -28
-  },
-  {
-   "out": "wind-namsan-3",
-   "src": "knps-pine",
-   "from": 262,
-   "to": 312,
-   "lufs": -28
   },
   {
    "out": "birds-gonjul-1",
@@ -1107,6 +1031,46 @@
    "kind": "shot",
    "lufs": -36,
    "mono": true
+  },
+  {
+   "out": "gust-pine-1",
+   "src": "fs-pine",
+   "from": 55.6,
+   "to": 63.1,
+   "kind": "shot",
+   "lufs": -25
+  },
+  {
+   "out": "gust-pine-2",
+   "src": "fs-pine",
+   "from": 192.1,
+   "to": 199.6,
+   "kind": "shot",
+   "lufs": -25
+  },
+  {
+   "out": "gust-pine-3",
+   "src": "fs-pine",
+   "from": 274.5,
+   "to": 282.0,
+   "kind": "shot",
+   "lufs": -25
+  },
+  {
+   "out": "gust-pine-4",
+   "src": "fs-pine",
+   "from": 296.8,
+   "to": 304.3,
+   "kind": "shot",
+   "lufs": -25
+  },
+  {
+   "out": "gust-pine-5",
+   "src": "fs-pine",
+   "from": 315.4,
+   "to": 322.9,
+   "kind": "shot",
+   "lufs": -25
   }
  ]
 }
