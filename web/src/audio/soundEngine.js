@@ -40,7 +40,7 @@ const airTone = (d) => 16000 / (1 + Math.max(0, d - 3) / 9); // 3m 16kHz · 12m 
 
 // 레이어 크기: base × 같은 이름 칸의 시간대(t)·날씨(w)·구역(z) 배율 — 바람·비·산새·풀벌레·매미는 산 어디서나 (자리와 무관)
 const LAYERS = {
-  wind: { base: 0.3, w: 'wind', z: 'wind' },
+  wind: { base: 0.07, w: 'wind', z: 'wind' }, // 돌풍만 싣는다 — 가장 센 돌풍도 나머지 소리보다 크지 않게 (사용자 2026-11-06 「바람이 너무 크다」, tools/qa/wind.mjs: 0.3 에서 산문 +12.1dB)
   rain: { base: 0.3, w: 'rain' },
   birds: { base: 0.3, t: 'birds', w: 'birds', z: 'birds', max: 1.6, fade: 6 },
   crickets: { base: 0.06, t: 'crickets', w: 'crickets' },
@@ -1180,6 +1180,7 @@ export class TempleSoundEngine {
     // 녹음이 오면 synth → rec 로 교차 페이드하는 이중 레이어
     const dual = (layer) => Object.assign(layer, { synth: gain(1, layer.level), rec: gain(0, layer.level) });
     L.wind = dual({ level: gain(0, this.bus.nature) });
+    L.wind.synth.gain.value = 0; // 바람은 늘 깔지 않는다 — 돌풍 녹음만 가끔 (합성 바람은 녹음을 못 받을 때의 대역으로도 쓰지 않는다)
     const windGust = gain(0, L.wind.synth);
     this.gust.connect(windGust.gain);
     loop(B.brown, windGust, 'lowpass', 320, 0.4, 0.8);
@@ -1689,8 +1690,7 @@ export class TempleSoundEngine {
   _attachRecording(name, bufs) {
     this.rec[name] = bufs; // 원샷
     if (name === 'gust') {
-      // 늘 깔리던 바람(합성)을 걷고, 솔바람 녹음 배경과 가끔 지나가는 돌풍 녹음으로
-      this._ramp(this.L.wind.synth.gain, 0, BED_XFADE);
+      // 바람 레이어는 가끔 지나가는 돌풍 녹음만 싣는다
       this._ramp(this.L.wind.rec.gain, 1, BED_XFADE);
     }
   }

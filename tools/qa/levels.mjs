@@ -82,7 +82,7 @@ try {
       res.foley[name] = +Math.sqrt(es / er).toFixed(3);
     }
     // 배경 (합성 레이어가 있는 것): 그 레이어만 1, 합성 vs 녹음 조각 (level 1 로)
-    const BEDS = { bamboo: 'bamboo-juknok-1', fire: 'fire-camp-1', wind: 'wind-pine-1' };
+    const BEDS = { bamboo: 'bamboo-juknok-1', fire: 'fire-camp-1' }; // 바람 배경은 없다 (돌풍 원샷만)
     for (const [bed, piece] of Object.entries(BEDS)) {
       const def = NATURE_BEDS[bed];
       const only = (E, src) => {

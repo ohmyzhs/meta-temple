@@ -176,13 +176,6 @@
    "license": "공공누리 제1유형",
    "url": "https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?wrtSn=13287375&menuNo=200020"
   },
-  "fs-winter": {
-   "file": "fs-719851.flac",
-   "title": "Appalachian Snowy Afternoon 1",
-   "by": "lakewoodsound (Freesound)",
-   "license": "CC0",
-   "url": "https://freesound.org/s/719851/"
-  },
   "fs-fire": {
    "file": "fs-729396.wav",
    "title": "Campfire 02",
@@ -716,20 +709,6 @@
    ]
   },
   {
-   "out": "winter-appalachia-1",
-   "src": "fs-winter",
-   "from": 12,
-   "to": 62,
-   "lufs": -32
-  },
-  {
-   "out": "winter-appalachia-2",
-   "src": "fs-winter",
-   "from": 84,
-   "to": 134,
-   "lufs": -32
-  },
-  {
    "out": "fire-camp-1",
    "src": "fs-fire",
    "from": 17,
@@ -773,27 +752,6 @@
    "src": "fs-frogs",
    "from": 191,
    "to": 241
-  },
-  {
-   "out": "wind-pine-1",
-   "src": "fs-pine",
-   "from": 5,
-   "to": 55,
-   "lufs": -28
-  },
-  {
-   "out": "wind-pine-2",
-   "src": "fs-pine",
-   "from": 111,
-   "to": 161,
-   "lufs": -28
-  },
-  {
-   "out": "wind-pine-3",
-   "src": "fs-pine",
-   "from": 206,
-   "to": 256,
-   "lufs": -28
   },
   {
    "out": "thunder-far-1",
