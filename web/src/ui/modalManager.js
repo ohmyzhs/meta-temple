@@ -645,7 +645,7 @@ export class ModalManager {
     const root = this._root(`
       <div class="cairn">
         ${cairnSvg()}
-        <p class="cairn-count">지금까지 <b data-total>0</b>개의 돌이 쌓였습니다</p>
+        <p class="cairn-count" data-count>지금까지 <b data-total>0</b>개의 돌이 쌓였습니다</p>
       </div>
       <label class="m-label" for="stone-wish">한 줄 다짐 <small>서른 자 안으로</small></label>
       <div class="m-field">
@@ -655,17 +655,39 @@ export class ModalManager {
       <label class="m-share"><input type="checkbox" data-share checked /> 다른 도반에게도 보이기 <small>법명과 이 글만 함께 보입니다</small></label>
       <div class="m-actions"><button type="button" class="m-btn primary" data-act="add">조약돌 얹기</button></div>
       <p class="m-live" data-live aria-live="polite"></p>
-      <h3 class="m-sub">최근에 얹은 돌</h3>
-      <ul class="stone-list" data-list></ul>`);
+      <h3 class="m-sub" data-list-title>최근에 얹은 돌</h3>
+      <ul class="stone-list" data-list></ul>
+      <div data-mine-wrap hidden>
+        <h3 class="m-sub">내가 돌을 얹은 돌탑 <small>누르면 걸어서 찾아갑니다</small></h3>
+        <ul class="stone-list my-cairns" data-mine></ul>
+      </div>`);
 
     const input = root.querySelector('#stone-wish');
     const counter = root.querySelector('[data-counter]');
     const live = root.querySelector('[data-live]');
 
     const render = () => {
-      const stones = this.store.state.stones;
-      root.querySelector('[data-total]').textContent = (this.store.stoneTotal ?? stones.length).toLocaleString('ko-KR');
-      root.querySelector('[data-list]').innerHTML = byNewest(stones)
+      // 이 자리의 탑에 남긴 글만 (main 이 탑을 정해 준다). 옛 콜백이면 전체
+      const sc = this.cb.stoneScope?.();
+      const stones = sc ? sc.stones : this.store.state.stones;
+      if (sc) {
+        const count = root.querySelector('[data-count]');
+        count.innerHTML = sc.isNew
+          ? `<span class="cairn-name">${esc(sc.name)}</span>아직 돌이 없는 자리입니다 · 첫 돌을 얹으면 여기에 새 돌탑이 섭니다`
+          : `<span class="cairn-name">${esc(sc.name)}</span>지금까지 <b data-total>${sc.total.toLocaleString('ko-KR')}</b>개의 돌이 쌓였습니다`;
+        root.querySelector('[data-list-title]').textContent = '이 돌탑에 남긴 글';
+        const mine = (sc.mine || []).slice(0, 6);
+        root.querySelector('[data-mine-wrap]').hidden = !mine.length;
+        root.querySelector('[data-mine]').innerHTML = mine
+          .map((c) =>
+            c.id === sc.id
+              ? `<li class="stone-item is-mine"><span class="stone-text"><span class="stone-wish">${esc(c.name)}</span><span class="stone-meta">지금 여기 · 내 돌 ${c.mine}개</span></span></li>`
+              : `<li class="stone-item"><span class="stone-text"><span class="stone-wish">${esc(c.name)}</span><span class="stone-meta">내 돌 ${c.mine}개 · 여기서 ${c.d}m</span></span><button type="button" class="m-btn small" data-walk="${esc(c.id)}">걸어서 가기</button></li>`
+          )
+          .join('');
+      } else root.querySelector('[data-total]').textContent = (this.store.stoneTotal ?? stones.length).toLocaleString('ko-KR');
+      const empty = sc && !stones.length ? `<li class="stone-item"><span class="stone-text"><span class="stone-meta">${sc.loading ? '남긴 글을 불러오는 중…' : sc.offline ? '지금은 서버에 닿지 않아 다른 도반의 글을 불러오지 못했습니다' : '아직 이 돌탑에 남긴 글이 없습니다'}</span></span></li>` : '';
+      root.querySelector('[data-list]').innerHTML = empty + byNewest(stones)
         .slice(0, 12)
         .map(
           (s) => `<li class="stone-item${s.mine ? ' is-mine' : ''}">
@@ -704,10 +726,13 @@ export class ModalManager {
     });
     this._on(root, 'click', (e) => {
       if (e.target.closest('[data-act="add"]')) return add();
+      const w = e.target.closest('[data-walk]');
+      if (w) return this.cb.onWalkCairn?.(w.dataset.walk);
       const r = e.target.closest('[data-report]');
       if (r && this._report(r.dataset.report, r.dataset.id)) render();
     });
     render();
+    this.cb.onStoneView?.();
     return { refresh: render };
   }
 

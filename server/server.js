@@ -9,7 +9,7 @@ import crypto from 'node:crypto';
 import { WebSocketServer } from 'ws';
 import { createStore } from './store.js';
 import { checkText } from './moderation.js';
-import { parsePlace, placeStone, AREA_RADIUS } from './cairns.js';
+import { parsePlace, placeStone, AREA_RADIUS, CAIRN_ID_RE } from './cairns.js';
 import { PRODUCTS, paymentsEnabled } from './products.js';
 
 const PORT = Number(process.env.PORT) || 8080;
@@ -98,6 +98,12 @@ async function api(req, res) {
   if (url.pathname === '/api/health') return send(res, 200, { ok: true, store: store.kind, rooms: rooms.length, online: [...clients.values()].length });
   if (!rateOk(ip, req.method === 'GET' ? 60 : 20)) return send(res, 429, { error: '잠시 후 다시 해 주세요' });
   if (req.method === 'GET' && url.pathname === '/api/shared') return send(res, 200, await store.recent());
+  // 한 돌탑에 남긴 글만 (?cairn=<탑 id> 또는 gate = 일주문 옆 돌탑)
+  if (req.method === 'GET' && url.pathname === '/api/stones') {
+    const c = url.searchParams.get('cairn') || 'gate';
+    if (c !== 'gate' && !CAIRN_ID_RE.test(c)) return send(res, 400, { error: 'bad cairn' });
+    return send(res, 200, await store.cairnStones(c === 'gate' ? null : c));
+  }
   if (req.method === 'GET' && url.pathname === '/api/products') return send(res, 200, paymentsEnabled() ? { enabled: true, products: PRODUCTS } : { enabled: false, products: [] });
 
   if (req.method !== 'POST') return send(res, 404, { error: 'not found' });
