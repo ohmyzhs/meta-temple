@@ -5,7 +5,7 @@
 // 에셋: web/assets/world/outdoor/*.ktx2 (tools/outdoor/build.py), 출처: web/assets/world/outdoor/credits.json
 import * as THREE from 'three';
 import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
-import { L, pathX, streamZ, STREAM_HALF, fbm, noise2, smooth, terrainHeight } from '../layout.js';
+import { L, pathX, streamZ, STREAM_HALF, fbm, noise2, smooth, terrainHeight, onCourtGround, COURTS } from '../layout.js';
 import { nearestTrail, PATHS, REST_SPOTS } from '../trail.js';
 import { weatherable, windSway, mats as sharedMats } from '../materials.js';
 
@@ -90,8 +90,7 @@ function groundSplat(x, z, slope, w) {
   const tr = nearestTrail(x, z);
   if (tr) mix((1 - smooth(1.1, 2.1, tr.d + n2 * 0.35)) * 0.92, 2);
   mix((1 - smooth(1.4, STREAM_HALF + 0.6, Math.abs(z - streamZ(x)))) * 0.9, 5);
-  const c = L.courtyard;
-  if (x > c.x0 - 0.3 && x < c.x1 + 0.3 && z > c.z0 - 0.3 && z < c.z1 + 0.05) mix(1, 3);
+  if (onCourtGround(x, z)) mix(1, 3); // 앞마당·서쪽 마당·옆마당
   const t = L.teahouseTerrace;
   if (x > t.x0 - 1 && z < t.z1 + 1 && z > t.z0 - 1 && x < t.x1 + 1) mix(0.75 - n2 * 0.2, 4);
   const lk = L.teaLink;
@@ -690,7 +689,7 @@ class Outdoor {
     const pts = [];
     for (const P of PATHS) for (const p of P.pts) pts.push([p.x, p.z]);
     for (let z = -2; z <= 56; z += 1.5) pts.push([pathX(z), z]);
-    for (const r of [L.courtyard, L.teahouseTerrace, L.hall]) for (let x = r.x0; x <= r.x1; x += 3) for (let z = r.z0; z <= r.z1; z += 3) pts.push([x, z]);
+    for (const r of [...COURTS, L.teahouseTerrace, L.hall]) for (let x = r.x0; x <= r.x1; x += 3) for (let z = r.z0; z <= r.z1; z += 3) pts.push([x, z]);
     for (const s of REST_SPOTS) pts.push([s.x, s.z]);
     const grid = new Map(), C = 8;
     for (const [x, z] of pts) {

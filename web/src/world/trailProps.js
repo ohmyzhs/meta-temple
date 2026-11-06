@@ -10,7 +10,7 @@ import { trail, REST_SPOTS, CROSSINGS, crossingY, DECK, deckRise, fenceRuns, LAN
 import { buildStoneLantern } from './architecture.js';
 import { mats } from './materials.js';
 
-const mesh = (geo, mat, x = 0, y = 0, z = 0, cast = true) => {
+export const mesh = (geo, mat, x = 0, y = 0, z = 0, cast = true) => {
   const o = new THREE.Mesh(geo, mat);
   o.position.set(x, y, z);
   o.castShadow = cast;
@@ -19,7 +19,7 @@ const mesh = (geo, mat, x = 0, y = 0, z = 0, cast = true) => {
 };
 
 /** 울퉁불퉁한 돌 (윗면을 깎아 평평하게: flatTop 은 0..1 높이 비율) */
-function rockGeo(seed, flatTop = 1) {
+export function rockGeo(seed, flatTop = 1) {
   const g = new THREE.IcosahedronGeometry(1, 2);
   const p = g.attributes.position;
   for (let i = 0; i < p.count; i++) {

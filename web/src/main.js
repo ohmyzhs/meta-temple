@@ -320,7 +320,7 @@ class MetaTempleApp {
     return {
       stream,
       chimes,
-      chant: { x: 0, y: h.floorY + 1.4, z: -26 },
+      chant: { x: 0, y: h.floorY + 1.4, z: L.altar.z + 2.2 },
       brazier: { x: L.brazier.x, y: 2, z: L.brazier.z },
       kettle: { x: L.teahouse.x - L.teahouse.halfW - 0.9, y: 2, z: L.teahouse.z + 0.75 },
       bamboo: { x: 34, y: 4, z: -12 },
@@ -579,7 +579,7 @@ class MetaTempleApp {
     veil(() => {
       if (this._listening !== ls) return;
       if (rest) return this._listenOutdoor(ls);
-      const c = this.avatars.freeCushionNear(0.75, -24.7); // 둘째 줄 가운데: 불단과 삼존불이 한눈에 들어오는 자리
+      const c = this.avatars.freeCushionNear(0, L.hall.z1 - 4.4); // 셋째 줄 가운데(본존 정면): 불단과 삼존불이 한눈에 들어오는 자리
       const seat = this.avatars.cushionSeat(c);
       seat.kind = 'cushion';
       this.avatars.sitAt(seat, 'meditate');
@@ -682,13 +682,13 @@ class MetaTempleApp {
   /** 장면들: 좌복(c) 기준. 세로 화면은 삼존불이 다 들어오지 않으니 더 가깝고 높게 잡는다 */
   _listenShot(i) {
     if (this._listening.rest) return null; // 산문 밖은 장면을 끊지 않고 1인칭으로 그 자리 경치를
-    const c = this._listening.cushion, fy = L.hall.floorY;
+    const c = this._listening.cushion, fy = L.hall.floorY, az = L.altar.z;
     const V = (x, y, z) => new THREE.Vector3(x, y, z);
     const tall = innerWidth / innerHeight < 0.85;
     const shots = tall
       ? [
           // 높은 뒤: 나는 오른쪽 아래, 본존불은 위 가운데 (내려다봐서 재생기 위로 올린다)
-          { pos: V(c.x - 0.5, fy + 2.1, c.z + 3.6), to: V(c.x - 0.3, fy + 1.95, c.z + 3.0), look: V(0.45, fy + 0.7, -28.8), lookTo: V(0.4, fy + 0.8, -28.8) },
+          { pos: V(c.x - 0.5, fy + 2.1, c.z + 3.6), to: V(c.x - 0.3, fy + 1.95, c.z + 3.0), look: V(0.45, fy + 0.7, az - 0.6), lookTo: V(0.4, fy + 0.8, az - 0.6) },
           // 오른쪽 뒤 비스듬히: 나는 왼쪽, 본존불은 오른쪽 (좁은 화면엔 옆모습과 불상이 같이 안 들어간다)
           { pos: V(c.x + 1.3, fy + 1.0, c.z + 2.2), to: V(c.x + 1.45, fy + 1.05, c.z + 2.1), look: V(c.x - 0.33, fy + 0.95, c.z - 1.45), lookTo: V(c.x - 0.3, fy + 1.0, c.z - 1.5) },
           // 불단 쪽에서 얼굴: 열린 문 너머 석탑이 머리 뒤로 (기둥은 비켜서)
@@ -696,13 +696,13 @@ class MetaTempleApp {
         ]
       : [
           // 왼쪽 뒤: 나는 오른쪽 1/3, 삼존불은 가운데 (재생기와 겹치지 않는 높이)
-          { pos: V(c.x - 1.4, fy + 1.25, c.z + 3.6), to: V(c.x - 1.0, fy + 1.2, c.z + 2.9), look: V(0.9, fy + 1.15, -28.6), lookTo: V(0.75, fy + 1.25, -28.6) },
+          { pos: V(c.x - 1.4, fy + 1.25, c.z + 3.6), to: V(c.x - 1.0, fy + 1.2, c.z + 2.9), look: V(0.9, fy + 1.15, az - 0.4), lookTo: V(0.75, fy + 1.25, az - 0.4) },
           // 오른쪽 옆모습: 불단 촛불이 뒤로
           { pos: V(c.x + 2.4, fy + 0.95, c.z + 0.8), to: V(c.x + 2.1, fy + 0.9, c.z + 0.2), look: V(c.x - 0.4, fy + 0.75, c.z - 0.6), lookTo: V(c.x - 0.5, fy + 0.8, c.z - 1.0) },
           // 불단 쪽에서 얼굴: 열린 법당 문 너머 마당 (기둥이 머리 뒤에 오지 않게 왼쪽으로)
           { pos: V(c.x - 1.3, fy + 1.1, c.z - 2.3), to: V(c.x - 1.0, fy + 1.02, c.z - 2.0), look: V(c.x + 0.1, fy + 0.72, c.z), lookTo: V(c.x + 0.05, fy + 0.74, c.z + 0.1) },
           // 높은 모서리: 법당 전체에 홀로
-          { pos: V(-6.2, fy + 3.6, -21.2), to: V(-5.0, fy + 3.5, -21.4), look: V(0.5, fy + 0.9, -26.5), lookTo: V(0.6, fy + 1.0, -26.8) }
+          { pos: V(L.hall.xs[1] - 1.2, fy + 3.9, L.hall.z1 - 0.8), to: V(L.hall.xs[1], fy + 3.8, L.hall.z1 - 1.0), look: V(0.5, fy + 0.9, az + 1.7), lookTo: V(0.6, fy + 1.0, az + 1.4) }
         ];
     const s = { ...shots[i % shots.length], dur: LISTEN_SHOT_SEC };
     if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
@@ -1578,8 +1578,8 @@ class MetaTempleApp {
     }
     // 쉼터에 앉아 있으면 그 자리에서 예불 듣기 (알약 → 예불 목록)
     if (!best && this.player.seat?.kind === 'rest') best = { id: 'yebul', label: '예불 들으며 쉬기' };
-    // 순환 산책로: 쉼터(1.4m 안), 없으면 멈춰 선 자리의 돌탑
-    if (!best && zone === 'FOREST' && !this.player.sitting) {
+    // 순환 산책로·서쪽 마당: 쉼터(1.4m 안), 숲길이면 없을 때 멈춰 선 자리의 돌탑
+    if (!best && (zone === 'FOREST' || zone === 'COURTYARD') && !this.player.sitting) {
       for (const s of this.temple.trail.spots) {
         const d = Math.min(Math.hypot(p.x - s.stand.x, p.z - s.stand.z), Math.hypot(p.x - s.x, p.z - s.z));
         if (d < 1.4 && (!best || d < bd)) {
@@ -1587,7 +1587,7 @@ class MetaTempleApp {
           bd = d;
         }
       }
-      if (!best) best = this._cairnPrompt(p);
+      if (!best && zone === 'FOREST') best = this._cairnPrompt(p);
     }
     // 좌복(1.1m 안)과 겨룰 때는 각자 닿는 거리에 견준 가까움으로 — 범위가 넓은 헌향이 앞줄 좌복을 덮지 않게
     if (zone === 'DAEUNGJEON' && !this.player.sitting) {

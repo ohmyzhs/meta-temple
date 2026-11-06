@@ -55,9 +55,9 @@ const OCC = {
   r1: 0.15 // 여기까지 옅어진다
 };
 // 실내 규칙: 카메라 높이는 천장·처마 밑에서 0.4m 아래까지만.
-// 법당 우물천장 밑면 7.38m(마루 3.0 + 기둥 4.4 − 0.02), 처마 밑 최저 7.54m / 심검당 처마 밑 최저 4.77m (layout.js ROOF_COVERS, 위로 쏜 광선으로 잰 값)
+// 법당 우물천장 밑면 7.98m(마루 3.0 + 기둥 5.0 − 0.02), 처마 밑 최저 8.19m / 심검당 처마 밑 최저 4.77m (layout.js ROOF_COVERS, 위로 쏜 광선으로 잰 값)
 // 다실 가는 길은 머리(약 2.45m)에서 처마 밑 4.37m 까지 1.92m 이므로 거리 5m 면 기울기 0.39rad 까지
-const HALL_CAM = { dist: 5.2, pitch: 0.42, maxY: 7.38 - 0.4 };
+const HALL_CAM = { dist: 5.2, pitch: 0.42, maxY: L.hall.floorY + L.hall.colH - 0.02 - 0.4 }; // 우물천장 밑 0.4m
 const PASSAGE_CAM = { dist: 5.0, pitch: 0.39, maxY: 4.77 - 0.4 };
 
 /* 가림체 디더: 머리보다 카메라 쪽에 있는 조각을, 머리 둘레 원 안에서 화면 공간 4×4 Bayer 로 비운다 */
@@ -834,7 +834,7 @@ export class TempleScene {
     const off = new THREE.Vector3(Math.sin(c.yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(c.yaw) * Math.cos(pitch)).multiplyScalar(dist);
     const want = c.focus.clone().add(off);
     if (inHall) {
-      // 법당 벽 안쪽, 앞은 처마 밖(z −15)까지 — 처마 밑 최저 7.54m 가 maxY 보다 높아 처마 판에 들지 않는다
+      // 법당 벽 안쪽, 앞은 처마 밖(z −15)까지 — 처마 밑 최저 8.19m 가 maxY 보다 높아 처마 판에 들지 않는다
       want.x = clamp(want.x, L.hall.x0 + 0.5, L.hall.x1 - 0.5);
       want.z = clamp(want.z, L.hall.z0 + 0.5, -15);
     }

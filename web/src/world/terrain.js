@@ -14,7 +14,9 @@ import {
   noise2,
   smooth,
   clamp,
-  addCircleCollider
+  addCircleCollider,
+  onCourtGround,
+  courtEdge
 } from './layout.js';
 import { nearestTrail, trail, REST_SPOTS, trailDistFar, FLOOR_REACH } from './trail.js';
 import { groundDetailTexture, waterNormalTexture, graniteTextures } from './textures.js';
@@ -62,9 +64,8 @@ function groundColor(x, z, h, slope, out) {
   const sd = Math.abs(z - streamZ(x));
   out.lerp(COL.bed, (1 - smooth(1.4, STREAM_HALF + 0.6, sd)) * 0.9);
   // 마당 마사토
-  const c = L.courtyard;
-  if (x > c.x0 - 0.3 && x < c.x1 + 0.3 && z > c.z0 - 0.3 && z < c.z1 + 0.05) {
-    const edge = Math.min(x - c.x0, c.x1 - x, z - c.z0, c.z1 - z);
+  if (onCourtGround(x, z)) {
+    const edge = courtEdge(x, z);
     out.copy(COL.court).lerp(COL.courtEdge, (1 - smooth(0, 1.6, edge)) * 0.6 + n2 * 0.15);
   }
   // 다실 마당 잔디

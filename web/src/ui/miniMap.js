@@ -58,7 +58,7 @@ export function createMiniMap(root, { zones, geo, onPick }) {
   const deck = [];
   for (let s = DECK.s0; s <= DECK.s1; s += 2) deck.push(trail.at(s));
   const rect = (r, cls) => `<rect class="${cls}" x="${r.x0}" y="${r.z0}" width="${r.x1 - r.x0}" height="${r.z1 - r.z0}" rx="0.8"/>`;
-  const c = L.courtyard, h = L.hall, t = L.teahouse, tt = L.teahouseTerrace, p = L.pond;
+  const c = L.courtyard, h = L.hall, t = L.teahouse, tt = L.teahouseTerrace, p = L.pond, wc = L.westCourt, hy = L.hallYard;
   root.innerHTML = `<svg class="minimap-svg" viewBox="${V.x0} ${V.z0} ${V.w} ${V.h}" aria-hidden="true" focusable="false">
     <rect class="mm-ground" x="${V.x0}" y="${V.z0}" width="${V.w}" height="${V.h}" rx="5"/>
     ${[L.bamboo, L.bambooEast].map((b) => rect(b, 'mm-bamboo')).join('')}
@@ -66,6 +66,7 @@ export function createMiniMap(root, { zones, geo, onPick }) {
     ${rect(tt, 'mm-lawn')}
     <ellipse class="mm-pond" cx="${p.x}" cy="${p.z}" rx="${p.rx}" ry="${p.rz}"/>
     ${rect(c, 'mm-court')}
+    <path class="mm-court" d="M${wc.x0} ${wc.z0}H${hy.x1}V${hy.z1}H${wc.x1}V${wc.z1}H${wc.x0}Z"/>
     ${rect({ x0: h.x0, x1: h.x1, z0: h.z0, z1: h.z1 }, 'mm-hall')}
     ${rect({ x0: t.x - t.halfW, x1: t.x + t.halfW, z0: t.z - t.halfD, z1: t.z + t.halfD }, 'mm-hall')}
     <path class="mm-path" d="${line(gate)}"/>

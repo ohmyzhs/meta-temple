@@ -596,10 +596,11 @@ const VISITOR_PLANS = [
   { role: 'walker', style: 'ink_wanderer' },
   { role: 'circler', style: 'monk' },
   { role: 'circler', style: 'lantern_spirit' },
-  { role: 'bower', style: 'monk', cushion: 11 },
-  { role: 'bower', style: 'ink_wanderer', cushion: 21 },
-  { role: 'meditator', style: 'monk', cushion: 26 },
-  { role: 'meditator', style: 'lantern_spirit', cushion: 4 },
+  // 좌복 번호 = 줄 × 13 + 칸 (temple.js: 5줄 × 13, 칸 6 이 가운데). 예불 듣기 자리(셋째 줄 가운데, 32)는 비워 둔다
+  { role: 'bower', style: 'monk', cushion: 18 },
+  { role: 'bower', style: 'ink_wanderer', cushion: 34 },
+  { role: 'meditator', style: 'monk', cushion: 43 },
+  { role: 'meditator', style: 'lantern_spirit', cushion: 7 },
   { role: 'gazer', style: 'monk' },
   { role: 'pavilion', style: 'ink_wanderer' },
   { role: 'walker', style: 'lantern_spirit' }
@@ -831,7 +832,7 @@ export class AvatarManager {
     // 상주 스님 두 분
     const hallMonk = new Avatar('monk', { name: '청연 스님', variant: 'resident' });
     hallMonk.setItems({ wooden_mala: true });
-    hallMonk.root.position.set(-4.6, L.hall.floorY + 0.02, -27.3);
+    hallMonk.root.position.set(-4.6, L.hall.floorY + 0.02, L.altar.z + 0.9); // 불단 왼쪽 앞, 대중을 옆으로 보고
     hallMonk.heading = Math.PI / 2;
     hallMonk.sitting = true;
     hallMonk.setState('meditate');
