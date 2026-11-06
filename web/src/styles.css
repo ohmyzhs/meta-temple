@@ -94,9 +94,11 @@ kbd {
   place-items: center;
   place-items: stretch center;
   padding: calc(10px + var(--safe-t)) 24px calc(22px + var(--safe-b));
+  /* 화면 전체를 덮지 않고, 글씨 띠(로고~이어폰 줄)와 아래 단추 줄만 살짝 어둡게 — 낮에 장면 빛의 약 73% 가 남고
+     글씨 대비는 낮·노을·밤 모두 5.9:1 이상 (390×844 실측, .playwright-mcp/intro-light.mjs) */
   background:
-    radial-gradient(ellipse 95% 55% at 50% 30%, rgba(8, 7, 6, 0.1), rgba(6, 5, 4, 0.8) 78%),
-    linear-gradient(180deg, rgba(6, 5, 4, 0.05) 0%, rgba(6, 5, 4, 0.45) 55%, rgba(6, 5, 4, 0.9) 100%);
+    radial-gradient(ellipse 100% 23% at 50% 25%, rgba(6, 5, 4, 0.62), rgba(6, 5, 4, 0.3) 55%, rgba(6, 5, 4, 0) 100%),
+    linear-gradient(180deg, rgba(6, 5, 4, 0.12) 0%, rgba(6, 5, 4, 0) 34%, rgba(6, 5, 4, 0) 58%, rgba(6, 5, 4, 0.6) 100%);
   transition: opacity 1.4s var(--ease), visibility 1.4s;
   overflow-y: auto;
 }
