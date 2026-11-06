@@ -30,8 +30,10 @@ export function prepareOutdoor(world) {
 
 /* ───── 공용 셰이더 조각 ───── */
 
-// ETC1S normal-mode 노멀맵: X 는 RGB, Y 는 A — z 를 복원한다
-const XY_NORMAL = 'vec3 xyNormal(vec4 t) { vec2 xy = vec2(t.r, t.a) * 2.0 - 1.0; return vec3(xy, sqrt(max(0.04, 1.0 - dot(xy, xy)))); }';
+// ETC1S normal-mode 노멀맵: X 는 RGB, Y 는 A — z 를 복원한다.
+// Y 는 뒤집는다: KTX2 는 flipY 가 없어 그림 위쪽이 −v 인데 사진 노멀은 OpenGL(초록 = 그림 위). GLTFLoader 의 normalScale.y *= −1 과 같은 처리.
+// (가로 능선 시험판: 위에서 비출 때 뒤집어야 능선 윗면이 밝다 — 192 대 0)
+const XY_NORMAL = 'vec3 xyNormal(vec4 t) { vec2 xy = vec2(t.r, t.a) * 2.0 - 1.0; xy.y = -xy.y; return vec3(xy, sqrt(max(0.04, 1.0 - dot(xy, xy)))); }';
 export function xyNormals(mat) {
   const prev = mat.onBeforeCompile, prevKey = mat.customProgramCacheKey?.() || '';
   mat.onBeforeCompile = (s, r) => {

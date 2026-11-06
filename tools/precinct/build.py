@@ -8,7 +8,7 @@ DL: Poly Haven 2k jpg 폴더 (<id>_diffuse_2k.jpg, <id>_nor_gl_2k.jpg, <id>_arm_
 생성 이미지: docs/art/generated/{dancheong_band,earth_wall}.jpg (에셋 스파이크, gpt-image, 아트 바이블 참조)
 
 방향: KTX2 는 flipY 가 없어 그림 맨 윗줄이 v=0 이다 (단청은 꽃이 서게 뒤집어 굽는다).
-      노멀은 OpenGL(+Y 위) 그대로 — 그래서 런타임에 normalScale.y 를 음수로 쓴다 (GLTFLoader 와 같은 처리, precinct.js).
+      노멀은 OpenGL(+Y 위) 그대로 — 초록은 런타임 xyNormal() (outdoor.js) 이 뒤집는다 (GLTFLoader 와 같은 처리).
 폰 1K 예산: 색 1024, 노멀·거칠기 512. 노멀은 ETC1S normal-mode(XY) — outdoor.js xyNormals 로 푼다.
 """
 import os

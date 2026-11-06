@@ -16,8 +16,6 @@ const TILE = { granite: 1.6, mossy: 1.6, plaster: 1.8, paint: 1.2, roofDark: 1.2
 const ROOF_REPEAT = 0.55 / 6;
 // 단청 띠: 그림(2:1) 한 장이 부재 높이 h × DC_W·h 를 덮는다 — 그림 비율 그대로
 const DC_W = 2;
-// KTX2 는 flipY 가 없어 그림 위쪽이 −v — OpenGL 노멀의 초록을 뒤집는다 (GLTFLoader 의 normalScale.y *= −1 과 같은 처리)
-const NY = -1;
 
 /** 정적 병합 직후에 부른다: 바꿀 메쉬·재질을 지금 모아 두고, 질감이 오면 UV·그림을 한꺼번에 바꾼다 */
 export function preparePrecinct(world) {
@@ -244,7 +242,7 @@ class Precinct {
     if (nor) {
       // 다듬은 돌·칠·청동은 얕게 — 바위 사진 노멀을 그대로 쓰면 기단이 45% 어두워졌다(시험 화면 실측)
       const s = { roofTop: 1, roofDark: 0.8, roofUnder: 0.8, paint: 0.25, plaster: 0.9, granite: 0.6, rock: 0.7, mossy: 0.9, bronze: 0.5 }[k] ?? 0.8;
-      mat.normalScale.set(s, s * NY);
+      mat.normalScale.set(s, s); // 초록 뒤집기는 xyNormal() 이 한다
       xyOnce(mat);
     }
     if (arm) {
