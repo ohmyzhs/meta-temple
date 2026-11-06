@@ -7,6 +7,7 @@
 #   temple       nginx — 127.0.0.1:8091, 정적 파일 + /ws·/api 를 temple-live 로 (deploy/nginx-temple.conf)
 #   temple-live  server/ (Node 22, ws + pg), 메모리 256MB 제한
 #   temple-db    postgres:17, 데이터 /srv/temple/pgdata, 비밀번호·해시 소금은 /srv/temple/live.env (600, git 밖)
+# 차담 스님 AI: live.env 에 OPENROUTER_API_KEY=… 를 직접 넣는다 (없으면 AI 없이 대화 나무로). 값은 이름만 넘겨 명령줄에 찍히지 않게.
 # saju 운영 터널·컨테이너는 건드리지 않는다. temple 컨테이너는 처음 한 번만 다시 만든다(그때 몇 초 끊김).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -36,6 +37,7 @@ docker build -q -t temple-live:latest live
 docker rm -f temple-live >/dev/null 2>&1 || true
 docker run -d --name temple-live --restart unless-stopped --network temple-net --memory 256m \
   -e DATABASE_URL="postgres://temple:${POSTGRES_PASSWORD}@temple-db:5432/temple" -e ID_SALT="$ID_SALT" \
+  -e OPENROUTER_API_KEY -e MONK_MODEL -e MONK_DAILY -e MONK_DAILY_USD -e MONK_TIMEOUT_MS \
   temple-live:latest >/dev/null
 
 # nginx: 설정 파일이 붙어 있지 않으면 한 번 다시 만든다 (temple-net 에 들어가야 temple-live 이름을 찾는다)

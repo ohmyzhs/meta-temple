@@ -413,6 +413,7 @@ class MetaTempleApp {
         this._afterUnlock(unlocked);
         this._updateHUD();
       },
+      onTeaLeave: () => this._leaveTea(),
       onTeaTurn: () => {
         this.store.addStat('teaChats');
         this.temple.teaSteam.userData.uniforms.uIntensity.value = 1;
@@ -1100,7 +1101,50 @@ class MetaTempleApp {
       this.temple.teaSteam.userData.uniforms.uIntensity.value = 1;
     }, 900);
     setTimeout(() => this.player.seat === seat && this.player.setState('tea'), 2400); // 그새 일어나 걸어갔으면 찻잔을 들지 않는다
-    this.modals.open('tea_chat');
+    if (this._teaScene && this.modals.current === 'tea_chat') return this.modals.open('tea_chat');
+    // 대사 장면: 가림막 뒤에서 HUD 를 거두고, 내 어깨 너머로 찻상 건너 스님이 보이는 구도에 카메라를 묶는다
+    const cam = this.world.cam;
+    const tea = (this._teaScene = { seat, saved: this._teaScene?.saved || { mode: cam.mode, yaw: cam.yaw, pitch: cam.pitch, dist: cam.targetDist } });
+    this.joy = { x: 0, z: 0 };
+    this.keys = {};
+    veil(() => {
+      if (this._teaScene !== tea) return;
+      if (this.player.seat !== seat) return void (this._teaScene = null); // 그새 자리를 떴다
+      cam.mode = 'third';
+      this.world.setShot(this._teaShot(), true);
+      document.body.classList.add('tea-scene');
+      this.modals.open('tea_chat');
+    }, { hold: 500 });
+  }
+
+  /**
+   * 차담 구도 (고정, 앉은 자리 기준 — 둘은 1.3m 떨어져 서로 마주 본다).
+   * 세로 화면: 내 어깨 너머 높은 데서 내려다봐 스님이 위쪽 40% 안에 (긴 답이면 대사 상자가 아래 절반을 덮는다).
+   * 가로 화면: 가로 시야가 넓어 뒤에서는 내 머리가 화면을 가리므로, 옆에서 나(왼쪽 옆모습)와 마주 보는 스님을 함께.
+   * 수치는 360·390·430·1280·844(가로) 스크린숏으로 맞췄다 (tools/qa/tea.mjs).
+   */
+  _teaShot() {
+    const s = L.teaSeat, m = this.temple.monkSeat;
+    const V = (x, y, z) => new THREE.Vector3(x, y, z);
+    const tall = innerWidth / innerHeight < 0.85;
+    return tall
+      ? { pos: V(s.x - 1.2, s.y + 1.25, s.z + 1.3), look: V(m.x + 0.1, m.y - 0.95, m.z - 0.15), dur: 1 }
+      : { pos: V(s.x - 0.55, s.y + 0.7, s.z + 1.6), look: V(m.x - 0.15, m.y + 0.03, m.z), dur: 1 };
+  }
+
+  /** 차담에서 일어남: 원래 보던 구도와 HUD 로 */
+  _leaveTea() {
+    const tea = this._teaScene;
+    if (!tea) return;
+    this._teaScene = null;
+    veil(() => {
+      if (this._teaScene) return; // 그새 다시 앉았다
+      this.world.setShot(null);
+      this.world.cam.mode = tea.saved.mode;
+      this.world.snapCameraTo(tea.saved.yaw, tea.saved.pitch, tea.saved.dist);
+      document.body.classList.remove('tea-scene');
+      this._syncChips();
+    }, { hold: 420 });
   }
 
   /* ───────── 동작 6종 ───────── */
@@ -1422,6 +1466,7 @@ class MetaTempleApp {
       if (typing() || !this.entered) return;
       if (this.modals.isOpen && !this.modals.current?.match(/practice_108|tea_chat/)) return;
       this.keys[e.code] = true;
+      if (this._teaScene) return; // 차담 장면: 1·2·3 은 예상 응답을 고른다. 걷는 키만 남긴다 (걸으면 일어난다)
       const k = e.key;
       // 108배 패널이 열려 있으면 절·염주는 패널이 센다 (오늘 횟수가 어긋나지 않게)
       if (this.modals.isOpen && this.modals.current === 'practice_108' && (k === ' ' || e.code === 'Space' || k === '2' || k === '3')) return;
@@ -1627,6 +1672,7 @@ class MetaTempleApp {
       if (k.KeyD || k.ArrowRight) ix += 1;
       ix += this.joy.x;
       iz += this.joy.z;
+      if ((ix || iz) && this._teaScene) this.modals.current === 'tea_chat' ? this.modals.close() : this._leaveTea(); // 걸으면 찻자리에서 일어난다
     }
     // 1인칭: 시선과 몸이 함께 돈다. 좌우 키·조이스틱·끌기는 돌아보기(게걸음 없음),
     // 걷기·탑돌이·좌복에 앉기처럼 몸이 스스로 돌면 시선도 따라 돈다. 앉아 있거나 걸어가는 중에 끌면 고개만 돌린다.
