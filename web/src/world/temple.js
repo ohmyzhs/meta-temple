@@ -28,11 +28,12 @@ import {
   columnGeometry
 } from './architecture.js';
 import { makeEmitter } from './effects.js';
+import { PaperBurn } from './burnPaper.js';
 import { buildBuddhaStatue } from './buddha.js';
 import { buildTrailProps } from './trailProps.js';
 import { buildWestCourt, buildWestGate } from './westCourt.js';
 import { CairnField } from './cairnField.js';
-import { taenghwaTexture, ceilingTexture, sumidanTexture, canopyTexture, valanceTexture, tileWishTexture, softDotTexture, latticeTextures, graniteTextures } from './textures.js';
+import { taenghwaTexture, ceilingTexture, sumidanTexture, canopyTexture, valanceTexture, tileWishTexture, softDotTexture, latticeTextures, graniteTextures, coalBedTextures } from './textures.js';
 
 function rand(seed) {
   let s = seed;
@@ -297,22 +298,39 @@ export class Temple {
       leg.position.set(Math.cos(a) * 0.5, 0.25, Math.sin(a) * 0.5);
       bz.add(leg);
     }
-    const coals = new THREE.Mesh(new THREE.CircleGeometry(0.66, 20), new THREE.MeshStandardMaterial({ color: 0x2a1408, emissive: 0xff5a1a, emissiveIntensity: 1.4, roughness: 1 }));
+    // 숯불: 검은 숯덩이 사이 틈이 이글거린다 (coalBedTextures — 빛나는 곳만 emissiveMap)
+    const coalTex = coalBedTextures();
+    const coals = new THREE.Mesh(new THREE.CircleGeometry(0.66, 28), new THREE.MeshStandardMaterial({ map: coalTex.color, emissiveMap: coalTex.glow, emissive: 0xffffff, emissiveIntensity: 1.4, roughness: 1 }));
     coals.rotation.x = -Math.PI / 2;
     coals.position.y = 0.86;
     bz.add(coals);
     bz.position.set(L.brazier.x, c.y, L.brazier.z);
     this.scene.add(bz);
     addCircleCollider(L.brazier.x, L.brazier.z, 0.95);
-    const fire = makeEmitter({ count: 46, spread: 0.18, rise: 1.1, life: 0.9, size: 0.55, grow: -0.5, color: '#ffb35c', opacity: 0.85, texture: 'flame', additive: true, drift: 0.1, seed: 3 });
+    const low = this.quality === 'low';
+    const fire = makeEmitter({ count: low ? 40 : 64, spread: 0.16, rise: 1.15, life: 0.9, size: 0.95, grow: -0.55, color: '#ffd27a', color2: '#e0461a', opacity: 0.85, texture: 'tongue', upright: true, additive: true, drift: 0.1, seed: 3 });
     fire.position.set(L.brazier.x, c.y + 0.85, L.brazier.z);
     const smoke = makeEmitter({ count: 26, spread: 0.2, rise: 3.4, life: 5, size: 0.9, grow: 2.6, color: '#8a8580', opacity: 0.32, texture: 'smoke', drift: 0.5, seed: 4 });
     smoke.position.set(L.brazier.x, c.y + 1.4, L.brazier.z);
     const embers = makeEmitter({ count: 24, spread: 0.3, rise: 2.6, life: 2.2, size: 0.06, grow: 0, color: '#ffcf7a', opacity: 1, texture: 'dot', additive: true, drift: 0.6, seed: 5 });
     embers.position.set(L.brazier.x, c.y + 0.9, L.brazier.z);
-    this.scene.add(fire, smoke, embers);
-    this.brazier = { fire, smoke, embers, flare: 0, base: 0.55 };
-    this.emitters.push(fire, smoke, embers);
+    // 불을 겹으로: 숯 바로 위 하얗게 밝은 속불, 그 바깥으로 길고 붉은 불혀, 가끔 튀어 오르는 잔 불티 (저사양은 속불만)
+    const core = makeEmitter({ count: low ? 14 : 26, spread: 0.1, rise: 0.5, life: 0.5, size: 0.55, grow: -0.6, color: '#fff6dc', color2: '#ffb64a', opacity: 0.85, texture: 'tongue', upright: true, additive: true, drift: 0.04, seed: 31 });
+    core.position.set(L.brazier.x, c.y + 0.86, L.brazier.z);
+    const parts = [fire, smoke, embers, core];
+    let tongues = null, sparks = null;
+    if (!low) {
+      tongues = makeEmitter({ count: 30, spread: 0.22, rise: 1.6, life: 0.8, size: 0.8, grow: -0.75, color: '#ffa046', color2: '#8e1e08', opacity: 0.6, texture: 'tongue', upright: true, additive: true, drift: 0.18, seed: 32 });
+      tongues.position.set(L.brazier.x, c.y + 0.86, L.brazier.z);
+      sparks = makeEmitter({ count: 12, spread: 0.16, rise: 3.4, life: 1.3, size: 0.032, grow: -0.3, color: '#ffe6a8', opacity: 1, texture: 'dot', additive: true, drift: 1.1, seed: 33 });
+      sparks.position.set(L.brazier.x, c.y + 0.95, L.brazier.z);
+      parts.push(tongues, sparks);
+    }
+    this.scene.add(...parts);
+    this.brazier = { fire, smoke, embers, core, tongues, sparks, coals, flare: 0, base: 0.55 };
+    this.emitters.push(...parts);
+    // 적은 종이가 날아 들어가 타는 연출 (main.js _burnPaper)
+    this.paperBurn = new PaperBurn(this.scene, new THREE.Vector3(L.brazier.x, c.y + 0.9, L.brazier.z), () => fire.userData.uniforms.uPx.value);
     this.lightAnchors.brazier = new THREE.Vector3(L.brazier.x, c.y + 1.6, L.brazier.z);
     this.addInteractable({
       id: 'burn_worry',
@@ -909,6 +927,11 @@ export class Temple {
     this.brazier.flare = 1;
   }
 
+  /** 번뇌 소각 쪽지: 손앞(from)에서 화로로 날아 들어가 탄다 (burnPaper.js) */
+  burnPaper(canvas, from, face, opts) {
+    this.paperBurn.start(canvas, from, face, opts);
+  }
+
   update(dt, t, night) {
     // 범종: 당목이 뒤로 물러났다가 친다
     const ram = this.bell.userData.ram;
@@ -933,11 +956,18 @@ export class Temple {
     // 화로
     const br = this.brazier;
     br.flare = Math.max(0, br.flare - dt * 0.35);
-    const fi = br.base + br.flare * 1.6;
-    br.fire.userData.uniforms.uIntensity.value = fi;
+    const fi = br.base + br.flare * 0.8; // 불꽃을 키우고 촘촘히 한 만큼 확 일어나는 폭은 줄인다 (하얗게 번지지 않게)
+    // 숨 쉬듯 일렁임: 느린 두 물결 + 잔떨림 (불꽃·숯불·빛이 같은 박자로)
+    const breath = 0.88 + 0.08 * Math.sin(t * 1.7) + 0.05 * Math.sin(t * 4.3 + 1.1) + 0.03 * Math.sin(t * 11.9);
+    br.fire.userData.uniforms.uIntensity.value = fi * breath;
+    br.core.userData.uniforms.uIntensity.value = (0.75 + br.flare * 0.5) * breath;
+    if (br.tongues) br.tongues.userData.uniforms.uIntensity.value = (0.55 + br.flare * 0.9) * (1.9 - breath);
+    if (br.sparks) br.sparks.userData.uniforms.uIntensity.value = 0.45 + br.flare * 1.6;
     br.embers.userData.uniforms.uIntensity.value = 0.5 + br.flare * 1.5;
     br.smoke.userData.uniforms.uIntensity.value = 0.6 + br.flare;
-    this.brazierLight = 1 + br.flare * 4;
+    br.coals.material.emissiveIntensity = (1.25 + br.flare * 1.8) * (0.85 + 0.15 * Math.sin(t * 2.3) * Math.sin(t * 0.7 + 2.0));
+    this.brazierLight = (1 + br.flare * 4) * breath;
+    this.paperBurn.update(dt, t);
 
     // 향 연기
     const inc = this.incense;

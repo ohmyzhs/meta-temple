@@ -145,6 +145,7 @@ class MetaTempleApp {
     }
     const temple = this.world.temple;
     this.temple = temple;
+    temple.paperBurn.warm(this.world.renderer, this.world.camera, this.world.scene, this.world.composer?.readBuffer); // 첫 소각에서 셰이더를 만드느라 멈칫하지 않게
     this.avatars = new AvatarManager(this.world.scene, temple, {
       onStep: (surface) => this.sound.playFootstep(surface),
       onRustle: (strength, len) => this.sound.playRobeRustle(strength, len), // 큰절·앉고 일어설 때 도복 스치는 소리
@@ -397,10 +398,12 @@ class MetaTempleApp {
         this._updateHUD();
         return s;
       },
-      onBurnWorry: () => {
-        // 내용은 받지 않는다 — 저장·전송하지 않음
+      onBurnWorry: (paper) => {
+        // 글은 받지 않는다 — 저장·전송하지 않음. 창이 그린 쪽지 그림(paper)만 화로로 날려 태우고 픽셀까지 지운다
+        if (paper && this.entered) return this._burnPaper(paper);
         this.temple.flareBrazier();
         this.sound.playFireWhoosh();
+        return false;
       },
       onBow: () => this._doProstration(true),
       onMala: () => {
@@ -1107,6 +1110,50 @@ class MetaTempleApp {
       : { pos: V(s.x - 0.55, s.y + 0.7, s.z + 1.6), look: V(m.x - 0.15, m.y + 0.03, m.z), dur: 1 };
   }
 
+  /**
+   * 번뇌 소각: 적은 쪽지가 손앞에서 화로로 날아 들어가 불꽃이 되어 사라진다. 나는 화로를 보며 천천히 합장한다.
+   * 반배 몸짓(triggerAction 'bow_half')을 쓰지 않으므로 참배객 답례·축복음(띠링)·인사 신호가 없다 — 서버에는 합장 자세만 간다.
+   * 옆에서 나와 화로를 함께 담고, 다 타면 원래 시점으로. 걸으면 바로 풀린다 (종이는 그대로 다 탄다).
+   */
+  _burnPaper(canvas) {
+    const pl = this.player, p = pl.root.position, b = L.brazier, y = L.courtyard.y;
+    this.modals.close();
+    this.avatars.moveTarget = null;
+    if (pl.sitting) this.avatars.standUp();
+    const dx = b.x - p.x, dz = b.z - p.z, d = Math.hypot(dx, dz) || 1, ux = dx / d, uz = dz / d;
+    pl.heading = Math.atan2(ux, uz);
+    pl.setState('circumambulate'); // 선 채 두 손을 모은 합장 (gassho)
+    // 옆에서 보는 구도: 나·화로를 잇는 선의 양옆 가운데 마당 쪽 (뒤의 기와걸이·담을 피해서)
+    const side = [[-uz, ux], [uz, -ux]].sort((A, B) => Math.hypot(b.x + A[0] * 3, b.z + A[1] * 3) - Math.hypot(b.x + B[0] * 3, b.z + B[1] * 3))[0];
+    const tall = innerWidth / innerHeight < 0.85;
+    const D = tall ? 4.6 : 3.4, H = tall ? 2.4 : 1.75, mx = (p.x + b.x) / 2, mz = (p.z + b.z) / 2;
+    const pos = new THREE.Vector3(mx + side[0] * D + ux * 0.6, y + H, mz + side[1] * D + uz * 0.6); // 화로 쪽으로 조금: 내 얼굴과 모은 두 손이 보이게
+    const look = new THREE.Vector3(mx + ux * 0.3, y + 0.95, mz + uz * 0.3);
+    this.world.setShot({ pos, look, dur: 1 });
+    this._burnHold = true;
+    const from = new THREE.Vector3(p.x + ux * 0.42, p.y + 1.05, p.z + uz * 0.42); // 모은 두 손 앞
+    this.temple.burnPaper(canvas, from, pos, {
+      instant: matchMedia('(prefers-reduced-motion: reduce)').matches,
+      onIgnite: () => {
+        this.temple.flareBrazier();
+        this.sound.playFireWhoosh();
+      },
+      onDone: () => {
+        this.toast('🔥 흔적 없이 사라졌습니다 · 깊게 한 번 내쉬어 보세요');
+        setTimeout(() => this._endBurnHold(), 900);
+      }
+    });
+    return true;
+  }
+
+  /** 소각 구도를 푼다: 원래 시점으로, 합장을 내린다 */
+  _endBurnHold() {
+    if (!this._burnHold) return;
+    this._burnHold = false;
+    this.world.setShot(null);
+    if (this.player.state === 'circumambulate' && !this.avatars.circling) this.player.setState('idle');
+  }
+
   /** 차담에서 일어남: 원래 보던 구도와 HUD 로 */
   _leaveTea() {
     const tea = this._teaScene;
@@ -1653,6 +1700,7 @@ class MetaTempleApp {
       ix += this.joy.x;
       iz += this.joy.z;
       if ((ix || iz) && this._teaScene) this.modals.current === 'tea_chat' ? this.modals.close() : this._leaveTea(); // 걸으면 찻자리에서 일어난다
+      if ((ix || iz) && this._burnHold) this._endBurnHold(); // 걸으면 소각 구도·합장을 푼다
     }
     // 1인칭: 시선과 몸이 함께 돈다. 좌우 키·조이스틱·끌기는 돌아보기(게걸음 없음),
     // 걷기·탑돌이·좌복에 앉기처럼 몸이 스스로 돌면 시선도 따라 돈다. 앉아 있거나 걸어가는 중에 끌면 고개만 돌린다.
