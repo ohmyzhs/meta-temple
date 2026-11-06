@@ -1109,6 +1109,92 @@ export function flameTexture() {
   });
 }
 
+/**
+ * 화로 숯불: 검은 숯덩이들 사이 틈이 붉게 이글거린다. color(숯 빛깔)와 glow(빛나는 곳, emissiveMap) 두 장 — 같은 숯 배치.
+ * 숯덩이 가장자리가 가장 밝고, 몇몇 덩이는 속이 갈라져 빛난다.
+ */
+export function coalBedTextures() {
+  return cached('coals', () => {
+    const S = 256;
+    const [cc, c] = canvas(S, S);
+    const [gc, g] = canvas(S, S);
+    const r = rng(77);
+    c.fillStyle = '#160d08';
+    c.fillRect(0, 0, S, S);
+    const glowBase = g.createRadialGradient(S / 2, S / 2, 10, S / 2, S / 2, S / 2);
+    glowBase.addColorStop(0, '#ffb04a');
+    glowBase.addColorStop(0.55, '#ff6a1e');
+    glowBase.addColorStop(1, '#5a1406');
+    g.fillStyle = glowBase;
+    g.fillRect(0, 0, S, S);
+    const chunk = (ctx, x, y, rad, rot, sides) => {
+      ctx.beginPath();
+      for (let k = 0; k < sides; k++) {
+        const a = rot + (k / sides) * Math.PI * 2, rr = rad * (0.7 + r() * 0.45);
+        ctx[k ? 'lineTo' : 'moveTo'](x + Math.cos(a) * rr, y + Math.sin(a) * rr);
+      }
+      ctx.closePath();
+    };
+    for (let i = 0; i < 95; i++) {
+      const x = r() * S, y = r() * S, rad = 9 + r() * 17, rot = r() * 6.28, sides = 5 + ((r() * 3) | 0);
+      const shade = 34 + r() * 30;
+      c.fillStyle = `rgb(${shade + 6},${shade},${shade - 6})`;
+      chunk(c, x, y, rad, rot, sides);
+      c.fill();
+      // 빛: 숯덩이는 어둡게 덮고, 가장자리는 이글거리게 (안쪽으로 줄인 덩이를 어둡게)
+      g.save();
+      g.globalAlpha = 0.9;
+      g.fillStyle = '#1a0702';
+      chunk(g, x, y, rad * 0.86, rot, sides);
+      g.fill();
+      g.restore();
+      if (r() < 0.22) {
+        // 속이 갈라져 빛나는 덩이
+        g.strokeStyle = `rgba(255,${150 + r() * 80},60,0.9)`;
+        g.lineWidth = 1.5;
+        g.beginPath();
+        g.moveTo(x - rad * 0.5, y + (r() - 0.5) * rad);
+        g.quadraticCurveTo(x, y + (r() - 0.5) * rad, x + rad * 0.5, y + (r() - 0.5) * rad);
+        g.stroke();
+      }
+    }
+    return { color: tex(cc, { wrap: false }), glow: tex(gc, { wrap: false }) };
+  });
+}
+
+/**
+ * 혀 모양 불꽃 (정사각 — 점 입자는 정사각으로 그려지므로 세로 그림이 눌리지 않게 가운데 좁고 길게).
+ * 밑동은 희고 뜨겁게, 위로 가며 주황, 끝은 가늘게 흩어진다. 가장자리는 흐리게.
+ */
+export function tongueTexture() {
+  return cached('tongue', () => {
+    const S = 128;
+    const [c, ctx] = canvas(S, S);
+    ctx.filter = 'blur(2.5px)';
+    const g = ctx.createLinearGradient(0, S - 6, 0, 6);
+    g.addColorStop(0, 'rgba(255,250,228,1)');
+    g.addColorStop(0.28, 'rgba(255,214,120,0.95)');
+    g.addColorStop(0.62, 'rgba(250,140,50,0.6)');
+    g.addColorStop(1, 'rgba(230,70,20,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(64, 6);
+    ctx.bezierCurveTo(74, 34, 92, 66, 88, 98);
+    ctx.bezierCurveTo(85, 118, 74, 124, 64, 124);
+    ctx.bezierCurveTo(54, 124, 43, 118, 40, 98);
+    ctx.bezierCurveTo(36, 66, 56, 40, 64, 6);
+    ctx.fill();
+    // 속불: 밑동 가운데가 더 밝게
+    const r = ctx.createRadialGradient(64, 104, 2, 64, 100, 26);
+    r.addColorStop(0, 'rgba(255,255,240,0.9)');
+    r.addColorStop(1, 'rgba(255,230,160,0)');
+    ctx.fillStyle = r;
+    ctx.fillRect(30, 70, 68, 56);
+    ctx.filter = 'none';
+    return tex(c, { wrap: false });
+  });
+}
+
 /* ───── 물결 노멀 (타일링) ───── */
 export function waterNormalTexture() {
   return cached('waterN', () => {

@@ -835,8 +835,15 @@ export class ModalManager {
       live.textContent = '';
       ta.value = ''; // 입력란에서 바로 지운다
       ta.blur();
+      // 3D 화로가 받으면: 쪽지가 손앞에서 화로로 날아 들어가 탄다 (main.js 가 창을 닫는다). 캔버스는 다 타면 거기서 지운다
+      const paperCanvas = this._paperCanvas(text);
+      if (this.cb.onBurnWorry?.(paperCanvas) === true) {
+        text = null;
+        burning = false;
+        return;
+      }
+      paperCanvas.width = paperCanvas.height = 0;
       actions.style.visibility = 'hidden'; // 자리를 지켜 창이 출렁이지 않게
-      this.cb.onBurnWorry?.();
       const rect = paper.getBoundingClientRect();
       paper.classList.add('is-gone');
       if (reduceMotion()) {
@@ -867,7 +874,35 @@ export class ModalManager {
     };
   }
 
-  /** 한지 쪽지가 모서리부터 그을리며 타들어 가는 캔버스 연출. 끝나면 픽셀까지 비운다. */
+  /** 화로로 날아갈 한지 쪽지 한 장 (512×362, 3D 쪽지 0.34×0.24m 비율): 섬유결 + 붓글씨. 받는 쪽이 다 태운 뒤 지운다 */
+  _paperCanvas(text) {
+    const W = 512, H = 362;
+    const c = document.createElement('canvas');
+    c.width = W;
+    c.height = H;
+    const o = c.getContext('2d');
+    o.fillStyle = '#f6efde';
+    o.fillRect(0, 0, W, H);
+    for (let i = 0; i < 220; i++) {
+      const x = Math.random() * W, y = Math.random() * H, a = Math.random() * Math.PI, l = 8 + Math.random() * 26;
+      o.strokeStyle = `rgba(150,120,80,${0.05 + Math.random() * 0.09})`;
+      o.lineWidth = 0.8;
+      o.beginPath();
+      o.moveTo(x, y);
+      o.quadraticCurveTo(x + Math.cos(a) * l * 0.5 + (Math.random() - 0.5) * 6, y + Math.sin(a) * l * 0.5, x + Math.cos(a) * l, y + Math.sin(a) * l);
+      o.stroke();
+    }
+    const fs = 34, lh = fs * 1.38;
+    o.font = `${fs}px "Nanum Brush Script", "Noto Serif KR", serif`;
+    o.fillStyle = '#2b2722';
+    o.textBaseline = 'top';
+    const lines = wrapText(o, text, W - 56);
+    const max = Math.max(1, Math.floor((H - 48) / lh));
+    lines.slice(0, max).forEach((ln, i) => o.fillText(i === max - 1 && lines.length > max ? `${ln}…` : ln, 28, 26 + i * lh));
+    return c;
+  }
+
+  /** 한지 쪽지가 모서리부터 그을리며 타들어 가는 캔버스 연출. 끝나면 픽셀까지 비운다. (3D 화로를 못 쓸 때) */
   _burnCanvas(stage, rect, text, done) {
     const W = Math.max(200, Math.round(rect.width));
     const H = Math.max(120, Math.round(rect.height));
