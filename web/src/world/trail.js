@@ -249,6 +249,14 @@ export const courtBranch = new Polyline(sampleCurve(COURT_BRANCH_CTRL));
 export const teaBranch = new Polyline(sampleCurve(TEA_BRANCH_CTRL));
 export const PATHS = [trail, courtBranch, teaBranch];
 
+/** 한 바퀴 닫힌 고리: 순환로(J1 → J3) + 숲길(J3 → J1, 산문 앞). 자동 산책이 이 길을 따라 돈다 */
+export const loop = (() => {
+  const pts = [...trail.pts];
+  for (let z = J3.z - 0.5; z > J1.z + 0.25; z -= 0.5) pts.push({ x: forestPathX(z), z });
+  pts.push({ x: J1.x, z: J1.z });
+  return new Polyline(pts);
+})();
+
 /** 두 길(순환로·다실 갈림길) 중 가장 가까운 점 { d, h(높이 단면, setProfile 뒤), path, ... } */
 export function nearestTrail(x, z) {
   let best = null;
