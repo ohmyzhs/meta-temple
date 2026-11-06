@@ -30,9 +30,11 @@ export function prepareOutdoor(world) {
 
 /* ───── 공용 셰이더 조각 ───── */
 
-// ETC1S normal-mode 노멀맵: X 는 RGB, Y 는 A — z 를 복원한다
-const XY_NORMAL = 'vec3 xyNormal(vec4 t) { vec2 xy = vec2(t.r, t.a) * 2.0 - 1.0; return vec3(xy, sqrt(max(0.04, 1.0 - dot(xy, xy)))); }';
-function xyNormals(mat) {
+// ETC1S normal-mode 노멀맵: X 는 RGB, Y 는 A — z 를 복원한다.
+// Y 는 뒤집는다: KTX2 는 flipY 가 없어 그림 위쪽이 −v 인데 사진 노멀은 OpenGL(초록 = 그림 위). GLTFLoader 의 normalScale.y *= −1 과 같은 처리.
+// (가로 능선 시험판: 위에서 비출 때 뒤집어야 능선 윗면이 밝다 — 192 대 0)
+const XY_NORMAL = 'vec3 xyNormal(vec4 t) { vec2 xy = vec2(t.r, t.a) * 2.0 - 1.0; xy.y = -xy.y; return vec3(xy, sqrt(max(0.04, 1.0 - dot(xy, xy)))); }';
+export function xyNormals(mat) {
   const prev = mat.onBeforeCompile, prevKey = mat.customProgramCacheKey?.() || '';
   mat.onBeforeCompile = (s, r) => {
     prev?.call(mat, s, r);
@@ -41,10 +43,12 @@ function xyNormals(mat) {
       .replace(
         '#include <normal_fragment_maps>',
         THREE.ShaderChunk.normal_fragment_maps
-          .replace('texture2D( normalMap, vNormalMapUv ).xyz * 2.0 - 1.0', 'xyNormal( texture2D( normalMap, vNormalMapUv ) )')
+          // 접선 공간 줄을 콕 집어서: 같은 식이 위쪽 물체 공간 분기에 먼저 나와, 그냥 replace 하면 그쪽만 바뀌고 X 가 xyz 로 읽혔다
+          .replace('vec3 mapN = texture2D( normalMap, vNormalMapUv ).xyz * 2.0 - 1.0;', 'vec3 mapN = xyNormal( texture2D( normalMap, vNormalMapUv ) );')
           // UV 가 한 점으로 모인 삼각형(상자 투영의 모서리)에서는 접선이 0 이 되어 NaN → 블룸이 화면 전체로 번진다: 원래 노멀 그대로
           .replace('normal = normalize( tbn * mapN );', '{ vec3 pn = tbn * mapN; if (dot(pn, pn) > 1e-8) normal = normalize(pn); }')
       );
+    if (!s.fragmentShader.includes('mapN = xyNormal(')) console.warn('[xyNormals] three 노멀맵 셰이더 조각이 바뀌어 XY 노멀을 못 풀었다');
   };
   mat.customProgramCacheKey = () => `${prevKey}-xyn`;
   return mat;
