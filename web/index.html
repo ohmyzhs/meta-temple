@@ -97,54 +97,55 @@
     <div id="joystick" class="joystick" aria-hidden="true"><div class="joy-knob"></div></div>
 
     <!-- 시트: 한 번에 하나만 보인다 (ui/sheets.js). 하위 시트(data-parent)는 위에 쌓여 뒤로가기로 하나씩 닫힌다 -->
-    <!-- 메뉴: 오른쪽 패널 한 장 — 시간·날씨 / 시점·모습 / 소리 / 기록·도움말·출처를 묶음째 바로 누른다 (소리 크기만 한 단계 안) -->
+    <!-- 메뉴: 오른쪽 제어판 한 장 — 기호+짧은 글자 타일을 묶음째 바로 누른다 (소리 크기만 한 단계 안) -->
     <section class="sheet hidden" id="menu-sheet" aria-label="메뉴">
       <header class="sheet-head"><h2>메뉴</h2><button class="ctl" type="button" data-sheet-close data-icon="close" aria-label="닫기"></button></header>
-      <div class="menu-body">
-        <div class="menu-group mg-time">
-          <h3 class="sheet-sub">시간</h3>
-          <div class="chip-row menu-chips menu-time" data-group="time">
-            <button class="ctl chip" type="button" data-time="realtime" id="realtime-chip"><b>실시간</b><small>지금</small></button>
-            <button class="ctl chip" type="button" data-time="dawn"><b>새벽</b><small>05시</small></button>
-            <button class="ctl chip" type="button" data-time="day"><b>한낮</b><small>13시</small></button>
-            <button class="ctl chip" type="button" data-time="sunset"><b>노을</b><small>18시</small></button>
-            <button class="ctl chip" type="button" data-time="night"><b>밤</b><small>22시</small></button>
+      <div class="cc">
+        <div class="cc-card cc-a">
+          <h3 class="cc-h">시간</h3>
+          <div class="cc-row cc-5" data-group="time">
+            <button class="ctl cc-tile" type="button" data-time="realtime" id="realtime-chip" data-icon="t_realtime"><span class="lbl">실시간</span><small>지금</small></button>
+            <button class="ctl cc-tile" type="button" data-time="dawn" data-icon="t_dawn"><span class="lbl">새벽</span><small>05시</small></button>
+            <button class="ctl cc-tile" type="button" data-time="day" data-icon="sun"><span class="lbl">한낮</span><small>13시</small></button>
+            <button class="ctl cc-tile" type="button" data-time="sunset" data-icon="t_sunset"><span class="lbl">노을</span><small>18시</small></button>
+            <button class="ctl cc-tile" type="button" data-time="night" data-icon="t_night"><span class="lbl">밤</span><small>22시</small></button>
           </div>
-          <h3 class="sheet-sub">날씨</h3>
-          <div class="chip-row menu-chips menu-3" data-group="weather">
-            <button class="ctl chip" type="button" data-weather="clear">맑음</button>
-            <button class="ctl chip" type="button" data-weather="rain">산사 봄비</button>
-            <button class="ctl chip" type="button" data-weather="snow">겨울 설경</button>
-          </div>
-        </div>
-        <div class="menu-group mg-self">
-          <h3 class="sheet-sub">시점 <kbd>V</kbd></h3>
-          <div class="chip-row menu-chips menu-2" data-group="camera">
-            <button class="ctl chip" type="button" data-camera="third">3인칭 동석</button>
-            <button class="ctl chip" type="button" data-camera="first">1인칭 몰입</button>
-          </div>
-          <h3 class="sheet-sub">모습</h3>
-          <div class="chip-row menu-chips menu-3" data-group="avatar">
-            <button class="ctl chip" type="button" data-avatar="monk">목각 동자승</button>
-            <button class="ctl chip" type="button" data-avatar="ink_wanderer">삿갓 행자</button>
-            <button class="ctl chip" type="button" data-avatar="lantern_spirit">등불 정령</button>
+          <h3 class="cc-h">날씨</h3>
+          <div class="cc-row cc-3" data-group="weather">
+            <button class="ctl cc-tile" type="button" data-weather="clear" data-icon="sun"><span class="lbl">맑음</span></button>
+            <button class="ctl cc-tile" type="button" data-weather="rain" data-icon="w_rain"><span class="lbl">봄비</span></button>
+            <button class="ctl cc-tile" type="button" data-weather="snow" data-icon="w_snow"><span class="lbl">설경</span></button>
           </div>
         </div>
-        <div class="menu-group mg-sound">
-          <div class="pop-row">
-            <h3 class="sheet-sub">입체 ASMR</h3>
-            <button class="ctl chip" type="button" id="audio-toggle-btn">켜기</button>
+        <div class="cc-card cc-b">
+          <h3 class="cc-h">시점 <kbd>V</kbd></h3>
+          <div class="cc-row cc-2" data-group="camera">
+            <button class="ctl cc-tile" type="button" data-camera="third" data-icon="cam_third"><span class="lbl">3인칭</span></button>
+            <button class="ctl cc-tile" type="button" data-camera="first" data-icon="cam_first"><span class="lbl">1인칭</span></button>
           </div>
-          <div class="chip-row menu-chips menu-2">
-            <button class="ctl chip" type="button" id="nature-listen-btn">자연의 소리 듣기</button>
-            <button class="ctl chip" type="button" data-sheet="pop-sound" id="sound-tool">소리 크기·설정 ›</button>
+          <h3 class="cc-h">모습</h3>
+          <div class="cc-row cc-3" data-group="avatar">
+            <button class="ctl cc-tile" type="button" data-avatar="monk" data-icon="av_monk"><span class="lbl">동자승</span></button>
+            <button class="ctl cc-tile" type="button" data-avatar="ink_wanderer" data-icon="av_wanderer"><span class="lbl">행자</span></button>
+            <button class="ctl cc-tile" type="button" data-avatar="lantern_spirit" data-icon="wish_lantern"><span class="lbl">정령</span></button>
           </div>
         </div>
-      </div>
-      <div class="menu-links">
-        <button class="ctl" type="button" id="record-btn" data-icon="record"><span class="lbl">수행 기록</span></button>
-        <button class="ctl" type="button" id="help-btn" data-icon="help"><span class="lbl">도움말</span></button>
-        <button class="ctl" type="button" id="credits-btn" data-icon="credits"><span class="lbl">자료 출처</span></button>
+        <div class="cc-card cc-c">
+          <h3 class="cc-h">소리</h3>
+          <div class="cc-row cc-3">
+            <button class="ctl cc-tile" type="button" id="audio-toggle-btn" aria-pressed="true" data-icon="sound"><span class="lbl">소리 켬</span></button>
+            <button class="ctl cc-tile" type="button" id="nature-listen-btn" data-icon="listen_nature"><span class="lbl">자연 듣기</span></button>
+            <button class="ctl cc-tile" type="button" data-sheet="pop-sound" id="sound-tool" data-icon="sliders"><span class="lbl">크기</span></button>
+          </div>
+        </div>
+        <div class="cc-card cc-d">
+          <h3 class="cc-h">산사</h3>
+          <div class="cc-row cc-3">
+            <button class="ctl cc-tile" type="button" id="record-btn" data-icon="record"><span class="lbl">기록</span></button>
+            <button class="ctl cc-tile" type="button" id="help-btn" data-icon="help"><span class="lbl">도움말</span></button>
+            <button class="ctl cc-tile" type="button" id="credits-btn" data-icon="credits"><span class="lbl">출처</span></button>
+          </div>
+        </div>
       </div>
     </section>
 

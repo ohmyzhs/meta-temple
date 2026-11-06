@@ -1494,8 +1494,10 @@ class MetaTempleApp {
 
   _syncSoundButton() {
     const on = this.sound.isEnabled;
-    $('#audio-toggle-btn').textContent = on ? '끄기' : '켜기';
+    // 제어판 타일: 켜져 있으면 채운 타일 + 「소리 켬」 (누르면 끈다)
+    $('#audio-toggle-btn .lbl').textContent = on ? '소리 켬' : '소리 끔';
     $('#audio-toggle-btn').classList.toggle('active', on);
+    $('#audio-toggle-btn').setAttribute('aria-pressed', String(on));
     const bg = this.store.state.settings.bgAudio !== false;
     $('#bg-audio-btn').textContent = bg ? '켜짐' : '꺼짐';
     $('#bg-audio-btn').classList.toggle('active', bg);
