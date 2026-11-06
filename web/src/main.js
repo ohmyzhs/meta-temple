@@ -13,7 +13,8 @@ import { wireState } from './core/avatarMotion.js';
 import { L, isWalkable, zoneAt, streamZ, walkHeight, canBuildCairn, pathX } from './world/layout.js';
 import { createMiniMap } from './ui/miniMap.js';
 import { scrollFade } from './ui/scrollFade.js';
-import { trail, loop, J1, REST_SIT_MSG } from './world/trail.js';
+import { trail, loop, J1, REST_SIT_MSG, REST_GROUND_MSG } from './world/trail.js';
+import { restSlots, restGroundSlot } from './world/trailProps.js';
 import { placeStone, findJoinable, areaCount, AREA_CAP, AREA_RADIUS, GATE_ID } from './core/cairns.js';
 import { ModalManager } from './ui/modalManager.js';
 import { LiveLink, sharedApi } from './core/live.js';
@@ -936,23 +937,37 @@ class MetaTempleApp {
     this.miniMap.setPlayer(p.x, p.z, this.player.heading);
   }
 
-  /** 고른 쉼터로 걸어가 앉는다: 가까우면 곧장, 산책로 위면 길을 따라(60m 안), 아니면 옮겨 간다 */
+  /** 쉼터의 빈 칸: 다른 도반이 앉은 칸은 비켜 가까운 칸, 다 찼으면 곁의 땅 (그마저 없으면 null) */
+  _restSlot(s) {
+    const pl = this.player, p = pl.root.position;
+    const taken = this.avatars.sittingOthers();
+    const free = restSlots(s).filter((k) => (!k.occupant || k.occupant === pl) && !taken.some((t) => Math.hypot(t.x - k.x, t.z - k.z) < 0.45));
+    const cost = (k) => Math.hypot(k.stand.x - p.x, k.stand.z - p.z) - (k.index === 0 ? 0.4 : 0); // 비슷하면 원래 자리(경치가 가장 좋은 칸)
+    if (free.length) return free.sort((a, b) => cost(a) - cost(b))[0];
+    return restGroundSlot(s, p.x, p.z, taken);
+  }
+
+  /** 고른 쉼터로 걸어가 앉는다: 가까우면 곧장, 산책로 위면 길을 따라(60m 안), 아니면 옮겨 간다. 한 쉼터에 여럿이 나란히 앉는다 */
   _sitRest(s) {
     const pl = this.player, p = pl.root.position;
     if (pl.seat?._ref === s) return;
-    if (s.occupant && s.occupant !== pl) return this.toast('다른 도반이 쉬고 있는 자리입니다');
+    const slot = this._restSlot(s);
+    if (!slot) return this.toast('이 쉼터는 자리가 꽉 찼습니다 · 다른 쉼터를 골라 보세요');
     const tr = this.temple.trail;
     const go = () => {
-      this.avatars.sitAt(tr.seat(s), 'sit');
-      pl.restState = 'sit';
-      if (s.kind === 'mat') tr.showMat(s);
-      this.toast(REST_SIT_MSG[s.kind]);
+      // 걸어오는 사이 다른 도반이 그 칸에 먼저 앉았으면 남은 칸으로
+      const k = this.avatars.sittingOthers().some((t) => Math.hypot(t.x - slot.x, t.z - slot.z) < 0.45) ? this._restSlot(s) : slot;
+      if (!k) return this.toast('이 쉼터는 자리가 꽉 찼습니다 · 다른 쉼터를 골라 보세요');
+      this.avatars.sitAt(tr.seat(s, k), k.state);
+      pl.restState = k.state;
+      if (s.kind === 'mat' && !k.ground) tr.showMat(s);
+      this.toast(k.ground ? REST_GROUND_MSG : REST_SIT_MSG[s.kind]);
       if (!this._restHinted) {
         this._restHinted = true; // 처음 앉았을 때 한 번만
         setTimeout(() => pl.seat?.kind === 'rest' && this.toast('🎧 아래 「예불 들으며 쉬기」를 누르면 이 자리에서 경치를 보며 예불을 듣습니다'), 2600);
       }
     };
-    const st = s.stand;
+    const st = slot.stand;
     const d = Math.hypot(p.x - st.x, p.z - st.z);
     if (d < 0.6) return go();
     let clear = d < 8;

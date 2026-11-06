@@ -5,7 +5,7 @@
  * 실사 GLB 로 바꿀 때는 그 빌더만 갈아 끼우면 된다. 재질은 mats() 공용이라 batchStatic 이 기존 묶음에 합친다.
  */
 import * as THREE from 'three';
-import { terrainHeight, walkHeight, addCircleCollider, noise2 } from './layout.js';
+import { terrainHeight, walkHeight, addCircleCollider, noise2, isWalkable, resolveCollisions } from './layout.js';
 import { trail, REST_SPOTS, CROSSINGS, crossingY, DECK, deckRise, fenceRuns, LANTERNS, PATH_LAMPS, SIGNS } from './trail.js';
 import { buildStoneLantern } from './architecture.js';
 import { mats } from './materials.js';
@@ -391,6 +391,59 @@ function buildSigns(scene, m) {
 
 let SPRING_WATER;
 
+/* ───── 쉼터의 앉는 칸: 한 쉼터에 여럿이 나란히 (다 차면 곁의 땅에 자리를 편다) ───── */
+/** 종류별 칸 [옆 lx, 앞 lz] (쉼터 기준, +z 가 바라보는 쪽). 첫 칸이 원래 자리 */
+const SLOT_LAYOUT = {
+  bench: [[0, 0], [-0.6, 0], [0.6, 0]],
+  woodbench: [[0, 0], [-0.62, 0], [0.62, 0]],
+  platform: [[0, 0], [-0.72, 0], [0.72, 0]],
+  lookout: [[0, 0], [-0.62, -0.12], [0.62, -0.12]],
+  bridge: [[0, 0], [-0.85, 0], [0.85, 0]],
+  mat: [[0, 0], [0, -0.62]]
+};
+/** 칸이 다 찼을 때 앉을 곁의 땅 후보 (쉼터 양옆·앞) */
+const GROUND_RING = [[1.0, 0.35], [-1.0, 0.35], [1.4, -0.05], [-1.4, -0.05], [0.55, 0.9], [-0.55, 0.9], [0, 1.15], [1.05, 1.05], [-1.05, 1.05]];
+const toWorld = (s, lx, lz) => ({ x: s.x + Math.cos(s.ry) * lx + Math.sin(s.ry) * lz, z: s.z - Math.sin(s.ry) * lx + Math.cos(s.ry) * lz });
+
+/** 쉼터 s 의 앉는 칸들 { x, y, z, ry, state, stand, occupant } (처음 부를 때 만들어 둔다) */
+export function restSlots(s) {
+  if (s._slots) return s._slots;
+  s._slots = (SLOT_LAYOUT[s.kind] || [[0, 0]]).map(([lx, lz], i) => {
+    const p = i ? toWorld(s, lx, lz) : { x: s.x, z: s.z };
+    const st = { x: s.stand.x + (p.x - s.x), z: s.stand.z + (p.z - s.z) }; // 일어설 자리도 같은 만큼 옆으로 (걸을 수 없으면 원래 자리)
+    return {
+      index: i,
+      x: p.x,
+      y: s.kind === 'bridge' ? crossingY(CROSSINGS[0], p.z) : s.y,
+      z: p.z,
+      ry: s.ry,
+      state: 'sit',
+      stand: i && isWalkable(st.x, st.z) ? st : s.stand,
+      occupant: null
+    };
+  });
+  return s._slots;
+}
+
+/** 칸이 다 찼을 때 곁의 땅 자리: 걸을 수 있고 부딪히지 않으며 앉은 이(taken)·칸에서 0.6m 넘게 떨어진 곳 중 (px,pz) 에 가장 가까운 곳 */
+export function restGroundSlot(s, px, pz, taken) {
+  const near = [...taken, ...restSlots(s)];
+  let best = null, bd = Infinity;
+  for (const [lx, lz] of GROUND_RING) {
+    const p = toWorld(s, lx, lz);
+    if (!isWalkable(p.x, p.z)) continue;
+    const q = resolveCollisions(p.x, p.z, 0.28);
+    if (Math.hypot(q.x - p.x, q.z - p.z) > 1e-3) continue;
+    if (near.some((t) => Math.hypot(t.x - p.x, t.z - p.z) < 0.6)) continue;
+    const d = Math.hypot(p.x - px, p.z - pz);
+    if (d < bd) {
+      bd = d;
+      best = { index: -1, ground: true, x: p.x, y: walkHeight(p.x, p.z), z: p.z, ry: s.ry, state: 'meditate', stand: p, occupant: null };
+    }
+  }
+  return best;
+}
+
 /**
  * 산책로 소품을 세운다. 돌려주는 것: { spots, seat(spot), showMat(spot), hideMat(), dynamic: [움직이는 루트], lanterns: [[x,z,y]] }
  */
@@ -472,22 +525,23 @@ export function buildTrailProps(scene) {
     spots,
     lanterns,
     dynamic: [rolls, flat],
-    /** 이 쉼터에 앉는 자리 (cushionSeat 와 같은 꼴: occupant getter/setter, standAt) */
-    seat(s) {
+    /** 이 쉼터의 한 칸에 앉는 자리 (cushionSeat 와 같은 꼴: occupant getter/setter, standAt). 칸을 안 주면 원래 자리 */
+    seat(s, slot = restSlots(s)[0]) {
       return {
-        x: s.x,
-        y: s.y,
-        z: s.z,
-        ry: s.ry,
+        x: slot.x,
+        y: slot.y,
+        z: slot.z,
+        ry: slot.ry,
         kind: 'rest',
         spotId: s.id,
-        standAt: { x: s.stand.x, z: s.stand.z },
+        standAt: { x: slot.stand.x, z: slot.stand.z },
         _ref: s,
+        _slot: slot,
         get occupant() {
-          return s.occupant;
+          return slot.occupant;
         },
         set occupant(v) {
-          s.occupant = v;
+          slot.occupant = v;
         }
       };
     },

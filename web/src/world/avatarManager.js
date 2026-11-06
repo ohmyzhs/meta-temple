@@ -720,6 +720,14 @@ export class AvatarManager {
     this.hooks.onStandUp?.();
   }
 
+  /** 나 말고 앉아 있는 이들의 자리 (실제 도반 · 보이는 참배객) — 쉼터 칸을 고를 때 비켜 앉는다 */
+  sittingOthers() {
+    const out = [];
+    for (const r of this.remote.values()) if (r.av.sitting) out.push(r.target);
+    for (const v of this.visitors) if (v.av.sitting && !v.hidden) out.push(v.av.root.position);
+    return out;
+  }
+
   /** 빈 좌복 (타인이 앉은 좌복은 제외) */
   freeCushionNear(x, z) {
     let best = null, bd = Infinity;
