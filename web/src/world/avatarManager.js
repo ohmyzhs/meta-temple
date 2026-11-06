@@ -1178,7 +1178,10 @@ export class AvatarManager {
       av._lodSkip = 0;
       return;
     }
-    if (!root.parent) this.scene.add(root);
+    if (!root.parent) {
+      this.scene.add(root);
+      settlePose(av, t, night);
+    }
     const every = d < CROWD.everyFrame ? 1 : d < CROWD.everyOther ? 2 : 3;
     if (++av._lodSkip >= every) {
       av._lodSkip = 0;
@@ -1212,6 +1215,22 @@ const CROWD = {
   shadows: 10, // 그림자를 드리우는 사람 수 (가까운 순)
   labels: 8 // 이름표를 다는 사람 수 (가까운 순, 그 안에서도 거리에 따라 옅어진다)
 };
+
+/**
+ * 다시 보이게 된 사람: 숨어 있던 동안 몸(자세·클립 섞기)은 멈춰 있었으므로, 그 자리에서 천천히 바뀌며 미끄러지지 않게 한 번에 맞춘다.
+ * 0.6초 몫이면 자세 따라가기(k=9)와 클립 섞기가 끝난다. 동작 순서 시각은 advance 가 이미 맞춰 두었으니 되돌려 놓고, 발걸음·도복 소리는 내지 않는다.
+ */
+function settlePose(av, t, night) {
+  const seq = av.seq, st = seq?.t, si = seq?.i;
+  const { onStep, onRustle } = av;
+  av.onStep = av.onRustle = null;
+  av.update(0.6, t, night);
+  av.onStep = onStep;
+  av.onRustle = onRustle;
+  if (seq && av.seq === seq) [seq.t, seq.i] = [st, si];
+  av._lodDt = 0;
+  av._lodSkip = 0;
+}
 
 /** 이름표 불투명도: 0.05 단위로, 바뀔 때만 쓴다 (매 프레임 style 을 쓰면 사람 수만큼 스타일 계산이 다시 돈다). 0 이면 아예 숨긴다 */
 function setLabel(av, o) {
