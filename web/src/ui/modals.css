@@ -1109,6 +1109,20 @@ body.tea-scene .modal-overlay.is-side {
 .pf-reward-progress { font-size: 11px; color: var(--muk-soft); font-variant-numeric: tabular-nums; }
 .pf-cards li { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; margin-bottom: 8px; border-left: 2px solid var(--gold); background: rgba(255, 255, 255, 0.3); border-radius: 0 10px 10px 0; }
 .pf-cards .jk-quote { font-size: 14.5px; }
+/* 간직한 죽비: 스님 목소리로 듣기 (누르는 자리 48px) */
+.pf-cards li { position: relative; padding-right: 62px; }
+.pf-listen {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  width: 48px; height: 48px; padding: 0; border: 0; border-radius: 50%;
+  display: grid; place-items: center; cursor: pointer;
+  color: var(--m-gold-ink); background: rgba(138, 106, 46, 0.1);
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation; -webkit-user-select: none; user-select: none;
+  transition: background 0.2s;
+}
+.pf-listen .i { width: 20px; height: 20px; }
+.pf-listen:hover, .pf-listen:focus-visible { background: rgba(138, 106, 46, 0.22); outline: none; }
+.jk-listen { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.jk-listen .i { width: 18px; height: 18px; }
 .pf-privacy { margin-top: 24px; }
 
 /* ───────── 10. 산사 안내 ───────── */

@@ -11,7 +11,7 @@
 import { nameFeedback, NAME_PLACEHOLDER } from './nameField.js';
 import { NAME_MAX, checkText } from '../core/moderation.js';
 import { CREDITS, CREDIT_GROUPS, LICENSE_URLS, YEBUL_TRACKS } from '../data/credits.js';
-import { SUTRA_VERSES, DHARMA_CARDS, localMonkResponse, isCrisisText, OPENING_SUGGESTIONS, BLOCKED_REPLIES, COOLED_LINE, REST_SUGGESTIONS, TEA_LINES, voiceKey } from '../data/dharmaTexts.js';
+import { SUTRA_VERSES, DHARMA_CARDS, localMonkResponse, isCrisisText, OPENING_SUGGESTIONS, BLOCKED_REPLIES, COOLED_LINE, REST_SUGGESTIONS, TEA_LINES, voiceKey, cardVoiceText } from '../data/dharmaTexts.js';
 import { LIVE_API } from '../core/live.js';
 import { icon } from './icons.js';
 import { LANTERN_COLORS, ZONES, RITUALS } from '../data/templeData.js';
@@ -301,6 +301,7 @@ export class ModalManager {
   /** next: 이어서 열릴 종류. side 에서 side 로 넘어갈 때는 onPracticeEnd 를 부르지 않는다 (main.js 가 이미 새로 앉혔다). */
   _teardown(next = null) {
     const prev = this._type;
+    this._voice(''); // 창을 닫으면 읽던 말은 멈춘다 (차담은 destroy 에서 끝인사를 한다)
     try {
       this._view?.destroy?.();
     } catch (e) {
@@ -350,6 +351,19 @@ export class ModalManager {
     } catch (e) {
       /* 소리는 없어도 된다 */
     }
+  }
+
+  /**
+   * 스님 목소리 — 미리 녹음해 둔 고정 대사만 (첫인사·끝인사·대화 나무·죽비. AI 가 지은 답은 소리 내지 않는다).
+   * 새 말이 오면 앞의 것은 받는 중이든 나오는 중이든 버린다. 빈 글이면 멈추기만.
+   * force: 「들려주기」처럼 직접 누른 것 — 차담의 목소리 끄기 설정과 상관없이 (사이트 소리를 끈 것은 따른다)
+   */
+  _voice(text, { onEnd, force = false } = {}) {
+    const n = (this._voiceN = (this._voiceN || 0) + 1);
+    this.sound?.stopVoice?.();
+    if (!text || (!force && this.store.state.settings.teaVoice === false)) return;
+    const key = voiceKey(text);
+    voiceKeys().then((keys) => n === this._voiceN && keys.has(key) && this.sound?.playVoice?.(`${VOICE_DIR}${key}.mp3`, onEnd));
   }
 
   _root(html) {
@@ -1376,8 +1390,7 @@ export class ModalManager {
     const token = this._token;
     const hist = this._teaHistory;
     let voiceOn = this.store.state.settings.teaVoice !== false;
-    let stopVoice = () => {};
-    let lineNo = 0;
+    let deck = null; // 차담에서 건넨 죽비
     const root = this._root(`
       <div class="tea-box" data-box>
         <div class="tea-face" aria-hidden="true">${MONK_FACE}</div>
@@ -1436,17 +1449,7 @@ export class ModalManager {
     };
 
     /* 스님 목소리 — 미리 녹음해 둔 문장만 (Typecast 권일). AI 가 그때 지은 답은 글로만 (브라우저 음성 합성은 쓰지 않는다) */
-    const speak = (text) => {
-      stopVoice();
-      stopVoice = () => {};
-      const n = ++lineNo;
-      if (!voiceOn || !text) return;
-      const key = voiceKey(text);
-      voiceKeys().then((keys) => {
-        if (n !== lineNo || !alive() || !voiceOn || !keys.has(key)) return;
-        stopVoice = this.sound?.playVoice?.(`${VOICE_DIR}${key}.mp3`) || (() => {});
-      });
-    };
+    const speak = (text, onEnd) => this._voice(alive() ? text : '', { onEnd });
 
     const renderReplies = (list) => {
       suggestions = (list || []).slice(0, 3);
@@ -1487,7 +1490,7 @@ export class ModalManager {
       repliesEl.hidden = true;
       boxEl.scrollTop = 0;
       $('[data-live]').textContent = line;
-      speak(line);
+      speak(line, opt.onVoiceEnd);
       typing = { chars: [...line], i: 0, opt };
       if (reduceMotion()) finish();
       else tick();
@@ -1567,9 +1570,10 @@ export class ModalManager {
       say(TEA_LINES.card, {
         suggestions,
         card: () => {
-          const deck = this._deck($('[data-card]'), true);
+          deck = this._deck($('[data-card]'), true, { autoVoice: false });
           this._later(() => deck.draw(), reduceMotion() ? 0 : 300);
-        }
+        },
+        onVoiceEnd: () => deck?.speak() // 「죽비 한 자루를 건넵니다」를 다 말한 뒤 구절을 읽는다
       });
     };
 
@@ -1623,7 +1627,7 @@ export class ModalManager {
     return {
       reopen: () => (compose.hidden ? root.querySelector('.tea-reply')?.focus({ preventScroll: true }) : input.focus({ preventScroll: true })),
       destroy: () => {
-        speak('');
+        this._voice(TEA_LINES.bye); // 끝인사 — 창이 닫혀도 소리는 산사에 남는다
         this.cb.onTeaLeave?.();
       }
     };
@@ -1661,7 +1665,8 @@ export class ModalManager {
   }
 
   /** 죽비 카드 한 벌 — 모달과 차담에서 함께 쓴다 */
-  _deck(host, compact) {
+  /** autoVoice: 구절이 뒤집히면 스님이 바로 읽는다 (차담에서는 건네는 말을 마친 뒤 차담 쪽이 부른다) */
+  _deck(host, compact, { autoVoice = true } = {}) {
     const wrap = document.createElement('div');
     wrap.className = `jukbi${compact ? ' is-compact' : ''}`;
     wrap.innerHTML = `
@@ -1674,6 +1679,7 @@ export class ModalManager {
       <div class="m-actions">
         <button type="button" class="m-btn primary" data-act="draw">${compact ? '다른 구절' : '죽비 뽑기'}</button>
         <button type="button" class="m-btn" data-act="keep" hidden>간직하기</button>
+        <button type="button" class="m-btn jk-listen" data-act="listen" hidden aria-label="스님 목소리로 듣기">${icon('sound')}<span>듣기</span></button>
       </div>
       <p class="m-hint jukbi-kept" data-kept aria-live="polite"></p>`;
     host.appendChild(wrap);
@@ -1681,6 +1687,7 @@ export class ModalManager {
     const front = wrap.querySelector('[data-front]');
     const drawBtn = wrap.querySelector('[data-act="draw"]');
     const keepBtn = wrap.querySelector('[data-act="keep"]');
+    const listenBtn = wrap.querySelector('[data-act="listen"]');
     const keptEl = wrap.querySelector('[data-kept]');
     let cur = null;
     let flipped = false;
@@ -1709,6 +1716,8 @@ export class ModalManager {
       this._sfx('playChukbi');
       drawBtn.textContent = '다시 뽑기';
       keepBtn.hidden = false;
+      listenBtn.hidden = false;
+      if (autoVoice) this._voice(cardVoiceText(c));
       syncKept();
       this._later(() => (busy = false), reduceMotion() ? 0 : 650);
     };
@@ -1718,6 +1727,7 @@ export class ModalManager {
       const pool = DHARMA_CARDS.filter((c) => c.id !== cur?.id);
       const next = pool[Math.floor(Math.random() * pool.length)];
       if (flipped) {
+        this._voice(''); // 앞 구절을 읽던 중이면 멈춘다
         card.classList.remove('is-flipped');
         flipped = false;
         this._later(() => reveal(next), reduceMotion() ? 0 : 560);
@@ -1735,9 +1745,10 @@ export class ModalManager {
       if (b === card) !flipped && draw();
       else if (b.dataset.act === 'draw') draw();
       else if (b.dataset.act === 'keep') keep();
+      else if (b.dataset.act === 'listen' && cur) this._voice(cardVoiceText(cur), { force: true });
     });
     syncKept();
-    return { draw, syncKept };
+    return { draw, syncKept, speak: () => cur && this._voice(cardVoiceText(cur)) };
   }
 
   /* ═════════ 9. 수행 기록 ═════════ */
@@ -1816,7 +1827,12 @@ export class ModalManager {
         <h3 class="m-sub">간직한 죽비 <small>${kept.length}장</small></h3>
         ${
           kept.length
-            ? `<ul class="pf-cards">${kept.map((c) => `<li><span class="jk-quote">${esc(c.quote)}</span><span class="jk-source">${esc(c.source)}</span></li>`).join('')}</ul>`
+            ? `<ul class="pf-cards">${kept
+                .map(
+                  (c) => `<li><span class="jk-quote">${esc(c.quote)}</span><span class="jk-source">${esc(c.source)}</span>
+                    <button type="button" class="pf-listen" data-listen="${esc(c.id)}" aria-label="${esc(c.source)} — 스님 목소리로 듣기">${icon('sound')}</button></li>`
+                )
+                .join('')}</ul>`
             : '<p class="m-hint">후원 다실의 죽비에서 마음에 닿는 구절을 간직해 보세요.</p>'
         }
         <p class="m-hint pf-privacy">이 기록은 이 브라우저에만 남습니다. 다른 기기로 옮기거나 지켜 두려면 백업 파일로 내려받으세요.</p>
@@ -1866,6 +1882,12 @@ export class ModalManager {
       setTimeout(() => location.reload(), 900);
     });
     this._on(root, 'click', (e) => {
+      const listen = e.target.closest('[data-listen]');
+      if (listen) {
+        const c = DHARMA_CARDS.find((x) => x.id === listen.dataset.listen);
+        if (c) this._voice(cardVoiceText(c), { force: true });
+        return;
+      }
       if (e.target.closest('[data-act="custom-name"]')) {
         const b = e.target.closest('[data-act="custom-name"]');
         const f = root.querySelector('[data-name-form]');

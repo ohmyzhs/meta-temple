@@ -429,9 +429,9 @@ export class TempleSoundEngine {
   /**
    * 차담 스님 목소리 (미리 녹음한 mp3, web/assets/audio/monk). 소리를 꺼 두었으면 내지 않는다.
    * Web Audio 로 튼다 — 입장 때 이미 깨운 컨텍스트라 iOS 에서도 사용자 동작 밖(답이 온 뒤)에 소리가 난다.
-   * 새 대사가 오면 앞 대사는 끊는다. 반환: 멈추기 함수
+   * 새 대사가 오면 앞 대사는 끊는다. onEnd: 끝까지 들었을 때만 (끊기면 부르지 않는다). 반환: 멈추기 함수
    */
-  playVoice(url) {
+  playVoice(url, onEnd) {
     this._voiceStop?.();
     if (!this._ready()) return () => {};
     const bufs = (this._voiceBufs ||= new Map()); // 풀어 둔 소리는 하나에 수 MB — 최근 몇 개만
@@ -465,7 +465,11 @@ export class TempleSoundEngine {
       src = this.ctx.createBufferSource();
       src.buffer = buf;
       src.connect(g);
-      src.onended = stop;
+      src.onended = () => {
+        const whole = !stopped;
+        stop();
+        if (whole) onEnd?.();
+      };
       src.start();
     }).catch((err) => {
       console.warn('[soundEngine] 스님 목소리를 못 받았습니다', err?.message || err);
@@ -473,6 +477,10 @@ export class TempleSoundEngine {
     });
     this._voiceStop = stop;
     return stop;
+  }
+
+  stopVoice() {
+    this._voiceStop?.();
   }
 
   get currentTrack() {

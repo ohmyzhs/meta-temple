@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { MONK_VOICE_LINES, voiceKey, TEA_LINES, localMonkResponse } from '../data/dharmaTexts.js';
+import { MONK_VOICE_LINES, voiceKey, TEA_LINES, localMonkResponse, DHARMA_CARDS, cardVoiceText } from '../data/dharmaTexts.js';
 
 const dir = fileURLToPath(new URL('../../assets/audio/monk/', import.meta.url));
 
@@ -19,6 +19,8 @@ test('offline_replies_are_exactly_the_recorded_lines', () => {
   for (const said of ['', '요즘 잠을 잘 못 자요', '외로워요', '이제 가 볼게요', '아무 말']) {
     assert.ok(MONK_VOICE_LINES.includes(localMonkResponse(said, []).reply), said);
   }
-  assert.ok(MONK_VOICE_LINES.includes(TEA_LINES.hello));
+  for (const t of Object.values(TEA_LINES)) assert.ok(MONK_VOICE_LINES.includes(t), t);
+  for (const c of DHARMA_CARDS) assert.ok(MONK_VOICE_LINES.includes(cardVoiceText(c)), c.id); // 죽비는 모두 녹음
+  assert.equal(cardVoiceText(DHARMA_CARDS.find((c) => c.id === 'sa_arrow')).split('.')[0], '잡아함경, 전경'); // 괄호·낫표는 읽지 않는다
   assert.equal(voiceKey('가'), voiceKey('가'.normalize('NFD').normalize('NFC')));
 });

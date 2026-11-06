@@ -311,8 +311,16 @@ export const BLOCKED_REPLIES = {
 export const TEA_LINES = {
   hello: '어서 오십시오, 도반님. 찻물이 마침 알맞게 끓어 연잎차 한 잔 따라 드립니다. 무엇이든 편히 꺼내 놓으세요. 답을 드리기보다 먼저 듣겠습니다.',
   back: '다시 오셨군요. 차를 새로 데웠습니다. 하시던 이야기, 이어서 들려주셔도 좋습니다.',
-  card: '죽비 한 자루를 건넵니다. 마음에 닿는 구절이면 간직해 두세요.'
+  card: '죽비 한 자루를 건넵니다. 마음에 닿는 구절이면 간직해 두세요.',
+  // 끝인사 — 찻자리에서 일어날 때 (대화 나무의 작별 답과 같은 문장이라 녹음을 함께 쓴다)
+  bye: '살펴 가십시오. 산문을 나서는 걸음도 여기 앉아 있던 마음 그대로이기를 바랍니다. 찻물은 언제든 다시 데워 두겠습니다.'
 };
+
+/** 죽비 카드를 스님이 읽는 문장: 출처(괄호·낫표는 소리 내지 않는다) → 구절 → 풀이 */
+export function cardVoiceText(c) {
+  const src = c.source.replace(/\([^)]*\)/g, '').replace(/』\s*「/g, ', ').replace(/[『』「」]/g, '').replace(/\s+/g, ' ').trim();
+  return `${src}. ${c.quote} ${c.reflection}`;
+}
 const EMPTY_LINE = '찻물이 알맞게 우러났습니다. 서두르지 말고 숨을 한 번 고른 뒤, 떠오르는 만큼만 들려주세요.';
 
 /** 하루 AI 차담을 다 썼을 때 한 번 */
@@ -388,6 +396,7 @@ export const MONK_VOICE_LINES = [
     COOLED_LINE,
     CRISIS_REPLY.reply,
     ...Object.values(BLOCKED_REPLIES),
-    ...MONK_KB.flatMap((t) => t.replies)
+    ...MONK_KB.flatMap((t) => t.replies),
+    ...DHARMA_CARDS.map(cardVoiceText)
   ])
 ];
