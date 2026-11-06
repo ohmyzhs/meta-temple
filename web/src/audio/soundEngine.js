@@ -14,8 +14,11 @@
  * 좌표: 미터, Y 위, -Z 북쪽.
  */
 
-const TICK_MS = 200; // 스케줄러 주기 (setInterval 하나로 모든 간헐음 예약)
+import { isAndroid, startTicker, applySession, setMediaActions, setNowPlaying, setPlaybackState } from './background.js';
+
+const TICK_MS = 200; // 스케줄러 주기 (워커 타이머 하나로 모든 간헐음 예약 — background.js)
 const LOOKAHEAD = 0.6; // 선행 예약 시간(초) — 틱이 조금 늦어도 박자가 흔들리지 않게
+const LOOKAHEAD_HIDDEN = 4; // 화면이 꺼져 계속 들을 때: 틱이 1초 넘게 늦어도 배경 녹음 이음새가 끊기지 않게
 const ZONE_FADE = 2.5; // 구역·날씨·시간대 크로스페이드
 const GATE_FADE = 1.5; // 거리 게이트(멀어지면 음원을 완전히 꺼 CPU 절약)
 const MASTER_LEVEL = 0.9;
@@ -259,6 +262,142 @@ export class TempleSoundEngine {
     this._gustRecNext = 0;
     this._birdNext = 0;
     this._birdOn = true;
+    // 화면이 꺼져도 계속 듣기 (background.js) — main.js 가 설정값으로 setBackground 를 부른다
+    this.background = false;
+    this._userPaused = false; // 잠금화면 단추로 멈춤
+    this._interrupted = false; // 전화·다른 앱 소리에 양보 중
+    this._selfUntil = 0; // 우리가 직접 멈추고 튼 직후 — 그때 오는 pause/play 이벤트는 양보 신호가 아니다
+    this.onTrackEnd = null; // 긴 녹음(예불)이 끝나면 (화면이 꺼져 있어도 다음 곡으로 넘기게)
+  }
+
+  /** 지금 화면이 꺼져도 소리를 살려 두는가 */
+  get keepsPlaying() {
+    return this.background && this._enabled && !this._userPaused;
+  }
+
+  /** 옵션 「화면 꺼져도 계속 듣기」. 사용자 동작(누름) 안에서 부르면 안드로이드 닻도 바로 튼다 */
+  setBackground(on) {
+    this.background = !!on;
+    applySession(this.background);
+    if (!this.ctx) return;
+    if (this.background && this._enabled) this._anchorPlay();
+    else this._anchorPause();
+  }
+
+  setNowPlaying(title, artist) {
+    setNowPlaying(title, artist);
+  }
+
+  /** 예불 듣는 동안 잠금화면의 이전·다음 단추 (null 이면 뺀다) */
+  setTrackActions(prev, next) {
+    setMediaActions({ previoustrack: prev, nexttrack: next });
+  }
+
+  _self() {
+    this._selfUntil = performance.now() + 600;
+  }
+  get _isSelf() {
+    return performance.now() < this._selfUntil;
+  }
+
+  /* 안드로이드 닻: 소리 없는 반복 <audio> — 미디어 알림·오디오 포커스를 얻고, 크롬이 포커스를 빼앗아 멈추면 양보 신호가 된다 */
+  _anchorPlay() {
+    if (!isAndroid || !this.background) return;
+    if (!this._anchor) {
+      const a = (this._anchor = new Audio('./assets/audio/keepalive.mp3'));
+      a.loop = true;
+      a.preload = 'auto';
+      a.addEventListener('pause', () => !this._isSelf && !this._userPaused && this._interrupt());
+      a.addEventListener('play', () => {
+        if (this._isSelf) return;
+        if (this._userPaused) this.resumeAll();
+        else if (this._interrupted) this._restore();
+      });
+    }
+    if (!this._anchor.paused) return;
+    this._self();
+    this._anchor.play().catch((e) => console.warn('[soundEngine] 닻 재생 실패 (화면이 꺼지면 멈출 수 있음)', e));
+  }
+  _anchorPause() {
+    if (!this._anchor || this._anchor.paused) return;
+    this._self();
+    this._anchor.pause();
+  }
+
+  /** 전화·다른 앱 소리: 우리 소리를 내리고 기다린다 */
+  _interrupt() {
+    if (this._interrupted || this._userPaused || !this._enabled || !this.master) return;
+    this._interrupted = true;
+    this._ramp(this.master.gain, 0, 0.25);
+    setPlaybackState('paused');
+  }
+  /** 양보가 끝나면 (크롬이 다시 틀거나, iOS 세션이 돌아오거나, 화면으로 돌아오면) 그대로 이어서 */
+  _restore() {
+    if (!this._interrupted || this._userPaused || !this._enabled) return;
+    this._interrupted = false;
+    this.ctx.resume();
+    this._ramp(this.master.gain, MASTER_LEVEL, 1.2);
+    const tr = this._track;
+    if (tr && tr.el.paused && !tr.el.ended && !tr.heldByUser) {
+      this._self();
+      tr.el.play().catch(() => {});
+    }
+    this._anchorPlay();
+    setPlaybackState('playing');
+  }
+
+  /** 잠금화면의 멈춤: 자연음·예불 모두 */
+  pauseAll() {
+    if (!this.ctx || this._userPaused) return;
+    this._userPaused = true;
+    this._interrupted = false;
+    this._ramp(this.master.gain, 0, 0.4);
+    const tr = this._track;
+    if (tr && !tr.el.paused) {
+      this._self();
+      tr.el.pause();
+      tr.pausedByAll = true;
+    }
+    this._anchorPause();
+    setPlaybackState('paused');
+    setTimeout(() => this._userPaused && this.ctx.suspend(), 600);
+  }
+  resumeAll() {
+    if (!this.ctx || !this._userPaused) return;
+    this._userPaused = false;
+    this.ctx.resume();
+    this._ramp(this.master.gain, this._enabled ? MASTER_LEVEL : 0, 0.8);
+    const tr = this._track;
+    if (tr && tr.pausedByAll) {
+      tr.pausedByAll = false;
+      this._self();
+      tr.el.play().catch(() => {});
+    }
+    if (this._enabled) this._anchorPlay();
+    setPlaybackState('playing');
+  }
+
+  /** 예불 듣기 화면의 멈춤/이어 듣기 단추 (양보 신호와 헷갈리지 않게 표시해 둔다) */
+  toggleTrack() {
+    const tr = this._track;
+    if (!tr) return;
+    this._self();
+    if (tr.el.paused) {
+      tr.heldByUser = false;
+      tr.el.play().catch(() => {});
+    } else {
+      tr.heldByUser = true;
+      tr.el.pause();
+    }
+  }
+
+  _onVisibility() {
+    if (!this.ctx) return;
+    if (document.hidden) {
+      if (!this.keepsPlaying) this.ctx.suspend();
+    } else if (this._userPaused) this.resumeAll();
+    else if (this._interrupted) this._restore();
+    else if (this._enabled) this.ctx.resume();
   }
 
   get isEnabled() {
@@ -283,12 +422,20 @@ export class TempleSoundEngine {
       return;
     }
     this._enabled = true;
-    this._timer = setInterval(() => this._tick(), TICK_MS);
-    document.addEventListener('visibilitychange', () => {
-      if (document.hidden) this.ctx.suspend();
-      else if (this._enabled) this.ctx.resume();
-    });
+    this._timer = startTicker(() => this._tick(), TICK_MS);
+    document.addEventListener('visibilitychange', () => this._onVisibility());
+    // iOS: 전화 등으로 'interrupted' 가 되었다가 끝나면 돌아온다
+    ctx.onstatechange = () => {
+      if (ctx.state === 'interrupted') this._interrupt();
+      else if (this._interrupted && ctx.state !== 'closed') this._restore();
+    };
+    const sess = navigator.audioSession;
+    if (sess && 'onstatechange' in sess)
+      sess.onstatechange = () => (sess.state === 'interrupted' ? this._interrupt() : this._interrupted && this._restore());
+    setMediaActions({ play: () => this.resumeAll(), pause: () => this.pauseAll(), stop: () => this.pauseAll() });
+    setPlaybackState('playing');
     if (ctx.state !== 'running') ctx.resume();
+    if (this.background) this._anchorPlay(); // 사용자 동작 안 (입장·소리 켜기)
   }
 
   toggleAudio() {
@@ -297,12 +444,15 @@ export class TempleSoundEngine {
       return this.isEnabled;
     }
     this._enabled = !this._enabled;
+    this._userPaused = this._interrupted = false;
     if (this._enabled) {
       this.ctx.resume();
       this._ramp(this.master.gain, MASTER_LEVEL, 1.0);
+      if (this.background) this._anchorPlay();
     } else {
       this._ramp(this.master.gain, 0, 0.6);
       this._suspendAt = this.ctx.currentTime + 0.8; // 페이드가 끝나면 틱에서 컨텍스트를 재운다
+      this._anchorPause();
     }
     return this._enabled;
   }
@@ -397,17 +547,31 @@ export class TempleSoundEngine {
       this._track = null;
       [prev.g, prev.wet].forEach((n) => n.disconnect());
     }
-    const el = (this._trackEl ||= new Audio());
+    if (!this._trackEl) {
+      const e = (this._trackEl = new Audio());
+      // 전화·다른 앱이 예불을 멈추면 양보 (우리가 멈춘 것·끝난 것은 빼고)
+      e.addEventListener('pause', () => {
+        const tr = this._track;
+        if (!this._isSelf && tr && tr.el === e && !e.ended && !tr.heldByUser && !this._userPaused) this._interrupt();
+      });
+      e.addEventListener('play', () => !this._isSelf && this._interrupted && this._restore());
+    }
+    const el = this._trackEl;
     const src = (this._trackSrc ||= this.ctx.createMediaElementSource(el));
     src.disconnect();
     el.preload = 'auto';
+    this._self();
     el.src = url;
     const g = this._gain(0, this.bus.temple);
     const wet = this._gain(0.15, this.reverb);
     src.connect(g);
     g.connect(wet);
     const tr = (this._track = { url, el, src, g, wet });
-    el.onended = () => this._track === tr && this.stopTrack(0.1);
+    el.onended = () => {
+      if (this._track !== tr) return;
+      this.stopTrack(0.1);
+      this.onTrackEnd?.(url);
+    };
     el.play().catch((err) => console.warn('[soundEngine] 예불 재생 실패', err));
     this._ramp(g.gain, 1, 1.5);
     this._mix(2);
@@ -420,7 +584,10 @@ export class TempleSoundEngine {
     this._track = null;
     this._ramp(tr.g.gain, 0, fade);
     setTimeout(() => {
-      if (!this._track) tr.el.pause(); // 그새 다음 곡이 같은 요소로 시작했으면 두고, 이 곡의 소리 길만 거둔다
+      if (!this._track) {
+        this._self();
+        tr.el.pause(); // 그새 다음 곡이 같은 요소로 시작했으면 두고, 이 곡의 소리 길만 거둔다
+      }
       [tr.g, tr.wet].forEach((n) => n.disconnect());
     }, fade * 1000 + 100);
     this._mix(2);
@@ -949,12 +1116,12 @@ export class TempleSoundEngine {
       if (ctx.state === 'running' && ctx.currentTime > this._suspendAt) ctx.suspend();
       return;
     }
-    if (ctx.state !== 'running' || document.hidden) return;
+    if (ctx.state !== 'running' || (document.hidden && !this.keepsPlaying)) return;
     this._schedule(ctx.currentTime);
   }
 
   _schedule(now) {
-    const end = now + LOOKAHEAD;
+    const end = now + (document.hidden ? LOOKAHEAD_HIDDEN : LOOKAHEAD);
     // 예약 이벤트: 음소거·백그라운드로 1초 넘게 밀린 것은 몰아서 울리지 않고 버린다
     this._queue = this._queue.filter((ev) => {
       if (ev.t > end) return true;

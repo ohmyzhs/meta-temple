@@ -70,7 +70,8 @@ function fresh() {
     settings: {
       volumes: { nature: 0.7, temple: 0.65, sfx: 0.8 },
       time: 'realtime',
-      weather: 'clear'
+      weather: 'clear',
+      bgAudio: true // 화면이 꺼져도 계속 듣기 (모바일 ASMR·예불 연속 듣기)
     },
     lanterns: INITIAL_LANTERNS.map((l) => ({ ...l })),
     tiles: INITIAL_TILES.map((t) => ({ ...t })),

@@ -252,6 +252,12 @@ class MetaTempleApp {
     this.zone = null;
     this.enteredAt = performance.now();
     if (this.backGuard) return this._reenter();
+    this.sound.setBackground(this.store.state.settings.bgAudio !== false); // 「화면 꺼져도 계속 듣기」 (기본 켬)
+    // 화면이 꺼져 그리기가 멈춰도 연속 듣기는 다음 예불로 (켜져 있으면 _listenTick 이 잠깐 머문 뒤 넘긴다)
+    this.sound.onTrackEnd = () => {
+      const ls = this._listening;
+      if (ls && !ls.leaving && ls.loop && document.hidden) this._listenStep(1);
+    };
     this.sound.init();
     this.sound.setEmitters(this._emitters());
     this.sound.loadRecordings('./assets/audio/'); // 실제 녹음 — 받는 동안은 합성음
@@ -602,6 +608,9 @@ class MetaTempleApp {
     ls.gone = 0;
     ls.ready = !!this.sound.playTrack('./assets/audio/' + track.file);
     $('#listen-name').textContent = `${track.title} · ${track.place}`;
+    // 잠금화면·알림: 제목과 이전·다음 단추
+    this.sound.setNowPlaying(track.title, `청연산사 예불 · ${track.place}`);
+    this.sound.setTrackActions(() => this._listenStep(-1), () => this._listenStep(1));
     this._listenSync();
   }
 
@@ -625,6 +634,8 @@ class MetaTempleApp {
     if (!ls || ls.leaving) return;
     ls.leaving = true;
     this.sound.stopTrack(1.2);
+    this.sound.setTrackActions(null, null);
+    this._nowPlayingZone();
     veil(() => {
       this._listening = null;
       this.avatars.solo = false;
@@ -772,8 +783,13 @@ class MetaTempleApp {
   }
 
   _listenToggle() {
-    const el = this.sound.currentTrack?.el;
-    if (el) el.paused ? el.play() : el.pause();
+    this.sound.toggleTrack(); // 내가 멈춘 것 — 전화·다른 소리의 양보와 구분된다
+  }
+
+  /** 잠금화면·알림의 제목: 지금 있는 곳의 소리 */
+  _nowPlayingZone() {
+    const z = ZONES[this.zone];
+    if (z) this.sound.setNowPlaying(`${z.short}의 소리`, '청연산사 · 자연의 소리');
   }
 
   _listenSeek(by) {
@@ -1227,6 +1243,7 @@ class MetaTempleApp {
     this.miniMap?.setHere(z);
     this._zoneRituals(z);
     if (this.entered) this.sound.setZone(z);
+    if (this.entered && !this._listening) this._nowPlayingZone();
     if (z !== 'DAEUNGJEON') this.sound.stopTrack(); // 예불 듣기는 법당 안에서만
   }
 
@@ -1246,6 +1263,10 @@ class MetaTempleApp {
     const on = this.sound.isEnabled;
     $('#audio-toggle-btn').textContent = on ? '끄기' : '켜기';
     $('#audio-toggle-btn').classList.toggle('active', on);
+    const bg = this.store.state.settings.bgAudio !== false;
+    $('#bg-audio-btn').textContent = bg ? '켜짐' : '꺼짐';
+    $('#bg-audio-btn').classList.toggle('active', bg);
+    $('#bg-audio-btn').setAttribute('aria-pressed', String(bg));
     $('#sound-tool').classList.toggle('muted', !on);
   }
 
@@ -1402,6 +1423,13 @@ class MetaTempleApp {
         this._syncChips();
       })
     );
+    $('#bg-audio-btn').addEventListener('click', () => {
+      const on = this.store.state.settings.bgAudio === false; // 누르면 반대로
+      this.store.setSetting('bgAudio', on);
+      this.sound.setBackground(on); // 누른 순간(사용자 동작)이라 안드로이드 닻도 바로 튼다
+      this._syncSoundButton();
+      this.toast(on ? '🌙 화면이 꺼져도 산사 소리와 예불이 이어집니다' : '화면이 꺼지면 소리도 쉽니다');
+    });
     $('#audio-toggle-btn').addEventListener('click', () => {
       if (!this.sound.isEnabled && !this._soundStarted) this.sound.init();
       else this.sound.toggleAudio();
