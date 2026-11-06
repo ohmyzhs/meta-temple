@@ -124,6 +124,15 @@ await page.click('#dock-rituals [data-ritual="yebul"]', { timeout: 5000 });
 await page.click('.yebul-item', { timeout: 5000 });
 await page.waitForFunction(() => document.body.classList.contains('listening'), null, { timeout: 4000 }).catch(() => {});
 check('(f) 준비: 예불 듣기 화면', await page.evaluate(() => document.body.classList.contains('listening')));
+// 재생기에서 목록을 다시 열면 뒤로는 목록부터 닫는다 (듣기는 그대로)
+await page.mouse.move(200, 300);
+await page.waitForTimeout(300);
+await page.click('#listen [data-l="list"]', { timeout: 5000 });
+await page.waitForTimeout(300);
+check('(f) 재생기 → 목록 다시 열림', (await st()).modal === 'yebul');
+await back();
+await page.waitForTimeout(500);
+check('(f) 목록 열고 뒤로 → 목록만 닫히고 계속 듣기', await page.evaluate(() => !window.temple.modals.isOpen && !!window.temple._listening && document.body.classList.contains('listening')));
 await back();
 await page.waitForFunction(() => !document.body.classList.contains('listening'), null, { timeout: 4000 }).catch(() => {});
 s = await st();

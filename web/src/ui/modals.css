@@ -1400,6 +1400,10 @@ body.tea-scene .modal-overlay.is-side {
 .yebul-meta b { font-family: var(--font-serif); font-weight: 600; font-size: 15px; }
 .yebul-meta small { font-size: 12px; color: var(--muk-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .yebul-time { font-size: 12px; color: var(--muk-soft); font-variant-numeric: tabular-nums; }
+/* 듣는 중에 다시 연 목록: 지금 듣는 것은 금빛 · 다른 쪽 링크·안내·타이머 칩은 재생기에 있으니 거둔다 */
+.yebul-item[aria-current='true'] { box-shadow: 0 0 0 1.5px var(--gold); }
+.yebul-item[aria-current='true'] .yebul-play { background: var(--gold); color: var(--ink-900); }
+body.listening .m-yebul .m-hint, body.listening .m-nature .m-hint, body.listening .nature-sleep { display: none; }
 
 /* 공개 여부 */
 .m-share { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: 4px 0 12px; font-size: 13px; color: var(--muk); cursor: pointer; }

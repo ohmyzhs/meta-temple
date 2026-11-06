@@ -564,11 +564,14 @@ body.listening.l-idle, body.listening.l-idle canvas { cursor: none; }
 .listen-title small { font-family: var(--font-serif); font-size: 13px; color: rgba(243, 236, 220, 0.72); letter-spacing: 0.04em; }
 
 .listen-ctl {
-  position: absolute; left: 50%; bottom: calc(18px + var(--safe-b)); transform: translateX(-50%);
-  width: min(560px, calc(100vw - 32px - var(--safe-l) - var(--safe-r)));
-  display: flex; align-items: center; gap: 4px; padding: 6px 8px;
-  border-radius: 999px; pointer-events: auto;
-  background: rgba(16, 13, 10, 0.4); border: 1px solid rgba(243, 236, 220, 0.12);
+  /* 폰 세로: 세 줄 카드 — [접기 · 곡 이름(목록) · 일어나기] / 재생 위치 / [듣기 방식 · 이전 · 재생 · 다음 · 타이머 · 소리] */
+  position: absolute; left: 50%; bottom: calc(14px + var(--safe-b)); transform: translateX(-50%);
+  width: min(440px, calc(100vw - 32px - var(--safe-l) - var(--safe-r)));
+  display: grid; grid-template-columns: repeat(6, minmax(48px, 1fr));
+  grid-template-areas: 'fold list list list exit exit' 'seek seek seek seek seek seek' 'mode prev play next sleep vol';
+  align-items: center; justify-items: center; padding: 4px 6px 6px;
+  border-radius: 22px; pointer-events: auto;
+  background: rgba(16, 13, 10, 0.46); border: 1px solid rgba(243, 236, 220, 0.12);
   -webkit-backdrop-filter: blur(10px) saturate(1.1); backdrop-filter: blur(10px) saturate(1.1);
   color: var(--hanji-50);
   transition: opacity 0.9s var(--ease), transform 0.9s var(--ease);
@@ -577,8 +580,8 @@ body.listening.l-idle, body.listening.l-idle canvas { cursor: none; }
 
 .l-btn {
   flex: none; width: 48px; height: 48px; border-radius: 50%; border: 0; padding: 0;
-  display: grid; place-items: center; background: transparent; color: inherit; cursor: pointer;
-  transition: background 0.2s;
+  display: grid; place-items: center; background: transparent; color: inherit; cursor: pointer; font: inherit;
+  transition: background 0.2s, color 0.2s;
   -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; touch-action: manipulation;
 }
 .l-btn > * { pointer-events: none; }
@@ -590,52 +593,81 @@ body.listening.l-idle, body.listening.l-idle canvas { cursor: none; }
 .listen.paused .l-main .i-play { display: block; }
 .listen.paused .l-main .i-pause { display: none; }
 
-.l-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; padding: 0 8px; }
-.l-row { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
-.l-name { flex: 1; min-width: 0; font-family: var(--font-serif); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.l-time { flex: none; font-size: 11.5px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.l-fold { grid-area: fold; justify-self: start; }
+.l-fold svg, .l-unfold svg { width: 18px; height: 18px; }
+.listen-ctl > [data-l='prev'] { grid-area: prev; }
+.listen-ctl > [data-l='play'] { grid-area: play; }
+.listen-ctl > [data-l='next'] { grid-area: next; }
 
-/* 얇은 재생 위치 막대 (누르기 쉬운 높이는 유지) */
-.l-seek { -webkit-appearance: none; appearance: none; width: 100%; height: 18px; margin: 0; background: transparent; cursor: pointer; }
+/* 곡·장면 이름 = 목록 단추: 누르면 고르던 창이 다시 열린다 */
+.l-list {
+  grid-area: list; justify-self: stretch; width: auto; min-width: 0; border-radius: 14px; padding: 0 10px 0 12px;
+  display: flex; align-items: center; gap: 8px; text-align: left; background: rgba(243, 236, 220, 0.06);
+}
+.l-list svg { width: 18px; height: 18px; flex: none; color: rgba(243, 236, 220, 0.6); }
+.l-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.l-name, .l-sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.l-name { font-family: var(--font-serif); font-weight: 600; font-size: 13.5px; letter-spacing: 0.02em; }
+.l-sub { font-size: 11px; color: var(--text-dim); }
+
+.l-exit { grid-area: exit; justify-self: end; width: auto; padding: 0 14px 0 11px; border-radius: 999px; gap: 6px; display: flex; align-items: center; font-size: 13px; font-family: var(--font-sans); }
+.l-exit svg { width: 16px; height: 16px; }
+
+/* 얇은 재생 위치 막대 (누르기 쉬운 높이는 유지) — 자연의 소리는 장면 한 편 안의 위치만 보여 준다(끌 수 없음) */
+.l-seekrow { grid-area: seek; justify-self: stretch; display: flex; align-items: center; gap: 10px; padding: 0 8px 0 10px; min-width: 0; }
+.l-time { flex: none; font-size: 11.5px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.l-seek { -webkit-appearance: none; appearance: none; flex: 1; min-width: 0; height: 26px; margin: 0; background: transparent; cursor: pointer; }
 .l-seek::-webkit-slider-runnable-track { height: 3px; border-radius: 3px; background: linear-gradient(90deg, var(--gold) var(--p, 0%), rgba(243, 236, 220, 0.22) var(--p, 0%)); }
 .l-seek::-moz-range-track { height: 3px; border-radius: 3px; background: linear-gradient(90deg, var(--gold) var(--p, 0%), rgba(243, 236, 220, 0.22) var(--p, 0%)); }
-.l-seek::-webkit-slider-thumb { -webkit-appearance: none; width: 11px; height: 11px; margin-top: -4px; border-radius: 50%; background: var(--hanji-50); border: 0; }
-.l-seek::-moz-range-thumb { width: 11px; height: 11px; border-radius: 50%; background: var(--hanji-50); border: 0; }
+.l-seek::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; margin-top: -4.5px; border-radius: 50%; background: var(--hanji-50); border: 0; }
+.l-seek::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: var(--hanji-50); border: 0; }
+.l-seek:disabled { cursor: default; }
+.l-seek:disabled::-webkit-slider-thumb { opacity: 0; }
+.l-seek:disabled::-moz-range-thumb { opacity: 0; }
 
-.l-exit { width: auto; padding: 0 14px 0 10px; border-radius: 999px; gap: 6px; display: flex; align-items: center; font-size: 13px; font-family: var(--font-sans); }
-.l-exit svg { width: 16px; height: 16px; }
-/* 연속 듣기: 켜지면 금빛 */
-.l-loop { width: auto; padding: 0 10px 0 8px; border-radius: 999px; gap: 4px; display: flex; align-items: center; font-size: 12px; font-family: var(--font-sans); color: rgba(243, 236, 220, 0.55); }
-.l-loop svg { width: 17px; height: 17px; }
-.l-loop[aria-pressed='true'] { color: var(--gold); }
-/* 자연의 소리 듣기: 연속·구간 이동 대신 잠자기 타이머 */
-.listen:not(.nature) .l-sleep, .listen.nature .l-loop:not(.l-sleep), .listen.nature .l-seek { display: none; }
+/* 듣기 방식·타이머·소리: 아이콘 + 짧은 글 (폰은 아이콘 아래, 넓은 화면은 옆). 켜진 것은 금빛 */
+.l-tog { width: 100%; max-width: 64px; border-radius: 14px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 10.5px; line-height: 1; font-family: var(--font-sans); color: rgba(243, 236, 220, 0.62); white-space: nowrap; }
+.l-tog svg { width: 18px; height: 18px; }
+.l-tog[aria-pressed='true'], .l-mode:not([data-mode='one']), .l-volbtn[aria-expanded='true'] { color: var(--gold); }
+.l-mode { grid-area: mode; }
+.l-sleep { grid-area: sleep; }
+.l-volbtn { grid-area: vol; }
+.l-mode svg { display: none; }
+.l-mode[data-mode='one'] .i-one, .l-mode[data-mode='all'] .i-all, .l-mode[data-mode='repeat'] .i-repeat { display: block; }
 
-@media (max-width: 520px) {
-  .l-loop span { display: none; }
-  .l-loop { width: auto; aspect-ratio: 1; padding: 0; justify-content: center; } /* 다른 재생 단추와 같은 정사각 */
+/* 소리 크기: 재생기 바로 위에 뜨는 작은 판 */
+.l-vol {
+  position: absolute; right: 0; bottom: calc(100% + 8px); width: min(340px, 100%); box-sizing: border-box;
+  padding: 4px 16px 8px; border-radius: 18px;
+  background: rgba(16, 13, 10, 0.72); border: 1px solid rgba(243, 236, 220, 0.12);
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
 }
-/* 폰 세로: 단추 다섯 개(48px) 사이에는 곡 이름이 두세 글자만 남으니, 이름은 재생기 바로 위 한 줄로 올린다 */
-@media (max-width: 430px) {
-  .l-name {
-    position: absolute; left: 52px; right: 52px; bottom: calc(100% + 7px); /* 오른쪽 위 접기 단추를 비켜서 */
-    text-align: center; font-size: 13px; color: var(--hanji-50);
-    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75), 0 0 10px rgba(0, 0, 0, 0.45);
-    pointer-events: none;
+.l-vol[hidden] { display: none; }
+.l-vol .slider { margin-top: 6px; }
+
+/* 가로 화면·데스크톱: 한 줄 + 아래 재생 위치 */
+@media (min-width: 600px) {
+  .listen-ctl {
+    width: min(880px, calc(100vw - 32px - var(--safe-l) - var(--safe-r)));
+    grid-template-columns: 48px 48px 48px 48px minmax(0, 1fr) auto auto auto auto;
+    grid-template-areas: 'fold prev play next list mode sleep vol exit' 'seek seek seek seek seek seek seek seek seek';
+    column-gap: 2px; padding: 6px 10px 0; border-radius: 26px; bottom: calc(18px + var(--safe-b));
   }
+  .l-list { margin: 0 6px; }
+  .l-tog { width: auto; max-width: none; height: 48px; flex-direction: row; gap: 5px; padding: 0 12px 0 10px; border-radius: 999px; font-size: 12px; }
+  .l-volbtn { width: 48px; padding: 0; }
+  .l-volbtn span, .l-mode span, .l-exit span { display: none; }
+  .l-mode, .l-exit { width: 48px; padding: 0; justify-content: center; }
+  .l-seekrow { padding: 0 14px 0 16px; }
+}
+/* 넉넉한 화면: 듣기 방식·일어나기에도 글 */
+@media (min-width: 840px) {
+  .l-mode span, .l-exit span { display: inline; }
+  .l-mode { width: auto; padding: 0 12px 0 10px; }
+  .l-exit { width: auto; padding: 0 16px 0 12px; }
 }
 
-/* 접기: 재생기 오른쪽 위 작은 단추(누르는 자리는 48px) → 접으면 재생/멈춤 · 펴기만 남은 작은 알약.
-   접은 동안에는 화면을 누르거나 끌어 둘러봐도 재생기가 다시 뜨지 않는다 (main.js _listenFold) */
-.l-fold { position: absolute; right: 2px; bottom: calc(100% + 2px); z-index: 0; background: transparent; }
-.l-fold::before {
-  content: ''; position: absolute; inset: 8px; z-index: -1; border-radius: 50%;
-  background: rgba(16, 13, 10, 0.45); border: 1px solid rgba(243, 236, 220, 0.12);
-  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
-}
-.l-fold:hover, .l-fold:focus-visible { background: transparent; }
-.l-fold:hover::before, .l-fold:focus-visible::before { background: rgba(43, 36, 30, 0.7); }
-.l-fold svg, .l-unfold svg { width: 18px; height: 18px; }
+/* 접기: 재생/멈춤 · 펴기만 남은 작은 알약. 접은 동안에는 화면을 누르거나 끌어 둘러봐도 재생기가 다시 뜨지 않는다 (main.js _listenFold) */
 .l-mini {
   position: absolute; left: 50%; bottom: calc(18px + var(--safe-b)); transform: translate(-50%, 12px);
   display: flex; gap: 2px; padding: 4px; border-radius: 999px; color: var(--hanji-50);
@@ -646,7 +678,7 @@ body.listening.l-idle, body.listening.l-idle canvas { cursor: none; }
 }
 .listen.folded .l-mini { opacity: 1; visibility: visible; transform: translate(-50%, 0); transition-delay: 0s; }
 .listen.folded.l-idle .l-mini { opacity: 0.5; }
-.listen.folded .listen-ctl {
+.listen.folded .listen-ctl, .listen.l-away .listen-ctl, .listen.l-away .l-mini {
   opacity: 0; visibility: hidden; transform: translate(-50%, 16px);
   transition: opacity 0.6s var(--ease), transform 0.6s var(--ease), visibility 0s linear 0.6s;
 }
@@ -656,9 +688,6 @@ body.listening.l-idle, body.listening.l-idle canvas { cursor: none; }
 .listen-line span { display: block; height: 100%; width: 0; background: rgba(201, 163, 90, 0.7); }
 
 @media (max-width: 520px) {
-  .listen-ctl { gap: 0; padding: 5px 6px; }
-  .l-exit span { display: none; }
-  .l-exit { width: 48px; padding: 0; justify-content: center; }
   .listen-title b { font-size: 19px; }
 }
 @media (prefers-reduced-motion: reduce) {

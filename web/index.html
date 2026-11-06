@@ -209,25 +209,32 @@
 
   <div id="toast-stack" class="toast-stack" aria-live="polite"></div>
 
-  <!-- 예불 듣기 모드: 화면 전환 가림막 + 제목 + 작은 재생기 (main.js listen) -->
+  <!-- 듣기 모드 (예불 듣기·자연의 소리 듣기가 같은 재생기를 쓴다): 화면 전환 가림막 + 제목 + 재생기 (main.js listen) -->
   <div id="listen-veil" aria-hidden="true"></div>
   <div id="listen" class="listen hidden">
     <div class="listen-title" id="listen-title" aria-live="polite"><b></b><small></small></div>
-    <div class="listen-ctl" role="group" aria-label="예불 듣기">
-      <button type="button" class="l-btn" data-l="prev" aria-label="이전 예불"><svg viewBox="0 0 24 24"><path d="M6 5h2v14H6zM19 5.8v12.4L9.5 12z"/></svg></button>
-      <button type="button" class="l-btn l-main" data-l="play" aria-label="일시정지"><svg class="i-pause" viewBox="0 0 24 24"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/></svg><svg class="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13l10.5-6.5z"/></svg></button>
-      <button type="button" class="l-btn" data-l="next" aria-label="다음 예불"><svg viewBox="0 0 24 24"><path d="M16 5h2v14h-2zM5 5.8v12.4L14.5 12z"/></svg></button>
-      <div class="l-info">
-        <div class="l-row"><span class="l-name" id="listen-name"></span><span class="l-time" id="listen-time">0:00 / 0:00</span></div>
-        <input type="range" class="l-seek" id="listen-seek" min="0" max="1000" value="0" step="1" aria-label="재생 위치" />
-      </div>
-      <button type="button" class="l-btn l-loop l-sleep" data-l="sleep" aria-pressed="false" aria-label="잠자기 타이머"><svg viewBox="0 0 24 24"><path d="M12.6 3a8.6 8.6 0 1 0 8.4 10.5A7 7 0 0 1 12.6 3z"/></svg><span>타이머</span></button>
-      <button type="button" class="l-btn l-loop" data-l="loop" aria-pressed="false" aria-label="연속 듣기"><svg viewBox="0 0 24 24"><path d="M7 7h10v3l4-4-4-4v3H5v6h2zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2z"/></svg><span>연속</span></button>
+    <div class="listen-ctl" role="group" aria-label="듣기 재생기">
+      <button type="button" class="l-btn l-fold" data-l="fold" aria-label="재생기 작게 접기"><svg viewBox="0 0 24 24"><path d="M6.4 8.6 12 14.2l5.6-5.6L19 10l-7 7-7-7z"/></svg></button>
+      <button type="button" class="l-btn l-list" data-l="list" aria-label="목록에서 고르기"><span class="l-meta"><b class="l-name" id="listen-name"></b><small class="l-sub" id="listen-sub"></small></span><svg viewBox="0 0 24 24"><path d="M4 6h2v2H4zm4 0h12v2H8zm-4 5h2v2H4zm4 0h12v2H8zm-4 5h2v2H4zm4 0h12v2H8z"/></svg></button>
       <button type="button" class="l-btn l-exit" data-l="exit" aria-label="일어나기"><svg viewBox="0 0 24 24"><path d="M6.4 5 5 6.4 10.6 12 5 17.6 6.4 19l5.6-5.6 5.6 5.6 1.4-1.4-5.6-5.6L19 6.4 17.6 5 12 10.6z"/></svg><span>일어나기</span></button>
-      <button type="button" class="l-btn l-fold" data-l="fold" aria-label="재생기 접기"><svg viewBox="0 0 24 24"><path d="M6.4 8.6 12 14.2l5.6-5.6L19 10l-7 7-7-7z"/></svg></button>
+      <div class="l-seekrow">
+        <input type="range" class="l-seek" id="listen-seek" min="0" max="1000" value="0" step="1" aria-label="재생 위치" />
+        <span class="l-time" id="listen-time">0:00 / 0:00</span>
+      </div>
+      <button type="button" class="l-btn l-tog l-mode" data-l="mode" data-mode="one" aria-label="듣기 방식"><svg class="i-one" viewBox="0 0 24 24"><path d="M3 11h11.2l-3.6-3.6L12 6l6 6-6 6-1.4-1.4 3.6-3.6H3zM19 6h2v12h-2z"/></svg><svg class="i-all" viewBox="0 0 24 24"><path d="M7 7h10v3l4-4-4-4v3H5v6h2zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2z"/></svg><svg class="i-repeat" viewBox="0 0 24 24"><path d="M7 7h10v3l4-4-4-4v3H5v6h2zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2zm-4-2V9h-1l-2 1v1h1.5v4z"/></svg><span>한 곡</span></button>
+      <button type="button" class="l-btn" data-l="prev" aria-label="이전"><svg viewBox="0 0 24 24"><path d="M6 5h2v14H6zM19 5.8v12.4L9.5 12z"/></svg></button>
+      <button type="button" class="l-btn l-main" data-l="play" aria-label="일시정지"><svg class="i-pause" viewBox="0 0 24 24"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/></svg><svg class="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13l10.5-6.5z"/></svg></button>
+      <button type="button" class="l-btn" data-l="next" aria-label="다음"><svg viewBox="0 0 24 24"><path d="M16 5h2v14h-2zM5 5.8v12.4L14.5 12z"/></svg></button>
+      <button type="button" class="l-btn l-tog l-sleep" data-l="sleep" aria-pressed="false" aria-label="잠자기 타이머"><svg viewBox="0 0 24 24"><path d="M12.6 3a8.6 8.6 0 1 0 8.4 10.5A7 7 0 0 1 12.6 3z"/></svg><span>타이머</span></button>
+      <button type="button" class="l-btn l-tog l-volbtn" data-l="vol" aria-expanded="false" aria-controls="listen-vol" aria-label="소리 크기"><svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4zm12.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z"/></svg><span>소리</span></button>
+      <!-- 소리 크기: 소리 창(#pop-sound)의 슬라이더와 같은 값 (main.js _setVolume) -->
+      <div class="l-vol" id="listen-vol" hidden>
+        <label class="slider"><span>자연 환경음 <small>계곡·바람·산새·빗소리</small></span><input type="range" data-vol="nature" min="0" max="1" step="0.05" /></label>
+        <label class="slider"><span>사찰 공간음 <small>예불·풍경·찻물·화로</small></span><input type="range" data-vol="temple" min="0" max="1" step="0.05" /></label>
+      </div>
     </div>
     <!-- 접은 재생기: 재생/멈춤과 펴기만 -->
-    <div class="l-mini" role="group" aria-label="접힌 예불 재생기">
+    <div class="l-mini" role="group" aria-label="접힌 재생기">
       <button type="button" class="l-btn l-main" data-l="play" aria-label="일시정지"><svg class="i-pause" viewBox="0 0 24 24"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/></svg><svg class="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13l10.5-6.5z"/></svg></button>
       <button type="button" class="l-btn l-unfold" data-l="unfold" aria-label="재생기 펼치기"><svg viewBox="0 0 24 24"><path d="M17.6 15.4 12 9.8l-5.6 5.6L5 14l7-7 7 7z"/></svg></button>
     </div>

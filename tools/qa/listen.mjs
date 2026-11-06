@@ -62,7 +62,7 @@ for (const vp of [[390, 844], [1280, 800]]) {
     await page.waitForTimeout(900);
     check('펴기 → 재생기 돌아옴', await bar(page));
     // 재생기 단추를 누른 뒤 가만히 → 저절로 숨음
-    await page.click('#listen [data-l="loop"]');
+    await page.click('#listen [data-l="mode"]');
     await page.mouse.move(vp[0] / 2, vp[1] / 3);
     await page.waitForTimeout(4600);
     check('단추를 누른 뒤에도 3.5초 가만히 있으면 숨음', await page.evaluate(() => document.querySelector('#listen').classList.contains('l-idle')));

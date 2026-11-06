@@ -21,7 +21,7 @@ import { placeStone, findJoinable, areaCount, AREA_CAP, AREA_RADIUS, GATE_ID } f
 import { ModalManager } from './ui/modalManager.js';
 import { LiveLink, sharedApi } from './core/live.js';
 import { YEBUL_TRACKS } from './data/credits.js';
-import { NATURE_PRESETS, SLEEP_MINUTES } from './data/natureSounds.js';
+import { NATURE_PRESETS, SLEEP_MINUTES, SCENE_MINUTES, LISTEN_MODES } from './data/natureSounds.js';
 import { bindNameForm } from './ui/nameField.js';
 import { veil } from './ui/veil.js';
 import { DOCK_RITUALS } from './data/templeData.js';
@@ -57,6 +57,7 @@ const REPLY_DELAY_MS = 600; // 도반의 합장을 받고 돌아서 답례하기
 const FP_CIRCLE_LOOK = -1.0;
 const wrapAngle = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 const LISTEN_SHOT_SEC = 40; // 예불 듣기: 한 장면을 이만큼 천천히 흘린 뒤 다음 장면으로 끊는다
+const MODE_LABEL = { one: '한 곡', all: '연속', repeat: '반복' }; // 듣기 방식 (data/natureSounds.js LISTEN_MODES)
 const fmtTime = (s) => (Number.isFinite(s) ? `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}` : '–:––');
 
 const UNLOCK_MSG = {
@@ -277,13 +278,15 @@ class MetaTempleApp {
     this.enteredAt = performance.now();
     if (this.backGuard) return this._reenter();
     this.sound.setBackground(this.store.state.settings.bgAudio !== false); // 「화면 꺼져도 계속 듣기」 (기본 켬)
-    // 화면이 꺼져 그리기가 멈춰도 연속 듣기는 다음 예불로 (켜져 있으면 _listenTick 이 잠깐 머문 뒤 넘긴다)
+    // 화면이 꺼져 그리기가 멈춰도 연속·반복 듣기는 다음(같은) 예불로 (켜져 있으면 _listenTick 이 잠깐 머문 뒤 넘긴다)
     this.sound.onTrackEnd = () => {
       const ls = this._listening;
-      if (ls && !ls.leaving && ls.loop && document.hidden) this._listenStep(1);
+      if (ls && !ls.leaving && ls.mode !== 'one' && document.hidden) this._listenEnded();
     };
-    // 자연의 소리 듣기: 잠자기 타이머가 다 되면 소리가 잦아들어 멈춘다 → 일어난다 (소리는 멈춘 채로, 다시 화면을 켜면 이어진다)
-    this.sound.onSleep = () => this._listening?.nature && this.exitListening({ keepPaused: true });
+    // 자연의 소리 장면 한 편이 끝남 — 엔진의 워커 시계라 화면이 꺼져 있어도 온다
+    this.sound.onSceneEnd = () => this._listening?.nature && this._listenEnded();
+    // 잠자기 타이머가 다 되면 소리가 잦아들어 멈춘다 → 일어난다 (소리는 멈춘 채로, 다시 화면을 켜면 이어진다)
+    this.sound.onSleep = () => this._listening && this.exitListening({ keepPaused: true });
     this.sound.init();
     this.sound.setEmitters(this._emitters());
     this.sound.setAreas({ courts: COURTS, tea: L.teahouseTerrace, hall: L.hall, groves: [L.bamboo, L.bambooEast] }); // 소리가 자리를 따르게 (담 가림·대숲 자리)
@@ -490,8 +493,9 @@ class MetaTempleApp {
       },
       onExport: () => this.store.exportState(),
       onImport: (json) => this.store.importState(json),
-      onYebul: (track) => this.listen(track),
+      onYebul: (track) => (this._listening?.track === track ? this.modals.close() : this.listen(track)), // 듣는 중 다시 연 목록에서 지금 것을 누르면 닫기만
       onPracticeEnd: () => {
+        if (this._listening) return this._listenBack(); // 듣는 중에 다시 연 목록을 닫음: 앉은 채 재생기로
         // 좌복·쉼터에서 하던 수행을 닫으면 그 자리에 그대로 앉아 있는다 (일어나려면 움직이면 된다)
         const pl = this.player;
         if (pl.seat?.kind === 'cushion' || pl.seat?.kind === 'rest') {
@@ -672,6 +676,7 @@ class MetaTempleApp {
     }
     // 소리는 누른 그 순간에 튼다 (iOS 는 사용자 동작 안에서만 재생을 허락한다). 화면은 가림막 뒤에서 바꾼다
     if (this._listening) {
+      this.modals.close(); // 재생기에서 다시 연 목록
       this._listenPlay(track);
       return veil(() => this._listening && this._listenScene(), { hold: 380 });
     }
@@ -681,13 +686,13 @@ class MetaTempleApp {
     const rest = (this.player.seat?.kind === 'rest' ? this.player.seat._ref : null) || (nature ? { x: p.x, z: p.z } : null);
     this.modals.close();
     const cam = this.world.cam;
-    const loop = this.store.state.settings.listenLoop ?? !!rest; // 연속 듣기: 고른 값이 없으면 쉼터에서는 켜고 법당에서는 끈다
-    const ls = (this._listening = { track, rest, loop, nature, saved: { mode: cam.mode, yaw: cam.yaw, pitch: cam.pitch, dist: cam.targetDist } });
+    // 듣기 방식·잠자기 타이머는 예불·자연의 소리 따로 기억한다. 고른 적이 없으면 예불은 쉼터에서 연속·법당에서 한 곡(타이머 없음), 자연의 소리는 반복·30분
+    const S = this.store.state.settings, kind = nature ? 'nature' : 'yebul';
+    const mode = S[`${kind}Mode`] ?? (nature ? 'repeat' : S.listenLoop === true || (S.listenLoop == null && rest) ? 'all' : 'one');
+    const sleep = S[`${kind}Sleep`] ?? (nature ? 30 : 0);
+    const ls = (this._listening = { track, rest, mode, sleep, kind, nature, saved: { mode: cam.mode, yaw: cam.yaw, pitch: cam.pitch, dist: cam.targetDist } });
     $('#listen').classList.toggle('nature', nature);
-    if (nature) {
-      ls.sleep = this.store.state.settings.natureSleep ?? 30;
-      this.sound.setSleep(ls.sleep);
-    }
+    this.sound.setSleep(sleep);
     this.joy = { x: 0, z: 0 };
     this.keys = {};
     this._listenPlay(track);
@@ -720,17 +725,29 @@ class MetaTempleApp {
       ls.world ||= { time: w.timeMode, weather: w.weatherName };
       w.setTimeOfDay(track.time);
       w.setWeather(track.weather);
-      $('#listen-name').textContent = `${track.title} · ${track.note}`;
+      this.sound.setSceneTimer(SCENE_MINUTES * 60); // 장면 한 편 — 한 곡·연속·반복이 이것으로 (data/natureSounds.js)
+      this._listenLabel(track.title, track.note);
       this.sound.setNowPlaying(track.title, '청연산사 · 자연의 소리');
       this.sound.setTrackActions(() => this._listenStep(-1), () => this._listenStep(1));
       return this._listenSync();
     }
     ls.ready = !!this.sound.playTrack('./assets/audio/' + track.file);
-    $('#listen-name').textContent = `${track.title} · ${track.place}`;
+    this._listenLabel(track.title, track.place);
     // 잠금화면·알림: 제목과 이전·다음 단추
     this.sound.setNowPlaying(track.title, `청연산사 예불 · ${track.place}`, 'yebul');
     this.sound.setTrackActions(() => this._listenStep(-1), () => this._listenStep(1));
     this._listenSync();
+  }
+
+  /** 재생기의 이름 단추(누르면 목록)·이전·다음 이름 */
+  _listenLabel(name, sub) {
+    const what = this._listening.nature ? '장면' : '예불';
+    $('#listen-name').textContent = name;
+    $('#listen-sub').textContent = sub;
+    $('#listen [data-l="list"]').setAttribute('aria-label', `${name} — 목록에서 다른 ${what} 고르기`);
+    $('#listen [data-l="prev"]').setAttribute('aria-label', `이전 ${what}`);
+    $('#listen [data-l="next"]').setAttribute('aria-label', `다음 ${what}`);
+    $('#listen-seek').disabled = !!this._listening.nature; // 장면은 구간 이동이 없다 — 한 편 안의 위치만
   }
 
   /** 첫 장면으로 끊고 제목을 잠시 띄운다 */
@@ -753,12 +770,15 @@ class MetaTempleApp {
     const ls = this._listening;
     if (!ls || ls.leaving) return;
     ls.leaving = true;
+    if (['yebul', 'nature'].includes(this.modals.current)) this.modals.close(); // 다시 연 목록이 떠 있으면 함께 거둔다
+    this._listenVol(false);
     this.sound.stopTrack(1.2);
     this.sound.setTrackActions(null, null);
+    this.sound.setSleep(0);
+    this.sound.setSceneTimer(0);
+    if (!keepPaused && this.sound._userPaused) this.sound.resumeAll();
     if (ls.nature) {
       this.sound.setPreset(null);
-      this.sound.setSleep(0);
-      if (!keepPaused && this.sound._userPaused) this.sound.resumeAll();
       this.world.setTimeOfDay(ls.world.time);
       this.world.setWeather(ls.world.weather);
       $('#listen').classList.remove('nature');
@@ -773,6 +793,7 @@ class MetaTempleApp {
       Object.assign(this.world.cam, { mode: ls.saved.mode, yaw: ls.rest ? ls.saved.yaw : 0, pitch: ls.saved.pitch, targetDist: ls.saved.dist });
       document.body.classList.remove('listening', 'l-idle');
       $('#listen').classList.add('hidden');
+      $('#listen').classList.remove('l-away');
       $('#listen-title').classList.remove('show');
       this.world.setFocusVignette(false);
       this._syncChips();
@@ -835,7 +856,7 @@ class MetaTempleApp {
     if (!ls.ready || ls.leaving || !(ls.cushion || ls.rest)) return;
     if (!ls.nature && !this.sound.currentTrack) {
       // 끝까지 들었다: 잠깐 고요히 머문 뒤 일어난다 (연속 듣기면 다음 예불로)
-      if ((ls.gone += dt) > 2.5) ls.loop ? this._listenStep(1) : this.exitListening();
+      if ((ls.gone += dt) > 2.5) this._listenEnded();
       return;
     }
     if (ls.rest) this._listenDrift(dt);
@@ -851,33 +872,44 @@ class MetaTempleApp {
     }
   }
 
+  /** 내가 멈춰 두었나 (잠금화면 멈춤 포함) */
+  _listenPaused() {
+    return this._listening?.nature ? !!this.sound._userPaused : !!this.sound._userPaused || !!this.sound.currentTrack?.el.paused;
+  }
+
   _listenSync() {
     const ls = this._listening;
     if (!ls) return;
-    if (ls.nature) {
-      // 장면 듣기: 재생 위치 대신 잠자기 타이머
-      const left = this.sound.sleepLeft;
-      $('#listen').classList.toggle('paused', !!this.sound._userPaused);
-      $$('#listen .l-main').forEach((b) => b.setAttribute('aria-label', this.sound._userPaused ? '이어 듣기' : '일시정지')); // 재생기와 접은 알약
-      $('#listen-time').textContent = left == null ? '잠자기 타이머 꺼짐' : `${fmtTime(left)} 뒤 잦아듦`;
-      $('#listen-line').style.width = left == null ? '0%' : `${(1 - left / (ls.sleep * 60)) * 100}%`;
-      const b = $('#listen [data-l="sleep"]');
-      b.setAttribute('aria-pressed', String(!!ls.sleep));
-      b.querySelector('span').textContent = ls.sleep ? `${ls.sleep}분` : '타이머';
-      return;
-    }
-    const el = this.sound.currentTrack?.el;
-    const d = el && Number.isFinite(el.duration) ? el.duration : ls.track.sec;
-    const t = el ? el.currentTime : 0;
-    const paused = !!el && el.paused;
+    const paused = this._listenPaused();
     $('#listen').classList.toggle('paused', paused);
-    $('#listen [data-l="loop"]')?.setAttribute('aria-pressed', String(!!ls.loop));
     $$('#listen .l-main').forEach((b) => b.setAttribute('aria-label', paused ? '이어 듣기' : '일시정지')); // 재생기와 접은 알약
+    // 진행: 예불은 곡 안의 위치, 자연의 소리는 장면 한 편(SCENE_MINUTES) 안의 위치
+    let t, d;
+    if (ls.nature) {
+      d = SCENE_MINUTES * 60;
+      t = d - (this.sound.sceneLeft ?? d);
+    } else {
+      const el = this.sound.currentTrack?.el;
+      d = el && Number.isFinite(el.duration) ? el.duration : ls.track.sec;
+      t = el ? el.currentTime : 0;
+    }
     $('#listen-time').textContent = `${fmtTime(t)} / ${fmtTime(d)}`;
     const seek = $('#listen-seek');
     if (!ls.seeking) seek.value = Math.round((t / d) * 1000);
     seek.style.setProperty('--p', `${seek.value / 10}%`);
     $('#listen-line').style.width = `${(t / d) * 100}%`;
+    // 듣기 방식
+    const m = $('#listen [data-l="mode"]');
+    m.dataset.mode = ls.mode;
+    m.querySelector('span').textContent = MODE_LABEL[ls.mode];
+    m.setAttribute('aria-label', `듣기 방식: ${MODE_LABEL[ls.mode]} (누르면 바뀜)`);
+    // 잠자기 타이머: 남은 시간을 짧게
+    const left = this.sound.sleepLeft;
+    const sl = $('#listen [data-l="sleep"]');
+    const short = left == null ? '타이머' : left >= 60 ? `${Math.ceil(left / 60)}분` : `${Math.ceil(left)}초`;
+    sl.setAttribute('aria-pressed', String(left != null));
+    sl.querySelector('span').textContent = short;
+    sl.setAttribute('aria-label', left == null ? '잠자기 타이머 꺼짐 (누르면 15분)' : `잠자기 타이머 ${short} 남음 (누르면 바뀜)`);
   }
 
   /** 쉼터에서 듣기: 그 자리에 앉은 채 1인칭으로 경치를 본다 (다른 도반은 잠시 보이지 않는다) */
@@ -908,37 +940,51 @@ class MetaTempleApp {
     ls.drift = k;
   }
 
-  /** 연속 듣기 켜고 끄기 (고른 값은 저장해 다음에도 그대로) */
-  _listenLoop() {
+  /** 듣기 방식 바꾸기: 한 곡 → 연속 → 반복 (예불·자연의 소리 따로 저장해 다음에도 그대로) */
+  _listenMode() {
     const ls = this._listening;
-    ls.loop = !ls.loop;
-    this.store.setSetting('listenLoop', ls.loop);
-    // 듣는 동안은 알림이 숨으므로 제목 자리에 잠깐 띄운다
+    ls.mode = LISTEN_MODES[(LISTEN_MODES.indexOf(ls.mode) + 1) % LISTEN_MODES.length];
+    this.store.setSetting(`${ls.kind}Mode`, ls.mode);
+    const n = SCENE_MINUTES;
+    const say = ls.nature
+      ? { one: `이 장면을 ${n}분 들은 뒤 일어납니다`, all: `${n}분마다 다음 장면으로 넘어갑니다`, repeat: '이 장면을 계속 듣습니다' }
+      : { one: '이 예불이 끝나면 일어납니다', all: '이 예불이 끝나면 다음 예불이 이어집니다', repeat: '이 예불을 처음부터 다시 듣습니다' };
+    this._listenNote(`${MODE_LABEL[ls.mode]} 듣기`, say[ls.mode]);
+  }
+
+  /** 한 곡(장면 한 편)이 끝났다: 한 곡 = 일어나기, 연속 = 다음, 반복 = 처음부터 */
+  _listenEnded() {
+    const ls = this._listening;
+    if (!ls || ls.leaving) return;
+    if (ls.mode === 'one') return this.exitListening();
+    if (ls.mode === 'all') return this._listenStep(1);
+    if (ls.nature) return this.sound.setSceneTimer(SCENE_MINUTES * 60); // 장면은 소리가 끊기지 않으니 시계만 처음으로
+    this._listenStep(0);
+  }
+
+  /** 듣는 동안은 알림이 숨으므로 제목 자리에 잠깐 띄운다 */
+  _listenNote(title, sub) {
     const tt = $('#listen-title');
-    tt.querySelector('b').textContent = ls.loop ? '연속 듣기' : '한 곡만 듣기';
-    tt.querySelector('small').textContent = ls.loop ? '이 예불이 끝나면 다음 예불이 이어집니다' : '이 예불이 끝나면 일어납니다';
+    tt.querySelector('b').textContent = title;
+    tt.querySelector('small').textContent = sub;
     tt.classList.add('show');
     clearTimeout(this._titleT);
     this._titleT = setTimeout(() => tt.classList.remove('show'), 3000);
   }
 
   _listenToggle() {
-    if (this._listening?.nature) return this.sound._userPaused ? this.sound.resumeAll() : this.sound.pauseAll();
+    if (this.sound._userPaused) return this.sound.resumeAll(); // 잠금화면에서 멈춘 것 (예불도 함께 이어진다)
+    if (this._listening?.nature) return this.sound.pauseAll();
     this.sound.toggleTrack(); // 내가 멈춘 것 — 전화·다른 소리의 양보와 구분된다
   }
 
-  /** 잠자기 타이머 바꾸기: 끔 → 15 → 30 → 60분 (지금부터 다시 센다) */
+  /** 잠자기 타이머 바꾸기: 끔 → 15 → 30 → 60분 (지금부터 다시 센다 · 예불·자연의 소리 따로 저장) */
   _listenSleep() {
     const ls = this._listening;
     ls.sleep = SLEEP_MINUTES[(SLEEP_MINUTES.indexOf(ls.sleep) + 1) % SLEEP_MINUTES.length];
-    this.store.setSetting('natureSleep', ls.sleep);
+    this.store.setSetting(`${ls.kind}Sleep`, ls.sleep);
     this.sound.setSleep(ls.sleep);
-    const tt = $('#listen-title');
-    tt.querySelector('b').textContent = ls.sleep ? `${ls.sleep}분 뒤 잦아듦` : '잠자기 타이머 끔';
-    tt.querySelector('small').textContent = ls.sleep ? '시간이 되면 소리가 천천히 줄어들며 멈춥니다' : '일어날 때까지 계속 듣습니다';
-    tt.classList.add('show');
-    clearTimeout(this._titleT);
-    this._titleT = setTimeout(() => tt.classList.remove('show'), 3000);
+    this._listenNote(ls.sleep ? `${ls.sleep}분 뒤 잦아듦` : '잠자기 타이머 끔', ls.sleep ? '시간이 되면 소리가 천천히 줄어들며 멈춥니다' : '일어날 때까지 계속 듣습니다');
   }
 
   /** 잠금화면·알림의 제목: 지금 있는 곳의 소리 */
@@ -961,7 +1007,8 @@ class MetaTempleApp {
   /** 듣는 동안의 키: Esc·이동 = 일어나기, Space = 멈춤/이어 듣기, ←→ = 10초 */
   _listenKey(e) {
     const c = e.code;
-    if (c === 'Escape' || ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown'].includes(c)) this.exitListening();
+    if (c === 'Escape' && !$('#listen-vol').hidden) this._listenVol(false);
+    else if (c === 'Escape' || ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown'].includes(c)) this.exitListening();
     else if (c === 'Space') this._listenToggle();
     else if (c === 'ArrowLeft' || c === 'ArrowRight') this._listenSeek(c === 'ArrowLeft' ? -10 : 10);
     else return this._listenWake();
@@ -980,8 +1027,7 @@ class MetaTempleApp {
     this._idleT = setTimeout(() => {
       if (!this._listening) return;
       const ctl = ui.querySelector('.listen-ctl');
-      const paused = this._listening.nature ? this.sound._userPaused : this.sound.currentTrack?.el.paused;
-      if (paused || ctl.matches(':hover') || ctl.querySelector(':focus-visible')) return this._listenWake();
+      if (this._listenPaused() || !$('#listen-vol').hidden || ctl.matches(':hover') || ctl.querySelector(':focus-visible')) return this._listenWake();
       ui.classList.add('l-idle');
       document.body.classList.add('l-idle');
     }, 3500);
@@ -994,22 +1040,58 @@ class MetaTempleApp {
     document.activeElement?.blur?.(); // 숨는 단추에 포커스가 남지 않게
   }
 
+  /** 재생기에서 고르던 창(예불 목록·장면 목록)을 다시 연다 — 일어나지 않고 다른 것으로 바꾼다. 창이 떠 있는 동안 재생기는 비켜 선다 */
+  _listenList() {
+    const ls = this._listening;
+    this._listenVol(false);
+    this.modals.open(ls.kind);
+    $('#listen').classList.add('l-away');
+    $$('#modal-body .yebul-item').forEach((b) => b.setAttribute('aria-current', String(b.dataset.id === ls.track.id)));
+  }
+
+  /** 다시 연 목록을 닫았다: 재생기로 돌아온다 */
+  _listenBack() {
+    $('#listen').classList.remove('l-away');
+    this._listenWake();
+  }
+
+  /** 소리 크기 판 열고 닫기 (값은 소리 창과 같은 것) */
+  _listenVol(open) {
+    const p = $('#listen-vol');
+    if (open) $$('#listen-vol [data-vol]').forEach((i) => (i.value = this.store.state.settings.volumes[i.dataset.vol]));
+    p.hidden = !open;
+    $('#listen [data-l="vol"]').setAttribute('aria-expanded', String(!!open));
+  }
+
+  /** 채널 크기: 소리 창·재생기 슬라이더가 함께 쓴다 (엔진·저장·다른 쪽 슬라이더까지) */
+  _setVolume(ch, v) {
+    this.sound.setChannelVolume(ch, v);
+    this.store.setSetting('volumes', { ...this.store.state.settings.volumes, [ch]: v });
+    $$(`#vol-${ch}, #listen-vol [data-vol="${ch}"]`).forEach((i) => Number(i.value) !== v && (i.value = v));
+  }
+
   _bindListen() {
     const ui = $('#listen');
     ui.addEventListener('click', (e) => {
       const b = e.target.closest('[data-l]');
       if (!b || !this._listening) return;
       const act = b.dataset.l;
+      if (act !== 'vol') this._listenVol(false);
       if (act === 'play') this._listenToggle();
       else if (act === 'prev') this._listenStep(-1);
       else if (act === 'next') this._listenStep(1);
-      else if (act === 'loop') this._listenLoop();
+      else if (act === 'mode') this._listenMode();
       else if (act === 'sleep') this._listenSleep();
+      else if (act === 'vol') this._listenVol($('#listen-vol').hidden);
+      else if (act === 'list') return this._listenList();
       else if (act === 'fold' || act === 'unfold') this._listenFold(act === 'fold');
       else if (act === 'exit') this.exitListening();
       this._listenSync();
       this._listenWake();
     });
+    $$('#listen-vol [data-vol]').forEach((i) => i.addEventListener('input', () => this._setVolume(i.dataset.vol, Number(i.value))));
+    // 소리 판 밖을 누르면 닫는다
+    window.addEventListener('pointerdown', (e) => !$('#listen-vol').hidden && !e.target.closest?.('#listen-vol, #listen [data-l="vol"]') && this._listenVol(false), { passive: true });
     const seek = $('#listen-seek');
     seek.addEventListener('input', () => {
       if (this._listening) this._listening.seeking = true;
@@ -1698,14 +1780,14 @@ class MetaTempleApp {
     $('#place-name').textContent = ZONES[z].short;
   }
 
-  /** 뒤로가기가 닫는 순서: 예불 듣기 → 열린 창(차담 포함) → 시트 → 펼친 현판. 닫은 것이 있으면 true */
+  /** 뒤로가기가 닫는 순서: 열린 창(차담·듣는 중 다시 연 목록 포함) → 듣기 → 시트 → 펼친 현판. 닫은 것이 있으면 true */
   _closeTop() {
-    if (this._listening) {
-      this.exitListening();
-      return true;
-    }
     if (this.modals.isOpen) {
       this.modals.back(); // 창 안에 겹친 것(차담의 죽비 층)부터
+      return true;
+    }
+    if (this._listening) {
+      this.exitListening();
       return true;
     }
     if (closeTop()) return true;
@@ -1827,13 +1909,7 @@ class MetaTempleApp {
       this._soundStarted = true;
       this._syncSoundButton();
     });
-    ['nature', 'temple', 'sfx'].forEach((ch) =>
-      $(`#vol-${ch}`).addEventListener('input', (e) => {
-        const v = Number(e.target.value);
-        this.sound.setChannelVolume(ch, v);
-        this.store.setSetting('volumes', { ...this.store.state.settings.volumes, [ch]: v });
-      })
-    );
+    ['nature', 'temple', 'sfx'].forEach((ch) => $(`#vol-${ch}`).addEventListener('input', (e) => this._setVolume(ch, Number(e.target.value))));
     [['#record-btn', 'profile'], ['#help-btn', 'help'], ['#credits-btn', 'credits']].forEach(([sel, view]) =>
       $(sel).addEventListener('click', () => {
         closeAll();
@@ -1859,6 +1935,7 @@ class MetaTempleApp {
     const typing = () => ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName) || document.activeElement?.isContentEditable;
     window.addEventListener('keydown', (e) => {
       if (this._listening) {
+        if (this.modals.isOpen) return; // 다시 연 목록: Esc 는 창을 닫고, 나머지 키는 창 안에서
         if (!e.target.closest?.('#listen') || e.code === 'Escape') this._listenKey(e); // 재생기 단추·막대는 제 키를 쓴다
         return;
       }
