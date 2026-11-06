@@ -153,6 +153,7 @@
         <h3 class="sheet-sub">입체 ASMR</h3>
         <button class="ctl chip" type="button" id="audio-toggle-btn">켜기</button>
       </div>
+      <button class="ctl chip nature-listen" type="button" id="nature-listen-btn">자연의 소리 듣기 <small>장면을 골라 오래 · 잠자기 타이머</small></button>
       <label class="slider"><span>자연 환경음 <small>계곡·솔바람·산새·빗소리</small></span><input id="vol-nature" type="range" min="0" max="1" step="0.05" /></label>
       <label class="slider"><span>사찰 공간음 <small>풍경·독송·범종</small></span><input id="vol-temple" type="range" min="0" max="1" step="0.05" /></label>
       <label class="slider"><span>수행 효과음 <small>목탁·죽비·염주·발걸음</small></span><input id="vol-sfx" type="range" min="0" max="1" step="0.05" /></label>
@@ -193,6 +194,7 @@
         <div class="l-row"><span class="l-name" id="listen-name"></span><span class="l-time" id="listen-time">0:00 / 0:00</span></div>
         <input type="range" class="l-seek" id="listen-seek" min="0" max="1000" value="0" step="1" aria-label="재생 위치" />
       </div>
+      <button type="button" class="l-btn l-loop l-sleep" data-l="sleep" aria-pressed="false" aria-label="잠자기 타이머"><svg viewBox="0 0 24 24"><path d="M12.6 3a8.6 8.6 0 1 0 8.4 10.5A7 7 0 0 1 12.6 3z"/></svg><span>타이머</span></button>
       <button type="button" class="l-btn l-loop" data-l="loop" aria-pressed="false" aria-label="연속 듣기"><svg viewBox="0 0 24 24"><path d="M7 7h10v3l4-4-4-4v3H5v6h2zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2z"/></svg><span>연속</span></button>
       <button type="button" class="l-btn l-exit" data-l="exit" aria-label="일어나기"><svg viewBox="0 0 24 24"><path d="M6.4 5 5 6.4 10.6 12 5 17.6 6.4 19l5.6-5.6 5.6 5.6 1.4-1.4-5.6-5.6L19 6.4 17.6 5 12 10.6z"/></svg><span>일어나기</span></button>
     </div>

@@ -11,6 +11,7 @@
 import { nameFeedback, NAME_PLACEHOLDER } from './nameField.js';
 import { NAME_MAX, checkText } from '../core/moderation.js';
 import { CREDITS, CREDIT_GROUPS, LICENSE_URLS, YEBUL_TRACKS } from '../data/credits.js';
+import { NATURE_PRESETS, SLEEP_MINUTES } from '../data/natureSounds.js';
 import { SUTRA_VERSES, DHARMA_CARDS, localMonkResponse, isCrisisText, OPENING_SUGGESTIONS, BLOCKED_REPLIES, COOLED_LINE, REST_SUGGESTIONS, TEA_LINES, voiceKey, cardVoiceText } from '../data/dharmaTexts.js';
 import { LIVE_API } from '../core/live.js';
 import { icon } from './icons.js';
@@ -26,6 +27,7 @@ const VIEWS = {
   sutra_copy: { title: '사경', hanja: '寫經', sub: '한 글자씩 따라 쓰며 흩어진 마음을 고릅니다.', render: '_sutra', variant: 'wide' },
   tea_chat: { title: '심검당 차담', hanja: '茶談', sub: '차 한 잔 사이에 두고, 편히 이야기하세요.', render: '_tea', variant: 'side' },
   yebul: { title: '예불 듣기', hanja: '禮佛', sub: '산사에서 실제로 올린 예불을 처음부터 끝까지.', render: '_yebul', variant: 'side' },
+  nature: { title: '자연의 소리 듣기', hanja: '自然', sub: '장면 하나를 골라 그 자리에 앉아 오래 듣습니다.', render: '_nature', variant: 'side' },
   dharma_card: { title: '오늘의 죽비', hanja: '竹篦', sub: '지금 내 걸음에 닿는 경전 한 구절.', render: '_card' },
   profile: { title: '수행 기록', hanja: '修行', sub: '견주지 않는, 나만의 조용한 흔적.', render: '_profile' },
   help: { title: '산사 안내', hanja: '案內', sub: '천천히 둘러보세요. 서두를 곳이 없습니다.', render: '_help' },
@@ -1683,6 +1685,38 @@ export class ModalManager {
     this._on(root, 'click', (e) => {
       const b = e.target.closest('.yebul-item');
       if (b) this.cb.onYebul?.(YEBUL_TRACKS.find((x) => x.id === b.dataset.id));
+    });
+    return {};
+  }
+
+  /* ───── 자연의 소리 듣기: 장면 고르기 + 잠자기 타이머 ───── */
+  _nature() {
+    const cur = () => this.store.state.settings.natureSleep ?? 30;
+    const label = (m) => (m ? `${m}분` : '끄기');
+    const root = this._root(`
+      <div class="sutra-group"><span class="sutra-group-label">잠자기 타이머</span>
+        <div class="sutra-chips" role="tablist" aria-label="잠자기 타이머">${SLEEP_MINUTES.map((m) => `<button type="button" role="tab" class="m-chip" data-sleep="${m}" aria-selected="${m === cur()}">${label(m)}</button>`).join('')}</div>
+      </div>
+      <ul class="yebul-list">${NATURE_PRESETS.map((p) => `
+        <li>
+          <button type="button" class="yebul-item" data-id="${esc(p.id)}" aria-label="${esc(p.title)} 듣기">
+            <span class="yebul-play" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 5.5v13l10.5-6.5z"/></svg></span>
+            <span class="yebul-meta"><b>${esc(p.title)}</b><small>${esc(p.note)}</small></span>
+          </button>
+        </li>`).join('')}
+      </ul>
+      <p class="m-hint">고르면 그 자리에 앉아 듣습니다. 타이머가 다 되면 소리가 천천히 잦아들며 멈춥니다. Esc 나 「일어나기」로 돌아옵니다.</p>
+      <p class="m-hint"><button type="button" class="m-link" data-yebul>예불 듣기 →</button></p>`);
+    this._on(root, 'click', (e) => {
+      const s = e.target.closest('[data-sleep]');
+      if (s) {
+        this.store.setSetting('natureSleep', Number(s.dataset.sleep));
+        root.querySelectorAll('[data-sleep]').forEach((b) => b.setAttribute('aria-selected', String(b === s)));
+        return;
+      }
+      if (e.target.closest('[data-yebul]')) return this.open('yebul');
+      const b = e.target.closest('.yebul-item');
+      if (b) this.cb.onYebul?.(NATURE_PRESETS.find((x) => x.id === b.dataset.id));
     });
     return {};
   }

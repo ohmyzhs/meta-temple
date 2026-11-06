@@ -511,6 +511,10 @@ body.listening.l-idle, body.listening.l-idle canvas { cursor: none; }
 .l-loop { width: auto; padding: 0 10px 0 8px; border-radius: 999px; gap: 4px; display: flex; align-items: center; font-size: 12px; font-family: var(--font-sans); color: rgba(243, 236, 220, 0.55); }
 .l-loop svg { width: 17px; height: 17px; }
 .l-loop[aria-pressed='true'] { color: var(--gold); }
+/* 자연의 소리 듣기: 연속·구간 이동 대신 잠자기 타이머 */
+.listen:not(.nature) .l-sleep, .listen.nature .l-loop:not(.l-sleep), .listen.nature .l-seek { display: none; }
+.nature-listen { width: 100%; margin: 4px 0 10px; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 10px 12px; text-align: left; }
+.nature-listen small { font-size: 11.5px; opacity: 0.7; }
 @media (max-width: 520px) {
   .l-loop span { display: none; }
   .l-loop { width: auto; aspect-ratio: 1; padding: 0; justify-content: center; } /* 다른 재생 단추와 같은 정사각 */
