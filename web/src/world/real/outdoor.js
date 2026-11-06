@@ -5,7 +5,7 @@
 // 에셋: web/assets/world/outdoor/*.ktx2 (tools/outdoor/build.py), 출처: web/assets/world/outdoor/credits.json
 import * as THREE from 'three';
 import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
-import { L, pathX, streamZ, STREAM_HALF, fbm, noise2, smooth, terrainHeight } from '../layout.js';
+import { L, pathX, streamZ, STREAM_HALF, fbm, noise2, smooth, terrainHeight, onCourtGround, COURTS } from '../layout.js';
 import { nearestTrail, PATHS, REST_SPOTS } from '../trail.js';
 import { weatherable, windSway, mats as sharedMats } from '../materials.js';
 
@@ -30,9 +30,11 @@ export function prepareOutdoor(world) {
 
 /* ───── 공용 셰이더 조각 ───── */
 
-// ETC1S normal-mode 노멀맵: X 는 RGB, Y 는 A — z 를 복원한다
-const XY_NORMAL = 'vec3 xyNormal(vec4 t) { vec2 xy = vec2(t.r, t.a) * 2.0 - 1.0; return vec3(xy, sqrt(max(0.04, 1.0 - dot(xy, xy)))); }';
-function xyNormals(mat) {
+// ETC1S normal-mode 노멀맵: X 는 RGB, Y 는 A — z 를 복원한다.
+// Y 는 뒤집는다: KTX2 는 flipY 가 없어 그림 위쪽이 −v 인데 사진 노멀은 OpenGL(초록 = 그림 위). GLTFLoader 의 normalScale.y *= −1 과 같은 처리.
+// (가로 능선 시험판: 위에서 비출 때 뒤집어야 능선 윗면이 밝다 — 192 대 0)
+const XY_NORMAL = 'vec3 xyNormal(vec4 t) { vec2 xy = vec2(t.r, t.a) * 2.0 - 1.0; xy.y = -xy.y; return vec3(xy, sqrt(max(0.04, 1.0 - dot(xy, xy)))); }';
+export function xyNormals(mat) {
   const prev = mat.onBeforeCompile, prevKey = mat.customProgramCacheKey?.() || '';
   mat.onBeforeCompile = (s, r) => {
     prev?.call(mat, s, r);
@@ -41,10 +43,12 @@ function xyNormals(mat) {
       .replace(
         '#include <normal_fragment_maps>',
         THREE.ShaderChunk.normal_fragment_maps
-          .replace('texture2D( normalMap, vNormalMapUv ).xyz * 2.0 - 1.0', 'xyNormal( texture2D( normalMap, vNormalMapUv ) )')
+          // 접선 공간 줄을 콕 집어서: 같은 식이 위쪽 물체 공간 분기에 먼저 나와, 그냥 replace 하면 그쪽만 바뀌고 X 가 xyz 로 읽혔다
+          .replace('vec3 mapN = texture2D( normalMap, vNormalMapUv ).xyz * 2.0 - 1.0;', 'vec3 mapN = xyNormal( texture2D( normalMap, vNormalMapUv ) );')
           // UV 가 한 점으로 모인 삼각형(상자 투영의 모서리)에서는 접선이 0 이 되어 NaN → 블룸이 화면 전체로 번진다: 원래 노멀 그대로
           .replace('normal = normalize( tbn * mapN );', '{ vec3 pn = tbn * mapN; if (dot(pn, pn) > 1e-8) normal = normalize(pn); }')
       );
+    if (!s.fragmentShader.includes('mapN = xyNormal(')) console.warn('[xyNormals] three 노멀맵 셰이더 조각이 바뀌어 XY 노멀을 못 풀었다');
   };
   mat.customProgramCacheKey = () => `${prevKey}-xyn`;
   return mat;
@@ -90,8 +94,7 @@ function groundSplat(x, z, slope, w) {
   const tr = nearestTrail(x, z);
   if (tr) mix((1 - smooth(1.1, 2.1, tr.d + n2 * 0.35)) * 0.92, 2);
   mix((1 - smooth(1.4, STREAM_HALF + 0.6, Math.abs(z - streamZ(x)))) * 0.9, 5);
-  const c = L.courtyard;
-  if (x > c.x0 - 0.3 && x < c.x1 + 0.3 && z > c.z0 - 0.3 && z < c.z1 + 0.05) mix(1, 3);
+  if (onCourtGround(x, z)) mix(1, 3); // 앞마당·서쪽 마당·옆마당
   const t = L.teahouseTerrace;
   if (x > t.x0 - 1 && z < t.z1 + 1 && z > t.z0 - 1 && x < t.x1 + 1) mix(0.75 - n2 * 0.2, 4);
   const lk = L.teaLink;
@@ -152,7 +155,7 @@ function groundMaterial(col, nor, low) {
       );
   };
   mat.customProgramCacheKey = () => `ground-splat-${low}`;
-  return weatherable(mat, { snow: 1, wet: 1 });
+  return weatherable(mat, { snow: 1, wet: 1, trod: true }); // 다져진 길(terrain.js aTrod)은 눈이 덜 쌓인다
 }
 
 /* ───── 원경 산세: 생성 사진 띠 3겹 (낮·해질녘·밤을 시간에 맞춰 섞는다) ───── */
@@ -690,7 +693,7 @@ class Outdoor {
     const pts = [];
     for (const P of PATHS) for (const p of P.pts) pts.push([p.x, p.z]);
     for (let z = -2; z <= 56; z += 1.5) pts.push([pathX(z), z]);
-    for (const r of [L.courtyard, L.teahouseTerrace, L.hall]) for (let x = r.x0; x <= r.x1; x += 3) for (let z = r.z0; z <= r.z1; z += 3) pts.push([x, z]);
+    for (const r of [...COURTS, L.teahouseTerrace, L.hall]) for (let x = r.x0; x <= r.x1; x += 3) for (let z = r.z0; z <= r.z1; z += 3) pts.push([x, z]);
     for (const s of REST_SPOTS) pts.push([s.x, s.z]);
     const grid = new Map(), C = 8;
     for (const [x, z] of pts) {

@@ -35,10 +35,11 @@ export const SLOTS = {
   // 사진은 3:2 를 양옆 4%(기둥이 가리는 폭)만 잘라 비율을 지킨다 — 판 폭 = 칸 폭, 높이 = 폭 ÷ 비율, 위끝 = 후불벽 판 위끝
 // (temple.js: 기둥 4.4m − 0.05 = 4.35m, L.hall.floorY 부터). 아래 남는 부분은 불단과 기존 옻칠 판이 채운다.
   wallC: { wall: [-2.8, 2.8], img: 'wall/hubul_center.webp', at: () => [0, 0, L.altar.z], loadWithin: 60 },
-  wallL: { wall: [L.hall.x0 + 0.15, -2.8], img: 'wall/hubul_left.webp', at: () => [-5.4, 0, L.altar.z], loadWithin: 60 },
-  wallR: { wall: [2.8, L.hall.x1 - 0.15], img: 'wall/hubul_right.webp', at: () => [5.4, 0, L.altar.z], loadWithin: 60 }
+  // 대웅전 5×3칸 확장(2026-11-06, session-3): 그림 판은 가운데 세 칸(기둥 ±2.8·±7.4)에만 — 바깥 두 칸은 옻칠 판 그대로
+  wallL: { wall: [L.hall.xs[1] + 0.15, -2.8], img: 'wall/hubul_left.webp', at: () => [-5.4, 0, L.altar.z], loadWithin: 60 },
+  wallR: { wall: [2.8, L.hall.xs[4] - 0.15], img: 'wall/hubul_right.webp', at: () => [5.4, 0, L.altar.z], loadWithin: 60 }
 };
-const WALL_H = 4.35;
+const WALL_H = L.hall.colH - 0.05; // 후불벽 판 위끝 = 기둥 높이 − 0.05 (temple.js)
 const WALL_Z = 0.23; // L.hall.z0 에서 앞으로 (탱화 금테 앞면 0.185 보다 앞, 기둥 앞면 약 0.29 보다 뒤)
 
 // 공용 재질(materials.js mats())의 그림 텍스처를 사진 PBR(Poly Haven CC0, tools/spike/textures.py 로 팔레트 맞춤)로.

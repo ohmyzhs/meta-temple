@@ -107,7 +107,10 @@
 
     <section class="sheet hidden" id="place-sheet" aria-label="장소 옮기기">
       <header class="sheet-head"><h2>어디로 걸음을 옮길까요</h2><button class="ctl" type="button" data-sheet-close data-icon="close" aria-label="닫기"></button></header>
+      <div class="minimap" id="minimap"></div>
       <ul class="place-list" id="place-list"></ul>
+      <h3 class="sheet-sub">산책길 쉼터 <small>누르면 그 자리로 가서 앉습니다</small></h3>
+      <div class="chip-row rest-chips" id="rest-list"></div>
     </section>
 
     <section class="sheet hidden" id="more-sheet" data-anchor="bottom" aria-label="더보기">
@@ -116,10 +119,12 @@
         <h3 class="sheet-sub">이곳의 신행</h3>
         <div class="sheet-grid" id="more-rituals"></div>
       </div>
-      <h3 class="sheet-sub">몸짓</h3>
-      <div class="sheet-grid">
-        <button class="ctl tile" type="button" data-gesture="circumambulate" data-icon="circumambulate" title="탑돌이"><span class="lbl">탑돌이</span><kbd>5</kbd></button>
-        <button class="ctl tile" type="button" data-gesture="tea" data-icon="tea" title="차 마시기"><span class="lbl">다선</span><kbd>6</kbd></button>
+      <div id="more-gestures-wrap">
+        <h3 class="sheet-sub">몸짓</h3>
+        <div class="sheet-grid" id="more-gestures">
+          <button class="ctl tile" type="button" data-gesture="circumambulate" data-icon="circumambulate" title="탑돌이"><span class="lbl">탑돌이</span><kbd>5</kbd></button>
+          <button class="ctl tile" type="button" data-gesture="tea" data-icon="tea" title="차 마시기"><span class="lbl">다선</span><kbd>6</kbd></button>
+        </div>
       </div>
     </section>
 

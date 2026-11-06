@@ -13,7 +13,7 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { L, terrainHeight, walkHeight, zoneAt, clamp, lerp, colliders } from './layout.js';
+import { L, terrainHeight, walkHeight, zoneAt, clamp, lerp, collidersAlong } from './layout.js';
 import { envUniforms } from './materials.js';
 import { setAnisotropy } from './textures.js';
 import { buildTerrain, waterUniforms, ridgeUniforms } from './terrain.js';
@@ -72,9 +72,9 @@ const ARM = {
 };
 const wrapA = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 // 실내 규칙: 카메라 높이는 천장·처마 밑에서 0.4m 아래까지만.
-// 법당 우물천장 밑면 7.38m(마루 3.0 + 기둥 4.4 − 0.02), 처마 밑 최저 7.54m / 심검당 처마 밑 최저 4.77m (layout.js ROOF_COVERS, 위로 쏜 광선으로 잰 값)
+// 법당 우물천장 밑면 7.98m(마루 3.0 + 기둥 5.0 − 0.02), 처마 밑 최저 8.19m / 심검당 처마 밑 최저 4.77m (layout.js ROOF_COVERS, 위로 쏜 광선으로 잰 값)
 // 다실 가는 길은 머리(약 2.45m)에서 처마 밑 4.37m 까지 1.92m 이므로 거리 5m 면 기울기 0.39rad 까지
-const HALL_CAM = { dist: 5.2, pitch: 0.42, maxY: 7.38 - 0.4 };
+const HALL_CAM = { dist: 5.2, pitch: 0.42, maxY: L.hall.floorY + L.hall.colH - 0.02 - 0.4 }; // 우물천장 밑 0.4m
 const PASSAGE_CAM = { dist: 5.0, pitch: 0.39, maxY: 4.77 - 0.4 };
 
 /* 밤하늘 세기 — tools/qa/night.mjs 로 재서 맞춘 값 */
@@ -380,6 +380,7 @@ export class TempleScene {
     this.occluders = this._collectOccluders(); // 정적 병합 전에: 합친 뒤에는 지붕·벽과 나머지가 한 메쉬가 된다
     if (REAL_WORLD) this.outdoor = (await import('./real/outdoor.js')).prepareOutdoor(this); // 바깥 실사: 소품 재질을 병합 전에 바꿔 둔다
     this.batchStats = batchStatic(this.scene, this.temple.dynamicRoots());
+    if (REAL_WORLD) this.precinct = (await import('./real/precinct.js')).preparePrecinct(this); // 경내 실사: 병합된 메쉬의 UV·재질 그림을 (바깥 질감 뒤에) 바꾼다
     await step(0.85, '등불을 켜는 중…', () => {
       this._placeLights();
       this.terrain.ground.forEach((g) => g.layers.enable(1));
@@ -524,7 +525,7 @@ export class TempleScene {
       const u = l2 > 1e-9 ? clamp(((x - fx) * vx + (z - fz) * vz) / l2, 0, 1) : 0;
       return Math.hypot(fx + vx * u - x, fz + vz * u - z) < R;
     };
-    for (const c of colliders) {
+    for (const c of collidersAlong(fx, fz, ex, ez, rv + 0.1)) {
       const isC = c.type === 'c';
       const cx = isC ? c.x : (c.x0 + c.x1) / 2, cz = isC ? c.z : (c.z0 + c.z1) / 2;
       const R = isC ? c.r + rv : Math.hypot(c.x1 - c.x0, c.z1 - c.z0) / 2 + rv;

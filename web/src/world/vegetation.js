@@ -6,7 +6,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { L, terrainHeight, isClearForTree, addCircleCollider, pathX, noise2, streamZ } from './layout.js';
 import { windSway, weatherable } from './materials.js';
 import { bambooTexture } from './textures.js';
-import { nearestTrail, trail, REST_SPOTS, inLookoutView, DENSE_FOREST } from './trail.js';
+import { nearestTrail, trail, REST_SPOTS, inLookoutView, DENSE_FOREST, trailDistFar, FLOOR_REACH } from './trail.js';
 
 const trailDist = (x, z) => nearestTrail(x, z)?.d ?? 99;
 
@@ -164,9 +164,9 @@ export function buildVegetation(scene, quality) {
       }
     }
   }
-  // 마당·대웅전 근처 단풍 포인트
+  // 마당·대웅전 근처 단풍 포인트 (서쪽 마당은 모서리 그늘 나무 셋 — 가운데 예비 마당은 비워 둔다, 충돌체는 아래 z<6 규칙)
   [
-    [-24.5, 1], [-25, -10], [-14, -21.5], [14, -22], [16.5, -24], [35, 2], [-27, -18], [7.5, 11.5], [-8, 12.5]
+    [-31.4, 3.2], [-31.0, -31.2], [-18.6, -31.4], [-32.3, -26.5], [-32.3, -9.5], [16.8, -21.6], [17.2, -25], [35, 2], [7.5, 11.5], [-8, 12.5]
   ].forEach(([x, z]) => trailDist(x, z) > 3.4 && !inLookoutView(x, z) && spots.maple.push([x, z, 1 + r() * 0.3, r() * 6]));
 
   const o = new THREE.Object3D();
@@ -210,7 +210,7 @@ export function buildVegetation(scene, quality) {
   }
   // 길 가까운 나무만 충돌
   for (const k of ['fir', 'pine', 'maple']) {
-    for (const [x, z, s] of spots[k]) if (Math.abs(x - pathX(z)) < 8 || z < 6 || trailDist(x, z) < 6) addCircleCollider(x, z, 0.45 * s, 5 * s);
+    for (const [x, z, s] of spots[k]) if (Math.abs(x - pathX(z)) < 8 || z < 6 || trailDistFar(x, z) < FLOOR_REACH + 1.5) addCircleCollider(x, z, 0.45 * s, 5 * s);
   }
 
   const bamboo = buildBamboo(scene, low);

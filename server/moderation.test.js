@@ -62,3 +62,19 @@ test('normalize_examples', () => {
   assert.equal(normalizeText('ㅅㅔㄱㅅㅡ'), normalizeText('섹스'));
   assert.equal(normalizeText('쉐엑스'), normalizeText('섹스'));
 });
+
+test('chat_everyday_words_pass', () => {
+  const chat = (s) => checkText(s, { kind: 'chat', max: 600 });
+  for (const s of [
+    '마음의 불이 꺼져 버린 것 같아요',
+    '닥쳐올 일이 걱정돼요',
+    '등불이 꺼져 가도 달빛은 남습니다. 찻물이 식기 전에 한 모금 드시지요.',
+    '요즘 회사 일이 너무 힘들어서 잠을 못 자요',
+    '엄마랑 크게 다퉜어요. 제가 잘못한 것 같아서 마음이 무거워요',
+    '시험 결과가 나오는 날이라 떨려요',
+    '자살예방상담전화 109로 전화하시면 24시간 언제든 마음을 들어 줄 사람이 있습니다.'
+  ]) assert.equal(chat(s).ok, true, s);
+  assert.equal(chat('씨발 진짜').reason, 'abuse');
+  assert.equal(chat('섹스 얘기 하자').reason, 'sexual');
+  assert.equal(checkText('꺼져', { kind: 'wish' }).reason, 'abuse'); // 공개 글은 그대로 막는다
+});

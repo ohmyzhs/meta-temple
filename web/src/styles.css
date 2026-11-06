@@ -448,6 +448,10 @@ body:has(#intro:not(.leaving):not(.hidden)) .name-label { visibility: hidden; }
 body.listening .hud, body.listening .toast-stack { opacity: 0; }
 body.listening .hud, body.listening .hud * { pointer-events: none !important; }
 body.listening .name-label { visibility: hidden !important; }
+/* 차담 대사 장면도 HUD·이름표를 거둔다 (알림은 남긴다) */
+body.tea-scene .hud { opacity: 0; }
+body.tea-scene .hud, body.tea-scene .hud * { pointer-events: none !important; }
+body.tea-scene .name-label { visibility: hidden !important; }
 body.listening.l-idle, body.listening.l-idle canvas { cursor: none; }
 
 .listen { position: fixed; inset: 0; z-index: 40; pointer-events: none; }
@@ -533,4 +537,48 @@ body.listening.l-idle, body.listening.l-idle canvas { cursor: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   .listen-title, .listen-ctl, #listen-veil { transition-duration: 0.01s !important; }
+}
+
+/* 장소 시트의 작은 지도 (ui/miniMap.js) — 북쪽이 위, 점을 누르면 그리로 간다 */
+.minimap { margin: 2px 0 10px; border-radius: 14px; overflow: hidden; aspect-ratio: 1; box-shadow: inset 0 0 0 1px var(--line); }
+.minimap-svg { display: block; width: 100%; height: 100%; cursor: pointer; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+.mm-ground { fill: #1e2a1c; }
+.mm-bamboo { fill: #3b5a2c; opacity: 0.7; }
+.mm-lawn { fill: #3c5230; }
+.mm-stream { fill: none; stroke: #5f93b8; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.mm-pond { fill: #4f84a0; }
+.mm-court { fill: #c7ba98; }
+.mm-hall { fill: #5a4535; stroke: #2c231b; stroke-width: 0.4; }
+.mm-path { fill: none; stroke: #d6c193; stroke-width: 2.8; stroke-linecap: round; }
+.mm-trail { fill: none; stroke: #c6ab7a; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.mm-deck { fill: none; stroke: #a37b4d; stroke-width: 2.4; stroke-linecap: round; stroke-dasharray: 1.2 0.7; }
+.mm-cross { stroke: #8f6c45; stroke-width: 2.2; stroke-linecap: round; }
+.mm-zone circle { fill: var(--gold); stroke: #1a1611; stroke-width: 0.7; }
+.mm-zone.here circle { stroke: #fff6df; stroke-width: 1.1; }
+.mm-zone text {
+  font-family: var(--font-sans); font-size: 4.2px; font-weight: 600; fill: #f3ecdc; text-anchor: middle;
+  paint-order: stroke; stroke: rgba(10, 8, 6, 0.75); stroke-width: 1.1px;
+}
+.mm-rest circle { fill: #f3ecdc; stroke: var(--gold); stroke-width: 0.7; }
+.mm-rest path { fill: none; stroke: #3a2e21; stroke-width: 0.5; stroke-linecap: round; stroke-linejoin: round; }
+.mm-me path { fill: #ff8b3d; stroke: #fff6df; stroke-width: 0.5; }
+.mm-me-halo { fill: rgba(255, 139, 61, 0.22); animation: mm-pulse 1.8s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+@keyframes mm-pulse { 0%, 100% { transform: scale(0.85); opacity: 0.9; } 50% { transform: scale(1.25); opacity: 0.4; } }
+@media (prefers-reduced-motion: reduce) { .mm-me-halo { animation: none; } }
+.sheet-sub small { margin-left: 6px; font-family: var(--font-sans); font-weight: 400; font-size: 11px; color: var(--text-dim); }
+.rest-chips { grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); }
+
+/* 스크롤: 막대 없이(심리스) 넘치는 쪽 가장자리만 시트 빛깔로 흐리게 (ui/scrollFade.js 가 .fade-top / .fade-bottom) */
+.sheet { --sheet-px: 12px; --sheet-pt: 4px; --sheet-pb: 14px; scrollbar-width: none; }
+.sheet::-webkit-scrollbar, .intro::-webkit-scrollbar { display: none; }
+.intro { scrollbar-width: none; }
+.sheet::before, .sheet::after {
+  content: ''; position: sticky; z-index: 3; display: block; height: 30px;
+  margin-inline: calc(-1 * var(--sheet-px)); pointer-events: none; opacity: 0; transition: opacity 0.25s var(--ease);
+}
+.sheet::before { top: calc(-1 * var(--sheet-pt)); margin-top: calc(-1 * var(--sheet-pt)); margin-bottom: -30px; background: linear-gradient(rgba(20, 17, 14, 0.92), rgba(20, 17, 14, 0)); }
+.sheet::after { bottom: calc(-1 * var(--sheet-pb)); margin-top: -30px; margin-bottom: calc(-1 * var(--sheet-pb)); background: linear-gradient(rgba(20, 17, 14, 0), rgba(20, 17, 14, 0.92)); }
+.sheet.fade-top::before, .sheet.fade-bottom::after { opacity: 1; }
+@media (max-width: 599px) and (min-height: 520px) {
+  .sheet, .sheet[data-anchor='bottom'] { --sheet-px: 14px; --sheet-pb: calc(16px + var(--safe-b)); }
 }

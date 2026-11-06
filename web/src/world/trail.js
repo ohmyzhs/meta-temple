@@ -249,6 +249,14 @@ export const courtBranch = new Polyline(sampleCurve(COURT_BRANCH_CTRL));
 export const teaBranch = new Polyline(sampleCurve(TEA_BRANCH_CTRL));
 export const PATHS = [trail, courtBranch, teaBranch];
 
+/** 한 바퀴 닫힌 고리: 순환로(J1 → J3) + 숲길(J3 → J1, 산문 앞). 자동 산책이 이 길을 따라 돈다 */
+export const loop = (() => {
+  const pts = [...trail.pts];
+  for (let z = J3.z - 0.5; z > J1.z + 0.25; z -= 0.5) pts.push({ x: forestPathX(z), z });
+  pts.push({ x: J1.x, z: J1.z });
+  return new Polyline(pts);
+})();
+
 /** 두 길(순환로·다실 갈림길) 중 가장 가까운 점 { d, h(높이 단면, setProfile 뒤), path, ... } */
 export function nearestTrail(x, z) {
   let best = null;
@@ -335,17 +343,17 @@ export function setTrailProfile(heightFn) {
  * 예불 듣기(1인칭)는 vista 쪽을(없으면 look 쪽을) listenPitch 만큼 내려다본다. view: 그 쪽으로 나무를 비우는 거리(m).
  */
 const REST_DEFS = [
-  { id: 'deck_bench', kind: 'bench', s: 38, side: -1, off: 0.85, look: [-24, 40], seatH: 0.46, onDeck: true, listenPitch: -0.06 },
-  { id: 'bridge', kind: 'bridge', s: 98.8, side: 0, off: 0, look: [-20, 14.6] },
-  { id: 'stump_a', kind: 'stump', s: 117, side: -1, off: 2.2, look: [-30, 0], seatH: 0.42, view: 14, listenPitch: -0.04 },
-  { id: 'stump_b', kind: 'stump', s: 120.5, side: -1, off: 2.5, look: [-30, -4], seatH: 0.36, view: 14, listenPitch: -0.06 },
-  { id: 'spring', kind: 'spring', s: 147, side: -1, off: 2.3, look: [-60, -26], seatH: 0.36, vista: [-30, -12], view: 18, listenPitch: -0.03 },
-  { id: 'lookout', kind: 'lookout', s: 221, side: 1, off: 3.2, look: [6, -10], seatH: 0.95, view: 34, vista: [20, -6], listenPitch: 0.1 },
-  { id: 'mat_ridge', kind: 'mat', s: 241, side: 1, off: 2.4, look: [12, -10], seatH: 0.03, view: 24, listenPitch: 0.1 },
-  { id: 'bench_bamboo', kind: 'bench', s: 282, side: 1, off: 2.1, look: [30, -14], seatH: 0.46, view: 22, listenPitch: 0.02 },
-  { id: 'mat_stream', kind: 'mat', s: 322, side: -1, off: 2.4, look: [33, 16], seatH: 0.03 },
-  { id: 'bench_stream', kind: 'bench', s: 347, side: 1, off: 2.2, look: [10, 12], seatH: 0.46, view: 12 },
-  { id: 'stump_c', kind: 'stump', s: 408, side: 1, off: 2.3, look: [12, 36], seatH: 0.4, view: 12, listenPitch: -0.05 }
+  { id: 'deck_bench', name: '전나무숲 데크', kind: 'bench', s: 38, side: -1, off: 0.85, look: [-24, 40], seatH: 0.46, onDeck: true, listenPitch: -0.06 },
+  { id: 'bridge', name: '나무다리', kind: 'bridge', s: 98.8, side: 0, off: 0, look: [-20, 14.6] },
+  { id: 'stump_a', name: '숲속 그루터기', kind: 'stump', s: 117, side: -1, off: 2.2, look: [-30, 0], seatH: 0.42, view: 14, listenPitch: -0.04 },
+  { id: 'stump_b', name: '숲속 그루터기', kind: 'stump', s: 120.5, side: -1, off: 2.5, look: [-30, -4], seatH: 0.36, view: 14, listenPitch: -0.06 },
+  { id: 'spring', name: '약수터', kind: 'spring', s: 147, side: -1, off: 2.3, look: [-60, -26], seatH: 0.36, vista: [-30, -12], view: 18, listenPitch: -0.03 },
+  { id: 'lookout', name: '전망 바위', kind: 'lookout', s: 221, side: 1, off: 3.2, look: [6, -10], seatH: 0.95, view: 34, vista: [20, -6], listenPitch: 0.1 },
+  { id: 'mat_ridge', name: '능선 돗자리', kind: 'mat', s: 241, side: 1, off: 2.4, look: [12, -10], seatH: 0.03, view: 24, listenPitch: 0.1 },
+  { id: 'bench_bamboo', name: '대숲 쉼터', kind: 'bench', s: 282, side: 1, off: 2.1, look: [30, -14], seatH: 0.46, view: 22, listenPitch: 0.02 },
+  { id: 'mat_stream', name: '계곡 돗자리', kind: 'mat', s: 322, side: -1, off: 2.4, look: [33, 16], seatH: 0.03 },
+  { id: 'bench_stream', name: '징검다리 쉼터', kind: 'bench', s: 347, side: 1, off: 2.2, look: [10, 12], seatH: 0.46, view: 12 },
+  { id: 'stump_c', name: '남쪽 숲 그루터기', kind: 'stump', s: 408, side: 1, off: 2.3, look: [12, 36], seatH: 0.4, view: 12, listenPitch: -0.05 }
 ];
 
 export const REST_LABEL = {
@@ -354,7 +362,10 @@ export const REST_LABEL = {
   mat: '돗자리 펴고 앉기',
   lookout: '전망 바위에 앉기',
   bridge: '다리에 걸터앉기',
-  spring: '약수터에서 쉬기'
+  spring: '약수터에서 쉬기',
+  woodbench: '나무 벤치에 앉기',
+  platform: '평상에 걸터앉기',
+  stone: '돌 의자에 앉기'
 };
 
 /** 앉았을 때 알림 */
@@ -364,7 +375,10 @@ export const REST_SIT_MSG = {
   mat: '🧺 돗자리를 펴고 앉았습니다 · 일어서면 걷힙니다',
   lookout: '⛰️ 전망 바위에 앉았습니다 · 산사가 한눈에 내려다보입니다',
   bridge: '🌉 작은 다리에 걸터앉았습니다 · 발아래로 계곡물이 흐릅니다',
-  spring: '💧 약수 한 모금 — 약수터 돌에 앉아 숨을 고릅니다'
+  spring: '💧 약수 한 모금 — 약수터 돌에 앉아 숨을 고릅니다',
+  woodbench: '🪑 나무 벤치에 앉았습니다 · 움직이면 일어납니다',
+  platform: '🍃 평상에 걸터앉았습니다 · 마당 바람이 선선합니다',
+  stone: '🪨 돌 의자에 앉았습니다 · 움직이면 일어납니다'
 };
 
 /** 진행 방향 오른쪽 법선 (+x 동, -z 북 좌표에서 위에서 보아 시계 방향으로 90°) */
@@ -402,4 +416,219 @@ export function inLookoutView(x, z) {
     if (along > -2 && Math.abs(dx * vz - dz * vx) < 3 + Math.max(along, 0) * 0.55) return true;
   }
   return false;
+}
+
+/* ───── 길과 바깥의 경계 (낮은 울타리·돌담) · 길 등 ─────
+ * 걸을 수 있는 띠(TRAIL_HALF)와 몸 반지름(0.32m) 밖에 울타리를 세워 "여기까지가 길"을 보인다.
+ * 갈림목·건너는 곳·데크(제 난간이 있다)·쉼터 입구·석등 자리·넓은 숲길(일주문 길)에는 세우지 않는다.
+ */
+export const FENCE_OFF = TRAIL_HALF + 0.4;
+const FENCE_STEP = 2;
+/** 돌담 구간 (순환로 s): 능선 비탈(깎은 언덕 쪽은 석축처럼)과 계곡 북쪽 기슭. 나머지는 나무 울타리 */
+const STONE_RUNS = [
+  [148, 256],
+  [300, 330]
+];
+
+/** 진행 방향 오른쪽 법선 (P 위 s) */
+function normalOn(P, s) {
+  const a = P.at(s - 0.5), b = P.at(s + 0.5);
+  const tx = b.x - a.x, tz = b.z - a.z, l = Math.hypot(tx, tz) || 1;
+  return { x: -tz / l, z: tx / l };
+}
+function offsetOn(P, s, side, off) {
+  const c = P.at(s), n = normalOn(P, s);
+  return { x: c.x + n.x * side * off, z: c.z + n.z * side * off, s };
+}
+
+/** 갈림목·전망 자리 석등 (순환로 s, 오른쪽 2.3m) */
+export const LANTERNS = [3, 93, 214, 288, 330, 344, 432].map((s) => offsetOn(trail, s, 1, 2.3));
+
+/** 길 등: 순환로를 따라 약 20m 마다 좌우 번갈아 (밤길 표시). 데크 구간은 난간 바로 밖 */
+export const PATH_LAMPS = (() => {
+  const out = [];
+  let side = -1;
+  for (let s = 14; s < trail.length - 6; s += 20) {
+    side = -side;
+    const onDeck = s > DECK.s0 && s < DECK.s1;
+    let p = offsetOn(trail, s, side, onDeck ? DECK.halfW + 0.55 : FENCE_OFF + 0.65);
+    const busy = (q) => REST_SPOTS.some((r) => Math.hypot(r.x - q.x, r.z - q.z) < 3) || LANTERNS.some((l) => Math.hypot(l.x - q.x, l.z - q.z) < 4) || crossingAt(q.x, q.z, 3);
+    if (busy(p)) p = offsetOn(trail, s, -side, onDeck ? DECK.halfW + 0.55 : FENCE_OFF + 0.65);
+    if (busy(p)) continue;
+    out.push(p);
+  }
+  return out;
+})();
+
+/**
+ * 울타리 줄들: [{ style: 'wood'|'stone', path, side, pts: [{x,z,s}] }] — 기둥(돌담 마디) 자리가 FENCE_STEP 간격.
+ * 연속으로 세울 수 있는 자리끼리 한 줄이 된다.
+ */
+export function fenceRuns() {
+  const runs = [];
+  const nearOther = (P, q) => PATHS.some((Q) => Q !== P && (Q.nearest(q.x, q.z)?.d ?? 99) < 2.6);
+  const blocked = (P, q) => {
+    if (q.s < 3 || q.s > P.length - 3) return true;
+    if (crossingAt(q.x, q.z, 1.6)) return true;
+    if (P === trail && q.s > DECK.s0 - 1.5 && q.s < DECK.s1 + 1.5) return true;
+    if (REST_SPOTS.some((r) => Math.hypot(r.x - q.x, r.z - q.z) < 2.4)) return true;
+    if (LANTERNS.some((l) => Math.hypot(l.x - q.x, l.z - q.z) < 1.0) || PATH_LAMPS.some((l) => Math.hypot(l.x - q.x, l.z - q.z) < 0.6)) return true;
+    if (q.z > 5 && q.z < 47 && Math.abs(q.x - forestPathX(q.z)) < 6.5) return true; // 일주문 숲길 (넓은 길)
+    if (nearOther(P, q)) return true;
+    return (P.nearest(q.x, q.z)?.d ?? 0) < FENCE_OFF - 0.05; // 굽은 안쪽에서 길 쪽으로 파고드는 자리
+  };
+  for (const P of PATHS) {
+    for (const side of [-1, 1]) {
+      let cur = null;
+      for (let s = 0; s <= P.length; s += FENCE_STEP) {
+        const q = offsetOn(P, s, side, FENCE_OFF);
+        const style = P === trail && STONE_RUNS.some(([a, b]) => s >= a && s <= b) ? 'stone' : 'wood';
+        if (blocked(P, q)) {
+          cur = null;
+          continue;
+        }
+        if (!cur || cur.style !== style) {
+          cur = { style, path: P, side, pts: cur && cur.style !== style ? [cur.pts[cur.pts.length - 1]] : [] };
+          runs.push(cur);
+        }
+        cur.pts.push(q);
+      }
+    }
+  }
+  return runs.filter((r) => r.pts.length >= 2);
+}
+
+/* ───── 나무 이정표 ─────
+ * 갈림목·쉼터 앞·긴 구간 중간에 세운다. 판마다 { text, dx, dz } — 판 끝이 가리키는 쪽, 거리는 고리(loop)를 따라 잰 값.
+ */
+const DEST = (() => {
+  const list = [];
+  const seen = new Set();
+  for (const r of REST_SPOTS) {
+    if (seen.has(r.name)) continue;
+    seen.add(r.name);
+    list.push({ name: r.name, s: loop.nearest(r.stand.x, r.stand.z).s, spot: r });
+  }
+  list.push({ name: '일주문', s: loop.length });
+  return list.sort((a, b) => a.s - b.s);
+})();
+const BRANCHES = [
+  { name: '후원 다실', path: teaBranch },
+  { name: '대웅전 앞마당', path: courtBranch }
+].map((b) => ({ ...b, s: loop.nearest(b.path.pts[0].x, b.path.pts[0].z).s }));
+
+const roundM = (d) => (d < 12 ? Math.max(1, Math.round(d)) : Math.round(d / 5) * 5);
+function tangentOn(P, s) {
+  const a = P.at(Math.max(0, s - 0.5)), b = P.at(Math.min(P.length, s + 0.5));
+  const l = Math.hypot(b.x - a.x, b.z - a.z) || 1;
+  return { x: (b.x - a.x) / l, z: (b.z - a.z) / l };
+}
+
+export const SIGN_OFF = FENCE_OFF + 0.65;
+
+/** 이정표 목록 [{ x, z, s, boards: [{ text, dx, dz }] }] (순수 계산 — 테스트가 그대로 읽는다) */
+export const SIGNS = (() => {
+  const L = loop.length;
+  const next = (s) => DEST.find((d) => d.s > s + 4) || DEST[0];
+  const prev = (s) => [...DEST].reverse().find((d) => d.s < s - 4) || DEST[DEST.length - 1];
+  const fwd = (s, d) => roundM(((d.s - s) % L + L) % L);
+  const back = (s, d) => roundM(((s - d.s) % L + L) % L);
+  const sites = [];
+  // 1. 산문 안 갈림목(순환로 들머리)과 남동 숲에서 숲길로 나오는 곳
+  sites.push({ s: 9, kind: 'start' });
+  sites.push({ s: trail.length - 9, kind: 'end' });
+  // 2. 다실·마당 갈림목
+  for (const b of BRANCHES) sites.push({ s: b.s - 3, kind: 'branch', branch: b });
+  // 3. 쉼터 앞 (4m 앞, 쉼터 쪽)
+  for (const d of DEST) if (d.spot) sites.push({ s: d.s - 4, kind: 'spot', dest: d });
+  // 4. 긴 구간 중간 (이정표 사이가 60m 넘으면)
+  sites.sort((a, b) => a.s - b.s);
+  for (let i = 0; i < sites.length - 1; i++) {
+    const gap = sites[i + 1].s - sites[i].s;
+    if (gap > 60) sites.splice(i + 1, 0, { s: sites[i].s + gap / 2, kind: 'mid' });
+  }
+  const busy = (q, off) =>
+    REST_SPOTS.some((r) => Math.hypot(r.x - q.x, r.z - q.z) < 2.4) ||
+    LANTERNS.some((l) => Math.hypot(l.x - q.x, l.z - q.z) < 1.6) ||
+    PATH_LAMPS.some((l) => Math.hypot(l.x - q.x, l.z - q.z) < 1.4) ||
+    crossingAt(q.x, q.z, 1.5) ||
+    PATHS.some((P) => (P.nearest(q.x, q.z)?.d ?? 99) < off - 0.3) ||
+    (q.z > 5 && q.z < 47 && Math.abs(q.x - forestPathX(q.z)) < 3); // 일주문 숲길 한가운데는 비운다
+  const out = [];
+  for (const site of sites) {
+    const s = Math.min(Math.max(site.s, 1), trail.length - 1);
+    const onDeck = s > DECK.s0 - 1 && s < DECK.s1 + 1;
+    const off = onDeck ? DECK.halfW + 0.65 : SIGN_OFF;
+    const prefer = site.dest ? site.dest.spot.side || 1 : site.branch ? -branchSide(site.branch) : 1;
+    let p = null;
+    for (const side of [prefer, -prefer]) {
+      const q = offsetOn(trail, s, side, off);
+      if (!busy(q, off)) {
+        p = q;
+        break;
+      }
+    }
+    if (!p) continue;
+    const t = tangentOn(trail, s);
+    const boards = [];
+    if (site.kind === 'spot') boards.push({ text: `${site.dest.name} ${fwd(s, site.dest)}m`, dx: t.x, dz: t.z });
+    if (site.kind === 'branch') {
+      const bt = tangentOn(site.branch.path, 2);
+      boards.push({ text: `${site.branch.name} ${roundM(3 + site.branch.path.length)}m`, dx: bt.x, dz: bt.z });
+    }
+    const n = next(site.kind === 'spot' ? site.dest.s : s);
+    boards.push({ text: `${n.name} ${fwd(s, n)}m`, dx: t.x, dz: t.z });
+    const pv = prev(s);
+    if (boards.length < 3 && pv.name !== n.name) boards.push({ text: `${pv.name} ${back(s, pv)}m`, dx: -t.x, dz: -t.z });
+    out.push({ x: p.x, z: p.z, s, kind: site.kind, boards });
+  }
+  return out;
+})();
+
+/** 갈림길이 순환로 진행 방향의 어느 쪽(+1 오른쪽)으로 나가는가 */
+function branchSide(b) {
+  const t = tangentOn(trail, b.s), q = b.path.at(4), c = trail.at(b.s);
+  return Math.sign(-t.z * (q.x - c.x) + t.x * (q.z - c.z)) || 1;
+}
+
+/* ───── 산책로 둘레 숲 바닥 (길에서 FLOOR_REACH m 안을 걸어 들어갈 수 있다) ─────
+ * 울타리·데크 난간이 있는 곳은 길 가장자리에서 막는다 (울타리 틈·갈림목·쉼터 입구로 드나든다).
+ */
+export const FLOOR_REACH = 10;
+const FAR = PATHS.map((P) => new Polyline(P.pts, FLOOR_REACH + 2, 4));
+
+/** 세 길 가운데 가장 가까운 거리 (FLOOR_REACH+2 m 까지, 그 밖은 Infinity) */
+export function trailDistFar(x, z) {
+  let d = Infinity;
+  for (const P of FAR) {
+    const n = P.nearest(x, z);
+    if (n && n.d < d) d = n.d;
+  }
+  return d;
+}
+
+/** 길별·쪽별 울타리 구간 [s0, s1] (fenceRuns 를 한 번만 잰다) */
+let FENCE_SPANS = null;
+function fenceSpans() {
+  if (FENCE_SPANS) return FENCE_SPANS;
+  FENCE_SPANS = new Map();
+  for (const r of fenceRuns()) {
+    const k = `${PATHS.indexOf(r.path)}:${r.side}`;
+    if (!FENCE_SPANS.has(k)) FENCE_SPANS.set(k, []);
+    FENCE_SPANS.get(k).push([r.pts[0].s - 0.6, r.pts[r.pts.length - 1].s + 0.6]);
+  }
+  return FENCE_SPANS;
+}
+
+/** 길 가장자리 울타리·데크 난간 띠 위인가 (이 띠는 넘어 다닐 수 없다) */
+export function fenceBarrier(x, z) {
+  const n = nearestTrail(x, z);
+  if (!n || n.d <= TRAIL_HALF - 0.05) return false;
+  const P = n.path;
+  if (P === trail && n.s > DECK.s0 && n.s < DECK.s1) return n.d < DECK.halfW + 1.1; // 데크 난간
+  if (n.d > FENCE_OFF + 0.55) return false;
+  const nm = normalOn(P, n.s);
+  const side = Math.sign((x - n.x) * nm.x + (z - n.z) * nm.z) || 1;
+  const spans = fenceSpans().get(`${PATHS.indexOf(P)}:${side}`);
+  return !!spans && spans.some(([a, b]) => n.s >= a && n.s <= b);
 }

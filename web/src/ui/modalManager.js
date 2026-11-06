@@ -11,7 +11,9 @@
 import { nameFeedback, NAME_PLACEHOLDER } from './nameField.js';
 import { NAME_MAX, checkText } from '../core/moderation.js';
 import { CREDITS, CREDIT_GROUPS, LICENSE_URLS, YEBUL_TRACKS } from '../data/credits.js';
-import { SUTRA_VERSES, DHARMA_CARDS, localMonkResponse, isCrisisText } from '../data/dharmaTexts.js';
+import { SUTRA_VERSES, DHARMA_CARDS, localMonkResponse, isCrisisText, OPENING_SUGGESTIONS, BLOCKED_REPLIES, COOLED_LINE, REST_SUGGESTIONS } from '../data/dharmaTexts.js';
+import { LIVE_API } from '../core/live.js';
+import { icon } from './icons.js';
 import { LANTERN_COLORS, ZONES, RITUALS } from '../data/templeData.js';
 import { kstDateString } from '../core/state.js';
 
@@ -46,6 +48,12 @@ const STAT_LABELS = [
 const CARD_IDS = new Set(DHARMA_CARDS.map((c) => c.id));
 const BOW_CYCLE_MS = 8000; // 108배 연속 모드: 8초에 한 번 천천히 (큰절 한 번 7.6초 — core/avatarMotion.js PROSTRATE)
 const MALA_BEADS = 27; // 27주 단주 네 바퀴 = 108
+const TEA_MAX = 300; // 한 번에 건넬 수 있는 말 (server/monk.js MONK_LIMITS 와 같게)
+const TYPE_MS = 42; // 대사가 한 자씩 나오는 간격 — 누르면 바로 다 보인다
+// Windows InJoon, 안드로이드·맥의 남성 한국어 음성 이름들
+const KO_MALE_VOICE = /injoon|hyunsu|minsu|bongjin|gookmin|jinho|male|남성|남자/i;
+// 차담 스님 초상 (먹선 한 장, 3D 의 중년 스님과 같은 옷빛·짙은 눈썹·지그시 뜬 눈 — 생성형 초상이 생기면 바꾼다)
+const MONK_FACE = `<svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="31" fill="#2b2722"/><circle cx="32" cy="32" r="29" fill="none" stroke="#c9a35a" stroke-opacity=".55"/><path d="M11 60c2-12 10-17 21-17s19 5 21 17" fill="#4d453c"/><path d="M21 46l11 9 11-9" fill="none" stroke="#8a6a44" stroke-width="2.4"/><path d="M38 47l6 12" stroke="#6e5236" stroke-width="5"/><ellipse cx="32" cy="29" rx="10" ry="11.5" fill="#dcc3a6"/><path d="M24.5 25.6q3-2.4 6 -.8M33.5 24.8q3-1.6 6 .8" fill="none" stroke="#3a302a" stroke-width="1.9" stroke-linecap="round"/><path d="M26 29.8h4.4M33.6 29.8h4.4" stroke="#3a2a22" stroke-width="1.5" stroke-linecap="round"/><path d="M28.4 33.2q-1.4 2.6 .2 4.6M35.6 33.2q1.4 2.6-.2 4.6" fill="none" stroke="#9a6a50" stroke-width=".9" stroke-linecap="round"/><path d="M29.6 37q2.4 1.4 4.8 0" fill="none" stroke="#8a5a3e" stroke-width="1.2" stroke-linecap="round"/></svg>`;
 
 /* ───────── 작은 도구들 ───────── */
 const ESC_MAP = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
@@ -1354,137 +1362,269 @@ export class ModalManager {
     };
   }
 
-  /* ═════════ 7. 심검당 차담 (side) ═════════ */
+  /* ═════════ 7. 심검당 차담 — 찻상을 사이에 두고 스님과 마주 앉은 장면 ═════════
+   * main.js 가 HUD 를 거두고 카메라를 내 어깨 너머 스님 쪽으로 고정한다 (body.tea-scene).
+   * 아래쪽 대사 상자: 초상 + 이름 + 한 자씩 나오는 말(누르면 다 보임) + 스님 목소리(Web Speech).
+   * 내 차례: 예상 응답 셋(데스크톱은 1·2·3) 또는 「직접 말하기」(입력칸이 자판 바로 위에 붙는다). */
   _tea() {
     const token = this._token;
-    const remote = typeof window !== 'undefined' && !!window.TEMPLE_CONFIG?.monkChatEndpoint;
-    const root = this._root(`
-      <div class="tea-log" data-log role="log" aria-live="polite" aria-label="차담 내용"></div>
-      <div class="tea-dock">
-        <div class="tea-row">
-          <label class="sr-only" for="tea-input">선사에게 건넬 말</label>
-          <input id="tea-input" type="text" maxlength="300" autocomplete="off" enterkeyhint="send" placeholder="편히 적어 보세요" />
-          <button type="button" class="m-btn primary" data-act="send">건네기</button>
-        </div>
-        <div class="tea-foot">
-          <button type="button" class="m-link" data-act="card">오늘의 죽비 뽑기</button>
-          <span class="tea-privacy">${remote ? '차담은 이 브라우저에 남지 않습니다' : '차담은 어디에도 저장되지 않습니다'}</span>
-        </div>
-      </div>`);
-    root.classList.add('tea');
-    const log = root.querySelector('[data-log]');
-    const input = root.querySelector('#tea-input');
-    const sendBtn = root.querySelector('[data-act="send"]');
     const hist = this._teaHistory;
-    let busy = false;
+    const synth = typeof speechSynthesis !== 'undefined' ? speechSynthesis : null;
+    let voiceOn = this.store.state.settings.teaVoice !== false;
+    const root = this._root(`
+      <div class="tea-box" data-box>
+        <div class="tea-face" aria-hidden="true">${MONK_FACE}</div>
+        <div class="tea-main">
+          <div class="tea-head">
+            <span class="tea-name">청연 선사</span>
+            <span class="tea-tools">
+              ${synth ? `<button type="button" class="tea-tool" data-act="voice" aria-pressed="${voiceOn}" aria-label="스님 목소리">${icon('sound')}</button>` : ''}
+              <button type="button" class="tea-tool" data-act="card" aria-label="오늘의 죽비 뽑기">${icon('dharma_card')}</button>
+              <button type="button" class="tea-tool" data-act="leave" aria-label="찻자리에서 일어나기">${icon('close')}</button>
+            </span>
+          </div>
+          <!-- 위기일 때는 대사보다 먼저, 스크롤 없이 보이게 -->
+          <div class="tea-help" data-help hidden>
+            <a href="tel:109">자살예방상담전화 <b>109</b></a><span>24시간, 언제든 전화할 수 있습니다</span>
+            <span class="tea-help-sub">지금 위험한 상황이라면 <a href="tel:119">119</a></span>
+          </div>
+          <p class="tea-you" data-you hidden></p>
+          <button type="button" class="tea-say" data-say aria-label="스님 말 끝까지 보기"><span class="tea-line" data-line aria-hidden="true"></span></button>
+          <p class="sr-only" data-live aria-live="polite"></p>
+          <p class="tea-verse" data-verse hidden></p>
+          <div class="tea-card" data-card></div>
+          <p class="tea-ai" data-ai></p>
+        </div>
+      </div>
+      <div class="tea-replies" data-replies role="group" aria-label="스님께 건넬 말"></div>
+      <form class="tea-compose" data-compose hidden>
+        <label class="sr-only" for="tea-input">스님께 건넬 말</label>
+        <input id="tea-input" type="text" maxlength="${TEA_MAX}" autocomplete="off" enterkeyhint="send" placeholder="스님께 건넬 말을 적어 보세요" />
+        <button type="submit" class="m-btn primary">건네기</button>
+        <button type="button" class="tea-tool" data-act="cancel" aria-label="직접 말하기 닫기">${icon('close')}</button>
+      </form>`);
+    root.classList.add('tea');
+    const $ = (sel) => root.querySelector(sel);
+    const lineEl = $('[data-line]');
+    const boxEl = $('[data-box]');
+    const repliesEl = $('[data-replies]');
+    const compose = $('[data-compose]');
+    const input = $('#tea-input');
     const alive = () => token === this._token && this._type === 'tea_chat';
-    const scroll = () => (log.scrollTop = log.scrollHeight);
+    let typing = null; // { chars, i, opt }
+    let busy = false;
+    let suggestions = [];
+    let aiShown = null;
 
-    const bubble = (role, text, verse, crisis) => {
-      const el = document.createElement('div');
-      el.className = `tea-msg is-${role}`;
-      if (role === 'monk') {
-        const who = document.createElement('p');
-        who.className = 'tea-who';
-        who.textContent = '청연 선사';
-        el.appendChild(who);
-      }
-      const p = document.createElement('p');
-      p.className = 'tea-text';
-      p.textContent = text;
-      el.appendChild(p);
-      if (crisis) {
-        const help = document.createElement('div');
-        help.className = 'tea-help';
-        help.innerHTML = `<a href="tel:109">자살예방상담전화 <b>109</b></a><span>24시간, 언제든 전화할 수 있습니다</span>
-          <span class="tea-help-sub">지금 위험한 상황이라면 <a href="tel:119">119</a></span>`;
-        el.appendChild(help);
-      }
-      if (verse) {
-        const v = document.createElement('p');
-        v.className = 'tea-verse';
-        v.textContent = verse;
-        el.appendChild(v);
-      }
-      log.appendChild(el);
-      scroll();
-      return el;
-    };
-    const typing = () => {
-      const el = document.createElement('div');
-      el.className = 'tea-msg is-monk is-typing';
-      el.setAttribute('aria-label', '선사가 말을 고르는 중');
-      el.innerHTML = '<span></span><span></span><span></span>';
-      log.appendChild(el);
-      scroll();
-      return el;
-    };
-    const monkSays = async (text, delay, record = true) => {
-      const dots = typing();
-      await this._wait(delay);
-      dots.remove();
-      bubble('monk', text);
-      if (record) hist.push({ role: 'monk', text });
+    // 다음 차담을 위한 스님의 짧은 메모 — 이 브라우저에만 (설정에 함께 저장, 기록 내보내기에도 담긴다)
+    const memory = () => this.store.state.settings.teaMemory || '';
+    let leftShown;
+    const setAi = (ai, left) => {
+      aiShown = !!ai;
+      leftShown = left;
+      const el = $('[data-ai]');
+      const head = ai ? `차담 스님은 AI 입니다${Number.isFinite(left) && left <= 3 ? ` · 오늘 ${left}번 남음` : ''}` : '미리 적어 둔 말로 답합니다';
+      el.innerHTML = `<span>${esc(head)}</span>${memory() ? '<span class="tea-mem"> · 지난 이야기를 기억합니다 <button type="button" class="tea-forget" data-act="forget">잊게 하기</button></span>' : ''}`;
+      el.classList.toggle('is-ai', !!ai);
     };
 
-    const send = async () => {
-      const text = input.value.trim();
+    /* 스님 목소리 — 기기에 한국어 음성이 있을 때만. 남성 음성을 먼저 찾고, 없으면 낮고 느리게 */
+    const speak = (text) => {
+      if (!synth) return;
+      synth.cancel();
+      if (!voiceOn || this.sound?.isEnabled === false) return;
+      const voices = synth.getVoices();
+      const ko = voices.filter((v) => /^ko/i.test(v.lang));
+      if (voices.length && !ko.length) return; // 음성 목록을 받았는데 한국어가 없으면 엉뚱한 소리를 내지 않는다
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = 'ko-KR';
+      u.voice = ko.find((v) => KO_MALE_VOICE.test(v.name)) || ko[0] || null;
+      u.rate = 0.88;
+      u.pitch = u.voice && KO_MALE_VOICE.test(u.voice.name) ? 0.95 : 0.75;
+      synth.speak(u);
+    };
+
+    const renderReplies = (list) => {
+      suggestions = (list || []).slice(0, 3);
+      const pad = mq('(hover: hover) and (pointer: fine)');
+      repliesEl.innerHTML =
+        suggestions.map((t, i) => `<button type="button" class="tea-reply" data-pick="${i}">${pad ? `<kbd>${i + 1}</kbd>` : ''}<span>${esc(t)}</span></button>`).join('') +
+        `<button type="button" class="tea-reply is-own" data-act="own"><span>직접 말하기</span></button>`;
+      repliesEl.hidden = false;
+    };
+
+    const finish = () => {
+      if (!typing) return;
+      const { chars, opt } = typing;
+      typing = null;
+      lineEl.textContent = chars.join('');
+      root.classList.remove('is-typing');
+      const verse = $('[data-verse]');
+      verse.textContent = opt.verse || '';
+      verse.hidden = !opt.verse;
+      if (opt.card) opt.card();
+      renderReplies(opt.suggestions);
+    };
+    const tick = () => {
+      if (!typing || !alive()) return;
+      typing.i += 1;
+      lineEl.textContent = typing.chars.slice(0, typing.i).join('');
+      if (!typing.opt.crisis) boxEl.scrollTop = boxEl.scrollHeight; // 긴 말은 쓰이는 줄을 따라간다 (위기면 109 가 위에 남게 두고)
+      if (typing.i >= typing.chars.length) return finish();
+      this._later(tick, TYPE_MS);
+    };
+    /** 스님이 말한다: 한 자씩, 다 나오면 구절·109·예상 응답 */
+    const say = (line, opt = {}) => {
+      root.classList.remove('is-thinking');
+      root.classList.add('is-typing');
+      $('[data-verse]').hidden = true;
+      $('[data-help]').hidden = !opt.crisis;
+      $('[data-card]').replaceChildren();
+      repliesEl.hidden = true;
+      boxEl.scrollTop = 0;
+      $('[data-live]').textContent = line;
+      speak(line);
+      typing = { chars: [...line], i: 0, opt };
+      if (reduceMotion()) finish();
+      else tick();
+    };
+    const showYou = (text) => {
+      const you = $('[data-you]');
+      you.textContent = text || '';
+      you.hidden = !text;
+    };
+
+    const send = async (raw) => {
+      const text = String(raw || '').trim();
       if (!text || busy) return;
       busy = true;
-      sendBtn.disabled = true;
-      input.value = '';
-      bubble('user', text);
+      closeCompose(false);
+      synth?.cancel();
+      showYou(text);
+      root.classList.add('is-thinking');
+      lineEl.textContent = '';
+      repliesEl.hidden = true;
+      $('[data-verse]').hidden = true;
+      $('[data-help]').hidden = true;
+      $('[data-card]').replaceChildren();
       const prior = hist.slice();
       hist.push({ role: 'user', text });
-      const dots = typing();
       const started = performance.now();
-      const res = await generateMonkResponse(text, prior);
+      const res = await generateMonkResponse(text, prior, { name: this.store.profile.dharmaName, clientId: this.store.profileId, memory: memory() });
+      if (res.memory) this.store.setSetting('teaMemory', res.memory);
+      const cooled = res.limited && this._teaCooled !== kstDateString();
+      if (cooled) this._teaCooled = kstDateString();
+      const reply = cooled ? COOLED_LINE : res.reply;
       // 창을 닫아도 대화가 끊기지 않게 기록 먼저 (메모리에만)
-      hist.push({ role: 'monk', text: res.reply, verse: res.verse, crisis: !!res.crisis });
+      hist.push({ role: 'monk', text: reply, verse: cooled ? '' : res.verse, crisis: !!res.crisis, suggestions: res.suggestions });
       if (hist.length > 60) hist.splice(0, hist.length - 60);
-      this.cb.onTeaTurn?.();
-      const think = Math.min(900 + res.reply.length * 18, 2800) - (performance.now() - started);
+      if (!res.blocked) this.cb.onTeaTurn?.();
+      // 미리 적어 둔 답은 곧바로 나오니, 말을 고르는 짧은 틈을 둔다 (AI 는 이미 기다렸다)
+      const think = res.ai ? 0 : Math.min(900 + reply.length * 6, 1800) - (performance.now() - started);
       if (think > 0) await this._wait(think);
       if (!alive()) return;
-      dots.remove();
-      bubble('monk', res.reply, res.verse, res.crisis);
       busy = false;
-      sendBtn.disabled = false;
+      if (res.ai || aiShown !== null) setAi(res.ai, res.left);
+      say(reply, { verse: cooled ? '' : res.verse, crisis: res.crisis, suggestions: res.suggestions });
     };
+
+    /* 직접 말하기: 입력칸을 자판 바로 위에 (visualViewport 가 자판 높이만큼 줄어든 것을 본다) */
+    const vv = typeof window !== 'undefined' ? window.visualViewport : null;
+    const fitKeyboard = () => {
+      if (!vv) return;
+      const kb = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
+      root.style.setProperty('--kb', `${kb}px`);
+      root.style.setProperty('--vvh', `${Math.round(vv.height)}px`);
+    };
+    if (vv) {
+      this._on(vv, 'resize', fitKeyboard);
+      this._on(vv, 'scroll', fitKeyboard);
+    }
+    const openCompose = () => {
+      if (busy) return;
+      compose.hidden = false;
+      repliesEl.hidden = true;
+      root.classList.add('is-composing');
+      fitKeyboard();
+      input.focus({ preventScroll: true });
+    };
+    function closeCompose(showReplies = true) {
+      compose.hidden = true;
+      root.classList.remove('is-composing');
+      input.value = '';
+      input.blur();
+      root.style.removeProperty('--kb');
+      if (showReplies && !typing && !busy) repliesEl.hidden = false;
+    }
 
     const drawCard = () => {
-      const el = bubble('monk', '죽비 한 자루를 건넵니다. 마음에 닿는 구절이면 간직해 두세요.');
-      el.classList.add('has-card');
-      const deck = this._deck(el, true);
-      this._later(() => deck.draw(), reduceMotion() ? 0 : 350);
-      this._later(scroll, 900);
+      if (busy) return;
+      showYou('');
+      say('죽비 한 자루를 건넵니다. 마음에 닿는 구절이면 간직해 두세요.', {
+        suggestions,
+        card: () => {
+          const deck = this._deck($('[data-card]'), true);
+          this._later(() => deck.draw(), reduceMotion() ? 0 : 300);
+        }
+      });
     };
 
-    this._on(input, 'keydown', (e) => {
-      if (e.key === 'Enter' && !e.isComposing && e.keyCode !== 229) {
-        e.preventDefault();
-        send();
-      }
+    this._on(compose, 'submit', (e) => {
+      e.preventDefault();
+      send(input.value);
     });
     this._on(root, 'click', (e) => {
       const b = e.target.closest('button');
-      if (b?.dataset.act === 'send') send();
-      if (b?.dataset.act === 'card') drawCard();
+      if (!b) return;
+      if (b.dataset.pick) return send(suggestions[Number(b.dataset.pick)]);
+      const act = b.dataset.act;
+      if (b.matches('[data-say]')) finish();
+      else if (act === 'own') openCompose();
+      else if (act === 'cancel') closeCompose();
+      else if (act === 'card') drawCard();
+      else if (act === 'leave') this.close();
+      else if (act === 'forget') {
+        this.store.setSetting('teaMemory', '');
+        setAi(aiShown, leftShown);
+      } else if (act === 'voice') {
+        voiceOn = !voiceOn;
+        b.setAttribute('aria-pressed', String(voiceOn));
+        this.store.setSetting?.('teaVoice', voiceOn);
+        if (voiceOn) speak(lineEl.textContent);
+        else synth?.cancel();
+      }
+    });
+    // 데스크톱: 1·2·3 으로 고르고, Enter·Space 로 말 끝까지 (산사 몸짓 단축키는 main.js 가 차담 중 쉬게 한다)
+    this._on(document, 'keydown', (e) => {
+      if (!alive() || isTextField(e.target) || e.isComposing || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (/^[1-3]$/.test(e.key)) {
+        e.preventDefault();
+        if (typing) finish();
+        else if (!busy && compose.hidden && suggestions[e.key - 1]) send(suggestions[e.key - 1]);
+      } else if ((e.key === 'Enter' || e.key === ' ') && typing && !e.target.closest?.('button')) {
+        e.preventDefault();
+        finish();
+      }
     });
 
     // 맞이하기
-    hist.forEach((h) => bubble(h.role, h.text, h.verse, h.crisis));
+    monkStatus().then((st) => alive() && aiShown === null && setAi(st.ai));
     const name = this.store.profile.dharmaName;
-    (async () => {
-      if (!hist.length) {
-        await monkSays(`어서 오십시오, ${name} 도반님. 찻물이 마침 알맞게 끓었습니다. 연잎차 한 잔 따라 드리겠습니다.`, 700);
-        if (!alive()) return;
-        await monkSays('무엇이든 편히 꺼내 놓으세요. 답을 드리기보다 먼저 듣겠습니다. 한 줄이어도 괜찮습니다.', 1600);
-      } else {
-        await monkSays('다시 오셨군요. 차를 새로 데웠습니다.', 600, false);
+    const last = [...hist].reverse().find((h) => h.role === 'monk');
+    if (!hist.length) {
+      const hello = `어서 오십시오, ${name} 도반님. 찻물이 마침 알맞게 끓어 연잎차 한 잔 따라 드립니다. 무엇이든 편히 꺼내 놓으세요. 답을 드리기보다 먼저 듣겠습니다.`;
+      hist.push({ role: 'monk', text: hello, suggestions: OPENING_SUGGESTIONS });
+      this._later(() => alive() && say(hello, { suggestions: OPENING_SUGGESTIONS }), 500);
+    } else {
+      this._later(() => alive() && say('다시 오셨군요. 차를 새로 데웠습니다. 하시던 이야기, 이어서 들려주셔도 좋습니다.', { suggestions: last?.suggestions || OPENING_SUGGESTIONS }), 400);
+    }
+    return {
+      reopen: () => (compose.hidden ? root.querySelector('.tea-reply')?.focus({ preventScroll: true }) : input.focus({ preventScroll: true })),
+      destroy: () => {
+        synth?.cancel();
+        this.cb.onTeaLeave?.();
       }
-    })();
-    return { reopen: () => input.focus({ preventScroll: true }) };
+    };
   }
 
   /* ═════════ 8. 오늘의 죽비 ═════════ */
@@ -1759,7 +1899,6 @@ export class ModalManager {
 
   /* ═════════ 10. 산사 안내 ═════════ */
   _help() {
-    const remote = typeof window !== 'undefined' && !!window.TEMPLE_CONFIG?.monkChatEndpoint;
     const keys = [
       ['1', '합장 반배'],
       ['2', '큰절'],
@@ -1806,7 +1945,7 @@ export class ModalManager {
         <h3 class="m-sub">기록과 비밀</h3>
         <p class="help-p">법명, 쌓인 수행, 연등·기와·돌탑, 간직한 죽비는 <b>이 브라우저에만</b> 저장됩니다. 회원가입도, 서버 계정도 없습니다.</p>
         <p class="help-p"><b>번뇌 소각</b>에 적은 글은 어디에도 저장되거나 보내지지 않으며, 태우는 순간 화면에서도 사라집니다.</p>
-        <p class="help-p">${remote ? '차담은 선사의 답을 받기 위해 전해지지만 이 브라우저에 남지 않습니다.' : '차담 내용도 저장되지 않습니다.'} 기도와 고민은 광고에 쓰이지 않습니다.</p>
+        <p class="help-p"><b>차담</b>의 말은 AI 스님의 답을 받으려고 서버를 거쳐 AI 회사(OpenRouter 를 통해 Anthropic 등)에 전해집니다. 산사의 서버는 대화를 저장하지 않습니다. 다음 차담에서 이어 갈 수 있게 스님이 짧게 적은 메모 하나만 <b>이 브라우저에</b> 남고(기록 내보내기에도 담깁니다), 차담 창의 「잊게 하기」로 언제든 지울 수 있습니다. 기도와 고민은 광고에 쓰이지 않습니다.</p>
       </section>
       <p class="help-foot"><button type="button" class="m-link" data-act="credits">자료 출처</button></p>`);
     this._on(this.body, 'click', (e) => e.target.closest('[data-act="credits"]') && this.open('credits'));
@@ -1860,45 +1999,72 @@ function wrapText(ctx, text, maxW) {
   return lines;
 }
 
-/**
- * 선사 응답 (docs/03 로드맵 연결점).
- * window.TEMPLE_CONFIG.monkChatEndpoint 가 있으면 {message, history} 를 POST 하고 {reply, verse} 를 쓴다.
- * 없거나 실패하면 로컬 지식베이스로. 위기 신호는 서버에 묻기 전에 로컬에서 먼저, 반드시 109 를 안내한다.
- * API 키는 절대 클라이언트에 두지 않는다 — 엔드포인트는 서버 쪽 프록시여야 한다.
- */
 /** 남이 공개한 글에만 붙는 작은 신고 단추 */
 function reportBtn(kind, x) {
   return x.shared && !x.mine ? `<button type="button" class="m-report" data-report="${kind}" data-id="${esc(x.id)}" aria-label="이 글 신고하기">신고</button>` : '';
 }
 
-export async function generateMonkResponse(userMessage, history = []) {
-  const text = String(userMessage ?? '').slice(0, 1000);
-  if (isCrisisText(text)) return localMonkResponse(text, history);
-  const endpoint = typeof window !== 'undefined' ? window.TEMPLE_CONFIG?.monkChatEndpoint : null;
-  if (endpoint) {
-    const ac = new AbortController();
-    const timer = setTimeout(() => ac.abort(), 8000);
+/* ───────── 선사 응답 ─────────
+ * 서버 /api/monk (server/monk.js) 가 AI 로 답한다. API 키는 서버에만 있다.
+ * 위기 신호는 서버에 묻기 전에 여기서 먼저 109 를 안내하고, 거름에 걸린 말은 보내지 않는다.
+ * 서버가 없거나 끊기거나 오늘 몫을 다 쓰면 미리 적어 둔 대화 나무(localMonkResponse)로 잇는다.
+ * memory: 지난 차담 메모 (이 브라우저에만 둔 것) — 보내면 스님이 이어서 기억한다.
+ * 반환 { reply, suggestions[3], verse, crisis, ai, memory?, left?, limited?, blocked? } */
+const MONK_WAIT_MS = 9000; // 서버가 7초(MONK_TIMEOUT_MS)에 끊고 알려 주니 그보다 조금 길게 — 실측 전 임시값
+const monkEndpoint = () => (typeof window === 'undefined' ? null : window.TEMPLE_CONFIG?.monkChatEndpoint ?? `${LIVE_API}/monk`);
+
+async function monkFetch(url, init, ms) {
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), ms);
+  try {
+    const res = await fetch(url, { ...init, signal: ac.signal });
+    return { res, data: await res.json().catch(() => null) };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** 차담을 열 때: AI 스님이 지금 깨어 있는가 */
+export async function monkStatus() {
+  const url = monkEndpoint();
+  if (!url) return { ai: false };
+  try {
+    const { res, data } = await monkFetch(url, {}, 4000);
+    return res.ok && data ? { ai: !!data.ai } : { ai: false };
+  } catch {
+    return { ai: false };
+  }
+}
+
+export async function generateMonkResponse(userMessage, history = [], { name, clientId, memory = '' } = {}) {
+  const text = String(userMessage ?? '').replace(/\s+/g, ' ').trim().slice(0, TEA_MAX);
+  const local = (extra) => ({ ...localMonkResponse(text, history), ai: false, ...extra });
+  const blocked = (reason) => ({ reply: BLOCKED_REPLIES[reason] || BLOCKED_REPLIES.abuse, verse: '', suggestions: REST_SUGGESTIONS, crisis: false, ai: false, blocked: reason });
+  if (isCrisisText(text)) return local();
+  const v = checkText(text, { kind: 'chat', max: TEA_MAX });
+  if (!v.ok) return blocked(v.reason);
+  const url = monkEndpoint();
+  if (url) {
     try {
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text, history: history.slice(-12).map(({ role, text: t }) => ({ role, text: t })) }),
-        signal: ac.signal
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (typeof data?.reply === 'string' && data.reply.trim()) {
-          return {
-            reply: data.reply.trim().slice(0, 1500),
-            verse: typeof data.verse === 'string' ? data.verse.trim().slice(0, 300) : ''
-          };
-        }
+      const body = { message: v.text, history: history.slice(-6).map((h) => ({ role: h.role, text: String(h.text || '').slice(0, 240) })), name, clientId, memory: String(memory || '').slice(0, 200) };
+      const { res, data } = await monkFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }, MONK_WAIT_MS);
+      if (res.ok && typeof data?.reply === 'string' && data.reply.trim()) {
+        const sug = Array.isArray(data.suggestions) ? data.suggestions.filter((x) => typeof x === 'string' && x.trim()).slice(0, 3) : [];
+        return {
+          reply: data.reply.trim().slice(0, 800),
+          verse: typeof data.verse === 'string' ? data.verse.trim().slice(0, 300) : '',
+          suggestions: sug.length === 3 ? sug : localMonkResponse(text, history).suggestions,
+          crisis: !!data.crisis,
+          ai: !!data.ai,
+          memory: typeof data.memory === 'string' ? data.memory.trim().slice(0, 200) : '', // 빈 문자열 = 지난 메모 그대로
+          left: Number.isFinite(data.left) ? data.left : undefined
+        };
       }
+      if (res.status === 422 && BLOCKED_REPLIES[data?.reason]) return blocked(data.reason);
+      if (res.status === 429 && data?.reason === 'quota') return local({ limited: true });
     } catch (e) {
-      console.warn('[tea] 차담 서버에 닿지 않아 로컬 응답으로 이어갑니다');
-    } finally {
-      clearTimeout(timer);
+      console.warn('[tea] 차담 서버에 닿지 않아 미리 적어 둔 말로 이어갑니다');
     }
   }
-  return localMonkResponse(text, history);
+  return local();
 }

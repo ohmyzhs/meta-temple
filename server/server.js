@@ -1,7 +1,7 @@
 /**
  * 청연산사 실시간 동석 서버
  *  - WebSocket /ws : 접속자끼리 위치·모습·동작만 주고받는다 (채팅 없음, 합장 인사만)
- *  - HTTP /api/*   : 다른 도반이 공개한 연등·기와·돌탑 (최근 일부)
+ *  - HTTP /api/*   : 다른 도반이 공개한 연등·기와·돌탑 (최근 일부), 차담 스님 AI(/api/monk, monk.js)
  * nginx(temple 컨테이너)가 /ws, /api 를 이 서버로 넘긴다.
  */
 import http from 'node:http';
@@ -11,6 +11,7 @@ import { createStore } from './store.js';
 import { checkText } from './moderation.js';
 import { parsePlace, placeStone, AREA_RADIUS } from './cairns.js';
 import { PRODUCTS, paymentsEnabled } from './products.js';
+import { createMonk, MONK_BODY_MAX } from './monk.js';
 
 const PORT = Number(process.env.PORT) || 8080;
 const SALT = process.env.ID_SALT || 'dev-salt';
@@ -30,7 +31,8 @@ const REPORT_HIDE = 3; // 서로 다른 사람 셋이 신고하면 숨긴다
 const POST_COOLDOWN_MS = Number(process.env.POST_COOLDOWN_MS) || 20000; // 같은 사람이 같은 종류를 연달아 올리는 간격
 
 const store = await createStore(process.env.DATABASE_URL);
-console.log(`[live] store=${store.kind} port=${PORT}`);
+const monk = createMonk();
+console.log(`[live] store=${store.kind} port=${PORT} monk=${monk.enabled ? monk.cfg.model : 'off'}`);
 
 const safeName = (v, fallback) => {
   const r = checkText(v, { kind: 'name' });
@@ -95,19 +97,24 @@ async function api(req, res) {
     res.writeHead(204, { 'access-control-allow-origin': '*', 'access-control-allow-methods': 'GET,POST', 'access-control-allow-headers': 'content-type' });
     return res.end();
   }
-  if (url.pathname === '/api/health') return send(res, 200, { ok: true, store: store.kind, rooms: rooms.length, online: [...clients.values()].length });
+  if (url.pathname === '/api/health') return send(res, 200, { ok: true, store: store.kind, rooms: rooms.length, online: [...clients.values()].length, monk: monk.enabled });
   if (!rateOk(ip, req.method === 'GET' ? 60 : 20)) return send(res, 429, { error: '잠시 후 다시 해 주세요' });
   if (req.method === 'GET' && url.pathname === '/api/shared') return send(res, 200, await store.recent());
+  if (req.method === 'GET' && url.pathname === '/api/monk') return send(res, 200, monk.status(''));
   if (req.method === 'GET' && url.pathname === '/api/products') return send(res, 200, paymentsEnabled() ? { enabled: true, products: PRODUCTS } : { enabled: false, products: [] });
 
   if (req.method !== 'POST') return send(res, 404, { error: 'not found' });
   let body;
   try {
-    body = await readJson(req);
+    body = await readJson(req, url.pathname === '/api/monk' ? MONK_BODY_MAX : 4096);
   } catch (e) {
     return send(res, 400, { error: e.message });
   }
   const clientHash = hash(clean(body.clientId, 64) || ip);
+  if (url.pathname === '/api/monk') {
+    const r = await monk.ask(body, clientHash, hash(ip));
+    return send(res, r.code, r.body);
+  }
   const author = safeName(body.author, '이름 없는 도반');
 
   if (url.pathname === '/api/report') {

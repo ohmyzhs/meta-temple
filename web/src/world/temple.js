@@ -30,6 +30,7 @@ import {
 import { makeEmitter } from './effects.js';
 import { buildBuddhaStatue } from './buddha.js';
 import { buildTrailProps } from './trailProps.js';
+import { buildWestCourt, buildWestGate } from './westCourt.js';
 import { CairnField } from './cairnField.js';
 import { taenghwaTexture, ceilingTexture, sumidanTexture, canopyTexture, valanceTexture, tileWishTexture, softDotTexture, latticeTextures, graniteTextures } from './textures.js';
 
@@ -69,7 +70,11 @@ export class Temple {
     this.cairn = new Cairn(scene, this.cairnPos);
     // 순환 산책로: 쉼터·작은 다리·갈림목 석등, 그리고 길가 돌탑
     this.trail = buildTrailProps(scene);
-    this.trail.lanterns.forEach(({ x, z, y }) => this.glowDecals.push({ x, z, y, r: 2.4, i: 0.5 }));
+    this.trail.lanterns.forEach(({ x, z, y, r, i }) => this.glowDecals.push({ x, z, y, r, i }));
+    // 서쪽 마당(예비 마당): 담·석등·쉼터. 쉼터는 산책로 쉼터 목록에 더해 같은 방식으로 앉는다
+    const west = buildWestCourt(scene, this.m);
+    this.trail.spots.push(...west.spots);
+    west.glow.forEach((d) => this.glowDecals.push(d));
     this.cairns = new CairnField(scene, quality);
     this._glowDecalsMesh();
   }
@@ -193,14 +198,16 @@ export class Temple {
     const c = L.courtyard;
     // 앞 석축 (계단 자리 비움)
     const front = (x0, x1) => {
-      const h = c.y - pathY(c.z1) + 0.35;
+      let g = c.y - 0.35; // 앞 땅의 가장 낮은 곳보다 0.3m 더 묻는다 (서쪽 마당 앞은 숲길 쪽보다 낮다)
+      for (let x = x0; x <= x1; x += 0.5) g = Math.min(g, terrainHeight(x, c.z1 + 0.75));
+      const h = c.y + 0.12 - g + 0.3;
       const w = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, h, 0.7), m.granite);
       w.position.set((x0 + x1) / 2, c.y + 0.12 - h / 2, c.z1 + 0.2);
       w.castShadow = true;
       w.receiveShadow = true;
       this.scene.add(w);
     };
-    front(c.x0 - 0.6, -L.courtStairs.halfW - 0.3);
+    front(L.westCourt.x0 - 1.0, -L.courtStairs.halfW - 0.3);
     front(L.courtStairs.halfW + 0.3, c.x1 + 0.6);
     const cs = buildStairs(L.courtStairs.halfW * 2, 3, (c.y - pathY(L.courtStairs.z1)) / 3, (L.courtStairs.z1 - L.courtStairs.z0) / 3);
     cs.position.set(0, pathY(L.courtStairs.z1), L.courtStairs.z1);
@@ -214,7 +221,10 @@ export class Temple {
       this.scene.add(w);
       addBoxCollider(x - 0.4, Math.min(z0, z1), x + 0.4, Math.max(z0, z1));
     };
-    wallAt(c.x0 - 0.5, c.z1 + 0.5, c.z0 - 2.5);
+    // 서쪽 담: 서쪽 마당과 사이, 협문 자리를 비우고 대웅전 옆마당 앞(c.z0)에서 끝난다
+    wallAt(c.x0 - 0.5, c.z1 + 0.5, L.westGate.z1);
+    wallAt(c.x0 - 0.5, L.westGate.z0, c.z0);
+    buildWestGate(this.scene, m);
     wallAt(c.x1 + 0.5, c.z1 + 0.5, L.teaLink.z1);
     wallAt(c.x1 + 0.5, L.teaLink.z0, c.z0 - 2.5);
     // 담장 문 기둥
@@ -360,23 +370,28 @@ export class Temple {
     const fy = h.floorY;
     // 마루
     const fl = new THREE.Mesh(new THREE.BoxGeometry(h.x1 - h.x0 + 0.6, fy - L.stylobate.y + 0.02, h.z1 - h.z0 + 0.6), [m.woodDark, m.woodDark, m.floor, m.woodDark, m.woodDark, m.woodDark]);
-    m.floor.map.repeat.set(3, 2);
+    m.floor.map.repeat.set(3, 2); // 공용 마루 재질 (다실 방바닥도 같은 재질) — 반복은 예전 값 그대로 두고
+    {
+      // 넓어진 법당 마루는 윗면 UV 를 늘려 널 한 장 폭을 예전(16.6m 에 3번)과 같게
+      const uv = fl.geometry.attributes.uv, kx = (h.x1 - h.x0 + 0.6) / 16.6, kz = (h.z1 - h.z0 + 0.6) / 10.6;
+      for (let i = 8; i < 12; i++) uv.setXY(i, uv.getX(i) * kx, uv.getY(i) * kz); // BoxGeometry 윗면(+y) 정점 8..11
+    }
     fl.position.set(0, (fy + L.stylobate.y) / 2, (h.z0 + h.z1) / 2);
     fl.receiveShadow = true;
     this.scene.add(fl);
 
-    const colH = 4.4;
+    const colH = h.colH;
     const hall = buildHanok({
-      xs: [-8, -2.8, 2.8, 8],
-      zs: [-30.4, -25.4, -20.4],
+      xs: h.xs,
+      zs: h.zs,
       colH,
-      colR: 0.27,
+      colR: 0.3,
       front: 'open',
       back: 'wall',
-      sides: ['wall', 'doors'],
+      sides: ['wall', 'wall', 'doors'],
       brackets: 2,
-      roof: { type: 'paljak', overhang: 2.7, height: 4.6, lift: 0.85, gableFrac: 0.4, segs: 56 },
-      plaque: { text: '大雄殿', width: 2.6 }
+      roof: { type: 'paljak', overhang: 3.0, height: 5.6, lift: 0.95, gableFrac: 0.4, segs: 64 },
+      plaque: { text: '大雄殿', width: 3.0 }
     });
     hall.position.y = fy;
     this.scene.add(hall);
@@ -389,7 +404,7 @@ export class Temple {
     // 들어 올린 분합문 (정면 처마 밑)
     const lat = latticeTextures();
     const doorMat = nightGlow(new THREE.MeshStandardMaterial({ map: lat.color, emissiveMap: lat.emissive, emissive: 0xffc98a, emissiveIntensity: 1.2, roughness: 0.9, side: THREE.DoubleSide }), 0.8);
-    [[-5.4, 4.6], [0, 5.0], [5.4, 4.6]].forEach(([x, w]) => {
+    h.xs.slice(1).map((b, i) => [(h.xs[i] + b) / 2, b - h.xs[i] - 0.6]).forEach(([x, w]) => {
       const p = new THREE.Mesh(new THREE.PlaneGeometry(w, 1.1), doorMat);
       p.position.set(x, fy + colH - 0.62, h.z1 - 0.5);
       p.rotation.x = Math.PI / 2 - 0.08;
@@ -398,16 +413,16 @@ export class Temple {
 
     // 우물천장
     const ct = ceilingTexture();
-    ct.repeat.set(20, 12); // 우물 한 칸 ≈ 0.8m
+    ct.repeat.set(Math.round((h.x1 - h.x0) / 0.8), Math.round((h.z1 - h.z0) / 0.8)); // 우물 한 칸 ≈ 0.8m
     const ceil = new THREE.Mesh(new THREE.PlaneGeometry(h.x1 - h.x0, h.z1 - h.z0), new THREE.MeshStandardMaterial({ map: ct, roughness: 0.9 }));
     ceil.rotation.x = Math.PI / 2;
     ceil.position.set(0, fy + colH - 0.02, (h.z0 + h.z1) / 2);
     ceil.userData.occluder = 'ceiling'; // 카메라가 천장 위(다락)로 올라가지 않게
     this.scene.add(ceil);
-    // 내부 고주
-    const inner = new THREE.InstancedMesh(columnGeometry(0.25, colH), m.column, 2);
+    // 내부 고주: 둘째 줄(불단 앞) 가운데 세 칸 양끝 — 좌복 줄 뒤, 불단 옆
+    const inner = new THREE.InstancedMesh(columnGeometry(0.28, colH), m.column, 2);
     const o = new THREE.Object3D();
-    [[-5.6, -27], [5.6, -27]].forEach(([x, z], i) => {
+    [[h.xs[1], h.zs[1]], [h.xs[4], h.zs[1]]].forEach(([x, z], i) => {
       o.position.set(x, fy, z);
       o.updateMatrix();
       inner.setMatrixAt(i, o.matrix);
@@ -485,8 +500,9 @@ export class Temple {
         bar(x + w / 2 + t / 2, y, t, hgt, mat, z, d);
       }
     };
-    hang(0, 3.7, 3.08, fy + 2.75, taenghwaTexture('center'));
-    for (const sx of [-1, 1]) hang(sx * 3.65, 2.55, 2.75, fy + 2.75, taenghwaTexture('side'));
+    const ty0 = fy + colH - 1.65; // 탱화 중심: 벽 위끝에서 1.65m 아래 (높아진 천장만큼 같이 올린다)
+    hang(0, 3.7, 3.08, ty0, taenghwaTexture('center'));
+    for (const sx of [-1, 1]) hang(sx * 3.65, 2.55, 2.75, ty0, taenghwaTexture('side'));
 
     // 닫집: 본존 위에 매단 작은 궁전 — 공포 세 층, 낙양 투각 띠, 금 테
     {
@@ -570,7 +586,7 @@ export class Temple {
     }
     this.lightAnchors.candleL = new THREE.Vector3(-1.15, ty + 1.05, tz + 0.1);
     this.lightAnchors.candleR = new THREE.Vector3(1.15, ty + 1.05, tz + 0.1);
-    this.lightAnchors.buddha = new THREE.Vector3(-2.6, fy + 3.7, -25.6); // 앞 왼쪽 위에서 비스듬히: 얼굴·가사 주름에 음영이 진다
+    this.lightAnchors.buddha = new THREE.Vector3(-2.6, fy + colH - 0.7, altarZ + 2.6); // 앞 왼쪽 위에서 비스듬히: 얼굴·가사 주름에 음영이 진다
     // 헌촉 — 작은 등촉 줄 (켤 때마다 하나씩)
     this.votives = [];
     const votiveGeo = new THREE.CylinderGeometry(0.035, 0.035, 0.12, 8);
@@ -603,20 +619,23 @@ export class Temple {
       approach: { x: 0, z: tz + 1.35, ry: Math.PI }
     });
 
-    // 좌복 32개 (4줄 × 8)
+    // 좌복 65개 (5줄 × 13, 1.5m 간격 — 예전 32석의 두 배). 가운데 줄(x 0)이 본존 정면
     this.cushions = [];
     const cg = new RoundedBoxGeometry(0.82, 0.13, 0.82, 2, 0.05);
     const cm = new THREE.MeshStandardMaterial({ roughness: 0.95, color: 0xffffff });
-    const ci = new THREE.InstancedMesh(cg, cm, 32);
+    const CUSHION = { cols: 13, rows: 5, step: 1.5 };
+    const ci = new THREE.InstancedMesh(cg, cm, CUSHION.cols * CUSHION.rows);
     const tones = [new THREE.Color('#8f8a80'), new THREE.Color('#a8865a')];
     let k = 0;
-    for (const z of [-21.7, -23.2, -24.7, -26.2]) {
-      for (const x of [-5.25, -3.75, -2.25, -0.75, 0.75, 2.25, 3.75, 5.25]) {
+    for (let r = 0; r < CUSHION.rows; r++) {
+      const z = h.z1 - 1.3 - r * CUSHION.step;
+      for (let i = 0; i < CUSHION.cols; i++) {
+        const x = (i - (CUSHION.cols - 1) / 2) * CUSHION.step;
         o.position.set(x, fy + 0.065, z);
         o.rotation.set(0, 0, 0);
         o.updateMatrix();
         ci.setMatrixAt(k, o.matrix);
-        ci.setColorAt(k, tones[(k + Math.floor(k / 8)) % 2]);
+        ci.setColorAt(k, tones[(i + r) % 2]);
         this.cushions.push({ index: k, x, z, y: fy + 0.13, occupant: null });
         k++;
       }
@@ -628,7 +647,7 @@ export class Temple {
       id: 'practice_108',
       label: '좌복에 앉기 · 108배 · 염주',
       zone: 'DAEUNGJEON',
-      pos: new THREE.Vector3(0, fy, -24),
+      pos: new THREE.Vector3(0, fy, h.z1 - 1.3 - 2 * CUSHION.step),
       radius: 0,
       cushion: true
     });
@@ -657,17 +676,19 @@ export class Temple {
     const dcush = new THREE.Mesh(cg, new THREE.MeshStandardMaterial({ color: 0x7d6a54, roughness: 0.95 }));
     dcush.position.set(-0.75, 0.065, 0);
     desk.add(dcush);
-    desk.position.set(6.6, fy, -23.4);
+    // 동쪽 끝 칸, 좌복 줄 뒤 (내부 고주와 동쪽 벽 사이)
+    const dx = h.x1 - 0.8, dz = h.zs[1] - 0.6;
+    desk.position.set(dx, fy, dz);
     this.scene.add(desk);
-    addBoxCollider(6.3, -24.0, 6.9, -22.8);
-    this.sutraSeat = { x: 5.85, z: -23.4, y: fy + 0.13, ry: Math.PI / 2 };
+    addBoxCollider(dx - 0.3, dz - 0.6, dx + 0.3, dz + 0.6);
+    this.sutraSeat = { x: dx - 0.75, z: dz, y: fy + 0.13, ry: Math.PI / 2 };
     this.addInteractable({
       id: 'sutra_copy',
       label: '사경 서안에 앉기',
       zone: 'DAEUNGJEON',
-      pos: new THREE.Vector3(6.4, fy, -23.4),
+      pos: new THREE.Vector3(dx - 0.2, fy, dz),
       radius: 2.0,
-      approach: { x: 5.85, z: -22.3, ry: Math.PI / 2 }
+      approach: { x: dx - 0.75, z: dz + 1.1, ry: Math.PI / 2 }
     });
   }
 

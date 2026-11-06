@@ -14,9 +14,11 @@ import {
   noise2,
   smooth,
   clamp,
-  addCircleCollider
+  addCircleCollider,
+  onCourtGround,
+  courtEdge
 } from './layout.js';
-import { nearestTrail, trail, REST_SPOTS } from './trail.js';
+import { nearestTrail, trail, REST_SPOTS, trailDistFar, FLOOR_REACH } from './trail.js';
 import { groundDetailTexture, waterNormalTexture, graniteTextures } from './textures.js';
 import { weatherable, envUniforms, mats } from './materials.js';
 
@@ -62,9 +64,8 @@ function groundColor(x, z, h, slope, out) {
   const sd = Math.abs(z - streamZ(x));
   out.lerp(COL.bed, (1 - smooth(1.4, STREAM_HALF + 0.6, sd)) * 0.9);
   // 마당 마사토
-  const c = L.courtyard;
-  if (x > c.x0 - 0.3 && x < c.x1 + 0.3 && z > c.z0 - 0.3 && z < c.z1 + 0.05) {
-    const edge = Math.min(x - c.x0, c.x1 - x, z - c.z0, c.z1 - z);
+  if (onCourtGround(x, z)) {
+    const edge = courtEdge(x, z);
     out.copy(COL.court).lerp(COL.courtEdge, (1 - smooth(0, 1.6, edge)) * 0.6 + n2 * 0.15);
   }
   // 다실 마당 잔디
@@ -105,6 +106,16 @@ function buildGroundMesh(x0, x1, z0, z1, res, holeFn) {
     colors[i * 3 + 2] = col.b;
   }
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  // 다져진 길 (눈이 덜 쌓인다): 순환 산책로·갈림길, 일주문 숲길
+  const trod = new Float32Array(pos.count);
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), z = pos.getZ(i);
+    const tr = nearestTrail(x, z);
+    let k = tr ? 1 - smooth(1.15, 1.95, tr.d) : 0;
+    if (z > 5 && z < 50) k = Math.max(k, (1 - smooth(1.3, 2.3, Math.abs(x - pathX(z)))) * smooth(52, 46, z));
+    trod[i] = k;
+  }
+  geo.setAttribute('aTrod', new THREE.BufferAttribute(trod, 1));
   geo.computeVertexNormals();
   return geo;
 }
@@ -120,7 +131,7 @@ export function buildTerrain(scene, quality) {
     nm.needsUpdate = true;
     return weatherable(
       new THREE.MeshStandardMaterial({ vertexColors: true, map, normalMap: nm, normalScale: new THREE.Vector2(0.6, 0.6), roughness: 0.95, metalness: 0 }),
-      { snow: 1, wet: 1 }
+      { snow: 1, wet: 1, trod: true }
     );
   };
   // 가까운 경내: 촘촘한 격자
@@ -379,7 +390,7 @@ function buildRocks(scene) {
     o.scale.set(s * (0.8 + r() * 0.5), s, s * (0.8 + r() * 0.5));
     o.updateMatrix();
     inst.setMatrixAt(i, o.matrix);
-    if (collide && s > 0.6) addCircleCollider(x, z, s * 0.8, s);
+    if (s > 0.6 && (collide || trailDistFar(x, z) < FLOOR_REACH + 1.5)) addCircleCollider(x, z, s * 0.8, s); // 숲 바닥 안 큰 바위도
   });
   inst.castShadow = true;
   inst.receiveShadow = true;

@@ -121,6 +121,9 @@ const KO_ALLOW = ['시발점', '시발역', '시발택시', '성교육', '자위
 // 두 글자 이하는 낱말(띄어 쓴 덩어리) 안에서만 찾는다 — "다시 발원" 같은 낱말 경계 오탐을 피하려고
 const KO_SEXUAL = ['섹스', '섹시', '야동', '강간', '성교', '자위', '오르가즘', '딸딸이', '몸캠', '조건만남', '원조교제', '성매매', '성관계', '애널', '사까시', '펠라', '질싸', '노콘', '야한사진', '알몸'].map(koKey);
 const KO_ABUSE = ['시발', '병신', '좆', '존나', '개새끼', '개새기', '개색기', '지랄', '미친놈', '미친년', '엠창', '니애미', '느금마', '닥쳐', '꺼져', '한남충', '김치녀', '틀딱', '짱깨', '쪽바리', '급식충', '맘충', '카지노', '토토사이트', '바카라', '출장안마', '홀덤'].map(koKey);
+// 차담(스님과 둘만 나누는 말)에서는 흔한 말로 쓰이는 것 — "등불이 꺼져 갑니다", "닥쳐올 일"
+const CHAT_OK = new Set(['꺼져', '닥쳐'].map(koKey));
+const KO_ABUSE_CHAT = KO_ABUSE.filter((k) => !CHAT_OK.has(k));
 const JAMO_SEXUAL = ['ㅅㅅ'];
 const JAMO_ABUSE = ['ㅅㅂ', 'ㅂㅅ', 'ㅈㄹ', 'ㄱㅅㄱ', 'ㅈㄴ', 'ㅁㅊ', 'ㄴㄱㅁ', 'ㅗㅗ'];
 const EN_SEXUAL = ['sex', 'sexy', 'seks', 'cex', 'porn', 'porno', 'nude', 'nudes', 'xxx', 'slut', 'whore', 'rape', 'pussy', 'dick', 'cock', 'boobs', 'horny'];
@@ -193,7 +196,7 @@ export function checkText(s, { kind = 'wish', max } = {}) {
   if (PHONE_RE.test(m) || MESSENGER_RE.test(m) || OPENCHAT_RE.test(m)) return fail('contact');
   const en = latinTokens(m);
   if (hitKo(m, KO_SEXUAL) || hitJamo(m, JAMO_SEXUAL) || hitEn(en, EN_SEXUAL)) return fail('sexual');
-  if (hitKo(m, KO_ABUSE) || hitJamo(m, JAMO_ABUSE) || hitEn(en, EN_ABUSE)) return fail('abuse');
+  if (hitKo(m, kind === 'chat' ? KO_ABUSE_CHAT : KO_ABUSE) || hitJamo(m, JAMO_ABUSE) || hitEn(en, EN_ABUSE)) return fail('abuse');
   if (kind === 'name') {
     const k = koKey(m);
     if (RESERVED_KO.some((r) => k.includes(r)) || en.some((t) => RESERVED_EN.includes(t))) return fail('reserved');

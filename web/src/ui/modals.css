@@ -77,8 +77,6 @@
   box-shadow: 0 0 0 1px rgba(120, 95, 60, 0.18), 0 18px 50px rgba(0, 0, 0, 0.35);
 }
 .modal-window.side.is-in { animation: m-slide 0.5s var(--ease) both; }
-/* 차담은 대화가 쌓여도 창이 출렁이지 않게 높이를 정해 둔다 */
-.modal-window.side.m-tea-chat { height: min(640px, calc(100vh - 70px - 128px - var(--safe-t))); height: min(640px, calc(100dvh - 70px - 128px - var(--safe-t))); }
 
 /* 위 가장자리 금니 한 줄 */
 .modal-window::before {
@@ -168,6 +166,10 @@
   scrollbar-width: thin;
   scrollbar-color: rgba(120, 95, 60, 0.3) transparent;
 }
+/* 표준 scrollbar-color 를 모르는 브라우저(옛 사파리)도 같은 가는 막대로 */
+.modal-body::-webkit-scrollbar { width: 6px; }
+.modal-body::-webkit-scrollbar-track { background: transparent; }
+.modal-body::-webkit-scrollbar-thumb { background: rgba(120, 95, 60, 0.3); border-radius: 3px; }
 .m-view { animation: m-fade 0.5s var(--ease) both; }
 
 @keyframes m-fade { from { opacity: 0; } to { opacity: 1; } }
@@ -294,8 +296,7 @@
 .m-field { position: relative; }
 .m-field textarea,
 .m-field input,
-.sutra-input,
-.tea-row input {
+.sutra-input {
   display: block;
   width: 100%;
   padding: 13px 15px;
@@ -314,12 +315,10 @@
 .m-field textarea::placeholder,
 .m-field input::placeholder,
 .sutra-input::placeholder,
-.tea-row input::placeholder,
 .burn-paper textarea::placeholder { color: rgba(94, 85, 74, 0.55); }
 .m-field textarea:focus,
 .m-field input:focus,
-.sutra-input:focus,
-.tea-row input:focus {
+.sutra-input:focus {
   outline: none;
   border-color: var(--gold);
   background: rgba(255, 255, 255, 0.72);
@@ -834,85 +833,134 @@
 .sutra-progress { font-size: 12px; color: var(--muk-soft); font-variant-numeric: tabular-nums; }
 .sutra-msg { flex: 1; font-family: var(--font-serif); font-size: 13px; color: var(--m-gold-ink); }
 
-/* ───────── 7. 차담 ───────── */
-.m-tea-chat .modal-body { display: flex; flex-direction: column; padding-bottom: 0; }
-.m-view.tea { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-.tea-log {
-  flex: 1;
-  min-height: 120px;
+/* ───────── 7. 차담 — 스님과 마주 앉은 대사 장면 (body.tea-scene, main.js) ─────────
+   창 머리·한지 바탕을 거두고, 아래쪽에 먹빛 대사 상자 + 예상 응답. 직접 말할 때는 자판 높이(--kb)만큼 통째로 올린다. */
+body.tea-scene .modal-overlay.is-side {
+  pointer-events: auto; /* 뒤 화면을 눌러 걸어가거나 카메라를 돌리지 않게 */
+  padding: 0 calc(16px + var(--safe-r)) calc(16px + var(--safe-b)) calc(16px + var(--safe-l));
+  align-items: flex-end;
+  justify-content: center;
+}
+.modal-window.side.m-tea-chat {
+  width: min(760px, 100%);
+  height: auto;
+  max-height: none;
+  background: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  box-shadow: none;
+  overflow: visible;
+}
+.modal-window.m-tea-chat::before, .m-tea-chat .modal-header { display: none; }
+.m-tea-chat .modal-body { padding: 0; overflow: visible; }
+.m-view.tea { display: flex; flex-direction: column; gap: 10px; transition: transform 0.25s var(--ease); }
+.m-view.tea [hidden] { display: none !important; }
+.m-view.tea.is-composing { transform: translateY(calc(-1 * var(--kb, 0px))); }
+
+.tea-box {
+  display: flex;
+  gap: 14px;
+  padding: 14px 16px 16px 14px;
+  max-height: 46vh;
+  max-height: 46dvh;
   overflow-y: auto;
   overscroll-behavior: contain;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 2px 2px 12px;
   scrollbar-width: thin;
+  color: var(--hanji-50);
+  background: linear-gradient(180deg, rgba(22, 18, 14, 0.78), rgba(14, 11, 9, 0.86));
+  border: 1px solid rgba(201, 163, 90, 0.3);
+  border-radius: 16px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(243, 236, 220, 0.06);
+  -webkit-backdrop-filter: blur(12px) saturate(1.1);
+  backdrop-filter: blur(12px) saturate(1.1);
+  animation: m-rise 0.55s var(--ease) both;
 }
-.tea-msg { max-width: 90%; animation: m-live 0.5s var(--ease) both; }
-.tea-msg p { margin: 0; }
-.tea-msg.is-monk {
-  align-self: flex-start;
-  padding: 11px 14px 12px;
-  background-color: #fbf7ec;
-  background-image: var(--m-grain), linear-gradient(170deg, #fdfaf2, #f3ead6);
-  border: 1px solid rgba(120, 95, 60, 0.16);
-  border-radius: 4px 16px 16px 16px;
-  box-shadow: 0 3px 10px rgba(60, 40, 20, 0.06);
+.m-view.tea.is-composing .tea-box { max-height: calc(var(--vvh, 100dvh) - 96px); }
+.tea-face { flex: none; width: 60px; height: 60px; margin-top: 4px; }
+.tea-face svg { display: block; width: 100%; height: 100%; }
+.tea-main { flex: 1; min-width: 0; }
+.tea-head { display: flex; align-items: center; gap: 8px; min-height: 40px; margin: -4px -8px 0 0; }
+.tea-name { font-family: var(--font-serif); font-size: 15px; font-weight: 600; letter-spacing: 0.12em; color: var(--gold); white-space: nowrap; }
+.tea-tools { margin-left: auto; display: flex; flex: none; }
+.tea-tool {
+  width: 48px; height: 48px; padding: 0; border: 0; border-radius: 50%;
+  display: grid; place-items: center; color: var(--text-dim); background: transparent; cursor: pointer;
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation; -webkit-user-select: none; user-select: none;
+  transition: background 0.2s, color 0.2s;
 }
-.tea-msg.is-user {
-  align-self: flex-end;
-  padding: 10px 14px;
-  background: rgba(62, 56, 48, 0.1);
-  border: 1px solid rgba(62, 56, 48, 0.08);
-  border-radius: 16px 4px 16px 16px;
+.tea-tool .i { width: 20px; height: 20px; }
+.tea-tool:hover, .tea-tool:focus-visible { color: var(--hanji-50); background: rgba(243, 236, 220, 0.1); outline: none; }
+.tea-tool[aria-pressed="false"] { opacity: 0.5; }
+.tea-tool[aria-pressed="false"]::after { content: ''; position: absolute; width: 22px; height: 2px; background: currentColor; transform: rotate(-45deg); border-radius: 2px; }
+.tea-tool[aria-pressed] { position: relative; }
+.tea-you {
+  margin: 0 0 6px; font-family: var(--font-serif); font-size: 13px; line-height: 1.6; color: rgba(243, 236, 220, 0.6);
+  word-break: keep-all; overflow-wrap: anywhere;
 }
-.tea-who { font-family: var(--font-serif); font-size: 11.5px; letter-spacing: 0.08em; color: var(--m-gold-ink); margin-bottom: 4px !important; }
-.tea-text { font-family: var(--font-serif); font-size: 14.5px; line-height: 1.8; color: var(--muk); word-break: keep-all; overflow-wrap: anywhere; white-space: pre-wrap; }
+.tea-you::before { content: '나 — '; color: rgba(201, 163, 90, 0.7); }
+.tea-say {
+  display: block; width: 100%; min-height: 3.6em; margin: 0; padding: 0; border: 0; background: none; text-align: left;
+  font: inherit; color: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.tea-say:focus-visible { outline: 1px dashed rgba(201, 163, 90, 0.6); outline-offset: 4px; border-radius: 4px; }
+.tea-line { display: block; font-family: var(--font-serif); font-size: 16.5px; line-height: 1.8; color: var(--hanji-50); word-break: keep-all; overflow-wrap: anywhere; white-space: pre-wrap; }
+.m-view.tea.is-typing .tea-line::after { content: ''; display: inline-block; width: 0.55em; margin-left: 2px; border-bottom: 2px solid var(--gold); animation: m-dot 1s ease-in-out infinite; }
+.m-view.tea.is-thinking .tea-line::before { content: '· · ·'; letter-spacing: 0.3em; color: var(--gold); animation: m-dot 1.3s ease-in-out infinite; }
+@keyframes m-dot { 0%, 80%, 100% { opacity: 0.25; } 40% { opacity: 0.95; } }
 .tea-verse {
-  margin-top: 10px !important;
-  padding: 8px 0 0 12px;
-  border-top: 1px dashed rgba(201, 163, 90, 0.45);
-  border-left: 2px solid var(--gold);
-  font-family: var(--font-serif);
-  font-size: 13px;
-  line-height: 1.7;
-  color: #6d5527;
-  word-break: keep-all;
+  margin: 10px 0 0; padding: 2px 0 2px 12px; border-left: 2px solid var(--gold);
+  font-family: var(--font-serif); font-size: 13.5px; line-height: 1.7; color: #e3c98f; word-break: keep-all;
+  animation: m-live 0.6s var(--ease) both;
 }
 .tea-help {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  margin-top: 10px;
-  padding: 10px 12px;
-  border-radius: 10px;
-  background: rgba(181, 67, 44, 0.07);
-  border: 1px solid rgba(181, 67, 44, 0.3);
-  font-size: 12.5px;
-  color: var(--muk);
+  display: flex; flex-direction: column; gap: 3px; margin: 2px 0 10px; padding: 10px 12px; border-radius: 10px;
+  background: rgba(181, 67, 44, 0.2); border: 1px solid rgba(233, 140, 110, 0.45); font-size: 12.5px; color: var(--hanji-50);
 }
-.tea-help a { color: var(--m-red); font-family: var(--font-serif); font-size: 15px; font-weight: 600; text-decoration: none; }
+.tea-help a { color: #ffc2ad; font-family: var(--font-serif); font-size: 15px; font-weight: 600; text-decoration: none; }
 .tea-help a b { font-size: 20px; letter-spacing: 0.04em; }
-.tea-help-sub { color: var(--muk-soft); }
+.tea-help-sub { color: var(--text-dim); }
 .tea-help-sub a { font-size: 12.5px; text-decoration: underline; }
-.tea-msg.is-typing { display: flex; gap: 5px; padding: 14px 16px; }
-.tea-msg.is-typing span { width: 6px; height: 6px; border-radius: 50%; background: var(--muk-soft); animation: m-dot 1.3s ease-in-out infinite; }
-.tea-msg.is-typing span:nth-child(2) { animation-delay: 0.18s; }
-.tea-msg.is-typing span:nth-child(3) { animation-delay: 0.36s; }
-@keyframes m-dot { 0%, 80%, 100% { opacity: 0.25; transform: none; } 40% { opacity: 0.9; transform: translateY(-3px); } }
-.tea-msg.has-card { max-width: 100%; width: 100%; }
-.tea-dock {
-  flex: none;
-  margin: 0 -26px;
-  padding: 10px 26px calc(14px + var(--safe-b));
-  border-top: 1px solid var(--m-line-soft);
-  background: linear-gradient(180deg, rgba(248, 243, 231, 0.6), var(--m-paper));
+.tea-card .jukbi.is-compact .jukbi-card { height: 280px; }
+.tea-ai { margin: 8px 0 0; font-size: 11px; line-height: 1.5; color: rgba(243, 236, 220, 0.5); letter-spacing: 0.02em; }
+.tea-ai.is-ai { color: rgba(227, 201, 143, 0.75); }
+.tea-forget {
+  min-height: 48px; margin: -15px 0; padding: 0 6px; border: 0; background: none; cursor: pointer;
+  font: inherit; color: rgba(243, 236, 220, 0.75); text-decoration: underline; text-underline-offset: 3px;
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation;
 }
-.tea-row { display: flex; gap: 8px; }
-.tea-row input { flex: 1; min-width: 0; padding: 10px 14px; border-radius: 999px; line-height: 1.4; }
-.tea-row .m-btn { flex: none; padding: 0 18px; }
-.tea-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 6px; }
-.tea-privacy { font-size: 11px; color: var(--muk-soft); text-align: right; }
+.tea-forget:hover, .tea-forget:focus-visible { color: var(--hanji-50); outline: none; }
+.tea-ai:empty { display: none; }
+
+.tea-replies { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; animation: m-live 0.45s var(--ease) both; }
+.tea-reply {
+  min-height: 52px; display: flex; align-items: center; gap: 10px; padding: 9px 14px; margin: 0;
+  text-align: left; font-family: var(--font-serif); font-size: 14.5px; line-height: 1.45; color: var(--muk);
+  word-break: keep-all; overflow-wrap: anywhere;
+  background: rgba(248, 243, 231, 0.94); border: 1px solid rgba(120, 95, 60, 0.22); border-radius: 12px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22); cursor: pointer;
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+  transition: transform 0.15s var(--ease), background 0.2s, box-shadow 0.2s;
+}
+.tea-reply:hover, .tea-reply:focus-visible { background: #fffaf0; box-shadow: 0 0 0 2px var(--gold), 0 6px 18px rgba(0, 0, 0, 0.22); outline: none; }
+.tea-reply:active { transform: scale(0.98); }
+.tea-reply kbd {
+  flex: none; width: 22px; height: 22px; display: grid; place-items: center; border-radius: 6px;
+  font: 600 12px/1 var(--font-sans); color: var(--m-gold-ink); background: rgba(138, 106, 46, 0.12);
+}
+.tea-reply.is-own { justify-content: center; color: var(--hanji-50); background: rgba(16, 13, 10, 0.62); border-color: rgba(243, 236, 220, 0.24); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+.tea-reply.is-own:hover, .tea-reply.is-own:focus-visible { background: rgba(30, 25, 20, 0.78); }
+
+.tea-compose {
+  display: flex; align-items: center; gap: 8px; padding: 8px 6px 8px 8px; border-radius: 999px;
+  background: rgba(16, 13, 10, 0.82); border: 1px solid rgba(201, 163, 90, 0.3);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+}
+.tea-compose input {
+  flex: 1; min-width: 0; height: 44px; padding: 0 16px; border-radius: 999px; border: 1px solid rgba(243, 236, 220, 0.2);
+  font-family: var(--font-serif); font-size: 16px; /* iOS 확대 방지 */ color: var(--muk); background: rgba(248, 243, 231, 0.96);
+}
+.tea-compose input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px rgba(201, 163, 90, 0.25); }
+.tea-compose .m-btn { flex: none; min-height: 44px; padding: 0 18px; }
 
 /* ───────── 8. 오늘의 죽비 ───────── */
 .jukbi-stage { display: grid; place-items: center; padding: 6px 0 2px; perspective: 1200px; }
@@ -1126,7 +1174,6 @@
   .modal-body { padding: 14px 20px calc(22px + var(--safe-b)); }
   .modal-overlay.is-side { padding: 0; align-items: flex-end; justify-content: stretch; }
   .modal-window.side { width: 100%; max-height: 45vh; max-height: 45dvh; }
-  .modal-window.side.m-tea-chat { height: 45vh; height: 45dvh; }
   .modal-window.side .modal-header { padding: 18px 14px 8px 18px; }
   .modal-window.side .modal-subtitle { display: none; }
   .modal-window.side .modal-body { padding: 10px 18px calc(14px + var(--safe-b)); }
@@ -1144,11 +1191,14 @@
   .practice-stat { margin-top: 8px; font-size: 11.5px; }
   .practice .m-hint { text-align: left; font-size: 11px; margin-top: 6px; }
 
-  .m-tea-chat .modal-body { padding-bottom: 0; }
-  .tea-log { min-height: 60px; }
-  .tea-dock { margin: 0 -18px; padding: 8px 18px calc(10px + var(--safe-b)); }
-  .tea-text { font-size: 14px; }
-  .tea-privacy { display: none; }
+  /* 차담: 상자는 화면 끝까지, 초상은 작게 */
+  body.tea-scene .modal-overlay.is-side { padding: 0 calc(10px + var(--safe-r)) calc(10px + var(--safe-b)) calc(10px + var(--safe-l)); }
+  .modal-window.side.m-tea-chat { width: 100%; max-height: none; border-radius: 0; }
+  .tea-box { gap: 10px; padding: 12px 12px 14px 12px; border-radius: 14px; }
+  .tea-face { width: 44px; height: 44px; margin-top: 2px; }
+  .tea-line { font-size: 15.5px; line-height: 1.75; }
+  .tea-replies { gap: 6px; }
+  .tea-reply { min-height: 50px; padding: 8px 12px; font-size: 14px; }
 
   .sutra-group { flex-direction: column; align-items: stretch; gap: 4px; }
   .sutra-group-label { width: auto; }
@@ -1177,7 +1227,6 @@
   .modal-header { padding-top: 12px; padding-bottom: 8px; }
   .modal-overlay.is-side { padding: calc(8px + var(--safe-t)) calc(8px + var(--safe-r)) calc(8px + var(--safe-b)) 8px; align-items: stretch; justify-content: flex-end; }
   .modal-window.side { width: min(360px, 46vw); max-height: calc(100vh - 16px); max-height: calc(100dvh - 16px); border-radius: 10px; }
-  .modal-window.side.m-tea-chat { height: calc(100vh - 16px); height: calc(100dvh - 16px); }
   .modal-window.side .modal-subtitle { display: none; }
   /* 그림은 작게, 입력과 버튼이 첫 화면에 보이게 */
   .lantern-stage, .lantern-stage.is-large { height: 76px; margin-bottom: 2px; }
@@ -1193,7 +1242,16 @@
   .practice-actions .m-btn { min-height: 36px; padding: 0 12px; font-size: 13px; }
   .practice-stat { margin-top: 6px; font-size: 11px; }
   .practice .m-hint { text-align: left; font-size: 11px; margin-top: 4px; }
-  .tea-privacy { display: none; }
+  /* 차담: 낮은 화면은 상자와 응답을 나란히 */
+  body.tea-scene .modal-overlay.is-side { justify-content: center; align-items: flex-end; }
+  .modal-window.side.m-tea-chat { width: min(860px, 100%); max-height: none; }
+  .m-view.tea { flex-direction: row; align-items: flex-end; }
+  .tea-box { flex: 1.3; max-height: calc(100dvh - 24px); padding: 10px 12px 12px 10px; }
+  .tea-face { width: 40px; height: 40px; }
+  .tea-head { min-height: 36px; }
+  .tea-line { font-size: 14.5px; line-height: 1.65; }
+  .tea-replies { flex: 1; grid-template-columns: 1fr; }
+  .tea-compose { flex: 1; }
 }
 
 @media (prefers-reduced-motion: reduce) {
