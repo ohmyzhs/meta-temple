@@ -606,7 +606,9 @@ export class Temple {
     // 공양단(수미단 앞 긴 단)과 그 둘레 장엄 — world/hallAdorn.js. 향로·쌍촛대·헌촉은 여기서 공양단 위에 세운다
     const tz = altarZ + 0.4 * A + 0.55; // 공양단 가운데 (앞면 = 수미단 앞면에서 1.0m)
     const ty = fy + 0.95; // 공양단 윗면
-    buildHallAdorn(this.scene, m, { tz, ty }).glow.forEach((d) => this.glowDecals.push(d));
+    const adorn = buildHallAdorn(this.scene, m, { tz, ty });
+    adorn.glow.forEach((d) => this.glowDecals.push(d));
+    this.loadHallPhotos = adorn.loadPhotos; // templeScene.update 가 법당 가까이 오면 한 번 부른다
     const burner = new THREE.Group();
     const bowl = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.18, 0.22, 16), m.bronze);
     bowl.position.y = 0.17;

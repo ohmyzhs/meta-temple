@@ -8,6 +8,7 @@
  */
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { L, addBoxCollider } from './layout.js';
 import { envUniforms, nightGlow } from './materials.js';
 import { sumidanTexture, plaqueTexture, taenghwaTexture } from './textures.js';
@@ -24,17 +25,16 @@ function canvasTex(w, h, draw) {
   return t;
 }
 
-function imageTex(file, { repeat = false, fallback = null, mat = null } = {}) {
-  const t = new THREE.TextureLoader().load(WALL + file, undefined, undefined, () => {
-    if (fallback && mat) {
-      mat.map = fallback();
-      mat.needsUpdate = true;
-    }
-  });
-  t.colorSpace = THREE.SRGBColorSpace;
-  t.anisotropy = 8;
-  if (repeat) t.wrapS = t.wrapT = THREE.RepeatWrapping;
-  return t;
+/** 사진 질감 받기 — 바로 받지 않고 loadPhotos() 때 (templeScene: 플레이어가 불단 60m 안, 실사 불상 판과 같은 때). 받기 전·못 받으면 지금 재질 그대로 */
+function photo(list, file, onLoad, repeat = false) {
+  list.push(() =>
+    new THREE.TextureLoader().load(WALL + file, (t) => {
+      t.colorSpace = THREE.SRGBColorSpace;
+      t.anisotropy = 8;
+      if (repeat) t.wrapS = t.wrapT = THREE.RepeatWrapping;
+      onLoad(t);
+    })
+  );
 }
 
 /** 촛불: 초 몸통 + 깜박이는 불꽃 (불꽃 높이를 인스턴스마다 다른 위상으로 — 정점 셰이더, CPU 갱신 없음) */
@@ -96,11 +96,12 @@ const lathe = (pts, segs = 16) => new THREE.LatheGeometry(pts.map(([x, y]) => ne
 /**
  * @param m 공용 재질 mats()
  * @param tz,ty 공양단 가운데 z · 윗면 높이 (temple.js 의 향로·쌍촛대가 이 위에 선다)
- * @returns { glow: glowDecals 에 더할 바닥 빛 }
+ * @returns { glow: glowDecals 에 더할 바닥 빛, loadPhotos: 천불벽·탱화 사진 받기 (한 번) }
  */
 export function buildHallAdorn(scene, m, { tz, ty }) {
   const h = L.hall, fy = h.floorY, z0 = h.z0;
   const glow = [];
+  const photos = []; // 나중에 받을 사진 (photo)
   const candles = []; // [x, y, z, 크기]
   const fruits = [], blooms = [], leaves = [], cups = [], tablets = [], bags = [];
   const add = (mesh) => {
@@ -229,10 +230,13 @@ export function buildHallAdorn(scene, m, { tz, ty }) {
     box(SW - 0.34, 0.04, 0.6, cx, top + 0.4, zb + 0.3, m.gold);
     // 탱화
     const pw = 3.2, ph = 4.27, py = top + 0.45 + 0.25 + ph / 2;
-    const pm = new THREE.MeshStandardMaterial({ roughness: 0.82 });
-    pm.map = imageTex(img, { fallback: () => taenghwaTexture('side'), mat: pm });
+    const pm = new THREE.MeshStandardMaterial({ map: taenghwaTexture('side'), roughness: 0.82 }); // 사진이 오기 전엔 절차적 탱화
     const pic = add(new THREE.Mesh(new THREE.PlaneGeometry(pw, ph), pm));
     pic.position.set(cx, py, z0 + 0.16);
+    photo(photos, img, (t) => {
+      pm.map = t;
+      pm.needsUpdate = true;
+    });
     for (const [t, mat, zz, d] of [[0.16, frameMat, z0 + 0.17, 0.06], [0.04, m.gold, z0 + 0.195, 0.02]]) {
       box(pw + 2 * t, t, d, cx, py + ph / 2, zz, mat);
       box(pw + 2 * t, t, d, cx, py - ph / 2 - t, zz, mat);
@@ -269,15 +273,15 @@ export function buildHallAdorn(scene, m, { tz, ty }) {
   /* ── 천불벽: 양옆 벽은 옻칠 징두리(2.4m) 위로 창방 밑까지, 뒤 바깥 칸은 탱화 위 띠 (밤엔 인등처럼 은은히) ── */
   {
     const TW = 1.8, TH = 2.0; // 그림 한 장 = 감실 5×5 (가로 1.8m × 세로 2.0m)
-    const tex = imageTex('cheonbul.webp', { repeat: true });
-    const mat = nightGlow(new THREE.MeshStandardMaterial({ map: tex, emissiveMap: tex, emissive: 0xffd9a0, emissiveIntensity: 0.55, roughness: 0.6 }), 0.9);
+    const mat = nightGlow(new THREE.MeshStandardMaterial({ color: 0x5a1a12, emissive: 0x000000, emissiveIntensity: 0.55, roughness: 0.6 }), 0.9); // 사진 전엔 옻칠 빛
+    const geos = [];
     const band = (w, x, z, ry, yb, yt) => {
       const g = new THREE.PlaneGeometry(w, yt - yb);
       const uv = g.attributes.uv;
       for (let i = 0; i < uv.count; i++) uv.setXY(i, (uv.getX(i) * w) / TW, (uv.getY(i) * (yt - yb)) / TH);
-      const p = add(new THREE.Mesh(g, mat));
-      p.position.set(x, (yb + yt) / 2, z);
-      p.rotation.y = ry;
+      g.rotateY(ry);
+      g.translate(x, (yb + yt) / 2, z);
+      geos.push(g);
     };
     const lz = h.z1 - h.z0 - 0.9, zc = (h.z0 + h.z1) / 2;
     for (const [x, ry] of [[h.x0 + 0.13, Math.PI / 2], [h.x1 - 0.13, -Math.PI / 2]]) {
@@ -288,6 +292,13 @@ export function buildHallAdorn(scene, m, { tz, ty }) {
       box(0.07, 0.06, lz, x - sx * 0.005, fy + 2.42, zc, m.gold);
     }
     for (const sx of [-1, 1]) band(h.xs[5] - h.xs[4] - 0.9, sx * (h.xs[4] + h.xs[5]) / 2, z0 + 0.22, 0, fy + 7.1, fy + 11.1);
+    add(new THREE.Mesh(mergeGeometries(geos), mat)); // 여섯 판 한 번에 그린다
+    photo(photos, 'cheonbul.webp', (t) => {
+      mat.map = mat.emissiveMap = t;
+      mat.color.set(0xffffff);
+      mat.emissive.set(0xffd9a0);
+      mat.needsUpdate = true;
+    }, true);
   }
 
   /* ── 되풀이 물건 ── */
@@ -323,7 +334,7 @@ export function buildHallAdorn(scene, m, { tz, ty }) {
     g.fillText('米', w / 2, hh * 0.6);
   });
   scene.add(instanced(new RoundedBoxGeometry(0.46, 0.19, 0.32, 2, 0.07), new THREE.MeshStandardMaterial({ map: bagTex, color: 0xc9bfa6, roughness: 0.95 }), bags)); // 흰 포대가 두부처럼 뜨지 않게 누른다
-  return { glow };
+  return { glow, loadPhotos: () => photos.splice(0).forEach((f) => f()) };
 }
 
 /** 대중 위로 매단 연등 — 마당 연등과 같은 지오메트리·재질(밤 발광 포함, LanternSystem.update 가 uGlow 를 올린다) */

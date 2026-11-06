@@ -959,6 +959,11 @@ export class TempleScene {
   /* ───── 프레임 ───── */
   update(dt, t, player, nightLanternOn) {
     this.real?.update(dt, player);
+    const hallPhotos = this.temple?.loadHallPhotos; // 법당 장엄 사진(천불벽·신중탱화·감로탱화): 실사 불상 판처럼 불단 60m 안에서 — 첫 입장 예산 밖
+    if (hallPhotos && Math.hypot(player.position.x, player.position.z - L.altar.z) < 60) {
+      this.temple.loadHallPhotos = null;
+      hallPhotos();
+    }
     envUniforms.uTime.value = t;
     this.finalPass.uniforms.uTime.value = t % 10;
     // 시간 보간
