@@ -146,3 +146,25 @@ test('rest_seats_close_enough_to_count_as_trail', () => {
   // layout.zoneAt 은 산책로 4.2m 안을 숲길로 본다 — 쉼터 앉는 자리가 모두 그 안이어야 앉았을 때 구역이 마당·다실로 바뀌지 않는다
   for (const s of REST_SPOTS) assert.ok(nearestTrail(s.x, s.z).d < 4.0, `${s.id} ${nearestTrail(s.x, s.z).d}`);
 });
+
+test('signposts_guide_the_loop', async () => {
+  const { SIGNS, loop, fenceRuns, LANTERNS, PATH_LAMPS } = await import('./trail.js');
+  assert.ok(SIGNS.length >= 14, `signs ${SIGNS.length}`);
+  const posts = fenceRuns().flatMap((r) => r.pts);
+  for (const g of SIGNS) {
+    assert.ok(nearestTrail(g.x, g.z).d >= TRAIL_HALF + 0.32, `sign in walk band ${g.s}`);
+    assert.ok(!REST_SPOTS.some((r) => Math.hypot(r.x - g.x, r.z - g.z) < 2.4), 'sign on a seat');
+    assert.ok(!posts.some((p) => Math.hypot(p.x - g.x, p.z - g.z) < 0.5), 'sign on a fence post');
+    assert.ok(g.boards.length >= 1 && g.boards.length <= 3);
+    for (const b of g.boards) {
+      assert.match(b.text, /^\S.* \d+m$/);
+      assert.ok(Math.abs(Math.hypot(b.dx, b.dz) - 1) < 1e-6);
+    }
+  }
+  // 쉼터마다 바로 앞에 이름을 단 이정표 (그루터기 둘은 하나)
+  for (const r of REST_SPOTS) assert.ok(SIGNS.some((g) => g.boards.some((b) => b.text.startsWith(r.name))), r.id);
+  // 이정표 사이가 70m 를 넘지 않는다 (고리를 따라)
+  const ss = SIGNS.map((g) => g.s).sort((a, b) => a - b);
+  for (let i = 1; i < ss.length; i++) assert.ok(ss[i] - ss[i - 1] < 70, `gap ${ss[i - 1]}→${ss[i]}`);
+  assert.ok(loop.length > 440);
+});

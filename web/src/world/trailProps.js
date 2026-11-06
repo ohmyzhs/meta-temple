@@ -6,7 +6,7 @@
  */
 import * as THREE from 'three';
 import { terrainHeight, walkHeight, addCircleCollider, noise2 } from './layout.js';
-import { trail, REST_SPOTS, CROSSINGS, crossingY, DECK, deckRise, fenceRuns, LANTERNS, PATH_LAMPS } from './trail.js';
+import { trail, REST_SPOTS, CROSSINGS, crossingY, DECK, deckRise, fenceRuns, LANTERNS, PATH_LAMPS, SIGNS } from './trail.js';
 import { buildStoneLantern } from './architecture.js';
 import { mats } from './materials.js';
 
@@ -263,6 +263,132 @@ function buildFences(scene, m) {
   return n;
 }
 
+
+/* ───── 나무 이정표 (자리·글은 trail.js SIGNS) ─────
+ * 기둥 + 작은 지붕 + 화살 모양 판(1~3장). 판 글씨는 캔버스 한 장(256×64 칸 4×16)에 모아 재질 하나로 — 정적 병합 한 묶음.
+ * 서체는 글자 구간별로 내려받으므로, 그 글자를 받은 뒤 다시 그린다.
+ */
+const SIGN_CELL = { w: 256, h: 64, cols: 4, rows: 16 };
+const BOARD = { len: 1.42, h: 0.3, tip: 0.2, gap: 0.05, face: 0.45 }; // face: 판을 길 쪽으로 돌리는 각(rad) — 걸어오며 읽히게
+
+function signAtlas(texts) {
+  const c = document.createElement('canvas');
+  c.width = SIGN_CELL.w * SIGN_CELL.cols;
+  c.height = SIGN_CELL.h * SIGN_CELL.rows;
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  const draw = () => {
+    const g = c.getContext('2d');
+    texts.forEach((text, i) => {
+      const x0 = (i % SIGN_CELL.cols) * SIGN_CELL.w, y0 = Math.floor(i / SIGN_CELL.cols) * SIGN_CELL.h;
+      // 결이 보이는 바랜 나무판
+      const grd = g.createLinearGradient(0, y0, 0, y0 + SIGN_CELL.h);
+      grd.addColorStop(0, '#b8915f');
+      grd.addColorStop(0.5, '#a98352');
+      grd.addColorStop(1, '#8f6c43');
+      g.fillStyle = grd;
+      g.fillRect(x0, y0, SIGN_CELL.w, SIGN_CELL.h);
+      for (let k = 0; k < 9; k++) {
+        g.strokeStyle = `rgba(${k % 2 ? '40,26,14' : '170,130,90'},${0.12 + (k % 3) * 0.04})`;
+        g.lineWidth = 1;
+        g.beginPath();
+        const yy = y0 + 6 + k * 6.3 + Math.sin(i * 3.1 + k) * 1.5;
+        g.moveTo(x0, yy);
+        g.bezierCurveTo(x0 + 80, yy + 2, x0 + 170, yy - 2, x0 + SIGN_CELL.w, yy + 1);
+        g.stroke();
+      }
+      // 새긴 글씨: 밝은 테두리 + 짙은 속
+      const m = text.match(/^(.*) (\d+m)$/);
+      const name = m ? m[1] : text, dist = m ? m[2] : '';
+      g.textBaseline = 'middle';
+      let size = 34;
+      g.font = `600 ${size}px "Noto Serif KR", serif`;
+      const dw = dist ? 58 : 0;
+      while (g.measureText(name).width > SIGN_CELL.w - 40 - dw && size > 18) g.font = `600 ${--size}px "Noto Serif KR", serif`;
+      const cy = y0 + SIGN_CELL.h / 2 + 1;
+      g.fillStyle = 'rgba(245,225,185,0.6)';
+      g.fillText(name, x0 + 13, cy + 1.4);
+      g.fillStyle = '#20130a';
+      g.fillText(name, x0 + 12, cy);
+      if (dist) {
+        g.font = '700 21px "Noto Sans KR", sans-serif';
+        const dx = x0 + SIGN_CELL.w - 40 - g.measureText(dist).width;
+        g.fillStyle = 'rgba(245,225,185,0.55)';
+        g.fillText(dist, dx + 1, cy + 1.8);
+        g.fillStyle = '#3a2412';
+        g.fillText(dist, dx, cy + 0.8);
+      }
+    });
+    tex.needsUpdate = true;
+  };
+  draw();
+  const all = texts.join('') + '0123456789m';
+  Promise.all([document.fonts.load('600 30px "Noto Serif KR"', all), document.fonts.load('500 20px "Noto Sans KR"', all)]).then(draw, () => {});
+  return tex;
+}
+
+/** 화살 판 하나: 원점에서 +x 로 뻗고 끝이 뾰족하다. side +1 = 앞면(+z), -1 = 뒷면(-z, 뒤에서도 글이 바로 읽히게 u 를 뒤집음) */
+function boardFace(cellIndex, side) {
+  const { len, h, tip } = BOARD;
+  const s = new THREE.Shape();
+  s.moveTo(0.06, -h / 2);
+  s.lineTo(len - tip, -h / 2);
+  s.lineTo(len, 0);
+  s.lineTo(len - tip, h / 2);
+  s.lineTo(0.06, h / 2);
+  s.closePath();
+  const geo = new THREE.ShapeGeometry(s);
+  const uv = geo.attributes.uv, pos = geo.attributes.position;
+  const u0 = (cellIndex % SIGN_CELL.cols) / SIGN_CELL.cols, du = 1 / SIGN_CELL.cols;
+  const v1 = 1 - Math.floor(cellIndex / SIGN_CELL.cols) / SIGN_CELL.rows, dv = 1 / SIGN_CELL.rows;
+  for (let i = 0; i < pos.count; i++) {
+    const fx = (pos.getX(i) - 0.06) / (len - 0.06), fy = (pos.getY(i) + h / 2) / h;
+    uv.setXY(i, u0 + (side > 0 ? fx : 1 - fx) * du, v1 - dv + fy * dv);
+  }
+  geo.translate(0, 0, side * 0.019);
+  return geo;
+}
+
+function buildSigns(scene, m) {
+  const texts = [...new Set(SIGNS.flatMap((g) => g.boards.map((b) => b.text)))].slice(0, SIGN_CELL.cols * SIGN_CELL.rows);
+  const boardMat = new THREE.MeshStandardMaterial({ map: signAtlas(texts), roughness: 0.86, side: THREE.DoubleSide });
+  const slabGeo = new THREE.ExtrudeGeometry(
+    new THREE.Shape([new THREE.Vector2(0.06, -BOARD.h / 2), new THREE.Vector2(BOARD.len - BOARD.tip, -BOARD.h / 2), new THREE.Vector2(BOARD.len, 0), new THREE.Vector2(BOARD.len - BOARD.tip, BOARD.h / 2), new THREE.Vector2(0.06, BOARD.h / 2)]),
+    { depth: 0.034, bevelEnabled: false }
+  );
+  slabGeo.translate(0, 0, -0.017);
+  const postGeo = new THREE.BoxGeometry(0.13, 2.02, 0.13);
+  const capGeo = new THREE.ConeGeometry(0.15, 0.16, 4);
+  capGeo.rotateY(Math.PI / 4);
+  const g = new THREE.Group();
+  for (const sg of SIGNS) {
+    const y = terrainHeight(sg.x, sg.z);
+    g.add(mesh(postGeo, m.woodDark, sg.x, y + 0.96, sg.z));
+    g.add(mesh(capGeo, m.woodDark, sg.x, y + 2.05, sg.z));
+    // 길 쪽 (판을 이만큼 돌려 다가오는 사람에게 앞면이 보이게)
+    const tr = trail.nearest(sg.x, sg.z);
+    const ix = (tr.x - sg.x) / (tr.d || 1), iz = (tr.z - sg.z) / (tr.d || 1);
+    sg.boards.forEach((b, i) => {
+      const k = texts.indexOf(b.text);
+      const by = y + 1.74 - i * (BOARD.h + BOARD.gap);
+      const c = Math.cos(BOARD.face), sn = Math.sin(BOARD.face);
+      const dx = b.dx * c + ix * sn, dz = b.dz * c + iz * sn;
+      // 판의 +x 가 (dx, dz) 를 가리키게: y 축으로 θ 돌리면 x → (cos θ, 0, −sin θ)
+      const rot = Math.atan2(-dz, dx);
+      for (const geo of [slabGeo, boardFace(k, 1), boardFace(k, -1)]) {
+        const o = mesh(geo, geo === slabGeo ? m.woodDark : boardMat, sg.x, by, sg.z, geo === slabGeo);
+        o.rotation.y = rot;
+        g.add(o);
+      }
+    });
+    addCircleCollider(sg.x, sg.z, 0.16);
+  }
+  g.userData.trailProp = true; // 기둥·판 몸통은 바깥 실사에서 나무 사진 질감으로 (글씨 판은 그대로)
+  scene.add(g);
+}
+
+
 let SPRING_WATER;
 
 /**
@@ -281,6 +407,7 @@ export function buildTrailProps(scene) {
   }
   buildDeck(scene, m);
   buildFences(scene, m);
+  buildSigns(scene, m);
 
   for (const s of spots) {
     if (s.kind === 'bridge') continue; // 다리 자체가 쉼터
