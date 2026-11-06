@@ -883,7 +883,7 @@ body.tea-scene .modal-overlay.is-side {
 .tea-name { font-family: var(--font-serif); font-size: 15px; font-weight: 600; letter-spacing: 0.12em; color: var(--gold); white-space: nowrap; }
 .tea-tools { margin-left: auto; display: flex; flex: none; }
 .tea-tool {
-  width: 44px; height: 44px; padding: 0; border: 0; border-radius: 50%;
+  width: 48px; height: 48px; padding: 0; border: 0; border-radius: 50%;
   display: grid; place-items: center; color: var(--text-dim); background: transparent; cursor: pointer;
   -webkit-tap-highlight-color: transparent; touch-action: manipulation; -webkit-user-select: none; user-select: none;
   transition: background 0.2s, color 0.2s;
@@ -923,6 +923,12 @@ body.tea-scene .modal-overlay.is-side {
 .tea-card .jukbi.is-compact .jukbi-card { height: 280px; }
 .tea-ai { margin: 8px 0 0; font-size: 11px; line-height: 1.5; color: rgba(243, 236, 220, 0.5); letter-spacing: 0.02em; }
 .tea-ai.is-ai { color: rgba(227, 201, 143, 0.75); }
+.tea-forget {
+  min-height: 48px; margin: -15px 0; padding: 0 6px; border: 0; background: none; cursor: pointer;
+  font: inherit; color: rgba(243, 236, 220, 0.75); text-decoration: underline; text-underline-offset: 3px;
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+}
+.tea-forget:hover, .tea-forget:focus-visible { color: var(--hanji-50); outline: none; }
 .tea-ai:empty { display: none; }
 
 .tea-replies { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; animation: m-live 0.45s var(--ease) both; }
