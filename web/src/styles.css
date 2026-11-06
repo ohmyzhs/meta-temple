@@ -119,15 +119,10 @@ kbd {
 /* 대문은 고요하게: 위쪽에 붓글씨 이름, 가운데는 비워 산사가 보이게, 아래에 법명 칩과 들어서기 */
 .intro-inner { width: min(440px, 100%); min-height: 100%; display: flex; flex-direction: column; align-items: center; text-align: center; }
 .intro-title { margin: 13vh 0 0; font-weight: 400; display: flex; flex-direction: column; align-items: center; gap: 16px; }
-.intro-logo { position: relative; display: block; width: min(400px, 66vw); }
-.intro-logo img { display: block; width: 100%; height: auto; filter: drop-shadow(0 2px 14px rgba(0, 0, 0, 0.75)); }
-.intro-seal {
-  position: absolute; right: -6px; bottom: -14px; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 4px;
-  background: #b7402a; color: #fbeee0; font: 900 10px/1.05 var(--font-serif); writing-mode: vertical-rl;
-  box-shadow: inset 0 0 0 2px rgba(251, 238, 224, 0.75), inset 0 0 0 3px #b7402a; transform: rotate(-3deg);
-}
-/* 한자를 못 읽어도 이름을 알 수 있게 — 한글 병기 */
-.intro-hangul { font-family: var(--font-serif); font-weight: 600; font-size: 17px; letter-spacing: 0.55em; padding-left: 0.55em; color: rgba(243, 236, 220, 0.9); text-shadow: 0 1px 8px rgba(0, 0, 0, 0.8); }
+/* 세로로 쌓인 로고(가로:세로 ≈ 1:1.34) — 폭은 높이로도 묶는다. 밝은 낮 장면에서도 글자가 서게 짙은 그림자 두 겹 */
+.intro-logo { position: relative; display: block; width: min(230px, 52vw, 30vh); }
+.intro-logo img { display: block; width: 100%; height: auto; filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.85)) drop-shadow(0 0 18px rgba(0, 0, 0, 0.6)); }
+
 .intro-ear {
   margin: 28px 0 0; display: flex; align-items: center; gap: 10px; padding: 9px 18px 9px 14px; border-radius: 999px;
   font-family: var(--font-serif); font-size: 16px; letter-spacing: 0.04em; color: var(--hanji-50);
@@ -262,11 +257,12 @@ body:has(#intro:not(.leaving):not(.hidden)) .name-label { visibility: hidden; }
 }
 .plaque-head { width: 100%; height: 48px; justify-content: flex-start; gap: 10px; padding: 0 16px 0 5px; border-radius: 24px; }
 .plaque-head[aria-expanded='true'] { box-shadow: inset 0 0 0 1px rgba(201, 163, 90, 0.7), 0 8px 22px rgba(0, 0, 0, 0.4); }
+/* 사운드템플 처마 풍경 엠블럼 (web/assets/brand/emblem-v1.webp) */
 .pq-seal {
-  flex: none; display: grid; place-items: center; width: 38px; height: 38px; border-radius: 6px; background: #b7402a;
-  box-shadow: inset 0 0 0 2px rgba(251, 238, 224, 0.8), inset 0 0 0 3px #b7402a; transform: rotate(-3deg);
-  font: 900 13px/1.05 var(--font-serif); color: #fbeee0; writing-mode: vertical-rl;
+  flex: none; display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%; background: #14110e;
+  box-shadow: inset 0 0 0 1px rgba(201, 163, 90, 0.55);
 }
+.pq-seal img { width: 26px; height: auto; display: block; }
 .pq-id { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; min-width: 0; text-align: left; }
 .pq-id b { max-width: 100%; font-family: var(--font-serif); font-weight: 600; font-size: 15px; letter-spacing: 0.01em; color: #f6e3b4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pq-id small { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: rgba(243, 236, 220, 0.7); white-space: nowrap; }
@@ -515,9 +511,8 @@ body:has(#intro:not(.leaving):not(.hidden)) .name-label { visibility: hidden; }
   .joy-knob { width: 50px; height: 50px; margin: -25px 0 0 -25px; }
   /* 기본: 마우스 가로 창 — 중앙 정렬. 터치면 조이스틱 오른쪽으로 비킨다 */
   .intro-title { margin-top: 3vh; gap: 8px; }
-  .intro-logo { width: min(300px, 42vw); }
-  .intro-hangul { font-size: 15px; }
-  .intro-ear { margin-top: 12px; }
+  .intro-logo { width: min(130px, 30vh); }
+    .intro-ear { margin-top: 12px; }
   .intro-actions { padding-top: 10px; gap: 8px; flex-direction: row; flex-wrap: wrap; justify-content: center; align-items: center; }
   .intro-who-panel { order: -1; flex-basis: 100%; }
   .intro-actions .enter-btn { width: auto; flex: 0 1 300px; padding: 11px; }

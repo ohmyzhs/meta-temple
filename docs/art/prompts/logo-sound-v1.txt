@@ -1,0 +1,19 @@
+# 사운드템플 대문 로고 (2026-11-07) — Codex CLI 내장 gpt-image 로 두 번 생성해 합쳤다. 검은 바탕을 빛=불투명도로 바꾸고(색은 되돌려 나눔) 여백을 잘라
+#  엠블럼(위)은 1차 시안 C 의 처마·풍경 부분만 잘라 쓰고(사용자: "처마끝 풍경 앰블럼은 매우 좋다. 저건 유지"), 글자(아래)는 갈필 붓글씨로 새로 그렸다(d2).
+#  결과: web/assets/brand/logo-sound-v1.webp (720×967, 엠블럼 폭 = 글자 폭의 60%), emblem-v1.webp (상태판 낙관·사이트 아이콘).
+
+## 1. 엠블럼 (시안 C 원본 — 아래 두 줄 글자는 버림)
+Square 1:1, high resolution (at least 2048x2048).
+A Korean temple sound emblem with a stacked hangul wordmark, centered composition:
+Top: a minimal line-art Korean temple wind chime (풍경) — a small bronze bell hanging from a short cord with a thin fish-shaped metal plate below it (the traditional 풍경 with a fish), drawn in a few clean brush-like strokes in muted gold (#C9A35A), with two or three faint thin arcs beside it suggesting its sound.
+Below: the wordmark in two lines, brush calligraphy in warm ivory (#F3ECDC): first line 사운드, second line 템플 — reads EXACTLY "사운드 템플". Every hangul syllable must be correct and fully legible: 사 = ㅅ+ㅏ, 운 = ㅇ+ㅜ+ㄴ, 드 = ㄷ+ㅡ, 템 = ㅌ+ㅔ+ㅁ, 플 = ㅍ+ㅡ+ㄹ.
+Mood: calm, meditative, crafted; works as an app icon and a seal.
+Background: perfectly flat pure black (#000000). No texture, no shadows, no frame, no vignette.
+Nothing else: no Latin letters, no other text, no signature, no watermark.
+
+## 2. 글자 (d2)
+Square-ish 4:3 landscape, high resolution (at least 2400x1800).
+A Korean hangul brush-calligraphy wordmark in TWO centered lines that reads EXACTLY "사운드 템플": first line 사운드 (사, 운, 드), second line 템플 (템, 플). Every hangul syllable must be correct and fully legible: 사 = ㅅ+ㅏ, 운 = ㅇ+ㅜ+ㄴ, 드 = ㄷ+ㅡ, 템 = ㅌ+ㅔ+ㅁ, 플 = ㅍ+ㅡ+ㄹ.
+Style: bold, heavy-ink Korean seoye (서예) written with a large brush — thick, weighty strokes with strong presence, and very visible rough dry-brush endings: frayed, split bristle marks and flying-white (비백, 갈필) streaks at the ends of strokes, ink texture inside the strokes. Expressive but calm and legible, not aggressive. Balanced, slightly tight line spacing so the two lines read as one block.
+Colors: warm ivory ink (#F3ECDC) on a perfectly flat, pure black background (#000000). No paper texture, no shadows, no frame, no vignette.
+Nothing else: no emblem, no seal stamp, no Latin letters, no other text, no signature, no watermark.

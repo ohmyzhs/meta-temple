@@ -378,18 +378,51 @@ export function groundDetailTexture() {
 }
 
 /* ───── 현판 ───── */
+/** 현판 테두리: 주홍 → 녹청 → 바탕, 안쪽 금니 선. 글자는 그 뒤에 */
+function plaqueFrame(ctx, w, h, bg, fg) {
+  ctx.fillStyle = '#7a3527';
+  ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = '#2d6a5a';
+  ctx.fillRect(8, 8, w - 16, h - 16);
+  ctx.fillStyle = bg;
+  ctx.fillRect(18, 18, w - 36, h - 36);
+  ctx.strokeStyle = fg;
+  ctx.lineWidth = 2;
+  ctx.strokeRect(24, 24, w - 48, h - 48);
+}
+
+/**
+ * 붓글씨 그림 현판 — 밝은 글자·투명 바탕 그림을 금니로 물들여 판 가운데에 (산문 「清蓮山寺」 = 대문에서 쓰던 생성형 붓글씨).
+ * 그림이 오기 전에는 빈 판, 오면 그려 넣는다.
+ */
+export function plaqueImageTexture(url, { w = 640, h = 200, bg = '#1e2b2a', fg = '#e2c06a' } = {}) {
+  return cached('plaqueImg' + url, () => {
+    const [c, ctx] = canvas(w, h);
+    plaqueFrame(ctx, w, h, bg, fg);
+    const t = tex(c, { wrap: false });
+    const img = new Image();
+    img.onload = () => {
+      const [g, gx] = canvas(img.naturalWidth, img.naturalHeight);
+      gx.drawImage(img, 0, 0);
+      gx.globalCompositeOperation = 'source-in';
+      gx.fillStyle = fg;
+      gx.fillRect(0, 0, g.width, g.height);
+      const s = Math.min((w - 72) / g.width, (h - 52) / g.height);
+      const dw = g.width * s, dh = g.height * s;
+      ctx.shadowColor = 'rgba(0,0,0,0.6)';
+      ctx.shadowBlur = 4;
+      ctx.drawImage(g, (w - dw) / 2, (h - dh) / 2 + 2, dw, dh);
+      t.needsUpdate = true;
+    };
+    img.src = url;
+    return t;
+  });
+}
+
 export function plaqueTexture(text, { vertical = false, w = 512, h = 160, bg = '#1e2b2a', fg = '#e2c06a' } = {}) {
   return cached('plaque' + text + vertical, () => {
     const [c, ctx] = canvas(w, h);
-    ctx.fillStyle = '#7a3527';
-    ctx.fillRect(0, 0, w, h);
-    ctx.fillStyle = '#2d6a5a';
-    ctx.fillRect(8, 8, w - 16, h - 16);
-    ctx.fillStyle = bg;
-    ctx.fillRect(18, 18, w - 36, h - 36);
-    ctx.strokeStyle = fg;
-    ctx.lineWidth = 2;
-    ctx.strokeRect(24, 24, w - 48, h - 48);
+    plaqueFrame(ctx, w, h, bg, fg);
     ctx.fillStyle = fg;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';

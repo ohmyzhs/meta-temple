@@ -54,7 +54,7 @@ export function setMediaActions(handlers) {
 export function setNowPlaying(title, artist, art = 'forest') {
   if (!('mediaSession' in navigator) || typeof MediaMetadata === 'undefined') return;
   const artwork = [256, 512].map((n) => ({ src: new URL(`./assets/covers/${art}-${n}.jpg`, location.href).href, sizes: `${n}x${n}`, type: 'image/jpeg' }));
-  navigator.mediaSession.metadata = new MediaMetadata({ title, artist, album: '청연산사 · 입체 ASMR', artwork });
+  navigator.mediaSession.metadata = new MediaMetadata({ title, artist, album: '사운드템플 · 입체 ASMR', artwork });
 }
 
 export function setPlaybackState(state) {

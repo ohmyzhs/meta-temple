@@ -2102,7 +2102,7 @@ export class ModalManager {
         const day = new Date().toISOString().slice(0, 10).replace(/-/g, '');
         const a = document.createElement('a');
         a.href = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
-        a.download = `청연산사-수행기록-${day}.json`;
+        a.download = `사운드템플-수행기록-${day}.json`;
         a.click();
         setTimeout(() => URL.revokeObjectURL(a.href), 1000);
         return flash('기록 파일을 내려받았습니다');

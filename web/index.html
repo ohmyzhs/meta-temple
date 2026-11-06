@@ -4,13 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#14110e" />
-  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32.png" />
-  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png" />
-  <link rel="apple-touch-icon" href="./assets/icons/apple-touch-icon.png" />
-  <link rel="manifest" href="./assets/manifest.webmanifest" />
-  <title>청연산사 (清蓮山寺) — 무설치 웹 3D 온라인 사찰</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32.png?v=2" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=2" />
+  <link rel="apple-touch-icon" href="./assets/icons/apple-touch-icon.png?v=2" />
+  <link rel="manifest" href="./assets/manifest.webmanifest?v=2" />
+  <title>사운드템플 · 입체 ASMR 산사</title>
   <meta name="description" content="링크 하나로 들어서는 웹 3D 산사. 말없이 함께 머물며 절·연등·사경·차담으로 마음을 비우는 디지털 안식처." />
-  <meta property="og:title" content="청연산사 — 웹 3D 온라인 사찰" />
+  <meta property="og:title" content="사운드템플 — 입체 ASMR 산사" />
   <meta property="og:description" content="설치도 가입도 없이, 산사의 바람과 풍경 소리 속에 잠시 머물다 가세요." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -37,10 +37,9 @@
         <div class="intro-loading-bar"><span id="intro-progress"></span></div>
         <p id="intro-loading-text">산문을 여는 중…</p>
       </div>
-      <!-- 대문: 붓글씨 로고(생성형, docs/art/prompts/logo-cal-v1.txt) + 한글 이름 · 이어폰 한 줄 · 법명 칩(누르면 법명·모습 고르기) · 들어서기 -->
+      <!-- 대문: 사운드템플 로고(처마 풍경 엠블럼 + 갈필 붓글씨, 생성형 — docs/art/prompts/logo-sound-v1.txt) · 이어폰 한 줄 · 법명 칩(누르면 법명·모습 고르기) · 들어서기 -->
       <h1 class="intro-title">
-        <span class="intro-logo"><img src="./assets/brand/logo-cal-v1.webp" width="1100" height="330" alt="清蓮山寺" fetchpriority="high" /><span class="intro-seal" aria-hidden="true">淸蓮</span></span>
-        <span class="intro-hangul">청연산사</span>
+        <span class="intro-logo"><img src="./assets/brand/logo-sound-v1.webp" width="720" height="967" alt="사운드 템플" fetchpriority="high" /></span>
       </h1>
       <p class="intro-ear"><svg class="i" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><g fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3.5" y="14" width="4" height="6.5" rx="1.6"/><rect x="16.5" y="14" width="4" height="6.5" rx="1.6"/></g></svg>이어폰을 끼고 들어오세요</p>
       <div class="intro-actions">
@@ -78,7 +77,7 @@
     <header class="hud-plaque collapsed" id="hud-plaque">
       <!-- 상태판: 낙관 + 법명 + 함께 있는 사람. 펼치면 법명(붓글씨) · 절·염주·연등 · 동석. 지금 장소는 오른쪽 위 장소 단추에만 -->
       <button class="ctl plaque-head" id="plaque-toggle" type="button" aria-expanded="false" aria-controls="plaque-body" aria-label="내 법명과 수행, 함께 있는 도반">
-        <span class="pq-seal" aria-hidden="true">淸蓮</span>
+        <span class="pq-seal" aria-hidden="true"><img src="./assets/brand/emblem-v1.webp" alt="" width="246" height="256" /></span>
         <span class="pq-id"><b id="hud-dharma-name"></b><small><span class="dot"></span><span id="hud-presence-count"></span></small></span>
       </button>
       <div class="plaque-body" id="plaque-body">
