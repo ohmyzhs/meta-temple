@@ -448,6 +448,10 @@ body:has(#intro:not(.leaving):not(.hidden)) .name-label { visibility: hidden; }
 body.listening .hud, body.listening .toast-stack { opacity: 0; }
 body.listening .hud, body.listening .hud * { pointer-events: none !important; }
 body.listening .name-label { visibility: hidden !important; }
+/* 차담 대사 장면도 HUD·이름표를 거둔다 (알림은 남긴다) */
+body.tea-scene .hud { opacity: 0; }
+body.tea-scene .hud, body.tea-scene .hud * { pointer-events: none !important; }
+body.tea-scene .name-label { visibility: hidden !important; }
 body.listening.l-idle, body.listening.l-idle canvas { cursor: none; }
 
 .listen { position: fixed; inset: 0; z-index: 40; pointer-events: none; }
