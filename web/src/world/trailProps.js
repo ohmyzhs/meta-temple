@@ -498,7 +498,7 @@ export function buildTrailProps(scene) {
   };
   matSpots.forEach((_, i) => setRoll(i, true));
   scene.add(rolls);
-  const flatGeo = new THREE.PlaneGeometry(1.0, 1.5, 1, 1);
+  const flatGeo = new THREE.PlaneGeometry(1.0, 1.5, 4, 6); // 땅을 따라 펴려고 잘게 (showMat)
   flatGeo.rotateX(-Math.PI / 2);
   const flat = mesh(flatGeo, matMat, 0, 0, 0, false);
   flat.visible = false;
@@ -545,13 +545,22 @@ export function buildTrailProps(scene) {
         }
       };
     },
-    /** 돗자리를 편다: 산책로 돗자리 쉼터면 말아 둔 것을 거두고, 휴식(아무 데서나)이면 그 자리에 — tilt: [앞뒤, 좌우] 기울기(땅을 따라) */
+    /** 돗자리를 편다: 산책로 돗자리 쉼터면 말아 둔 것을 거두고, 휴식(아무 데서나)이면 그 자리에.
+     *  천처럼 땅을 따라 덮는다 — 꼭짓점마다 그 자리 땅 위 1.5cm (기울거나 비틀린 길에서도 묻히거나 뜨지 않게) */
     showMat(s) {
       const i = matSpots.findIndex((q) => q.id === s.id);
       this.hideMat();
       if (i >= 0) setRoll(i, false);
-      flat.position.set(s.x, walkHeight(s.x, s.z) + 0.015, s.z);
-      flat.rotation.set(s.tilt?.[0] || 0, s.ry, s.tilt?.[1] || 0, 'YXZ');
+      const gy = walkHeight(s.x, s.z), c = Math.cos(s.ry), sn = Math.sin(s.ry), P = flatGeo.attributes.position;
+      for (let k = 0; k < P.count; k++) {
+        const lx = P.getX(k), lz = P.getZ(k);
+        P.setY(k, walkHeight(s.x + c * lx + sn * lz, s.z - sn * lx + c * lz) - gy + 0.015);
+      }
+      P.needsUpdate = true;
+      flatGeo.computeVertexNormals();
+      flatGeo.computeBoundingSphere();
+      flat.position.set(s.x, gy, s.z);
+      flat.rotation.set(0, s.ry, 0);
       flat.visible = true;
       shownMat = i;
     },

@@ -741,7 +741,7 @@ class MetaTempleApp {
       this.sound.setSceneTimer(0);
       this.world.setTimeOfDay(ls.world.time);
       this.world.setWeather(ls.world.weather);
-      ls.world = ls.draft = null;
+      ls.world = ls.draft = ls.place = null;
     } else this.sound.stopTrack(0.6);
     Object.assign(ls, { kind, nature: kind === 'nature', asmr: kind === 'asmr' }, this._listenPrefs(kind, ls.rest));
     $('#listen').classList.toggle('nature', ls.nature);
@@ -760,6 +760,7 @@ class MetaTempleApp {
       this.sound.setPreset(track);
       const w = this.world;
       ls.world ||= { time: w.timeMode, weather: w.weatherName };
+      ls.place ||= { time: this.sound.time, weather: this.sound.weather }; // 장면이 하늘을 바꾸기 전 이 자리의 시간대·날씨 (「이 자리 소리」가 쓴다)
       w.setTimeOfDay(track.time);
       w.setWeather(track.weather);
       this.sound.setSceneTimer(SCENE_MINUTES * 60); // 장면 한 편 — 한 곡·연속·반복이 이것으로 (data/natureSounds.js)
@@ -1044,7 +1045,8 @@ class MetaTempleApp {
 
   _listenStep(k) {
     const t = this._listening.track;
-    const list = t.mine ? this.store.state.settings.myMixes || [t] : this._listening.nature ? NATURE_PRESETS : this._listening.asmr ? ASMR_TRACKS : YEBUL_TRACKS;
+    const mine = this.store.state.settings.myMixes || [];
+    const list = t.mine ? (mine.includes(t) ? mine : [t]) : this._listening.nature ? NATURE_PRESETS : this._listening.asmr ? ASMR_TRACKS : YEBUL_TRACKS;
     this.listen(list[(list.indexOf(this._listening.track) + k + list.length) % list.length]);
   }
 
@@ -1174,7 +1176,7 @@ class MetaTempleApp {
   _hereTrack() {
     const seat = this.player.seat;
     const where = seat?.kind === 'rest' ? seat._ref.name : ZONES[this.zone]?.name || '이곳';
-    return { id: 'here', title: '이 자리 소리', note: `${where} · 지금 들리는 그대로`, ...this.sound.here() };
+    return { id: 'here', title: '이 자리 소리', note: `${where} · 지금 들리는 그대로`, ...this.sound.here(this._listening?.place) }; // 장면을 듣는 중이면 장면 전의 하늘로
   }
 
   /** 다시 연 목록을 닫았다: 재생기로 돌아온다 */
@@ -1348,7 +1350,7 @@ class MetaTempleApp {
 
   /**
    * 휴식 (하단 독 · 3 키, 사용자 2026-11-07: 가부좌 대신): 선 자리에 돗자리를 펴고 앉는다 — 쉼터처럼 「예불 듣기」·「자연의 소리 듣기」가 뜬다.
-   * 돗자리(1.0×1.5m)는 땅을 따라 기울이고, 네 귀퉁이가 걸을 수 있는 땅이고 MAT_SLOPE° 안일 때만 편다 (물·담·계단은 안 됨). 법당 안은 가까운 좌복에
+   * 돗자리(1.0×1.5m)는 천처럼 땅을 따라 덮고(trailProps showMat), 네 귀퉁이가 걸을 수 있는 땅이고 MAT_SLOPE° 안일 때만 편다 (물·담·계단은 안 됨). 법당 안은 가까운 좌복에
    */
   _restHere() {
     const pl = this.player, p = pl.root.position;
@@ -1366,7 +1368,7 @@ class MetaTempleApp {
     if (!P.every((q) => isWalkable(q.x, q.z)) || Math.max(Math.abs(front), Math.abs(side)) > (MAT_SLOPE * Math.PI) / 180) {
       return this.toast('🧺 여기는 돗자리를 펴기 어렵습니다 · 조금 평평한 곳으로 옮겨 보세요');
     }
-    const s = { id: 'mat_here', name: '돗자리', kind: 'mat', x: p.x, z: p.z, y: h[0] + 0.03, ry, tilt: [-front, side], stand: { x: p.x, z: p.z }, seatH: 0.03, listenPitch: 0.02 };
+    const s = { id: 'mat_here', name: '돗자리', kind: 'mat', x: p.x, z: p.z, y: h[0] + 0.03, ry, stand: { x: p.x, z: p.z }, seatH: 0.03, listenPitch: 0.02 };
     this._sitRest(s);
   }
 

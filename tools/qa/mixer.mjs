@@ -224,6 +224,72 @@ await page.keyboard.up('KeyW');
 await page.waitForTimeout(400);
 s = await page.evaluate(() => ({ sitting: window.temple.player.sitting, mat: window.temple.temple.trail.dynamic[1].visible }));
 check('걸으면 일어나고 돗자리는 걷힘', !s.sitting && !s.mat, JSON.stringify(s));
+// 기운 산책로: 돗자리 네 귀퉁이가 땅 위 1.5cm 언저리 (기울기 부호가 틀리면 한쪽은 묻히고 한쪽은 뜬다)
+s = await page.evaluate(async () => {
+  const t = window.temple, Lm = await import('./src/world/layout.js'), { trail } = await import('./src/world/trail.js');
+  const slope = (x, z, ry) => {
+    const c = Math.cos(ry), sn = Math.sin(ry);
+    const P = [[0.5, 0.75], [-0.5, 0.75], [0.5, -0.75], [-0.5, -0.75]].map(([a, b]) => [x + c * a + sn * b, z - sn * a + c * b]);
+    if (!P.every(([px, pz]) => Lm.isWalkable(px, pz))) return -1;
+    const h = P.map(([px, pz]) => Lm.walkHeight(px, pz));
+    return Math.max(Math.abs(((h[0] + h[1]) - (h[2] + h[3])) / 2 / 1.5), Math.abs(((h[0] + h[2]) - (h[1] + h[3])) / 2 / 1.0)) * 57.3;
+  };
+  let best = null;
+  for (let d = 0; d < 430; d += 1) {
+    const a = trail.at(d), b = trail.at(d + 0.5), ry = Math.atan2(b.x - a.x, b.z - a.z);
+    const g = slope(a.x, a.z, ry);
+    if (g > 8 && g < 15.5 && (!best || g > best.g)) best = { x: a.x, z: a.z, ry, g, d };
+  }
+  t.avatars.teleport(best.x, best.z, best.ry);
+  t._onZoneChange(true);
+  await new Promise((r) => setTimeout(r, 600));
+  t.gesture('rest');
+  await new Promise((r) => setTimeout(r, 900));
+  const flat = t.temple.trail.dynamic[1];
+  flat.updateMatrixWorld(true);
+  const pos = flat.geometry.attributes.position, V = flat.position.constructor, err = [];
+  for (let i = 0; i < pos.count; i++) {
+    const v = flat.localToWorld(new V().fromBufferAttribute(pos, i));
+    err.push(+(v.y - Lm.walkHeight(v.x, v.z)).toFixed(3));
+  }
+  return { at: +best.d.toFixed(0), slope: +best.g.toFixed(1), seat: t.player.seat?.kind, err };
+});
+check(`휴식: 기운 산책로(${s.slope}°)에서 돗자리가 땅을 따라 덮임 (꼭짓점 모두 땅 위 +0.015m ±0.01)`, s.seat === 'rest' && s.err.every((e) => Math.abs(e - 0.015) < 0.01), `${s.at}m · ${s.err.length}점 · ${Math.min(...s.err)}~${Math.max(...s.err)}`);
+if (SHOTS) {
+  await page.evaluate(() => {
+    const t = window.temple, c = t.world.cam;
+    c.mode = 'third';
+    c.yaw = t.player.heading + Math.PI / 2;
+    c.pitch = 0.12;
+    c.targetDist = 2.6;
+  });
+  await page.waitForTimeout(1500);
+  await page.screenshot({ path: `${SHOTS}/rest-slope-390.png` });
+}
+await page.keyboard.down('KeyW');
+await page.waitForTimeout(400);
+await page.keyboard.up('KeyW');
+await page.waitForTimeout(400);
+// 「이 자리 소리」를 장면을 듣는 중에 골라도 장면 전의 하늘(시간대)로 잰다 — 한낮에 봄밤을 듣다가
+s = await page.evaluate(async () => {
+  const t = window.temple, e = t.sound, s0 = t.temple.trail.spots.find((q) => q.id === 'bench_stream');
+  t.avatars.teleport(s0.stand.x, s0.stand.z, s0.ry);
+  t._onZoneChange(true);
+  t.world.setTimeOfDay('day');
+  e.setTimeOfDay('day');
+  await new Promise((r) => setTimeout(r, 3000));
+  const before = e.here();
+  const { NATURE_PRESETS } = await import('./src/data/natureSounds.js');
+  t.listen(NATURE_PRESETS.find((p) => p.id === 'springnight'));
+  await new Promise((r) => setTimeout(r, 3000));
+  const during = { engineTime: e.time, ...t._hereTrack() };
+  t.exitListening();
+  await new Promise((r) => setTimeout(r, 1500));
+  return { before, during };
+});
+// 시간대가 정하는 소리만 견준다 (물·대숲 같은 자리 소리는 선 자리(3인칭 카메라)와 앉은 자리(1인칭)의 거리 차이가 난다)
+const dd = ['birds', 'crickets', 'cicadas', 'frogs', 'wind', 'rain'].filter((k) => Math.abs(20 * Math.log10((s.during.mix[k] || 1e-4) / (s.before.mix[k] || 1e-4))) > 1);
+check('「이 자리 소리」를 장면(봄밤) 듣는 중에 골라도 장면 전 한낮 그대로', s.during.engineTime === 'night' && s.during.time === 'day' && !dd.length, `엔진 ${s.during.engineTime} → 잰 시간대 ${s.during.time} · 다른 소리 ${dd.join(',') || '없음'}`);
 // 물 위는 안 됨 · 법당은 좌복
 s = await page.evaluate(async () => {
   const t = window.temple, { streamZ } = await import('./src/world/layout.js');

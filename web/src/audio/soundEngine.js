@@ -1453,8 +1453,9 @@ export class TempleSoundEngine {
    * 「이 자리 소리」: 지금 선 자리에서 들리는 자연음을 나만의 소리(free)로 잰다 — 장면을 듣는 중이어도 자리의 소리를.
    * 자리 소리(물·대숲·화로 …)는 장면 자리(PLACED.preset)에서 같은 크기가 되게 옮긴다. 법당 안 먹먹함(저역 통과)·방향은 따라가지 않는다
    */
-  here() {
-    const keep = this.preset;
+  here(at = null) {
+    const keep = this.preset, real = { time: this.time, weather: this.weather };
+    if (at) Object.assign(this, at); // 장면이 하늘을 바꿔 놓았으면 그 전의 시간대·날씨로 잰다
     this.preset = null;
     this._placeSources(0);
     const Z = this._zoneMix(), W = WEATHER_MIX[this._weather()], T = TIME_MIX[this._time()];
@@ -1469,6 +1470,7 @@ export class TempleSoundEngine {
     }
     if (this.emit.chimes.some((q) => dist(q, this._lp) < 30)) mix.chimes = 0.6; // 가까운 처마에 풍경이 있으면
     const out = { time: this.time, weather: this.weather, month: this.month, free: true, mix };
+    Object.assign(this, real);
     this.preset = keep;
     this._placeSources(0);
     return out;
