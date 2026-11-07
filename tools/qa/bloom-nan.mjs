@@ -20,6 +20,7 @@ try {
   await page.goto(`${BASE}/?q=high`, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => window.temple && !document.querySelector('#intro-enter').disabled, null, { timeout: 90000 });
   await page.click('#intro-enter');
+  await page.waitForFunction(() => window.temple.entered && window.temple.avatars, null, { timeout: 120000 }); // 누름은 바로 받고 산사 짓기를 기다렸다 들어간다
   await page.waitForTimeout(1200);
   await page.evaluate(() => {
     const t = window.temple;

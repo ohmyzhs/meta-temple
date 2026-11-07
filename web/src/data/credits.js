@@ -72,7 +72,10 @@ export const CREDITS = {
   scans: [
     { use: '마당 삼층석탑', title: '경주 고선사지 삼층석탑 3D 데이터', by: '국가유산청', license: KOGL1, url: 'https://digital.khs.go.kr/record/recordDetail3D.do?ichDataUid=13921661843230600369&bizId=20210000011' }
   ],
-  textures: [],
+  textures: [
+    // 밤하늘 (web/assets/world/sky, tools/sky/build.py) — 은하수 지도 + 밝은 별 6000개 점
+    { use: '밤하늘 은하수·별', title: 'Deep Star Maps 2020', by: 'NASA SVS', url: 'https://svs.gsfc.nasa.gov/4851', note: 'Gaia DR2: ESA/Gaia/DPAC' }
+  ],
   patterns: [],
   // 실사 세계(world/real)의 법당 삼존·후불벽 — 3D 모델 대신 생성형 사진을 세운 판 (프롬프트: docs/art/prompts/)
   generated: [
@@ -103,7 +106,8 @@ export const CREDIT_SOURCES = {
   '(재)전주정보문화산업진흥원': { name: '공유마당 자연음·전통사물 소리', site: '한국저작권위원회 공유마당', url: 'https://gongu.copyright.or.kr', note: '(재)전주정보문화산업진흥원 제작' },
   Freesound: { name: 'Freesound', site: 'freesound.org', url: 'https://freesound.org', note: '저작권을 포기한 녹음 — 올린 사람을 함께 적는다' },
   국가유산청: { name: '국가유산청', site: '국가유산 디지털 서비스', url: 'https://digital.khs.go.kr' },
-  OpenAI: { name: 'OpenAI', site: 'openai.com', url: 'https://openai.com' }
+  OpenAI: { name: 'OpenAI', site: 'openai.com', url: 'https://openai.com' },
+  'NASA SVS': { name: 'NASA/Goddard Space Flight Center Scientific Visualization Studio', site: 'svs.gsfc.nasa.gov', url: 'https://svs.gsfc.nasa.gov', note: '별 자료: Gaia DR2 (ESA/Gaia/DPAC), Tycho-2, Hipparcos-2' }
 };
 
 /** 항목의 출처 묶음 이름과 (Freesound 면) 올린 사람 */
