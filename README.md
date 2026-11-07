@@ -5,7 +5,7 @@
 > 말없이 함께 머물며 산사의 바람·풍경 소리를 듣고, 절·연등·사경·차담으로 마음을 비우는 웹 3D 디지털 안식처
 
 - 라이브: https://temple.lotiony.com (sound-temple.lotiony.com 연결 예정)
-- 대문 로고: 처마 풍경 엠블럼 + 갈필 붓글씨 「사운드 템플」(생성형, `web/assets/brand/logo-sound-v1.webp`, 프롬프트 `docs/art/prompts/logo-sound-v1.txt`). 엠블럼만 떼어 상태판 낙관·사이트 아이콘(`emblem-v1.webp`, `web/assets/icons/`)으로도 쓴다.
+- 대문: 사용자가 제공한 「소리사원」 현판 영상의 가로·세로 판. 별도 제공 로고에서 분리한 처마 풍경 엠블럼은 투명 SVG(`web/assets/brand/temple-emblem-v2.svg`)로 두고 상태판과 사이트 아이콘에 쓴다. 서비스 이름은 기존 설정대로 사운드템플이다.
 - 기획·설계 문서: [`docs/`](./docs) — 출시판 설계는 [`docs/superpowers/specs/2026-11-05-launch-upgrade-design.md`](./docs/superpowers/specs/2026-11-05-launch-upgrade-design.md), 단계별 계획·결과는 [`docs/superpowers/plans/`](./docs/superpowers/plans)
 
 ## 폴더 구조
@@ -24,12 +24,15 @@ meta-temple/
 │   ├── spike.html            # 에셋 스파이크 비교 화면
 │   ├── assets/
 │   │   ├── audio/            # 실제 녹음 — nature/ 는 tools/audio/build.py 가 만든 자연의 소리·효과음 (출처 manifest.json) · 스님 고정 대사(Typecast)
+│   │   ├── entrance/         # 가로·세로 대문 영상, 현판·기둥 고정 레이어, 포스터, 대문 전용 자연 소리
+│   │   ├── brand/temple-emblem-v2.svg # 첨부 원안에서 분리하고 선을 보강한 투명 풍경 엠블럼
 │   │   ├── icons/icons.svg   # 그림 아이콘 30종 (<symbol> 스프라이트, currentColor)
 │   │   ├── avatars/          # 블렌더 아바타 GLB (동자승·행자 / 등불 정령)
 │   │   └── world/ · spike/   # 실사 세계 에셋 (스캔 석탑·사진 질감·원경·삼존·후불벽)
 │   └── src/
 │       ├── main.js           # 앱 진입점: 입장 → 월드 → 입력·HUD·신행·예불 듣기·차담 장면 → 루프
 │       ├── styles.css        # 디자인 토큰 + HUD(하단 독·시트·예불 재생기)
+│       ├── entrance.css      # 대문 배경·입장 요소
 │       ├── core/
 │       │   ├── state.js      # 저장 구조 v3 (profileId·직접 지은 법명·내보내기/가져오기), 출석, 공덕 해금
 │       │   ├── live.js       # 실시간 동석 + 공유 서원 클라이언트 (server/server.js 짝)
@@ -45,6 +48,7 @@ meta-temple/
 │       │   ├── soundEngine.js# Web Audio 입체 ASMR (HRTF·리버브·3채널), 녹음·예불·목소리 재생
 │       │   └── background.js # 화면이 꺼져도 계속 듣기 (Android 오디오 포커스, iOS audioSession)
 │       ├── ui/
+│       │   ├── introBackground.js # 화면별 대문 영상·현판 고정·대문 전용 소리
 │       │   ├── modalManager.js # 신행 모달 (연등·기와·돌탑·번뇌 소각·108배·사경·차담·죽비·기록·안내·자료 출처)
 │       │   ├── modals.css
 │       │   ├── icons.js      # icon(name) → <svg><use href="icons.svg?v=N#name"></svg>
@@ -131,6 +135,7 @@ npm test
 
 ## 구현된 것
 
+- **대문**: 가로·세로 자연 영상과 느린 시점 이동, 현판·기둥 고정 레이어, 법명·모습 선택. 대문에 머무는 동안 3D 장면은 미리 준비하되 렌더 루프를 멈추고 입장하면 시작한다. 우측 위 대문 소리 스위치는 인게임 소리와 별도이고 기본은 켬이다. 브라우저가 자동재생을 막으면 첫 대문 조작에서 재생을 다시 시도하며, 직접 끈 설정은 유지한다. 입장 시 대문 영상·소리는 멈춘다. 사용자가 지정한 북방산개구리·새소리 녹음을 음량 조정해 쓴다(출처 화면 참고).
 - **공간**: 가람 4구역(일주문 숲길 · 대웅전 앞마당 · 대웅전 법당 5×3칸 좌복 65 · 후원 다실) + 서쪽 마당. 산사를 두르는 순환 산책로(전나무 데크·깊은 숲·대숲·징검다리·이정표)와 쉼터(여럿이 나란히 앉기), 산책로 어디서나 돌 올리기(돌탑마다 글 따로), 자동 산책.
 - **실사 세계 (기본)**: 사진 원경 능선(해질녘·밤 띠), 지면·나무 사진 질감, 경내 기와·단청·석재 실사 질감, 스캔 삼층석탑, 생성형 삼존·후불벽. `?world=classic` 이면 절차식.
 - **시간·날씨**: 실시간(KST) 기본. 맑은 낮은 쨍하게, 밤은 달빛 아래 윤곽과 은하수(노출 하한). 봄비·설경은 고를 때만. 매일 05:00·18:00 KST 예불 범종.

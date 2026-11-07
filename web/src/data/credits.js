@@ -29,6 +29,7 @@ export const CREDITS = {
     { use: "가을 풀벌레", title: "청솔귀뚜라미들의 노래, 가을밤 강진 백련사", by: "(재)전주정보문화산업진흥원", license: "공공누리 제1유형", url: "https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?wrtSn=13371688&menuNo=200020" },
     { use: "여름 매미", title: "지리산둘레길 소요산매미", by: "(재)전주정보문화산업진흥원", license: "공공누리 제1유형", url: "https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?wrtSn=13371638&menuNo=200020" },
     { use: "개구리", title: "백령도 진촌리 논에서 우는 청개구리 집단음", by: "(재)전주정보문화산업진흥원", license: "공공누리 제1유형", url: "https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?wrtSn=13371634&menuNo=200020" },
+    { use: "대문 배경 소리 (음량 조정)", title: "계곡 숲의 북방산개구리 울음소리, 새소리와 함께", by: "(재)전주정보문화산업진흥원", license: "공공누리 제1유형", url: "https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?wrtSn=13372012&menuNo=200020" },
     { use: "법당 염불", title: "자연의소리_내장산백양사염불소리", by: "국립공원공단", license: "공공누리 제1유형", url: "https://www.data.go.kr/data/15076137/fileData.do" },
     { use: "연못 샘물", title: "자연의소리_월출산도갑사미륵전샘터", by: "국립공원공단", license: "공공누리 제1유형", url: "https://www.data.go.kr/data/15076172/fileData.do" },
     { use: "범종", title: "망경대산 만봉사 범종 소리", by: "(재)전주정보문화산업진흥원", license: "공공누리 제1유형", url: "https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?wrtSn=13372528&menuNo=200020" },
@@ -72,7 +73,7 @@ export const CREDITS = {
   generated: [
     { use: '법당 삼존 불상 사진·후불벽 탱화', title: 'gpt-image 생성 이미지', by: 'OpenAI', url: 'https://openai.com' },
     { use: '산문 현판 붓글씨 「清蓮山寺」', title: 'gpt-image 생성 이미지', by: 'OpenAI', url: 'https://openai.com' },
-    { use: '대문 로고 「사운드 템플」·처마 풍경 엠블럼', title: 'gpt-image 생성 이미지', by: 'OpenAI', url: 'https://openai.com' }
+    { use: '대문 풍경 영상', title: '사용자 제공 이미지를 바탕으로 제작한 영상', by: 'Google Flow', url: 'https://labs.google/fx/tools/flow' }
   ]
 };
 

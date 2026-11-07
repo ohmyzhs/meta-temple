@@ -9,6 +9,7 @@ import { TempleSoundEngine } from './audio/soundEngine.js';
 import { TempleScene } from './world/templeScene.js';
 import { AvatarManager } from './world/avatarManager.js';
 import { loadRig } from './world/avatarRig.js';
+import { createIntroBackground } from './ui/introBackground.js';
 import { wireState } from './core/avatarMotion.js';
 import { L, COURTS, isWalkable, zoneAt, streamZ, walkHeight, canBuildCairn, pathX, resolveCollisions } from './world/layout.js';
 import { createPathfinder, pathLength } from './world/pathfind.js';
@@ -77,7 +78,11 @@ class MetaTempleApp {
     this.joy = { x: 0, z: 0 };
     this.zone = null;
     this.entered = false;
+    // 대문에서는 장면을 미리 준비하되 3D 렌더 루프는 입장할 때 시작한다.
+    this._loopRunning = false;
+    this._loopRequest = null;
     this.clock = new THREE.Clock();
+    this.introBackground = createIntroBackground();
     this._initIntro();
     this._boot();
   }
@@ -215,11 +220,10 @@ class MetaTempleApp {
     this._updateHUD();
     $('#intro-loading').classList.add('done');
     $('#intro-enter').disabled = false;
-    // 입장 전에도 산사 풍경이 뒤에 보이도록 렌더 시작
+    // 장면과 리소스는 준비하지만, 입장하기 전까지는 그리지 않는다.
     this.world.cam.yaw = 0;
     this.world.cam.pitch = 0.22;
     this.world.cam.targetDist = this.world.cam.dist = 9;
-    this._loop();
     setInterval(() => this._checkYebul(), 20000);
     this._pullShared();
     setInterval(() => this._pullShared(), 180000);
@@ -271,9 +275,11 @@ class MetaTempleApp {
   _enter() {
     if (this.entered) return;
     this.entered = true;
+    this.introBackground.leave();
     $('#intro').classList.add('leaving');
     this._introTimer = setTimeout(() => $('#intro').classList.add('hidden'), 1500);
     $('#hud').classList.remove('hidden');
+    this._startLoop();
     this.zone = null;
     this.enteredAt = performance.now();
     if (this.backGuard) return this._reenter();
@@ -332,6 +338,7 @@ class MetaTempleApp {
   /** 뒤로가기로 산문을 나섬: 입장 전 첫 화면으로 돌아가고, 몸은 일주문 앞에 다시 선다 */
   _toIntro() {
     this.entered = false;
+    this._stopLoop();
     clearTimeout(this._introTimer);
     closeAll();
     document.querySelectorAll('.toast').forEach((t) => t.remove());
@@ -345,6 +352,7 @@ class MetaTempleApp {
     intro.classList.remove('hidden');
     void intro.offsetWidth; // display:none 에서 막 돌아왔으니 한 번 그린 뒤 페이드인
     intro.classList.remove('leaving');
+    this.introBackground.show();
   }
 
   _emitters() {
@@ -2234,8 +2242,22 @@ class MetaTempleApp {
   }
 
   /* ───────── 루프 ───────── */
+  _startLoop() {
+    if (this._loopRunning) return;
+    this._loopRunning = true;
+    this.clock.getDelta(); // 대문에 머문 시간을 첫 프레임의 경과 시간으로 세지 않는다
+    this._loopRequest = requestAnimationFrame(() => this._loop());
+  }
+
+  _stopLoop() {
+    this._loopRunning = false;
+    if (this._loopRequest !== null) cancelAnimationFrame(this._loopRequest);
+    this._loopRequest = null;
+  }
+
   _loop() {
-    requestAnimationFrame(() => this._loop());
+    if (!this._loopRunning) return;
+    this._loopRequest = requestAnimationFrame(() => this._loop());
     const dt = Math.min(this.clock.getDelta(), 0.1);
     this._frame(dt, this.clock.elapsedTime);
     if (PERF) this._perfHud();
