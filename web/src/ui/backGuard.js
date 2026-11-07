@@ -70,6 +70,8 @@ export function installBackGuard({ closeTop, toast, onExit, depth = 5, exitMs = 
   for (const t of ['click', 'pointerup', 'keydown']) addEventListener(t, refill, { capture: true, passive: true });
 
   return {
+    /** 준비 중 입장을 취소하거나 실패하면 뒤로가기를 다시 첫 화면처럼 처리한다. */
+    cancel() { inside = false; armedUntil = quietUntil = 0; },
     /** 첫 화면에서 다시 들어설 때 (입장 클릭 안에서) */
     enter() {
       inside = true;

@@ -113,6 +113,8 @@ export function createIntroBackground() {
   syncButton();
   playAudio();
   return {
+    pauseSound() { audio.pause(); syncButton(); },
+    resumeSound() { playAudio(); },
     leave() {
       active = false;
       audio.pause();

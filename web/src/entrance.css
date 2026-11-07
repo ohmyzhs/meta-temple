@@ -80,6 +80,10 @@
 }
 .intro-actions .enter-btn:not(:disabled):hover { background: linear-gradient(180deg, rgba(139, 102, 63, .96), rgba(69, 48, 30, .98)); }
 .intro-actions .enter-btn:disabled { opacity: .55; }
+.intro-actions .enter-btn.is-entering:disabled { opacity: 1; cursor: wait; }
+.enter-spinner { display: none; width: 16px; height: 16px; margin-right: 11px; vertical-align: -3px; border: 1.5px solid rgba(255, 237, 205, .32); border-top-color: #fff4de; border-radius: 50%; animation: enter-spin 1s linear infinite; }
+.is-entering .enter-spinner { display: inline-block; }
+@keyframes enter-spin { to { transform: rotate(360deg); } }
 .intro-sound {
   position: fixed; z-index: 3; top: calc(16px + var(--safe-t)); right: calc(18px + var(--safe-r));
   display: inline-flex; align-items: center; gap: 6px; min-height: 48px; padding: 0 12px;
@@ -105,4 +109,4 @@
   .intro-who-panel { order: -1; flex-basis: 100%; padding: 8px; }
   .intro-name { gap: 5px; margin-bottom: 5px; }
 }
-@media (prefers-reduced-motion: reduce) { .intro-motion { transform: none !important; } }
+@media (prefers-reduced-motion: reduce) { .intro-motion { transform: none !important; } .enter-spinner { animation: none; border-color: #f3d099; } }

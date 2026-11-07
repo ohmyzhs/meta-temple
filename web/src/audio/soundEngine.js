@@ -477,6 +477,28 @@ export class TempleSoundEngine {
     return !!this.ctx && this._enabled;
   }
 
+  // 입장 요청을 받은 즉시 사용자 제스처로 오디오 잠금을 풀어 둔다. 소리 생성은 실제 입장 때 시작한다.
+  prepareForEntry() {
+    applySession(this.background);
+    if (this.ctx) {
+      if (this._enabled && this.ctx.state !== 'running') this.ctx.resume().catch(() => {});
+      return;
+    }
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (AC && !this._preparedContext) {
+      this._preparedContext = new AC();
+      if (this._preparedContext.state !== 'running') this._preparedContext.resume().catch(() => {});
+    }
+    if (this.background) this._anchorPlay();
+  }
+
+  cancelPreparedEntry() {
+    this._anchorPause();
+    if (this._preparedContext) this._preparedContext.close().catch(() => {});
+    this._preparedContext = null;
+    applySession(false);
+  }
+
   // 사용자 제스처에서 호출. 두 번째 호출부터는 (켜져 있을 때만) 정지된 컨텍스트를 깨우기만 한다 — 음소거를 풀지 않음
   init() {
     if (this.ctx) {
@@ -485,7 +507,8 @@ export class TempleSoundEngine {
     }
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
-    const ctx = new AC();
+    const ctx = this._preparedContext || new AC();
+    this._preparedContext = null;
     try {
       this._build(ctx);
     } catch (err) {
