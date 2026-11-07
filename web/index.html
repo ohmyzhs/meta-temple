@@ -19,6 +19,7 @@
   <link rel="stylesheet" href="./src/styles.css" />
   <link rel="stylesheet" href="./src/entrance.css" />
   <link rel="stylesheet" href="./src/ui/modals.css" />
+  <link rel="stylesheet" href="./src/ui/soundTrim.css" />
   <script type="importmap">
     {
       "imports": {
@@ -232,6 +233,8 @@
       <label class="slider"><span>자연 환경음 <small>계곡·솔바람·산새·빗소리</small></span><input id="vol-nature" type="range" min="0" max="1" step="0.05" /></label>
       <label class="slider"><span>사찰 공간음 <small>풍경·독송·범종</small></span><input id="vol-temple" type="range" min="0" max="1" step="0.05" /></label>
       <label class="slider"><span>수행 효과음 <small>목탁·죽비·염주·발걸음</small></span><input id="vol-sfx" type="range" min="0" max="1" step="0.05" /></label>
+      <h3 class="sheet-sub">들리는 소리 하나씩 <small>지금 이 자리 · 가운데가 그대로</small></h3>
+      <div id="sound-trim"></div>
       <div class="pop-row">
         <h3 class="sheet-sub">화면 꺼져도 계속 듣기</h3>
         <button class="ctl chip" type="button" id="bg-audio-btn" aria-pressed="true">켜짐</button>

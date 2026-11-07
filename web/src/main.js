@@ -17,6 +17,8 @@ import { createPathfinder, pathLength } from './world/pathfind.js';
 import { SKY_TOTAL, BURN } from './world/burnPaper.js';
 import { createMiniMap } from './ui/miniMap.js';
 import { scrollFade } from './ui/scrollFade.js';
+import { bindSoundTrim } from './ui/soundTrim.js';
+import { buildRestShelter, shelterSpot } from './world/restShelter.js';
 import { trail, loop, J1, REST_SIT_MSG, REST_GROUND_MSG, REST_SPOTS } from './world/trail.js';
 import { restSlots, restGroundSlot } from './world/trailProps.js';
 import { placeStone, findJoinable, areaCount, AREA_CAP, AREA_RADIUS, GATE_ID } from './core/cairns.js';
@@ -78,6 +80,7 @@ class MetaTempleApp {
     this.sound = new TempleSoundEngine();
     const v = this.store.state.settings.volumes;
     Object.entries(v).forEach(([ch, val]) => this.sound.setChannelVolume(ch, val));
+    bindSoundTrim({ root: $('#sound-trim'), sound: this.sound, store: this.store }); // 메뉴 > 소리: 들리는 소리 하나씩 미세 조정 (ui/soundTrim.js)
     this.quality = detectQuality();
     this.keys = {};
     this.joy = { x: 0, z: 0 };
@@ -186,6 +189,7 @@ class MetaTempleApp {
     }
     const temple = this.world.temple;
     this.temple = temple;
+    this.shelter = buildRestShelter(this.world.scene, { onShow: () => this.toast('⛺ 비가 와서 돗자리 위에 간이 캐노피를 쳤습니다') }); // 비 오는 날 휴식 (world/restShelter.js)
     temple.paperBurn.warm(this.world.renderer, this.world.camera, this.world.scene, this.world.composer?.readBuffer); // 첫 소각에서 셰이더를 만드느라 멈칫하지 않게
     this.avatars = new AvatarManager(this.world.scene, temple, {
       onStep: (surface) => this.sound.playFootstep(surface),
@@ -2704,6 +2708,7 @@ class MetaTempleApp {
     this.world.update(dt, t, this.player.root, this.player.items.hand_lantern);
 
     if (this._listening) this._listenTick(dt);
+    this.shelter?.sync(shelterSpot(this.player, this.world.weatherName)); // 돗자리에 앉아 있고 비가 오면 캐노피 (날씨가 바뀌어도)
     if (this.entered) {
       this._positionSaveElapsed = (this._positionSaveElapsed || 0) + dt;
       if (this._positionSaveElapsed >= 2) { this._positionSaveElapsed = 0; this._rememberPosition(); }
