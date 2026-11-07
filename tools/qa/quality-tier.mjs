@@ -5,6 +5,10 @@
 //      - readPixels 로 GPU 까지 기다린 한 프레임 ms·그리기 호출·삼각형: low 단계 vs 올린 high 단계 (같은 자리)
 //      - CPU 8배 느리게 → 배율을 내리고 1.25 에서도 느리면 low 로, 풀어도 2분은 다시 안 올리는지
 //   B. ?q=low: 단계가 고정인지 (배율 자동 조절은 그대로)
+//   C. 느린 망(지연 150ms·1.6Mbps, avatar-perf 와 같은 수)으로 열기: 실사 질감(precinct·outdoor)이 다 받아지는 시각(페이지 열린 때부터),
+//      그 전에는 low 그대로인지, 다 받은 뒤 몇 초에 high 로 오르는지 (이 망은 크롬이 '4g' 로 보아 망 문은 열려 있다) (ONLY=C 로 이것만)
+//   D. 망 문만 닫기: 보통으로 들어선 직후 Slow 3G(지연 500ms·400kbps)로 바꿔 navigator.connection 이 '3g' 가 되는지, 그동안 low 그대로인지,
+//      빠른 망(지연 20ms·10Mbps)으로 풀면 '4g' 로 돌아오고 몇 초 뒤 high 로 오르는지 (ONLY=D)
 import { launch, BASE } from './lib.mjs';
 
 const OUT = process.env.OUT || '.';
@@ -75,9 +79,10 @@ const bench = (page) => page.evaluate(() => {
   return { ms: +ms[20].toFixed(2), calls: R.info.render.calls, ktris: Math.round(R.info.render.triangles / 1000) };
 });
 
+const ONLY = process.env.ONLY || 'ABCD';
 try {
   // A
-  {
+  if (ONLY.includes('A')) {
     const { ctx, page, errors } = await open('');
     const s0 = await state(page);
     log(`A. 첫 판정 ${s0.tier} (forced ${s0.forced}), 배율 ${s0.pr}`);
@@ -137,11 +142,83 @@ try {
     await ctx.close();
   }
   // B
-  {
+  if (ONLY.includes('B')) {
     const { ctx, page, errors } = await open('low');
     await page.waitForTimeout(30000);
     const s = await state(page);
     log(`B. ?q=low 30초 뒤: 단계 ${s.tier} (forced ${s.forced}) 배율 ${s.pr} frame ${s.ms}ms · 바뀐 순간: ${JSON.stringify((await changes(page)).map((c) => c.to))}`);
+    log(`   pageerror: ${errors.length ? errors.join(' | ') : '없음'}`);
+    await ctx.close();
+  }
+  // C
+  if (ONLY.includes('C')) {
+    const ctx = await browser.newContext({ viewport: { width: 412, height: 915 }, deviceScaleFactor: 2.625, hasTouch: true, isMobile: true, locale: 'ko-KR' });
+    const page = await ctx.newPage();
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(String(e)));
+    const cdp = await ctx.newCDPSession(page);
+    await cdp.send('Network.enable');
+    const slow = { offline: false, latency: 150, downloadThroughput: (1.6e6 / 8) | 0, uploadThroughput: (750e3 / 8) | 0 };
+    await cdp.send('Network.emulateNetworkConditions', slow);
+    await page.goto(`${BASE}/`, { waitUntil: 'commit' });
+    const snap = () => page.evaluate(() => {
+      const t = window.temple, W = t?.world, c = navigator.connection;
+      return { t: Math.round(performance.now()), entered: !!t?.entered, enteredAt: t?.enteredAt && Math.round(t.enteredAt), tier: t?.tier?.tier, pr: W?.pixelRatio, precinct: W?.precinctReady?.done, outdoor: W?.outdoorReady?.done, net: c ? `${c.effectiveType} ${c.downlink}Mbps rtt ${c.rtt}` : '없음' };
+    }).catch(() => null);
+    const seen = {};
+    const note = (s) => {
+      for (const k of ['precinct', 'outdoor']) if (s[k] && seen[k] == null) seen[k] = s.t;
+      if (s.tier === 'high' && seen.high == null) seen.high = s.t;
+    };
+    let s, entered = false;
+    const t0 = Date.now();
+    while (Date.now() - t0 < 300000) {
+      await page.waitForTimeout(1000);
+      s = await snap();
+      if (!s) continue;
+      note(s);
+      if (!entered && (await page.evaluate(() => window.temple && !document.querySelector('#intro-enter').disabled).catch(() => false))) {
+        await page.click('#intro-enter');
+        entered = true;
+        log(`C. 느린 망: 산문 열림 ${s.t}ms · 망 ${s.net}`);
+      }
+      if (s.entered && seen.precinct != null && seen.outdoor != null && s.t - Math.max(seen.precinct, seen.outdoor) > 15000) break;
+    }
+    log(`   들어섬 ${s.enteredAt}ms · 실사 질감 다 받음 precinct ${seen.precinct}ms outdoor ${seen.outdoor}ms (페이지 열린 때부터) · 그 뒤 15초: 단계 ${s.tier} 배율 ${s.pr} · 망 ${s.net}`);
+    await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
+    const freed = (await snap()).t;
+    const t1 = Date.now();
+    while (Date.now() - t1 < 40000) {
+      await page.waitForTimeout(1000);
+      s = await snap();
+      note(s);
+      if (s.tier === 'high') break;
+    }
+    log(`   high 로 오른 때 ${seen.high}ms = 질감 다 받은 뒤 +${((seen.high - Math.max(seen.precinct, seen.outdoor)) / 1000).toFixed(1)}초 (그 전에는 low) · 망을 풀 때(${freed}ms) 단계 ${s.tier} 배율 ${s.pr} · 망 ${s.net}`);
+    log(`   pageerror: ${errors.length ? errors.join(' | ') : '없음'}`);
+    await ctx.close();
+  }
+  // D
+  if (ONLY.includes('D')) {
+    const { ctx, page, errors } = await open('');
+    const cdp = await ctx.newCDPSession(page);
+    await cdp.send('Network.enable');
+    await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: 500, downloadThroughput: (400e3 / 8) | 0, uploadThroughput: (400e3 / 8) | 0 });
+    const net = () => page.evaluate(() => { const c = navigator.connection; return c ? `${c.effectiveType} ${c.downlink}Mbps rtt ${c.rtt}` : '없음'; });
+    log(`D. 들어선 직후 Slow 3G: 망 ${await net()} · 단계 ${(await state(page)).tier}`);
+    await page.waitForTimeout(25000);
+    let s = await state(page);
+    log(`   25초 뒤: 망 ${await net()} · 단계 ${s.tier} 배율 ${s.pr} frame ${s.ms}ms (질감은 이미 다 받음: precinct ${s.ready.precinctReady}ms)`);
+    await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: 20, downloadThroughput: (10e6 / 8) | 0, uploadThroughput: (5e6 / 8) | 0 });
+    const freed = s.t;
+    let up = null;
+    const t1 = Date.now();
+    while (Date.now() - t1 < 40000) {
+      await page.waitForTimeout(1000);
+      s = await state(page);
+      if (s.tier === 'high') { up = s.t; break; }
+    }
+    log(`   빠른 망으로 푼 뒤: 망 ${await net()} · ${up != null ? `${((up - freed) / 1000).toFixed(1)}초 뒤 high` : `40초 안에 안 오름 (단계 ${s.tier})`}`);
     log(`   pageerror: ${errors.length ? errors.join(' | ') : '없음'}`);
     await ctx.close();
   }
