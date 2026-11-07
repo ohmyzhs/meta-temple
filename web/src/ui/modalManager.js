@@ -183,6 +183,14 @@ function malaSvg() {
   </svg>`;
 }
 
+// 연등·기와·돌탑 공개 스위치 — 켜 두면 법명과 이 글이 다른 도반에게도 보인다 (설명 줄은 두지 않는다: 사용자 지시 2026-11-08)
+const SHARE_LABEL = '도반에게 보이기';
+const SHARE_SWITCH = `<label class="m-share"><span>${SHARE_LABEL}</span><input type="checkbox" role="switch" data-share checked /></label>`;
+const stroke = (d) => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+const WALK_SVG = stroke('<circle cx="13" cy="4.5" r="1.8"/><path d="M11 21l2-6.5-2.6-2.4.9-4.1 2.7 2.3 3 1.2M10.3 8.1L7 10.4 6 13.8M13 14.5l2.6 2.4.9 4.1"/>');
+const HERE_SVG = stroke('<path d="M12 21s-6-5.6-6-11a6 6 0 0 1 12 0c0 5.4-6 11-6 11z"/><circle cx="12" cy="10" r="2.2"/>');
+const LOCK_SVG = stroke('<rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8.5 10.5V7.5a3.5 3.5 0 0 1 7 0v3"/>');
+
 const CAIRN = [
   [80, 128, 52, 14, '#8b857a'],
   [76, 105, 41, 12, '#a39d91'],
@@ -438,31 +446,39 @@ export class ModalManager {
     el.classList.add('is-shown');
   }
 
+  /** 빈 칸: 안내 글 대신 칸을 살짝 흔들고 그 칸으로 */
+  _nudge(field) {
+    const box = field.closest('.m-field') || field;
+    box.classList.remove('is-nudge');
+    void box.offsetWidth;
+    box.classList.add('is-nudge');
+    field.focus();
+  }
+
   /* ═════════ 1. 소원 연등 ═════════ */
   _lantern(payload) {
     let color = LANTERN_COLORS[0].hex;
     let detailId = payload.lanternId || null;
     let newId = null;
-    let banner = '';
     const root = this._root(`
       <div class="m-tabs" role="tablist" aria-label="소원 연등">
         <button type="button" role="tab" data-tab="write">연등 달기</button>
-        <button type="button" role="tab" data-tab="view">달린 연등 보기 <span class="m-tab-count" data-count></span></button>
+        <button type="button" role="tab" data-tab="view">달린 연등 <span class="m-tab-count" data-count></span></button>
       </div>
       <section class="m-pane lantern-write" data-pane="write" role="tabpanel">
         <div class="lantern-stage" aria-hidden="true"><div class="lantern-sway" data-preview>${lotusSvg(color, 84)}</div></div>
         <div class="lantern-colors" role="group" aria-label="연등 빛깔">
           ${LANTERN_COLORS.map(
-            (c) => `<button type="button" class="lantern-swatch" data-color="${c.hex}" aria-pressed="${c.hex === color}">${lotusSvg(c.hex, 30)}<span>${esc(c.label)}</span></button>`
+            (c) => `<button type="button" class="lantern-swatch" data-color="${c.hex}" aria-pressed="${c.hex === color}" aria-label="${esc(c.label)}" title="${esc(c.label)}">${lotusSvg(c.hex, 30)}</button>`
           ).join('')}
         </div>
-        <label class="m-label" for="lantern-wish">마음에 품은 소원</label>
+        <label class="sr-only" for="lantern-wish">마음에 품은 소원</label>
         <div class="m-field">
-          <textarea id="lantern-wish" rows="3" maxlength="80" placeholder="가족의 건강, 마음의 평안… 품고 있는 바람을 적어 보세요"></textarea>
+          <textarea id="lantern-wish" rows="3" maxlength="80" placeholder="마음에 품은 소원"></textarea>
           <span class="m-counter" data-counter>0 / 80</span>
         </div>
         <p class="m-sign"><span data-name></span> 합장</p>
-        <label class="m-share"><input type="checkbox" data-share checked /> 다른 도반에게도 보이기 <small>법명과 이 글만 함께 보입니다</small></label>
+        ${SHARE_SWITCH}
         <div class="m-actions"><button type="button" class="m-btn primary" data-act="add">연등 밝히기</button></div>
         <p class="m-live" data-live aria-live="polite"></p>
       </section>
@@ -478,16 +494,16 @@ export class ModalManager {
     const empBtn = (l) => {
       const done = empathized().includes(l.id);
       return `<button type="button" class="m-empathy${done ? ' is-done' : ''}" data-emp="${esc(l.id)}" ${done ? 'disabled' : ''}
-        aria-label="${done ? '합장 공감을 건넸습니다' : '합장 공감 건네기'}, ${l.empathy || 0}">
-        <span>${done ? '공감함' : '합장'}</span><b>${l.empathy || 0}</b></button>`;
+        aria-label="${done ? '합장 공감을 건넸습니다' : '합장 공감 건네기'}, ${l.empathy || 0}">${icon('bow_half')}<b>${l.empathy || 0}</b></button>`;
     };
+    const mineMark = (l, what) => (l.mine ? `<span class="sr-only"> · 나의 ${what}</span>` : ''); // 내 것은 금빛 줄로 보인다
     const item = (l) => `
       <li class="lantern-item${l.mine ? ' is-mine' : ''}${l.id === newId ? ' is-new' : ''}">
         <button type="button" class="lantern-open" data-open="${esc(l.id)}">
           <span class="lantern-dot">${lotusSvg(l.color, 26)}</span>
           <span class="lantern-text">
             <span class="lantern-wish">${esc(l.wish)}</span>
-            <span class="lantern-meta">${esc(l.author)}${l.mine ? ' · <em>나의 연등</em>' : ''} · ${relTime(l.createdAt)}</span>
+            <span class="lantern-meta">${esc(l.author)}${mineMark(l, '연등')} · ${relTime(l.createdAt)}</span>
           </span>
         </button>
         ${empBtn(l)}
@@ -502,16 +518,15 @@ export class ModalManager {
       if (l) {
         const done = empathized().includes(l.id);
         pane.innerHTML = `
-          <div class="lantern-detail">
-            <button type="button" class="m-link m-back" data-back>← 모든 연등</button>
+          <div class="lantern-detail${l.mine ? ' is-mine' : ''}">
+            <button type="button" class="m-back" data-back aria-label="모든 연등">${icon('back')}</button>
             <div class="lantern-stage is-large" aria-hidden="true"><div class="lantern-sway">${lotusSvg(l.color, 110)}</div></div>
             <blockquote class="lantern-quote">${esc(l.wish)}</blockquote>
-            <p class="lantern-meta">${esc(l.author)} 합장 · ${relTime(l.createdAt)}${l.mine ? ' · <em>나의 연등</em>' : ''}</p>
+            <p class="lantern-meta">${esc(l.author)} 합장 · ${relTime(l.createdAt)}${mineMark(l, '연등')}</p>
             <div class="m-actions">
-              <button type="button" class="m-btn ${done ? 'is-done' : 'primary'}" data-emp="${esc(l.id)}" ${done ? 'disabled' : ''}>
-                ${done ? '합장 공감을 건넸습니다' : '합장 공감'} · <b>${l.empathy || 0}</b></button>
+              <button type="button" class="m-btn m-empathy-big ${done ? 'is-done' : 'primary'}" data-emp="${esc(l.id)}" ${done ? 'disabled' : ''}
+                aria-label="${done ? '합장 공감을 건넸습니다' : '합장 공감'}, ${l.empathy || 0}">${icon('bow_half')}<b>${l.empathy || 0}</b></button>
             </div>
-            <p class="m-hint">공감은 연등 하나에 한 번, 말없이 건네는 마음입니다.</p>
             ${reportBtn('lanterns', l)}
           </div>`;
         return;
@@ -520,9 +535,8 @@ export class ModalManager {
       const list = byNewest(lanterns);
       const shown = list.slice(0, 80);
       pane.innerHTML = `
-        ${banner ? `<p class="m-live is-shown">${esc(banner)}</p>` : ''}
         <ul class="lantern-list">${shown.map(item).join('')}</ul>
-        ${list.length > shown.length ? `<p class="m-hint">그 밖에도 ${list.length - shown.length}개의 연등이 마당을 밝히고 있습니다.</p>` : ''}`;
+        ${list.length > shown.length ? `<p class="m-more" aria-label="그 밖의 연등 ${list.length - shown.length}개">+${list.length - shown.length}</p>` : ''}`;
     };
 
     const setTab = this._tabs(root, (t) => {
@@ -538,25 +552,19 @@ export class ModalManager {
 
     const add = () => {
       const wish = ta.value.trim();
-      if (!wish) {
-        this._flash(live, '한 줄이라도 좋습니다. 마음을 적어 주세요.');
-        ta.focus();
-        return;
-      }
+      if (!wish) return this._nudge(ta);
       if (!this._shareCheck(root, wish, 80, live, ta)) return;
       const res = this.cb.onAddLantern?.(wish, color, root.querySelector('[data-share]')?.checked !== false);
       ta.value = '';
       counter.textContent = '0 / 80';
-      newId = res?.lantern?.id || null;
-      banner = '연등 하나가 마당 하늘에 올랐습니다. 밤이 깊을수록 더 환히 빛납니다.';
+      newId = res?.lantern?.id || null; // 새 연등 줄이 금빛으로 빛난다 (완료 문장 대신)
       detailId = null;
       setTab('view');
       this.body.scrollTop = 0;
     };
 
     const empathize = (id) => {
-      const ok = this.cb.onEmpathize?.(id);
-      banner = ok ? '말없이 합장 공감을 건넸습니다.' : banner;
+      this.cb.onEmpathize?.(id);
       renderView();
     };
 
@@ -607,12 +615,12 @@ export class ModalManager {
           <p class="giwa-sign">불기 ${year}년 · <span data-name></span></p>
         </div>
       </div>
-      <label class="m-label" for="tile-wish">기와에 새길 서원 <small>스물네 자 안으로</small></label>
+      <label class="sr-only" for="tile-wish">기와에 새길 서원</label>
       <div class="m-field">
-        <input id="tile-wish" type="text" maxlength="24" autocomplete="off" placeholder="예) 부모님 무병장수 발원" />
+        <input id="tile-wish" type="text" maxlength="24" autocomplete="off" placeholder="기와에 새길 서원" />
         <span class="m-counter" data-counter>0 / 24</span>
       </div>
-      <label class="m-share"><input type="checkbox" data-share checked /> 다른 도반에게도 보이기 <small>법명과 이 글만 함께 보입니다</small></label>
+      ${SHARE_SWITCH}
       <div class="m-actions"><button type="button" class="m-btn primary" data-act="add">기와 올리기</button></div>
       <p class="m-live" data-live aria-live="polite"></p>
       <h3 class="m-sub">봉안된 기와</h3>
@@ -631,7 +639,7 @@ export class ModalManager {
         .map(
           (t) => `<li class="giwa-item${t.mine ? ' is-mine' : ''}">
             <div class="giwa is-small"><p class="giwa-text">${esc(t.wish)}</p></div>
-            <p class="giwa-meta">${esc(t.author)}${t.mine ? ' · <em>나의 기와</em>' : ''}</p>${reportBtn('tiles', t)}</li>`
+            <p class="giwa-meta">${esc(t.author)}${t.mine ? '<span class="sr-only"> · 나의 기와</span>' : ''}</p>${reportBtn('tiles', t)}</li>`
         )
         .join('');
     };
@@ -645,11 +653,7 @@ export class ModalManager {
 
     const add = () => {
       const wish = input.value.trim();
-      if (!wish) {
-        this._flash(live, '기와에 새길 한 줄을 적어 주세요.');
-        input.focus();
-        return;
-      }
+      if (!wish) return this._nudge(input);
       if (!this._shareCheck(root, wish, 24, live, input)) return;
       this.cb.onAddTile?.(wish, root.querySelector('[data-share]')?.checked !== false);
       this._sfx('playBrushStroke');
@@ -659,8 +663,7 @@ export class ModalManager {
       giwa.classList.add('is-offered');
       input.value = '';
       this._later(sync, 900);
-      this._flash(live, '기와 한 장이 불사대에 봉안되었습니다. 오래도록 지붕을 지킬 마음입니다.');
-      renderGallery();
+      renderGallery(); // 올라간 기와가 맨 앞에 금테로 (완료 문장 대신)
     };
 
     this._on(input, 'input', sync);
@@ -684,7 +687,7 @@ export class ModalManager {
     if (root.querySelector('[data-share]')?.checked === false) return true;
     const r = checkText(wish, { kind: 'wish', max });
     if (r.ok) return true;
-    this._flash(live, `${r.message}. 고쳐 쓰거나 「다른 도반에게도 보이기」를 끄면 나만 보도록 둘 수 있습니다.`);
+    this._flash(live, `${r.message}. 고쳐 쓰거나 「${SHARE_LABEL}」를 끄세요.`);
     field?.focus();
     return false;
   }
@@ -698,69 +701,72 @@ export class ModalManager {
 
   /* ═════════ 3. 소원 돌탑 ═════════ */
   _stone() {
+    // 글 대신 그림: 돌 수는 조약돌+숫자, 아직 없는 자리는 흐린 돌탑, 내 돌은 금빛 줄, 지금 선 탑은 핀, 걸어가기는 걷는 사람+거리
     const root = this._root(`
-      <div class="cairn">
+      <div class="cairn" data-cairn>
         ${cairnSvg()}
-        <p class="cairn-count" data-count>지금까지 <b data-total>0</b>개의 돌이 쌓였습니다</p>
+        <p class="cairn-count" data-count></p>
       </div>
-      <label class="m-label" for="stone-wish">한 줄 다짐 <small>서른 자 안으로</small></label>
+      <label class="sr-only" for="stone-wish">한 줄 다짐</label>
       <div class="m-field">
-        <input id="stone-wish" type="text" maxlength="30" autocomplete="off" placeholder="예) 천천히, 그러나 멈추지 않기" />
+        <input id="stone-wish" type="text" maxlength="30" autocomplete="off" placeholder="한 줄 다짐" />
         <span class="m-counter" data-counter>0 / 30</span>
       </div>
-      <label class="m-share"><input type="checkbox" data-share checked /> 다른 도반에게도 보이기 <small>법명과 이 글만 함께 보입니다</small></label>
+      ${SHARE_SWITCH}
       <div class="m-actions"><button type="button" class="m-btn primary" data-act="add">조약돌 얹기</button></div>
       <p class="m-live" data-live aria-live="polite"></p>
-      <h3 class="m-sub" data-list-title>최근에 얹은 돌</h3>
-      <ul class="stone-list" data-list></ul>
+      <div data-list-wrap>
+        <h3 class="m-sub">남긴 글</h3>
+        <ul class="stone-list" data-list></ul>
+      </div>
       <div data-mine-wrap hidden>
-        <h3 class="m-sub">내가 돌을 얹은 돌탑 <small>누르면 걸어서 찾아갑니다</small></h3>
+        <h3 class="m-sub">내 돌탑</h3>
         <ul class="stone-list my-cairns" data-mine></ul>
       </div>`);
 
     const input = root.querySelector('#stone-wish');
     const counter = root.querySelector('[data-counter]');
     const live = root.querySelector('[data-live]');
+    const pebbles = (n) => `<span class="stone-n" role="img" aria-label="돌 ${n.toLocaleString('ko-KR')}개"><span class="stone-pebble"></span><b data-total>${n.toLocaleString('ko-KR')}</b></span>`;
 
     const render = () => {
       // 이 자리의 탑에 남긴 글만 (main 이 탑을 정해 준다). 옛 콜백이면 전체
       const sc = this.cb.stoneScope?.();
       const stones = sc ? sc.stones : this.store.state.stones;
+      const total = sc ? sc.total : (this.store.stoneTotal ?? stones.length);
+      root.querySelector('[data-cairn]').classList.toggle('is-new', !!sc?.isNew); // 아직 돌이 없는 자리: 흐린 돌탑
+      root.querySelector('[data-count]').innerHTML = `${sc ? `<span class="cairn-name">${esc(sc.name)}</span>` : ''}${pebbles(total)}`;
       if (sc) {
-        const count = root.querySelector('[data-count]');
-        count.innerHTML = sc.isNew
-          ? `<span class="cairn-name">${esc(sc.name)}</span>아직 돌이 없는 자리입니다 · 첫 돌을 얹으면 여기에 새 돌탑이 섭니다`
-          : `<span class="cairn-name">${esc(sc.name)}</span>지금까지 <b data-total>${sc.total.toLocaleString('ko-KR')}</b>개의 돌이 쌓였습니다`;
-        root.querySelector('[data-list-title]').textContent = '이 돌탑에 남긴 글';
         const mine = (sc.mine || []).slice(0, 6);
         root.querySelector('[data-mine-wrap]').hidden = !mine.length;
         root.querySelector('[data-mine]').innerHTML = mine
-          .map((c) =>
-            c.id === sc.id
-              ? `<li class="stone-item is-mine"><span class="stone-text"><span class="stone-wish">${esc(c.name)}</span><span class="stone-meta">지금 여기 · 내 돌 ${c.mine}개</span></span></li>`
-              : `<li class="stone-item"><span class="stone-text"><span class="stone-wish">${esc(c.name)}</span><span class="stone-meta">내 돌 ${c.mine}개 · 여기서 ${c.d}m</span></span><button type="button" class="m-btn small" data-walk="${esc(c.id)}">걸어서 가기</button></li>`
-          )
+          .map((c) => {
+            const head = `<span class="stone-text"><span class="stone-wish">${esc(c.name)}</span><span class="stone-meta">${pebbles(c.mine)}</span></span>`;
+            return c.id === sc.id
+              ? `<li class="stone-item is-here">${head}<span class="stone-here" role="img" aria-label="지금 여기">${HERE_SVG}</span></li>`
+              : `<li class="stone-item">${head}<button type="button" class="m-btn small m-walk" data-walk="${esc(c.id)}" aria-label="걸어서 가기, ${c.d}m">${WALK_SVG}<span>${c.d}m</span></button></li>`;
+          })
           .join('');
-      } else root.querySelector('[data-total]').textContent = (this.store.stoneTotal ?? stones.length).toLocaleString('ko-KR');
-      const empty = sc && !stones.length ? `<li class="stone-item"><span class="stone-text"><span class="stone-meta">${sc.loading ? '남긴 글을 불러오는 중…' : sc.offline ? '지금은 서버에 닿지 않아 다른 도반의 글을 불러오지 못했습니다' : '아직 이 돌탑에 남긴 글이 없습니다'}</span></span></li>` : '';
-      root.querySelector('[data-list]').innerHTML = empty + byNewest(stones)
-        .slice(0, 12)
-        .map(
-          (s) => `<li class="stone-item${s.mine ? ' is-mine' : ''}">
+      }
+      // 남긴 글이 없으면 칸째 감춘다. 불러오는 중에는 조약돌 셋이 깜박인다 (서버에 닿지 않으면 내 글만)
+      const loading = !!sc?.loading && !stones.length;
+      root.querySelector('[data-list-wrap]').hidden = !stones.length && !loading;
+      root.querySelector('[data-list]').innerHTML = loading
+        ? '<li class="stone-item is-loading" role="img" aria-label="남긴 글을 불러오는 중"><span class="stone-pebble"></span><span class="stone-pebble"></span><span class="stone-pebble"></span></li>'
+        : byNewest(stones)
+            .slice(0, 12)
+            .map(
+              (s) => `<li class="stone-item${s.mine ? ' is-mine' : ''}">
             <span class="stone-pebble" aria-hidden="true"></span>
             <span class="stone-text"><span class="stone-wish">${esc(s.wish)}</span>
-            <span class="stone-meta">${esc(s.author)}${s.mine ? ' · <em>나의 돌</em>' : ''} · ${relTime(s.createdAt)}</span></span>${reportBtn('stones', s)}</li>`
-        )
-        .join('');
+            <span class="stone-meta">${esc(s.author)}${s.mine ? '<span class="sr-only"> · 나의 돌</span>' : ''} · ${relTime(s.createdAt)}</span></span>${reportBtn('stones', s)}</li>`
+            )
+            .join('');
     };
 
     const add = () => {
       const wish = input.value.trim();
-      if (!wish) {
-        this._flash(live, '돌 위에 얹을 한 줄을 적어 주세요.');
-        input.focus();
-        return;
-      }
+      if (!wish) return this._nudge(input);
       if (!this._shareCheck(root, wish, 30, live, input)) return;
       this.cb.onAddStone?.(wish, root.querySelector('[data-share]')?.checked !== false);
       const g = root.querySelector('[data-new]');
@@ -769,8 +775,9 @@ export class ModalManager {
       g.classList.add('is-drop');
       input.value = '';
       counter.textContent = '0 / 30';
-      this._flash(live, '조약돌 하나를 얹었습니다. 무너지지 않는 것은 쌓아 온 마음들 덕분입니다.');
+      live.textContent = '';
       render();
+      root.querySelector('[data-count] [data-total]')?.classList.add('is-bump'); // 완료 문장 대신: 돌이 떨어지고 수가 한 번 뛴다
     };
 
     this._on(input, 'input', () => (counter.textContent = `${input.value.length} / 30`));
@@ -795,20 +802,18 @@ export class ModalManager {
   /* ═════════ 4. 번뇌 소각 ═════════ */
   _burn() {
     const root = this._root(`
-      <p class="burn-intro">마음을 무겁게 하는 생각을 적어 보세요. 이 글은 <b>저장되지도, 어디로 보내지지도 않습니다.</b>
-        태우는 순간 이 화면에서도 흔적 없이 사라집니다.</p>
       <div class="burn-stage" data-stage>
         <div class="burn-paper" data-paper>
-          <label class="sr-only" for="burn-text">태워 보낼 마음</label>
+          <label class="sr-only" for="burn-text">태워 보낼 마음 (저장하지도 보내지도 않습니다)</label>
           <textarea id="burn-text" rows="5" maxlength="400" autocomplete="off" autocorrect="off" spellcheck="false"
-            placeholder="후회, 미움, 불안… 아무도 보지 않으니 솔직하게 적어도 괜찮습니다"></textarea>
+            placeholder="후회, 미움, 불안…"></textarea>
+          <span class="burn-lock" title="저장하지도 보내지도 않습니다">${LOCK_SVG}</span>
         </div>
       </div>
       <div class="m-actions" data-actions><button type="button" class="m-btn fire" data-act="burn">화로에 태워 보내기</button></div>
       <p class="m-live" data-live aria-live="polite"></p>
       <div class="burn-after" data-after hidden>
         <p class="burn-done">흔적 없이 사라졌습니다.</p>
-        <p class="m-hint">깊게 한 번 내쉬어 보세요. 가벼워진 만큼, 그 자리에 바람이 듭니다.</p>
         <div class="m-actions"><button type="button" class="m-btn" data-act="again">다시 적기</button></div>
       </div>`);
 
@@ -832,11 +837,7 @@ export class ModalManager {
     const burn = () => {
       if (burning) return;
       let text = ta.value;
-      if (!text.trim()) {
-        this._flash(live, '한 단어라도 괜찮습니다.');
-        ta.focus();
-        return;
-      }
+      if (!text.trim()) return this._nudge(ta);
       burning = true;
       live.textContent = '';
       ta.value = ''; // 입력란에서 바로 지운다
@@ -1109,10 +1110,10 @@ export class ModalManager {
           </div>
         </div>
         <div class="practice-side">
-          <p class="breath" data-breath aria-live="polite">숨을 고르고, 준비되면 시작하세요</p>
+          <p class="breath" data-breath aria-live="polite">한 절에 한 숨</p>
           <div class="m-actions practice-actions">
             <button type="button" class="m-btn primary" data-act="bow">절 올리기</button>
-            <button type="button" class="m-btn" data-act="auto" aria-pressed="false">자동 108배 <small>8초에 한 번</small></button>
+            <button type="button" class="m-btn" data-act="auto" aria-pressed="false">자동 108배</button>
           </div>
           <p class="practice-stat">오늘 <b data-today-bows>0</b>배 · 누적 <b data-life-bows>0</b>배</p>
         </div>
@@ -1175,7 +1176,7 @@ export class ModalManager {
       gen += 1;
       auto = false;
       autoBtn.setAttribute('aria-pressed', 'false');
-      autoBtn.innerHTML = '자동 108배 <small>8초에 한 번</small>';
+      autoBtn.textContent = '자동 108배';
       bowBtn.disabled = false;
       ring.classList.remove('is-breathing');
       render();
@@ -1269,7 +1270,6 @@ export class ModalManager {
         <div class="practice-side">
           <p class="breath is-still" data-mala-breath>한 알에 한 숨</p>
           <p class="practice-stat">오늘 <b data-today-mala>0</b>알 · 누적 <b data-life-mala>0</b>알</p>
-          <p class="m-hint">염주를 누르거나 아래로 쓸어 넘기세요. 스물일곱 알을 네 바퀴 돌리면 백팔입니다.</p>
           <p class="m-live" data-mala-live aria-live="polite"></p>
         </div>
       </section>`);
@@ -1820,7 +1820,6 @@ export class ModalManager {
           </button>
         </li>`).join('')}
       </ul>
-      <p class="m-hint">좌복에 앉아 예불을 듣습니다. ${mq('(pointer: coarse)') ? '「일어나기」' : 'Esc 또는 「일어나기」'}로 돌아옵니다.</p>
       <p class="m-hint"><button type="button" class="m-link" data-nature>자연의 소리 듣기 →</button></p>`);
     this._on(root, 'click', (e) => {
       if (e.target.closest('[data-nature]')) return this.open('nature');
@@ -1843,7 +1842,7 @@ export class ModalManager {
         <li>
           <button type="button" class="yebul-item" data-here aria-label="이 자리 소리 듣기">
             <span class="yebul-play" aria-hidden="true">${icon('rest_mat')}</span>
-            <span class="yebul-meta"><b>이 자리 소리</b><small>지금 선 곳에서 들리는 그대로 — 조절해서 담을 수 있습니다</small></span>
+            <span class="yebul-meta"><b>이 자리 소리</b><small>지금 선 곳 그대로</small></span>
           </button>
         </li>${mixes().map((m) => `
         <li class="mx-saved">
@@ -1870,7 +1869,7 @@ export class ModalManager {
     const asmr = `
       <ul class="yebul-list">${ASMR_TRACKS.map((t) => item(t.id, t.title, `${t.place} · ${t.note}`, t.sec, t.group)).join('')}
       </ul>
-      <p class="m-hint">실제 그 자리에서 녹음한 원음을 자르지 않고 그대로 들려줍니다. 고르면 그 자리에 앉아 듣고, 끝나면 다음 곡으로 이어집니다.</p>`;
+`;
     const root = this._root(`
       <div class="sutra-chips nature-tabs" role="tablist" aria-label="자연의 소리">
         <button type="button" role="tab" class="m-chip" data-tab="scenes" aria-selected="${tab === 'scenes'}">장면</button>
@@ -1889,7 +1888,6 @@ export class ModalManager {
           </button>
         </li>`).join('')}
       </ul>
-      <p class="m-hint">그 자리에 앉아 듣습니다. 타이머가 끝나면 소리가 잦아듭니다. ${mq('(pointer: coarse)') ? '「일어나기」' : 'Esc 또는 「일어나기」'}로 돌아옵니다.</p>
       </div>
       <div data-pane="asmr"${tab === 'asmr' ? '' : ' hidden'}>${asmr}
       </div>
@@ -2066,7 +2064,7 @@ export class ModalManager {
     wrap.innerHTML = `
       <div class="jukbi-stage">
         <button type="button" class="jukbi-card" data-card aria-label="죽비 뽑기">
-          <span class="jukbi-face jukbi-back" aria-hidden="true"><span class="jukbi-mark">竹篦</span><span class="jukbi-tap">눌러서 한 구절 뽑기</span></span>
+          <span class="jukbi-face jukbi-back" aria-hidden="true"><span class="jukbi-mark">竹篦</span></span>
           <span class="jukbi-face jukbi-front" data-front></span>
         </button>
       </div>
@@ -2090,7 +2088,7 @@ export class ModalManager {
     const keptIds = () => new Set((this.store.profile.dharmaCards || []).map((c) => c.id).filter((id) => CARD_IDS.has(id)));
     const syncKept = () => {
       const n = keptIds().size;
-      keptEl.textContent = n ? `간직한 죽비 ${n}장` : '마음에 닿는 구절은 간직해 둘 수 있습니다.';
+      keptEl.textContent = n ? `간직한 죽비 ${n}장` : '';
       if (!cur) return;
       const has = keptIds().has(cur.id);
       keepBtn.disabled = has;
@@ -2131,7 +2129,7 @@ export class ModalManager {
       if (!cur) return;
       this.cb.onDharmaCard?.(cur);
       syncKept();
-      if (keptIds().has(cur.id)) keptEl.textContent = `마음에 간직했습니다 · 간직한 죽비 ${keptIds().size}장`;
+      if (keptIds().has(cur.id)) keptEl.textContent = `간직한 죽비 ${keptIds().size}장`;
     };
     this._on(wrap, 'click', (e) => {
       const b = e.target.closest('button');
