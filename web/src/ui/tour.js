@@ -55,7 +55,7 @@ export function createTour() {
 
   function render() {
     const step = TOUR_STEPS[i];
-    const extra = Object.values(step.slot || {}).join(' ');
+    const extra = step.extra ? pick(step.extra) : '';
     el.querySelector('.tour-step').textContent = `${i + 1} / ${TOUR_STEPS.length}`;
     el.querySelector('.tour-title').textContent = step.title;
     el.querySelector('.tour-body').innerHTML = `${pick(step.body)}${extra ? ` ${extra}` : ''}`; // 우리가 쓴 글만 (guide.js)
