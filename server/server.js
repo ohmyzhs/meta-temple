@@ -240,6 +240,15 @@ wss.on('connection', (ws, req) => {
       for (const o of peer.room.peers) {
         if (o !== peer && o.ready && Math.hypot(o.x - peer.x, o.z - peer.z) < BOW_RANGE) o.ws.send(msg);
       }
+    } else if (m.t === 'bell' && peer.ready) {
+      const now = Date.now();
+      if (now - (peer.lastBell || 0) < 1500) return;
+      peer.lastBell = now;
+      const msg = JSON.stringify({ t: 'bell', sid: peer.sid, name: peer.name });
+      // 방이나 거리에 관계없이 접속 중인 다른 도반에게 한 번씩 전달한다.
+      for (const o of clients.values()) {
+        if (o !== peer && o.ready && o.ws.readyState === 1) o.ws.send(msg);
+      }
     }
   });
   ws.on('close', () => leave(peer));

@@ -866,8 +866,9 @@ export class TempleScene {
       const av = player.userData.avatar;
       const target = av ? av.eyeWorld(new THREE.Vector3()) : new THREE.Vector3(p.x, p.y + (player.userData.eyeHeight ?? 1.5), p.z);
       this.camera.position.lerp(target, 1 - Math.exp(-dt * 12));
-      // 내 몸(연꽃 정령·삿갓·머리)이 눈앞을 가리므로 1인칭에서는 내 화면에서만 숨긴다 — 다른 도반에게는 그대로 보인다
-      player.visible = this.camera.position.distanceTo(target) > 0.9;
+      // 진입 중 카메라가 얼굴을 통과할 때도 내 머리가 화면을 가리지 않게 바로 숨긴다.
+      // 다른 도반의 화면에는 이 모습이 그대로 보인다.
+      player.visible = false;
       // 3인칭과 같은 규약: yaw 0 = 북쪽(-z)을 봄, pitch 양수 = 아래를 봄
       const look = new THREE.Vector3(-Math.sin(c.yaw) * Math.cos(c.pitch), -Math.sin(c.pitch), -Math.cos(c.yaw) * Math.cos(c.pitch));
       this.camera.lookAt(this.camera.position.clone().add(look));

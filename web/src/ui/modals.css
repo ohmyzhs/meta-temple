@@ -353,7 +353,7 @@
 .m-live:empty { display: none; }
 .m-live.is-shown { animation: m-live 0.7s var(--ease) both; }
 @keyframes m-live { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
-.m-hint { margin: 10px 0 0; font-size: 12px; line-height: 1.65; color: var(--muk-soft); text-align: center; }
+.m-hint { margin: 10px 0 0; font-size: 14px; line-height: 1.65; color: var(--muk-soft); text-align: center; word-break: keep-all; overflow-wrap: anywhere; }
 .m-sub {
   display: flex;
   align-items: center;
