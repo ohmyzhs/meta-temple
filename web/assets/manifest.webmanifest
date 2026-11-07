@@ -2,7 +2,7 @@
   "name": "소리사원 · 입체 ASMR 산사",
   "short_name": "소리사원",
   "start_url": "/",
-  "display": "browser",
+  "display": "standalone",
   "background_color": "#14110e",
   "theme_color": "#14110e",
   "icons": [

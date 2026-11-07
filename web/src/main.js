@@ -11,6 +11,7 @@ import { TempleScene } from './world/templeScene.js';
 import { AvatarManager } from './world/avatarManager.js';
 import { loadRig } from './world/avatarRig.js';
 import { createIntroBackground } from './ui/introBackground.js';
+import { canShareImage, shareImage } from './ui/captureShare.js';
 import { wireState } from './core/avatarMotion.js';
 import { L, COURTS, isWalkable, zoneAt, streamZ, walkHeight, canBuildCairn, pathX, resolveCollisions } from './world/layout.js';
 import { createPathfinder, pathLength } from './world/pathfind.js';
@@ -358,6 +359,7 @@ class MetaTempleApp {
   _entryFailed(error) {
     if (error) console.error(error);
     this._stopLoop();
+    this._cancelPendingCapture();
     this.entered = false;
     this._entryTransition = false;
     this.backGuard?.cancel();
@@ -475,6 +477,7 @@ class MetaTempleApp {
     this.entered = false;
     this._entryTransition = false;
     this._stopLoop();
+    this._cancelPendingCapture();
     clearTimeout(this._introTimer);
     const button = $('#intro-enter');
     button.disabled = false;
@@ -1994,6 +1997,7 @@ class MetaTempleApp {
       el.classList.add('out');
       setTimeout(() => el.remove(), 650);
     }, 3800);
+    return el;
   }
 
   _updateHUD() {
@@ -2086,6 +2090,69 @@ class MetaTempleApp {
       cam.targetDist = 2.2; // 기존 3인칭 확대 한계에서 1인칭으로 이어진다.
       this._setCameraMode('first');
     } else this.world.zoom(delta);
+  }
+
+  _captureBusy(on) {
+    const button = $('#quick-capture');
+    this._capturing = on;
+    button.disabled = on;
+    if (on) button.setAttribute('aria-busy', 'true');
+    else button.removeAttribute('aria-busy');
+    button.setAttribute('aria-label', on ? '사진 준비 중' : '화면 사진 저장');
+    button.title = button.getAttribute('aria-label');
+  }
+
+  _cancelPendingCapture() {
+    if (!this._captureRequested) return;
+    this._captureRequested = false;
+    this._captureNotice?.remove();
+    this._captureNotice = null;
+    this._captureBusy(false);
+  }
+
+  _showCapturePreview(file) {
+    const dialog = $('#capture-preview');
+    if (this._captureUrl) URL.revokeObjectURL(this._captureUrl);
+    this._captureFile = file;
+    this._captureUrl = URL.createObjectURL(file);
+    $('#capture-image').src = this._captureUrl;
+    $('#capture-download').href = this._captureUrl;
+    $('#capture-download').download = file.name;
+    const supported = canShareImage(file);
+    $('#capture-share').hidden = !supported;
+    $('#capture-help').textContent = supported
+      ? '공유를 선택해 사진 앱에 저장하거나 사진을 길게 눌러 저장하세요.'
+      : '사진을 길게 눌러 저장하거나 파일로 저장하세요.';
+    if (!dialog.open) {
+      if (dialog.showModal) dialog.showModal();
+      else dialog.setAttribute('open', '');
+    }
+  }
+
+  async _finishCapture(blob) {
+    this._captureNotice?.remove();
+    this._captureNotice = null;
+    try {
+      if (!blob) { this.toast('사진을 만들지 못했습니다.', 'bell-toast-stack'); return; }
+      const file = new File([blob], `소리사원-${new Date().toISOString().slice(0, 10)}.png`, { type: 'image/png' });
+      const mobile = matchMedia('(pointer: coarse)').matches || /Android|iP(hone|ad|od)/i.test(navigator.userAgent);
+      if (mobile) {
+        const result = await shareImage(file);
+        if (result !== 'shared' && result !== 'cancelled') this._showCapturePreview(file);
+      } else {
+        const url = URL.createObjectURL(file);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = file.name;
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+        this.toast('사진 파일을 내려받습니다.', 'bell-toast-stack');
+      }
+    } catch {
+      this.toast('사진을 준비하지 못했습니다.', 'bell-toast-stack');
+    } finally {
+      this._captureBusy(false);
+    }
   }
 
   /**
@@ -2284,18 +2351,49 @@ class MetaTempleApp {
       button.setAttribute('aria-label', document.fullscreenElement ? '전체화면 나가기' : '전체화면 보기');
       button.title = button.getAttribute('aria-label');
     });
-    $('#quick-capture').addEventListener('click', () => { this._captureRequested = true; });
+    $('#quick-capture').addEventListener('click', () => {
+      if (this._capturing) return;
+      this._captureBusy(true);
+      this._captureRequested = true;
+      this._captureNotice = this.toast('사진을 준비하고 있습니다.', 'bell-toast-stack');
+    });
+    const captureDialog = $('#capture-preview');
+    const clearCapturePreview = () => {
+      if (this._captureUrl) URL.revokeObjectURL(this._captureUrl);
+      this._captureUrl = this._captureFile = null;
+      $('#capture-image').removeAttribute('src');
+    };
+    const closeCapturePreview = () => {
+      if (captureDialog.close) captureDialog.close();
+      else { captureDialog.removeAttribute('open'); clearCapturePreview(); }
+    };
+    $('#capture-close').addEventListener('click', closeCapturePreview);
+    captureDialog.addEventListener('close', clearCapturePreview);
+    $('#capture-share').addEventListener('click', async () => {
+      if (!this._captureFile) return;
+      const result = await shareImage(this._captureFile);
+      if (result === 'shared') closeCapturePreview();
+      else if (result !== 'cancelled') $('#capture-help').textContent = '공유 창을 열 수 없습니다. 사진을 길게 눌러 저장하거나 파일로 저장하세요.';
+    });
+    window.addEventListener('appinstalled', () => {
+      window.templeInstallPrompt = null;
+      this.toast('소리사원이 홈 화면에 추가되었습니다.');
+    });
     $('#shortcut-add').addEventListener('click', async () => {
+      if (matchMedia('(display-mode: standalone)').matches || navigator.standalone) {
+        this.toast('이미 홈 화면에서 열고 있습니다.');
+        return;
+      }
       const prompt = window.templeInstallPrompt;
       if (prompt) {
         window.templeInstallPrompt = null;
-        try { await prompt.prompt(); } catch { this.toast('홈 화면 추가를 열 수 없습니다.'); }
+        try { await prompt.prompt(); } catch { this.toast('설치 창을 열지 못했습니다. 브라우저 메뉴에서 다시 시도해 주세요.'); }
         return;
       }
       const ios = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
       $('#shortcut-help').textContent = ios
-        ? 'Safari의 공유 버튼을 누르고 「홈 화면에 추가」를 선택해 주세요.'
-        : '브라우저 메뉴에서 「홈 화면에 추가」 또는 「앱 설치」를 선택해 주세요.';
+        ? 'iPhone에서는 브라우저의 공유 버튼을 누른 뒤 「홈 화면에 추가」를 선택해 주세요.'
+        : '아직 설치 창을 열 수 없습니다. 브라우저 메뉴에서 「홈 화면에 추가」 또는 「앱 설치」를 선택해 주세요.';
       openSheet('shortcut-sheet');
     });
     ['nature', 'temple', 'sfx'].forEach((ch) => $(`#vol-${ch}`).addEventListener('input', (e) => this._setVolume(ch, Number(e.target.value))));
@@ -2819,17 +2917,8 @@ class MetaTempleApp {
     if (this._captureRequested) {
       this._captureRequested = false;
       try {
-        this.world.renderer.domElement.toBlob((blob) => {
-          if (!blob) return this.toast('화면 사진을 저장하지 못했습니다.', 'bell-toast-stack');
-          const url = URL.createObjectURL(blob);
-          const link = document.createElement('a');
-          link.href = url;
-          link.download = `소리사원-${new Date().toISOString().slice(0, 10)}.png`;
-          link.click();
-          setTimeout(() => URL.revokeObjectURL(url), 60000);
-          this.toast('산사의 풍경을 사진으로 저장했습니다.', 'bell-toast-stack');
-        }, 'image/png');
-      } catch { this.toast('화면 사진을 저장하지 못했습니다.', 'bell-toast-stack'); }
+        this.world.renderer.domElement.toBlob((blob) => void this._finishCapture(blob), 'image/png');
+      } catch { void this._finishCapture(null); }
     }
   }
 

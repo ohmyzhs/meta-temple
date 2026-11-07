@@ -7,7 +7,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32-v4.png" />
   <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192-v4.png" />
   <link rel="apple-touch-icon" href="./assets/icons/apple-touch-icon-v4.png" />
-  <link rel="manifest" href="./assets/manifest.webmanifest?v=5" />
+  <link rel="manifest" href="./assets/manifest.webmanifest?v=6" />
   <title>소리사원 · 입체 ASMR 산사</title>
   <meta name="description" content="링크 하나로 들어서는 웹 3D 산사. 말없이 함께 머물며 절·연등·사경·차담으로 마음을 비우는 디지털 안식처." />
   <meta property="og:title" content="소리사원 — 입체 ASMR 산사" />
@@ -254,6 +254,13 @@
     <button class="ctl quick-tool" type="button" id="quick-sound" aria-label="소리 끄기" title="소리 끄기" aria-pressed="true"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 9h3l4-3v12l-4-3H4zM15 9a4 4 0 0 1 0 6M18 6a8 8 0 0 1 0 12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path class="quick-sound-off" d="M4 20 20 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
     <button class="ctl quick-tool" type="button" id="quick-capture" aria-label="화면 사진 저장" title="화면 사진 저장"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 8h3l1.5-2h7L17 8h3v11H4z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="12" cy="13.5" r="3" stroke="currentColor" stroke-width="1.6"/></svg></button>
   </nav>
+
+  <dialog id="capture-preview" class="capture-preview" aria-labelledby="capture-title">
+    <div class="capture-preview-head"><h2 id="capture-title">사진 저장</h2><button id="capture-close" type="button" aria-label="닫기">×</button></div>
+    <img id="capture-image" alt="촬영한 산사 풍경" />
+    <p id="capture-help">공유를 선택해 사진 앱에 저장하거나 사진을 길게 눌러 저장하세요.</p>
+    <div class="capture-actions"><button id="capture-share" type="button">공유하기</button><a id="capture-download">파일로 저장</a></div>
+  </dialog>
 
   <div id="toast-stack" class="toast-stack" aria-live="polite"></div>
   <div id="bell-toast-stack" class="toast-stack bell-toast-stack" aria-live="polite"></div>
