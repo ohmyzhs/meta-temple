@@ -27,7 +27,7 @@ export const NATURE_BEDS = {
   birds2: { layer: 'birds', replaces: 'birds2', level: 0.6, pieces: birdPieces() },
   crickets: { layer: 'crickets', replaces: 'insects', level: 3.3, /* 예전 4.9(스테레오 -24.3) → 모노 -24.0 은 두 채널로 퍼지며 3dB 커진다 */ pieces: N('crickets-baekryeon', 2, { months: [8, 9, 10, 11] }) },
   cicadas: { layer: 'cicadas', level: 1.43, /* 한낮 숲 산새(0.3×1.5×0.95)와 같은 크기 */ pieces: N('cicadas-jiri', 2, { months: [7, 8] }) } /* 영원사 매미는 계류 물소리가 커서 뺐다 */,
-  frogs: { layer: 'frogs', level: 0.66, /* 밤 풀벌레(0.06×3.3)와 같은 크기 */ pieces: [...N('frogs-baekryeong', 1, { months: [5, 6, 7] }), ...N('frogs-pool', 3, { months: [4, 5, 6, 7] })] },
+  frogs: { layer: 'frogs', level: 0.66, /* 밤 풀벌레(0.06×3.3)와 같은 크기 */ pieces: [...N('frogs-baekryeong', 2, { months: [5, 6, 7], w: 4.5 }), ...N('frogs-pool', 3, { months: [4, 5, 6, 7], w: 1 / 6 })] }, // 사용자 2026-11-07: 귀에 익은 백령도 청개구리 90% · 풀개구리 10% (w = 비중)
   chant: { layer: 'chant', replaces: 'chant', level: 0.98, pieces: N('chant-baekyang', 3) },
   spring: { layer: 'spring', replaces: 'spring', level: 0.98, pieces: N('spring-dogap', 3) },
   fire: { layer: 'brazier', level: 1.51, /* 모닥불 조각은 탁 소리 봉우리를 8dB 깎고(peakcut) -29 LUFS 로 맞췄다 — 예전 -37 LUFS·3.8 과 같은 크기(-8dB), 봉우리만 낮다 (headroom.mjs) */ pieces: N('fire-camp', 3) }
@@ -52,6 +52,7 @@ export const NATURE_SHOTS = {
   scops: S('scops', 4),
   owl: S('owl', 3),
   eagleowl: S('eagleowl', 4),
+  cuckoo: S('birds-cuckoo', 2), // 봄밤 장면의 먼 뻐꾸기 — 산새 배경 조각에서 10~16초씩 떼어 튼다 (soundEngine 밤새)
   thunder: ['thunder-1', 'thunder-2', ...S('thunder-far', 4)],
   drip: { sprite: 'drip', n: 12, slot: 0.5, len: 0.35 },
   sweep: ['sweep-1'],
@@ -99,8 +100,8 @@ export const NATURE_PRESETS = [
   { id: 'pines', title: '솔바람·대숲', note: '소나무와 대나무를 지나는 바람', time: 'day', month: 10, weather: 'clear', mix: { wind: 1.6, bamboo: 1.2, birds: 0.4 }, chimes: true },
   { id: 'dawn', title: '새벽 숲', note: '지빠귀가 깨우는 산', time: 'dawn', month: 5, weather: 'clear', mix: { birds: 1.2, stream: 0.4, wind: 0.4 } },
   { id: 'summer', title: '여름 한낮', note: '매미와 계류', time: 'day', month: 8, weather: 'clear', mix: { cicadas: 1, stream: 0.7, wind: 0.5 } },
-  { id: 'springnight', title: '봄밤', note: '개구리와 소쩍새', time: 'night', month: 5, weather: 'clear', mix: { frogs: 1, wind: 0.3 } },
-  { id: 'autumnnight', title: '가을밤', note: '풀벌레와 산바람', time: 'night', month: 10, weather: 'clear', mix: { crickets: 1.2, wind: 0.6 } },
+  { id: 'springnight', title: '봄밤', note: '개구리와 소쩍새', time: 'night', month: 5, weather: 'clear', mix: { frogs: 1, wind: 0.3 }, only: { frogs: 'frogs-baekryeong' }, chorus: { frogs: 3 }, calls: { rate: 2, add: ['cuckoo'] } }, // 사용자 2026-11-07: 백령도 청개구리가 끊기지 않고 여러 마리, 소쩍새·솔부엉이 2배, 뻐꾸기
+  { id: 'autumnnight', title: '가을밤', note: '풀벌레와 산바람', time: 'night', month: 10, weather: 'clear', mix: { crickets: 1.2, wind: 0.6 }, chorus: { crickets: 3 }, calls: { rate: 2 } }, // 사용자 2026-11-07: 귀뚜라미 여러 곳·여러 크기, 수리부엉이 2배
   { id: 'winter', title: '겨울 산사', note: '눈 내린 고요와 풍경', time: 'night', month: 1, weather: 'snow', mix: { wind: 0.8 }, chimes: true },
   { id: 'tea', title: '다실 찻물', note: '물 끓는 소리와 연못 샘물', time: 'day', month: 11, weather: 'clear', mix: { kettle: 1.2, spring: 0.8, wind: 0.3 } },
   { id: 'fire', title: '화롯가', note: '장작 타는 소리와 겨울바람', time: 'night', month: 12, weather: 'snow', mix: { brazier: 0.46, wind: 0.7 } } // 화로 레이어 크기를 2.8배로 올린 만큼 (headroom.mjs 그대로)

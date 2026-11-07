@@ -22,6 +22,9 @@ import { ModalManager } from './ui/modalManager.js';
 import { LiveLink, sharedApi } from './core/live.js';
 import { YEBUL_TRACKS } from './data/credits.js';
 import { NATURE_PRESETS, SLEEP_MINUTES } from './data/natureSounds.js';
+import { ASMR_TRACKS } from './data/asmr.js';
+// 테마 ASMR 을 듣는 동안 엔진의 자연의 소리는 모두 쉰다 (낮·맑음 — 밤새·천둥도 나지 않게)
+const ASMR_QUIET = { id: 'asmr', time: 'day', weather: 'clear', mix: {} };
 import { bindNameForm } from './ui/nameField.js';
 import { veil } from './ui/veil.js';
 import { DOCK_RITUALS } from './data/templeData.js';
@@ -676,13 +679,14 @@ class MetaTempleApp {
       return veil(() => this._listening && this._listenScene(), { hold: 380 });
     }
     const nature = !!track.mix; // 자연의 소리 장면 (data/natureSounds.js)
-    // 산문 밖 쉼터에 앉아 있으면 그 자리에서 듣는다. 자연의 소리는 어디서든 선 자리에 앉아 듣는다
+    const asmr = ASMR_TRACKS.includes(track); // 테마 ASMR 원음 (data/asmr.js)
+    // 산문 밖 쉼터에 앉아 있으면 그 자리에서 듣는다. 자연의 소리·테마 ASMR 은 어디서든 선 자리에 앉아 듣는다
     const p = this.player.root.position;
-    const rest = (this.player.seat?.kind === 'rest' ? this.player.seat._ref : null) || (nature ? { x: p.x, z: p.z } : null);
+    const rest = (this.player.seat?.kind === 'rest' ? this.player.seat._ref : null) || (nature || asmr ? { x: p.x, z: p.z } : null);
     this.modals.close();
     const cam = this.world.cam;
     const loop = this.store.state.settings.listenLoop ?? !!rest; // 연속 듣기: 고른 값이 없으면 쉼터에서는 켜고 법당에서는 끈다
-    const ls = (this._listening = { track, rest, loop, nature, saved: { mode: cam.mode, yaw: cam.yaw, pitch: cam.pitch, dist: cam.targetDist } });
+    const ls = (this._listening = { track, rest, loop, nature, asmr, saved: { mode: cam.mode, yaw: cam.yaw, pitch: cam.pitch, dist: cam.targetDist } });
     $('#listen').classList.toggle('nature', nature);
     if (nature) {
       ls.sleep = this.store.state.settings.natureSleep ?? 30;
@@ -725,10 +729,11 @@ class MetaTempleApp {
       this.sound.setTrackActions(() => this._listenStep(-1), () => this._listenStep(1));
       return this._listenSync();
     }
-    ls.ready = !!this.sound.playTrack('./assets/audio/' + track.file);
+    if (ls.asmr) this.sound.setPreset(ASMR_QUIET);
+    ls.ready = !!this.sound.playTrack('./assets/audio/' + track.file, ls.asmr ? 'nature' : 'temple');
     $('#listen-name').textContent = `${track.title} · ${track.place}`;
     // 잠금화면·알림: 제목과 이전·다음 단추
-    this.sound.setNowPlaying(track.title, `청연산사 예불 · ${track.place}`, 'yebul');
+    this.sound.setNowPlaying(track.title, ls.asmr ? `청연산사 테마 ASMR · ${track.place}` : `청연산사 예불 · ${track.place}`, 'yebul');
     this.sound.setTrackActions(() => this._listenStep(-1), () => this._listenStep(1));
     this._listenSync();
   }
@@ -755,6 +760,7 @@ class MetaTempleApp {
     ls.leaving = true;
     this.sound.stopTrack(1.2);
     this.sound.setTrackActions(null, null);
+    if (ls.asmr) this.sound.setPreset(null);
     if (ls.nature) {
       this.sound.setPreset(null);
       this.sound.setSleep(0);
@@ -954,7 +960,7 @@ class MetaTempleApp {
   }
 
   _listenStep(k) {
-    const list = this._listening.nature ? NATURE_PRESETS : YEBUL_TRACKS;
+    const list = this._listening.nature ? NATURE_PRESETS : this._listening.asmr ? ASMR_TRACKS : YEBUL_TRACKS;
     this.listen(list[(list.indexOf(this._listening.track) + k + list.length) % list.length]);
   }
 

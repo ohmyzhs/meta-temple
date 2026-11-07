@@ -1441,6 +1441,9 @@ body.tea-scene .modal-overlay.is-side {
 /* 자연의 소리 듣기: 옆 패널이 좁아 타이머 라벨을 위로 쌓는다 */
 .sutra-group.nature-sleep { flex-direction: column; align-items: stretch; gap: 6px; margin-bottom: 14px; }
 .nature-sleep .sutra-group-label { width: auto; }
+/* 자연의 소리 창 탭(장면 · 테마 ASMR) 과 ASMR 묶음 제목 */
+.nature-tabs { margin-bottom: 12px; }
+.asmr-head { margin: 4px 0 6px; font-family: var(--font-serif); font-size: 12px; font-weight: 500; color: var(--muk-soft); }
 
 /* 자료 출처: 출처별 카드 — 머리(이름·라이선스·원본 사이트) 한 번, 안에는 쓰는 곳 | 원본 이름들 */
 .cr-list { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
