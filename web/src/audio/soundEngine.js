@@ -346,6 +346,7 @@ export class TempleSoundEngine {
     this._sleep = null; // 잠자기 타이머 { left, t }
     this.onSleep = null; // 잠자기 타이머가 끝나 멈췄을 때
     this._scene = null; // 자연의 소리 장면 한 편 { left, t } (setSceneTimer)
+    this.trim = {}; // 평소(장면을 듣지 않을 때) 소리마다 미세 조정 배율 { 레이어 · chimes: 배율 } (메뉴 > 소리, ui/soundTrim.js)
     this.onSceneEnd = null;
   }
 
@@ -1448,6 +1449,7 @@ export class TempleSoundEngine {
     // 녹음 배경이 있는 레이어는 지금(계절·시간대) 쓸 조각이 있을 때만 — 겨울엔 풀벌레 합성음도 쉰다
     if (!this._avail(name) && this._nbeds?.some((b) => b.layer === this.L[name])) g = 0;
     if (PLACED[name]) g *= this._src?.[name]?.gain ?? 0; // 자리 소리: 전파 (propagate × 담 가림)
+    if (!P) g *= this.trim[name] ?? 1; // 평소 소리 미세 조정 (장면은 나만의 소리 창이 맡는다)
     return g;
   }
 
@@ -1500,6 +1502,24 @@ export class TempleSoundEngine {
   }
 
   /** 나만의 소리를 고치는 중: 장면 배율이 바뀌었으니 곧바로 다시 섞는다 */
+  /** 평소 소리 미세 조정: { 레이어 이름 · chimes: 배율 } (1 = 그대로). 장면(preset)을 듣는 동안은 쓰지 않는다 */
+  setTrim(map) {
+    this.trim = { ...(map || {}) };
+    this.remix();
+  }
+
+  /** 지금 이 자리에서 들리는 소리(미세 조정 전 크기로) — 메뉴 > 소리의 목록. 처마 풍경은 40m 안에 있으면 */
+  heard(min = 0.004) {
+    if (!this.L || !this._lp) return [];
+    const Z = this._zoneMix(), W = WEATHER_MIX[this._weather()], T = TIME_MIX[this._time()];
+    const keep = this.trim;
+    this.trim = {};
+    const out = Object.entries(LAYERS).filter(([name, def]) => this._layerGain(name, def, this.preset, Z, W, T) * (this.L[name].panner?._bus === 'temple' ? 1 : Z.outside) > min).map(([name]) => name);
+    this.trim = keep;
+    if (this.emit.chimes.some((q) => dist(q, this._lp) < 40)) out.push('chimes');
+    return out;
+  }
+
   remix(dur = 0.25) {
     if (this.L) this._mix(dur);
   }
@@ -2179,6 +2199,8 @@ export class TempleSoundEngine {
 
   // 바람에 흔들리는 처마 풍경 (공간음)
   _chimeAt(i, t, gain) {
+    gain *= this.trim.chimes ?? 1; // 평소 소리 미세 조정
+    if (!(gain > 0)) return;
     const p = this._spot(this.emit.chimes[i], 3, this.bus.temple, { alpha: 0.6 }); // 법당 안에서는 담 가림이 줄인다
     if (p) this._chime(t, CHIME_PITCH[i % CHIME_PITCH.length], gain, p);
   }

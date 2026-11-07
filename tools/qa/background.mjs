@@ -54,8 +54,8 @@ try {
   await page.waitForTimeout(4000); // 녹음이 붙도록
   let s = await S(page);
   check('(a) 입장하면 닻이 돈다 (옵션 기본 켬)', s.anchor === 'playing' && s.bg, JSON.stringify(s));
-  const btn = await page.evaluate(() => document.querySelector('#bg-audio-btn').textContent);
-  check('(a) 소리 창 단추는 「켜짐」', btn === '켜짐', btn);
+  const btn = await page.evaluate(() => document.querySelector('#bg-audio-btn').getAttribute('aria-checked'));
+  check('(a) 소리 창 「음악 연속재생 모드」 스위치는 켜짐', btn === 'true', btn);
   await page.evaluate(HIDE, true);
   const before = await S(page);
   await page.waitForTimeout(6000);
@@ -138,8 +138,8 @@ try {
   await page.click('#bg-audio-btn', { force: true }).catch(async () => page.evaluate(() => document.querySelector('#bg-audio-btn').click()));
   await page.waitForTimeout(500);
   s = await S(page);
-  const off = await page.evaluate(() => ({ setting: window.temple.store.state.settings.bgAudio, text: document.querySelector('#bg-audio-btn').textContent }));
-  check('(e) 옵션을 끄면 저장·단추 「꺼짐」·닻 멈춤', off.setting === false && off.text === '꺼짐' && s.anchor === 'paused', `${JSON.stringify(off)} ${JSON.stringify(s)}`);
+  const off = await page.evaluate(() => ({ setting: window.temple.store.state.settings.bgAudio, text: document.querySelector('#bg-audio-btn').getAttribute('aria-checked') }));
+  check('(e) 옵션을 끄면 저장·스위치 꺼짐·닻 멈춤', off.setting === false && off.text === 'false' && s.anchor === 'paused', `${JSON.stringify(off)} ${JSON.stringify(s)}`);
   await page.evaluate(HIDE, true);
   await page.waitForTimeout(800);
   s = await S(page);
