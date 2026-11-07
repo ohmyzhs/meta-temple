@@ -1,5 +1,5 @@
 {
- "_": "자연의 소리 원본(sources)과 자를 구간(pieces). python3 tools/audio/build.py build — 원본은 tools/audio/raw/ (git 밖, 받는 곳은 url). 구간은 build.py scan(단기 음량이 고른 곳)과 스펙트로그램으로 골랐다. 2026-11-06: 경주남산(15076196)은 명상 내레이션 영상이라 뺐다 — 받아쓰기(tools/audio/voice_check.py)로 확인. 2026-11-06: 돌풍(gust-pine)은 800Hz 위를 걷는다(lp) — 솔바람의 쉬익 띠가 물소리로 들려 산꼭대기에서도 물소리가 났다. 검사: tools/audio/water_check.py",
+ "_": "자연의 소리 원본(sources)과 자를 구간(pieces). python3 tools/audio/build.py build — 원본은 tools/audio/raw/ (git 밖, 받는 곳은 url). 구간은 build.py scan(단기 음량이 고른 곳)과 스펙트로그램으로 골랐다. 2026-11-06: 경주남산(15076196)은 명상 내레이션 영상이라 뺐다 — 받아쓰기(tools/audio/voice_check.py)로 확인. 2026-11-06: 돌풍(gust-pine)은 800Hz 위를 걷는다(lp) — 솔바람의 쉬익 띠가 물소리로 들려 산꼭대기에서도 물소리가 났다. 검사: tools/audio/water_check.py 2026-11-07: 돌풍은 봉우리 앞 7초·뒤 5초(12초)로 길게 — 엔진이 부드럽게 커졌다 잦아들게 페이드. 백령도 청개구리는 조각 둘(12~64·74~124초).",
  "sources": {
   "knps-stream": {
    "file": "knps-15076211.m4a",
@@ -308,6 +308,41 @@
    "by": "barkenov (Freesound)",
    "license": "CC0",
    "url": "https://freesound.org/s/471507/"
+  },
+  "knps-bell": {
+   "file": "knps-15068173.m4a",
+   "title": "자연의소리_지리산 화엄사 범종 타종",
+   "by": "국립공원공단",
+   "license": "공공누리 제1유형",
+   "url": "https://www.data.go.kr/data/15068173/fileData.do"
+  },
+  "knps-cricket2": {
+   "file": "knps-15076169.m4a",
+   "title": "자연의소리_소백산연화봉가을풀벌레소리",
+   "by": "국립공원공단",
+   "license": "공공누리 제1유형",
+   "url": "https://www.data.go.kr/data/15076169/fileData.do"
+  },
+  "knps-tea": {
+   "file": "knps-15076225.m4a",
+   "title": "자연의소리_한려해상 미래사 차의 시간",
+   "by": "국립공원공단",
+   "license": "공공누리 제1유형",
+   "url": "https://www.data.go.kr/data/15076225/fileData.do"
+  },
+  "gongu-yeongwon": {
+   "file": "gongu-13372522.mp3",
+   "title": "산_치악산_영원사 입구_오후_공간음_계류와 소요산매미",
+   "by": "(재)전주정보문화산업진흥원",
+   "license": "공공누리 제1유형",
+   "url": "https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?wrtSn=13372522&menuNo=200020"
+  },
+  "gongu-bukbang": {
+   "file": "gongu-13372012.mp3",
+   "title": "동물_양서류_계곡 숲의 북방산개구리 울음소리, 새소리와 함께_96khz_Mono",
+   "by": "(재)전주정보문화산업진흥원",
+   "license": "공공누리 제1유형",
+   "url": "https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?wrtSn=13372012&menuNo=200020"
   }
  },
  "pieces": [
@@ -443,6 +478,13 @@
    "src": "gongu-frog",
    "from": 74,
    "to": 124,
+   "mono": true
+  },
+  {
+   "out": "frogs-baekryeong-2",
+   "src": "gongu-frog",
+   "from": 12,
+   "to": 64,
    "mono": true
   },
   {
@@ -968,8 +1010,8 @@
   {
    "out": "gust-pine-1",
    "src": "fs-pine",
-   "from": 55.6,
-   "to": 63.1,
+   "from": 53.6,
+   "to": 65.6,
    "kind": "shot",
    "lufs": -25,
    "lp": 800
@@ -977,8 +1019,8 @@
   {
    "out": "gust-pine-2",
    "src": "fs-pine",
-   "from": 192.1,
-   "to": 199.6,
+   "from": 190.1,
+   "to": 202.1,
    "kind": "shot",
    "lufs": -25,
    "lp": 800
@@ -986,8 +1028,8 @@
   {
    "out": "gust-pine-3",
    "src": "fs-pine",
-   "from": 274.5,
-   "to": 282.0,
+   "from": 272.5,
+   "to": 284.5,
    "kind": "shot",
    "lufs": -25,
    "lp": 800
@@ -995,8 +1037,8 @@
   {
    "out": "gust-pine-4",
    "src": "fs-pine",
-   "from": 296.8,
-   "to": 304.3,
+   "from": 294.8,
+   "to": 306.8,
    "kind": "shot",
    "lufs": -25,
    "lp": 800
@@ -1004,11 +1046,198 @@
   {
    "out": "gust-pine-5",
    "src": "fs-pine",
-   "from": 315.4,
-   "to": 322.9,
+   "from": 313.4,
+   "to": 325.4,
    "kind": "shot",
    "lufs": -25,
    "lp": 800
+  }
+ ],
+ "asmr": [
+  {
+   "id": "jiri-valley",
+   "src": "knps-stream",
+   "title": "지리산 산골짜기 물소리",
+   "place": "지리산",
+   "note": "바위 사이로 흐르는 골짜기 물",
+   "group": "물"
+  },
+  {
+   "id": "dobong-summer",
+   "src": "knps-stream2",
+   "title": "원도봉계곡의 여름",
+   "place": "북한산 원도봉계곡",
+   "note": "여름 계곡 물소리",
+   "group": "물"
+  },
+  {
+   "id": "hwagae-dawn",
+   "src": "gongu-stream",
+   "title": "화개천 새벽 계류",
+   "place": "하동 화개천",
+   "note": "새벽의 빠른 물살",
+   "group": "물"
+  },
+  {
+   "id": "yeongwon-gate",
+   "src": "gongu-yeongwon",
+   "title": "영원사 들머리 계류와 매미",
+   "place": "치악산 영원사",
+   "note": "오후의 계류, 그 위로 매미",
+   "group": "물"
+  },
+  {
+   "id": "dogap-spring",
+   "src": "knps-spring",
+   "title": "도갑사 미륵전 샘터",
+   "place": "월출산 도갑사",
+   "note": "샘터로 떨어지는 물",
+   "group": "물"
+  },
+  {
+   "id": "baekryeon-rain",
+   "src": "knps-rain",
+   "title": "백련사 빗소리",
+   "place": "덕유산 구천동 백련사",
+   "note": "절 마당에 내리는 비",
+   "group": "비",
+   "from": 100
+  },
+  {
+   "id": "guryong-rain",
+   "src": "knps-rain2",
+   "title": "구룡사 비 오는 날",
+   "place": "치악산 구룡사",
+   "note": "빗속에 우는 풍경",
+   "group": "비"
+  },
+  {
+   "id": "garisan-rain",
+   "src": "gongu-rain",
+   "title": "가리산 숲속 소나기",
+   "place": "홍천 가리산",
+   "note": "숲에 쏟아지는 비",
+   "group": "비"
+  },
+  {
+   "id": "bongsan-storm",
+   "src": "gongu-thunder",
+   "title": "봉산 전망대 폭우",
+   "place": "봉산 전망대",
+   "note": "폭우와 멀리서 오는 천둥",
+   "group": "비"
+  },
+  {
+   "id": "socheong-drip",
+   "src": "gongu-drip",
+   "title": "소청도 빗물받이",
+   "place": "옹진 소청도",
+   "note": "처마 빗물받이로 가늘게 떨어지는 물",
+   "group": "비"
+  },
+  {
+   "id": "songni-gonjul",
+   "src": "knps-gonjul",
+   "title": "곤줄박이",
+   "place": "속리산",
+   "note": "텃새 곤줄박이의 낮 노래",
+   "group": "새",
+   "from": 0,
+   "to": 156
+  },
+  {
+   "id": "songni-thrush",
+   "src": "knps-thrush",
+   "title": "흰배지빠귀",
+   "place": "속리산 화양동",
+   "note": "새벽 숲의 지빠귀",
+   "group": "새"
+  },
+  {
+   "id": "songni-cuckoo",
+   "src": "knps-cuckoo",
+   "title": "뻐꾸기",
+   "place": "속리산",
+   "note": "초여름 낮의 뻐꾸기",
+   "group": "새",
+   "from": 0,
+   "to": 191
+  },
+  {
+   "id": "sancheong-scops",
+   "src": "gongu-scops",
+   "title": "밤머리재 소쩍새",
+   "place": "산청 밤머리재",
+   "note": "봄밤의 소쩍새",
+   "group": "새"
+  },
+  {
+   "id": "baekryeong-frogs",
+   "src": "gongu-frog",
+   "title": "백령도 논 청개구리",
+   "place": "백령도 진촌리",
+   "note": "논을 메운 청개구리 소리",
+   "group": "숲"
+  },
+  {
+   "id": "valley-frogs",
+   "src": "gongu-bukbang",
+   "title": "계곡 숲 북방산개구리",
+   "place": "계곡 숲",
+   "note": "이른 봄 개구리와 새소리",
+   "group": "숲"
+  },
+  {
+   "id": "gangjin-crickets",
+   "src": "gongu-cricket",
+   "title": "백련사 가을밤 귀뚜라미",
+   "place": "강진 백련사",
+   "note": "청솔귀뚜라미들의 노래",
+   "group": "숲"
+  },
+  {
+   "id": "yeonhwa-insects",
+   "src": "knps-cricket2",
+   "title": "연화봉 가을 풀벌레",
+   "place": "소백산 연화봉",
+   "note": "바람 부는 가을 풀벌레",
+   "group": "숲"
+  },
+  {
+   "id": "jiri-cicadas",
+   "src": "gongu-cicada",
+   "title": "지리산둘레길 매미",
+   "place": "지리산둘레길",
+   "note": "한여름 소요산매미",
+   "group": "숲"
+  },
+  {
+   "id": "hwaeom-chime",
+   "src": "knps-chime",
+   "title": "화엄사 풍탁",
+   "place": "지리산 화엄사",
+   "note": "처마 끝 풍탁",
+   "group": "절",
+   "from": 0,
+   "to": 178
+  },
+  {
+   "id": "hwaeom-bell",
+   "src": "knps-bell",
+   "title": "화엄사 범종",
+   "place": "지리산 화엄사",
+   "note": "범종 타종",
+   "group": "절",
+   "from": 0,
+   "to": 223
+  },
+  {
+   "id": "mirae-tea",
+   "src": "knps-tea",
+   "title": "미래사 차의 시간",
+   "place": "한려해상 미래사",
+   "note": "찻물 끓이고 따르는 소리",
+   "group": "절"
   }
  ]
 }

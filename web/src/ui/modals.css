@@ -1445,6 +1445,13 @@ body.listening .m-yebul .m-hint, body.listening .m-nature .m-hint, body.listenin
 /* 자연의 소리 듣기: 옆 패널이 좁아 타이머 라벨을 위로 쌓는다 */
 .sutra-group.nature-sleep { flex-direction: column; align-items: stretch; gap: 6px; margin-bottom: 14px; }
 .nature-sleep .sutra-group-label { width: auto; }
+/* 자연의 소리 창 탭(장면 · 테마 ASMR) */
+.nature-tabs { margin-bottom: 12px; }
+.asmr-badge {
+  display: inline-flex; align-items: center; gap: 3px; margin-right: 7px; padding: 1px 7px 1px 5px; border-radius: 999px; vertical-align: 2px;
+  font-size: 11px; font-weight: 600; line-height: 1.5; color: var(--g); background: color-mix(in srgb, var(--g) 13%, transparent);
+}
+.asmr-badge .i { width: 13px; height: 13px; stroke-width: 2; }
 
 /* 자료 출처: 출처별 카드 — 머리(이름·라이선스·원본 사이트) 한 번, 안에는 쓰는 곳 | 원본 이름들 */
 .cr-list { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }

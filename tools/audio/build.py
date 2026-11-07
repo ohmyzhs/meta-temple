@@ -4,6 +4,7 @@
 
   python3 tools/audio/build.py check <원본파일> [--every 60]   스펙트로그램 PNG (사람 소리·잡음 눈으로 확인)
   python3 tools/audio/build.py build [이름...]                 manifest.json 대로 만들기 (이름을 주면 그것만)
+  python3 tools/audio/build.py asmr [id...]                   테마 ASMR 원음 → web/assets/audio/asmr/ + web/src/data/asmr.js
   python3 tools/audio/build.py report                          만든 파일의 길이·LUFS·크기 표
   python3 tools/audio/build.py scan <원본> [--len 50] [--skip 15]  배경으로 쓸 만한 고른 구간 찾기 (3초 단기 음량이 들쭉날쭉하지 않은 곳)
   python3 tools/audio/build.py credits                         web/src/data/credits.js 의 자연의 소리 출처를 manifest 대로 다시 쓴다
@@ -246,11 +247,46 @@ USE = {'stream': '계곡 물소리', 'rain': '빗소리', 'wind': '솔바람', '
        'chukbi': '죽비', 'beads': '염주', 'pebble': '돌탑 조약돌', 'paper': '한지', 'robe': '도복 스침', 'brush': '붓', 'paperfire': '번뇌 소각', 'pour': '차 따르기'}
 
 
+ASMR_OUT = ROOT / 'web/assets/audio/asmr'
+ASMR_JS = ROOT / 'web/src/data/asmr.js'
+ASMR_LUFS = -24.0
+
+
+def cmd_asmr(ids):
+    """테마 ASMR: 원음을 그대로(되풀이 영상은 한 주기, 도입부는 뺀다) 크기만 -24 LUFS 로 맞춰 AAC 하나로. 목록은 web/src/data/asmr.js 로 쓴다"""
+    m = json.loads(MANIFEST.read_text())
+    rows = []
+    for e in m['asmr']:
+        src = m['sources'][e['src']]
+        out = ASMR_OUT / f"{e['id']}.m4a"
+        if not ids or e['id'] in ids:
+            dur, _, ch, _, _ = probe(RAW / src['file'])
+            a, b = e.get('from', 0), e.get('to', dur)
+            with tempfile.TemporaryDirectory() as t:
+                cut = Path(t) / 'cut.wav'
+                ff(['-ss', str(a), '-to', str(b), '-i', str(RAW / src['file']), '-vn', '-af', 'aresample=48000,highpass=f=25', '-c:a', 'pcm_f32le', str(cut)])
+                i, tp = loudness(cut)
+                gain = ASMR_LUFS - i
+                lim = f',alimiter=limit={10 ** (TP_MAX / 20):.4f}:attack=5:release=80:level=0' if tp + gain > TP_MAX else ''
+                n = b - a
+                ASMR_OUT.mkdir(parents=True, exist_ok=True)
+                ff(['-i', str(cut), '-af', f'volume={gain:.2f}dB{lim},afade=t=in:d=1.5,afade=t=out:st={n - 3:.2f}:d=3', '-c:a', aac_codec(), '-b:a', '96k' if ch > 1 else '64k', '-ar', '48000', '-movflags', '+faststart', str(out)])
+                print(f"✓ {e['id']:<18} {a:6.1f}–{b:6.1f}s  원래 {i:6.1f} LUFS → {gain:+5.1f} dB{' · 리미터' if lim else ''}  {out.stat().st_size / 1e6:.1f}MB")
+        sec = probe(out)[0]
+        rows.append('  ' + json.dumps({'id': e['id'], 'title': e['title'], 'place': e['place'], 'note': e['note'], 'group': e['group'], 'file': f"asmr/{e['id']}.m4a", 'sec': round(sec, 1), 'url': src['url']}, ensure_ascii=False))
+    ASMR_JS.write_text('// tools/audio/build.py asmr 가 manifest.json 의 asmr 로 쓴다 — 손으로 고치지 말 것\n'
+                       '// 테마 ASMR: 지역·주제가 뚜렷한 2분 넘는 원음을 그대로 (자연의 소리 듣기 창의 「테마 ASMR」). sec = ffprobe 실측 길이\n'
+                       'export const ASMR_TRACKS = [\n' + ',\n'.join(rows) + '\n];\n')
+    print(f'{len(rows)}곡 → {ASMR_JS}')
+
+
 def cmd_credits():
     m = json.loads(MANIFEST.read_text())
     uses = {}
     for p in m['pieces']:
         uses.setdefault(p['src'], set()).add(USE.get(p['out'].split('-')[0], p['out']))
+    for e in m.get('asmr', []):
+        uses.setdefault(e['src'], set()).add('테마 ASMR')
     rows = []
     for k, src in m['sources'].items():
         if k in uses:
@@ -274,6 +310,8 @@ if __name__ == '__main__':
         cmd_report()
     elif a[0] == 'credits':
         cmd_credits()
+    elif a[0] == 'asmr':
+        cmd_asmr(a[1:])
     elif a[0] == 'scan':
         opt = lambda k, d: float(a[a.index(k) + 1]) if k in a else d
         cmd_scan(a[1], opt('--len', 50.0), opt('--skip', 15.0), int(opt('--k', 4)))

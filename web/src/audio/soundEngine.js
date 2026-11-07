@@ -136,6 +136,12 @@ const VOWELS = [[750, 1150, 2600], [480, 820, 2600], [350, 700, 2500], [520, 165
 
 const rand = (a, b) => a + Math.random() * (b - a);
 const pick = (arr) => arr[(Math.random() * arr.length) | 0];
+// 조각의 w(비중)대로 고른다 — 없으면 1 (natureSounds.js: 개구리 백령도 90% · 풀개구리 10%)
+const wpick = (arr) => {
+  let r = Math.random() * arr.reduce((s, p) => s + (p.w ?? 1), 0);
+  for (const p of arr) if ((r -= p.w ?? 1) <= 0) return p;
+  return arr[arr.length - 1];
+};
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
 const smooth = (e0, e1, x) => {
   const t = Math.max(0, Math.min(1, (x - e0) / (e1 - e0)));
@@ -582,7 +588,33 @@ export class TempleSoundEngine {
   setPreset(p) {
     this.preset = p || null;
     if (this.L) this._placeSources(0); // 자리 소리를 듣는 자리 곁으로(장면) 또는 제자리로
+    this._chorus(p);
     this._mix(ZONE_FADE);
+  }
+
+  /**
+   * 장면의 겹소리(chorus: { 레이어: 마릿수 }): 같은 배경을 여러 벌 더 튼다 — 벌마다 크기(0.7·0.5·0.35)와 시작 자리,
+   * 듣는 자리 둘레 5~12m 의 방향이 달라 여러 곳의 여러 개체로 들린다 (사용자 2026-11-07 봄밤 청개구리 · 가을밤 귀뚜라미)
+   */
+  _chorus(p) {
+    for (const b of (this._nbeds || []).filter((b) => b.chorus)) {
+      this._natureRelease(b);
+      this._ramp(b.vg.gain, 0, 1.5);
+      setTimeout(() => [b.out, b.vg, b.pan].forEach((n) => n.disconnect()), 70000); // 울리던 조각이 끝난 뒤
+    }
+    if (!this._nbeds || !this.L) return;
+    this._nbeds = this._nbeds.filter((b) => !b.chorus);
+    for (const [layer, n] of Object.entries(p?.chorus || {})) {
+      const [name, def] = Object.entries(NATURE_BEDS).find(([, d]) => d.layer === layer) || [];
+      if (!def) continue;
+      for (let i = 1; i < n; i++) {
+        const a = rand(0, 2 * Math.PI), r = rand(5, 12), lp = this._lp;
+        const pan = this._panner({ x: lp.x + Math.cos(a) * r, y: lp.y + rand(-1, 1), z: lp.z + Math.sin(a) * r }, 1, 0, this.bus.nature);
+        const vg = this._gain(0, pan); // 레이어 크기를 따라간다 (_mix)
+        const out = this._gain(def.level * ([0.7, 0.5, 0.35][i - 1] ?? 0.3), vg);
+        this._nbeds.push({ name: `${name}+${i}`, def, layer: this.L[layer], out, vg, pan, chorus: true, buffer: null, nextBuf: null, pending: null, next: 0, on: false, quietAt: 0, last: null, gen: 0 });
+      }
+    }
   }
 
   /**
@@ -777,7 +809,7 @@ export class TempleSoundEngine {
    * 예불은 소리 요소 하나를 계속 다시 쓴다 — iOS 는 사용자가 한 번 누른 요소만 소리를 내게 하므로,
    * 연속 듣기에서 저절로 넘어가는 다음 예불도 같은 요소여야 재생된다. 곡을 바꿀 때는 앞 곡을 바로 끊는다.
    */
-  playTrack(url) {
+  playTrack(url, bus = 'temple') {
     this.init();
     if (!this.ctx) return null;
     const prev = this._track;
@@ -800,7 +832,7 @@ export class TempleSoundEngine {
     el.preload = 'auto';
     this._self();
     el.src = url;
-    const g = this._gain(0, this.bus.temple);
+    const g = this._gain(0, this.bus[bus]); // 예불은 사찰음, 테마 ASMR 은 자연음 볼륨을 따른다
     const wet = this._gain(0.15, this.reverb);
     src.connect(g);
     g.connect(wet);
@@ -1388,6 +1420,7 @@ export class TempleSoundEngine {
         else g *= 1 + FLARE_BOOST * left;
       }
       this._ramp(layer.level.gain, g, def.fade ? Math.max(dur, def.fade) : dur);
+      for (const b of this._nbeds || []) if (b.chorus && b.layer === layer) this._ramp(b.vg.gain, g, dur); // 겹소리도 같은 크기로
     }
   }
 
@@ -1517,9 +1550,18 @@ export class TempleSoundEngine {
   _playGust(t) {
     const pan = this.ctx.createStereoPanner();
     pan.pan.value = rand(-0.6, 0.6);
-    pan.connect(this.L.wind.rec);
+    const env = this.ctx.createGain(); // 사용자 2026-11-07 「바람이 난데없이 켜졌다 꺼진다」 — 부드럽게 커졌다 잦아들게
+    env.gain.value = 0;
+    pan.connect(env).connect(this.L.wind.rec);
     const g = rand(0.55, 1) * GUST_LEVEL * (this._weather() === 'snow' ? 0.6 : 1);
-    this._playRec(this.rec.gust, t, pan, g, rand(0.86, 1.08), [pan]);
+    const end = this._playRec(this.rec.gust, t, pan, g, rand(0.86, 1.08), [pan, env]);
+    // 조각(12초)의 봉우리는 7초쯤 — 앞 55% 동안 sin² 로 오르고 뒤 45% 동안 cos² 로 0 까지 내려간다
+    const n = 64, c = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+      const x = i / (n - 1);
+      c[i] = x < 0.55 ? Math.sin((Math.PI / 2) * (x / 0.55)) ** 2 : Math.cos((Math.PI / 2) * ((x - 0.55) / 0.45)) ** 2;
+    }
+    env.gain.setValueCurveAtTime(c, t, end - t - 0.02);
     // 바람이 지나가면 가까운 처마 풍경이 가끔 따라 운다
     this.emit.chimes.forEach((p, i) => {
       if (dist(p, this._lp) < 30 && Math.random() < 0.35) this._chimeAt(i, t + rand(1.5, 3.5), rand(0.4, 0.8));
@@ -1589,13 +1631,14 @@ export class TempleSoundEngine {
     // 밤새: 그달에 우는 새 중 하나 (소쩍새·솔부엉이는 여름, 수리부엉이는 겨울 — NIGHT_CALLS) — 밤에 가끔, 비 오면 쉼
     // 처음 한 번은 받기만 하고, 녹음이 아직 없으면 소쩍새 철에만 합성 소쩍새
     if (this._time() === 'night' && weather !== 'rain' && now > this._owlNext) {
-      const kind = pick(Object.keys(NIGHT_CALLS).filter((n) => NIGHT_CALLS[n].includes(m)));
+      const kind = pick([...Object.keys(NIGHT_CALLS).filter((n) => NIGHT_CALLS[n].includes(m)), ...(this.preset?.calls?.add || [])]); // 장면이 더하는 소리(봄밤: 뻐꾸기)
       const recs = kind && this._shot(kind);
       if (this._owlNext > 0) {
-        if (recs) this._farCall(recs, now + 0.1, kind === 'eagleowl' ? 0.43 : 0.34); // 합성 소쩍새와 같은 크기(levels.mjs 0.374×0.9), 수리부엉이는 -26 LUFS
+        if (recs && kind === 'cuckoo') this._farCall(recs, now + 0.1, 0.3, 0.15, rand(10, 16)); // 뻐꾸기: 배경 조각에서 10~16초만 떼어
+        else if (recs) this._farCall(recs, now + 0.1, kind === 'eagleowl' ? 0.43 : 0.34); // 합성 소쩍새와 같은 크기(levels.mjs 0.374×0.9), 수리부엉이는 -26 LUFS
         else if (kind === 'scops') this._owl(now + 0.1);
       }
-      this._owlNext = now + rand(30, 80);
+      this._owlNext = now + rand(30, 80) / (this.preset?.calls?.rate || 1); // 장면이 밤새를 더 자주 (봄밤·가을밤 2배)
     }
     // 아침 마당 쓰는 소리: 맑은 새벽·낮에 4~9분에 한 번, 마당 서쪽에서 스님이 대빗자루로 — 어디서 들리는지는 전파 법칙(_spot)이 정한다
     if (!this.preset && weather === 'clear' && this._time() !== 'night' && this._time() !== 'sunset' && now > this._sweepNext) {
@@ -1618,13 +1661,13 @@ export class TempleSoundEngine {
   }
 
   /** 멀리서 들리는 녹음 한 소리: 사방 어딘가 먼 곳, 리버브를 조금 더 */
-  _farCall(recs, t, gain, wet = 0.15) {
+  _farCall(recs, t, gain, wet = 0.15, slice = 0) {
     const L = this._lp;
     const a = rand(0, 2 * Math.PI);
     const p = this._panner({ x: L.x + Math.cos(a) * 30, y: L.y + 10, z: L.z + Math.sin(a) * 30 }, 30, 1, this.bus.nature);
     const w = this._gain(wet, this.reverb);
     p.connect(w);
-    this._playRec(recs, t, p, gain, rand(0.98, 1.02), [p, w]);
+    this._playRec(recs, t, p, gain, rand(0.98, 1.02), [p, w], slice);
   }
 
   // 동시 발음 수 제한 (모바일 CPU 보호): 같은 종류가 max개 울리는 중이면 새 소리를 건너뛴다
@@ -1736,7 +1779,7 @@ export class TempleSoundEngine {
   }
 
   // 원샷 녹음: 여러 벌 중 하나를 골라 재생, 끝나면 노드 정리
-  _playRec(bufs, t, dest, gain, rate = 1, cleanup = []) {
+  _playRec(bufs, t, dest, gain, rate = 1, cleanup = [], slice = 0) {
     if (bufs.buf) return this._playSlot(bufs, t, dest, gain, rate, cleanup); // 효과음 묶음
     const ctx = this.ctx;
     const s = ctx.createBufferSource();
@@ -1745,8 +1788,18 @@ export class TempleSoundEngine {
     const g = ctx.createGain();
     g.gain.value = gain;
     s.connect(g).connect(dest);
-    s.start(t);
     s.onended = () => [s, g, ...cleanup].forEach((n) => n.disconnect());
+    if (slice && s.buffer.duration > slice * rate + 1) {
+      // 긴 녹음에서 slice 초만: 아무 자리에서 떼어 1.5초에 걸쳐 들어오고 나간다
+      const len = slice / rate;
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(gain, t + 1.5);
+      g.gain.setValueAtTime(gain, t + len - 1.5);
+      g.gain.linearRampToValueAtTime(0, t + len);
+      s.start(t, rand(0, s.buffer.duration - slice * rate), slice * rate);
+      return t + len;
+    }
+    s.start(t);
     return t + s.buffer.duration / rate;
   }
 
@@ -1788,7 +1841,8 @@ export class TempleSoundEngine {
   /** 지금(시간대·달) 쓸 수 있는 조각들. 장면을 듣는 중이면 장면의 시간대·달 */
   _pool(def) {
     const t = this._time(), m = this._month();
-    return def.pieces.filter((p) => (!p.time || p.time.includes(t)) && (!p.months || p.months.includes(m)));
+    const only = this.preset?.only?.[def.layer]; // 장면이 이 레이어의 조각을 한 가지로 정했으면 그것만 (봄밤: 백령도 청개구리)
+    return def.pieces.filter((p) => (!p.time || p.time.includes(t)) && (!p.months || p.months.includes(m)) && (!only || p.f.startsWith(only)));
   }
 
   /** 이 레이어에 지금 쓸 조각이 있는가 (계절이 아니면 개구리·매미가 쉰다) */
@@ -1860,12 +1914,13 @@ export class TempleSoundEngine {
     const pool = this._pool(bed.def);
     if (!pool.length) return;
     // 같은 조각을 연달아 고르지 않고, 같은 레이어의 다른 층(산새 두 겹)이 지금 쓰는 조각도 피한다
-    const busy = new Set([bed.last, ...this._nbeds.filter((b) => b !== bed && b.layer === bed.layer).map((b) => b.last)]);
+    // 겹소리(장면 chorus)는 같은 조각을 함께 써도 된다 — 시작 자리·크기·자리가 달라 다른 개체로 들린다
+    const busy = new Set([bed.last, ...(bed.chorus ? [] : this._nbeds.filter((b) => b !== bed && b.layer === bed.layer && !b.chorus).map((b) => b.last))]);
     const free = pool.filter((p) => !busy.has(p.f));
     let choices = free.length ? free : pool.length > 1 ? pool.filter((p) => p.f !== bed.last) : pool;
     const ready = choices.filter((p) => this._packed.has(this._url(p.f))); // 미리 받아 둔 조각이 있으면 그것부터 (바로 들린다)
     if (ready.length && !bed.on) choices = ready;
-    const p = pick(choices);
+    const p = wpick(choices);
     bed.last = p.f;
     const gen = bed.gen;
     bed.pending = this._decode(p.f)

@@ -23,6 +23,9 @@ import { ModalManager } from './ui/modalManager.js';
 import { LiveLink, sharedApi } from './core/live.js';
 import { YEBUL_TRACKS } from './data/credits.js';
 import { NATURE_PRESETS, SLEEP_MINUTES, SCENE_MINUTES, LISTEN_MODES } from './data/natureSounds.js';
+import { ASMR_TRACKS } from './data/asmr.js';
+// 테마 ASMR 을 듣는 동안 엔진의 자연의 소리는 모두 쉰다 (낮·맑음 — 밤새·천둥도 나지 않게)
+const ASMR_QUIET = { id: 'asmr', time: 'day', weather: 'clear', mix: {} };
 import { bindNameForm } from './ui/nameField.js';
 import { veil } from './ui/veil.js';
 import { DOCK_RITUALS } from './data/templeData.js';
@@ -675,7 +678,10 @@ class MetaTempleApp {
   /* ───────── 예불 듣기: 화면이 바뀌어 좌복에 홀로 앉아 처음부터 끝까지 ───────── */
   listen(track) {
     if (!track || this._listening?.leaving) return;
-    if (this._listening && !!track.mix !== !!this._listening.nature) return; // 예불과 자연의 소리는 일어난 뒤 바꾼다
+    const nature = !!track.mix; // 자연의 소리 장면 (data/natureSounds.js) · 나만의 소리
+    const asmr = ASMR_TRACKS.includes(track); // 테마 ASMR 원음 (data/asmr.js)
+    const kind = nature ? 'nature' : asmr ? 'asmr' : 'yebul';
+    if (this._listening && (kind === 'yebul') !== (this._listening.kind === 'yebul')) return; // 예불과 자연의 소리는 일어난 뒤 바꾼다
     this.sound.init();
     if (!this.sound.isEnabled) {
       this.sound.toggleAudio();
@@ -685,22 +691,18 @@ class MetaTempleApp {
     // 소리는 누른 그 순간에 튼다 (iOS 는 사용자 동작 안에서만 재생을 허락한다). 화면은 가림막 뒤에서 바꾼다
     if (this._listening) {
       this.modals.close(); // 재생기에서 다시 연 목록
+      if (kind !== this._listening.kind) this._listenSwitch(kind);
       this._listenPlay(track);
       return veil(() => this._listening && this._listenScene(), { hold: 380 });
     }
-    const nature = !!track.mix; // 자연의 소리 장면 (data/natureSounds.js)
-    // 산문 밖 쉼터에 앉아 있으면 그 자리에서 듣는다. 자연의 소리는 어디서든 선 자리에 앉아 듣는다
+    // 산문 밖 쉼터에 앉아 있으면 그 자리에서 듣는다. 자연의 소리·테마 ASMR 은 어디서든 선 자리에 앉아 듣는다
     const p = this.player.root.position;
-    const rest = (this.player.seat?.kind === 'rest' ? this.player.seat._ref : null) || (nature ? { x: p.x, z: p.z } : null);
+    const rest = (this.player.seat?.kind === 'rest' ? this.player.seat._ref : null) || (nature || asmr ? { x: p.x, z: p.z } : null);
     this.modals.close();
     const cam = this.world.cam;
-    // 듣기 방식·잠자기 타이머는 예불·자연의 소리 따로 기억한다. 고른 적이 없으면 예불은 쉼터에서 연속·법당에서 한 곡(타이머 없음), 자연의 소리는 반복·30분
-    const S = this.store.state.settings, kind = nature ? 'nature' : 'yebul';
-    const mode = S[`${kind}Mode`] ?? (nature ? 'repeat' : S.listenLoop === true || (S.listenLoop == null && rest) ? 'all' : 'one');
-    const sleep = S[`${kind}Sleep`] ?? (nature ? 30 : 0);
-    const ls = (this._listening = { track, rest, mode, sleep, kind, nature, saved: { mode: cam.mode, yaw: cam.yaw, pitch: cam.pitch, dist: cam.targetDist } });
+    const ls = (this._listening = { track, rest, kind, nature, asmr, ...this._listenPrefs(kind, rest), saved: { mode: cam.mode, yaw: cam.yaw, pitch: cam.pitch, dist: cam.targetDist } });
     $('#listen').classList.toggle('nature', nature);
-    this.sound.setSleep(sleep);
+    this.sound.setSleep(ls.sleep);
     this.joy = { x: 0, z: 0 };
     this.keys = {};
     this._listenPlay(track);
@@ -721,6 +723,29 @@ class MetaTempleApp {
     });
   }
 
+  /** 듣기 방식·잠자기 타이머는 예불·자연의 소리·테마 ASMR 따로 기억한다. 고른 적이 없으면 예불은 쉼터에서 연속·법당에서 한 곡(타이머 없음),
+   *  자연의 소리는 반복·30분, 테마 ASMR 은 연속(끝나면 다음 곡)·30분 */
+  _listenPrefs(kind, rest) {
+    const S = this.store.state.settings;
+    const mode = S[`${kind}Mode`] ?? (kind === 'nature' ? 'repeat' : kind === 'asmr' || S.listenLoop === true || (S.listenLoop == null && rest) ? 'all' : 'one');
+    return { mode, sleep: S[`${kind}Sleep`] ?? (kind === 'yebul' ? 0 : 30) };
+  }
+
+  /** 자연의 소리 창 안에서 장면 ↔ 테마 ASMR 을 앉은 채로 바꾼다 (듣기 방식·타이머는 그 종류 것으로) */
+  _listenSwitch(kind) {
+    const ls = this._listening;
+    if (ls.nature) {
+      // 장면을 거두고 하늘을 돌려놓는다 (원음은 낮·맑음 고요 위에서)
+      this.sound.setSceneTimer(0);
+      this.world.setTimeOfDay(ls.world.time);
+      this.world.setWeather(ls.world.weather);
+      ls.world = ls.draft = null;
+    } else this.sound.stopTrack(0.6);
+    Object.assign(ls, { kind, nature: kind === 'nature', asmr: kind === 'asmr' }, this._listenPrefs(kind, ls.rest));
+    $('#listen').classList.toggle('nature', ls.nature);
+    this.sound.setSleep(ls.sleep);
+  }
+
   _listenPlay(track) {
     const ls = this._listening;
     ls.track = track;
@@ -739,17 +764,18 @@ class MetaTempleApp {
       this.sound.setTrackActions(() => this._listenStep(-1), () => this._listenStep(1));
       return this._listenSync();
     }
-    ls.ready = !!this.sound.playTrack('./assets/audio/' + track.file);
+    if (ls.asmr) this.sound.setPreset(ASMR_QUIET);
+    ls.ready = !!this.sound.playTrack('./assets/audio/' + track.file, ls.asmr ? 'nature' : 'temple');
     this._listenLabel(track.title, track.place);
     // 잠금화면·알림: 제목과 이전·다음 단추
-    this.sound.setNowPlaying(track.title, `소리사원 예불 · ${track.place}`);
+    this.sound.setNowPlaying(track.title, ls.asmr ? `소리사원 테마 ASMR · ${track.place}` : `소리사원 예불 · ${track.place}`);
     this.sound.setTrackActions(() => this._listenStep(-1), () => this._listenStep(1));
     this._listenSync();
   }
 
   /** 재생기의 이름 단추(누르면 목록)·이전·다음 이름 */
   _listenLabel(name, sub) {
-    const what = this._listening.nature ? '장면' : '예불';
+    const what = this._listening.nature ? '장면' : this._listening.asmr ? '곡' : '예불';
     $('#listen-name').textContent = name;
     $('#listen-sub').textContent = sub;
     $('#listen [data-l="list"]').setAttribute('aria-label', `${name} — 목록에서 다른 ${what} 고르기`);
@@ -778,13 +804,14 @@ class MetaTempleApp {
     const ls = this._listening;
     if (!ls || ls.leaving) return;
     ls.leaving = true;
-    if (['yebul', 'nature'].includes(this.modals.current)) this.modals.close(); // 다시 연 목록이 떠 있으면 함께 거둔다
+    if (['yebul', 'nature', 'mixer'].includes(this.modals.current)) this.modals.close(); // 다시 연 목록·조절 창이 떠 있으면 함께 거둔다
     this._listenVol(false);
     this.sound.stopTrack(1.2);
     this.sound.setTrackActions(null, null);
     this.sound.setSleep(0);
     this.sound.setSceneTimer(0);
     if (!keepPaused && this.sound._userPaused) this.sound.resumeAll();
+    if (ls.asmr) this.sound.setPreset(null);
     if (ls.nature) {
       this.sound.setPreset(null);
       this.world.setTimeOfDay(ls.world.time);
@@ -1007,7 +1034,7 @@ class MetaTempleApp {
   }
 
   _listenStep(k) {
-    const list = this._listening.nature ? NATURE_PRESETS : YEBUL_TRACKS;
+    const list = this._listening.nature ? NATURE_PRESETS : this._listening.asmr ? ASMR_TRACKS : YEBUL_TRACKS;
     this.listen(list[(list.indexOf(this._listening.track) + k + list.length) % list.length]);
   }
 
@@ -1052,7 +1079,8 @@ class MetaTempleApp {
   _listenList() {
     const ls = this._listening;
     this._listenVol(false);
-    this.modals.open(ls.kind);
+    if (ls.kind !== 'yebul') this.store.setSetting('natureTab', ls.asmr ? 'asmr' : 'scenes');
+    this.modals.open(ls.kind === 'yebul' ? 'yebul' : 'nature');
     $('#listen').classList.add('l-away');
     $$('#modal-body .yebul-item').forEach((b) => b.setAttribute('aria-current', String(b.dataset.id === ls.track.id)));
   }
