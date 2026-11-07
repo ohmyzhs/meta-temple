@@ -1833,20 +1833,21 @@ export class ModalManager {
     const label = (m) => (m ? `${m}분` : '끄기');
     const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
     const tab = this.store.state.settings.natureTab === 'asmr' ? 'asmr' : 'scenes';
-    const item = (id, title, sub, sec) => `
+    // 테마 ASMR 카드의 배지: 묶음마다 아이콘과 색 (사용자 2026-11-07 「물·비·새를 아이콘이나 배지로」)
+    const THEME = { 물: ['th_water', '#3b7290'], 비: ['w_rain', '#566a7e'], 새: ['th_bird', '#4b7843'], '벌레·개구리': ['th_bug', '#8a6820'], 절: ['bell_strike', '#9b3a2c'] };
+    const badge = (g) => (THEME[g] ? `<span class="asmr-badge" style="--g:${THEME[g][1]}">${icon(THEME[g][0])}${esc(g)}</span>` : '');
+    const item = (id, title, sub, sec, g) => `
         <li>
           <button type="button" class="yebul-item" data-id="${esc(id)}" aria-label="${esc(title)} 듣기">
             <span class="yebul-play" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 5.5v13l10.5-6.5z"/></svg></span>
-            <span class="yebul-meta"><b>${esc(title)}</b><small>${esc(sub)}</small></span>${sec ? `
+            <span class="yebul-meta"><b>${esc(title)}</b><small>${g ? badge(g) : ''}${esc(sub)}</small></span>${sec ? `
             <span class="yebul-time">${fmt(sec)}</span>` : ''}
           </button>
         </li>`;
-    const groups = [...new Set(ASMR_TRACKS.map((t) => t.group))];
     // 테마 ASMR (사용자 2026-11-07): 지역·주제가 뚜렷한 2분 넘는 원음을 처음부터 끝까지 그대로
     const asmr = `
-      ${groups.map((g) => `<h3 class="asmr-head">${esc(g)}</h3>
-      <ul class="yebul-list">${ASMR_TRACKS.filter((t) => t.group === g).map((t) => item(t.id, t.title, `${t.place} · ${t.note}`, t.sec)).join('')}
-      </ul>`).join('')}
+      <ul class="yebul-list">${ASMR_TRACKS.map((t) => item(t.id, t.title, `${t.place} · ${t.note}`, t.sec, t.group)).join('')}
+      </ul>
       <p class="m-hint">실제 그 자리에서 녹음한 원음을 자르지 않고 그대로 들려줍니다. 고르면 그 자리에 앉아 듣고, 끝나면 다음 곡으로 이어집니다.</p>`;
     const root = this._root(`
       <div class="sutra-chips nature-tabs" role="tablist" aria-label="자연의 소리">

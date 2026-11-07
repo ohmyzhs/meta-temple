@@ -240,4 +240,21 @@
   <circle cx="15.4" cy="17" r="1.8"/>
   <circle cx="7.4" cy="12" r="1.8"/>
 </symbol>
+<!-- 테마 ASMR 배지: 물 · 새 · 벌레 (비는 w_rain, 절은 bell_strike) -->
+<symbol id="th_water" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M3 7.5c1.5-1.3 3-1.3 4.5 0s3 1.3 4.5 0 3-1.3 4.5 0 3 1.3 4.5 0"/>
+  <path d="M3 12.5c1.5-1.3 3-1.3 4.5 0s3 1.3 4.5 0 3-1.3 4.5 0 3 1.3 4.5 0"/>
+  <path d="M3 17.5c1.5-1.3 3-1.3 4.5 0s3 1.3 4.5 0 3-1.3 4.5 0 3 1.3 4.5 0"/>
+</symbol>
+<symbol id="th_bird" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M3.5 15.5c3 0 5.4-1.2 6.8-3.8 1.2-2.3 2.8-3.9 5.1-3.9 1.6 0 2.8.9 3.3 2.1l1.8.6-1.8.8c-.3 4.2-3.6 7.4-8.3 7.4H6.6z"/>
+  <path d="M10.6 18.7l-.7 2.6M13.4 18.6l-.1 2.7"/>
+  <circle cx="16" cy="10.4" r=".5" fill="currentColor"/>
+</symbol>
+<symbol id="th_bug" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+  <ellipse cx="12" cy="14.2" rx="3.6" ry="5.1"/>
+  <circle cx="12" cy="7.3" r="1.8"/>
+  <path d="M11 5.8L8.6 2.8M13 5.8l2.4-3M12 9.6v9.6"/>
+  <path d="M8.6 12.2l-3.4-1.6M8.4 15.2H5M8.8 17.9l-2.9 1.9M15.4 12.2l3.4-1.6M15.6 15.2H19M15.2 17.9l2.9 1.9"/>
+</symbol>
 </svg>
