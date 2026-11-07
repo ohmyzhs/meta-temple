@@ -1444,7 +1444,7 @@ body.tea-scene .modal-overlay.is-side {
 /* 자연의 소리 창 탭(장면 · 테마 ASMR) */
 .nature-tabs { margin-bottom: 12px; }
 .asmr-badge {
-  display: inline-flex; align-items: center; gap: 3px; margin-right: 6px; padding: 1px 7px 1px 5px; border-radius: 999px; vertical-align: 1px;
+  display: inline-flex; align-items: center; gap: 3px; margin-right: 7px; padding: 1px 7px 1px 5px; border-radius: 999px; vertical-align: 2px;
   font-size: 11px; font-weight: 600; line-height: 1.5; color: var(--g); background: color-mix(in srgb, var(--g) 13%, transparent);
 }
 .asmr-badge .i { width: 13px; height: 13px; stroke-width: 2; }

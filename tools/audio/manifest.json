@@ -1177,7 +1177,7 @@
    "title": "백령도 논 청개구리",
    "place": "백령도 진촌리",
    "note": "논을 메운 청개구리 소리",
-   "group": "벌레·개구리"
+   "group": "숲"
   },
   {
    "id": "valley-frogs",
@@ -1185,7 +1185,7 @@
    "title": "계곡 숲 북방산개구리",
    "place": "계곡 숲",
    "note": "이른 봄 개구리와 새소리",
-   "group": "벌레·개구리"
+   "group": "숲"
   },
   {
    "id": "gangjin-crickets",
@@ -1193,7 +1193,7 @@
    "title": "백련사 가을밤 귀뚜라미",
    "place": "강진 백련사",
    "note": "청솔귀뚜라미들의 노래",
-   "group": "벌레·개구리"
+   "group": "숲"
   },
   {
    "id": "yeonhwa-insects",
@@ -1201,7 +1201,7 @@
    "title": "연화봉 가을 풀벌레",
    "place": "소백산 연화봉",
    "note": "바람 부는 가을 풀벌레",
-   "group": "벌레·개구리"
+   "group": "숲"
   },
   {
    "id": "jiri-cicadas",
@@ -1209,7 +1209,7 @@
    "title": "지리산둘레길 매미",
    "place": "지리산둘레길",
    "note": "한여름 소요산매미",
-   "group": "벌레·개구리"
+   "group": "숲"
   },
   {
    "id": "hwaeom-chime",
