@@ -3,7 +3,8 @@
 // 구도마다 화면 평균 루마를 재고 같은 구도 13시와 견준다 (night.mjs (a) 와 같은 방식). 스크린샷: OUT/TAG-<q>-<구도>-<시>.png
 // 기준 (1280×800): 05~08·18~23시 맑음에서
 //   바깥 구도(산문 밖·숲길·마당) 평균 루마 ≥ 13시의 MIN(기본 30% — 한밤 산문 34% 를 사용자가 '낫다'고 한 데서), 법당 안 ≥ HALL_MIN(기본 40%)
-//   산책로(숲 속 작은 나무다리) ≥ TRAIL_MIN(기본 18% — 고치기 전 한밤 값. 고치기 전 19~20시는 7~10%)
+//   산책로(숲 속 작은 나무다리)·서쪽 마당(넓은 빈 마당) ≥ TRAIL_MIN(기본 18% — 고치기 전 산책로 한밤 값. 고치기 전 19~20시 산책로 7~10%, 서쪽 마당 20~24%)
+//   경내 구도(서쪽 마당·대웅전 옆마당)는 2026-11-08 추가 — 연등탑을 담 둘레에 세운 뒤의 값을 본다
 //   날씨(rain·snow 다 내린 뒤, rainramp = 비를 켜고 1초 뒤): 산문 구도에서 별·은하수·달이 더한 밝기 < 0.002
 // 환경 변수: TAG(before|after), Q=low,high, HOURS=13,5,7,18,20,22,0,rain22,snow22,rainramp22, SHOTS=gate,forest,..., NOSHOT=1(스크린샷 안 찍음), OUT
 import { mkdirSync } from 'node:fs';
@@ -94,7 +95,10 @@ try {
         { name: 'forest', player: [pathX(16), 16], pos: [pathX(19), walkHeight(pathX(19), 19) + 2.2, 19], look: [pathX(8), 2.6, 7] }, // 일주문 안 숲길 → 마당 계단
         { name: 'courtyard', player: [5.2, 4.4], pos: [5.0, 2.1, 2.6], look: [1, 6.5, -16] },
         { name: 'hall', player: [1.5, -20.8], pos: [1.2, 4.7, -21.0], look: [0, 4.2, -28.4] }, // 법당 안 (night.mjs 와 같은 구도)
-        { name: 'trail', player: [b.x, b.z], pos: [a.x, walkHeight(a.x, a.z) + 2.0, a.z], look: [c.x, walkHeight(c.x, c.z) + 1.0, c.z] }
+        { name: 'trail', player: [b.x, b.z], pos: [a.x, walkHeight(a.x, a.z) + 2.0, a.z], look: [c.x, walkHeight(c.x, c.z) + 1.0, c.z] },
+        // 경내: 서쪽 마당(남쪽 끝에서 북쪽으로)·대웅전 서쪽 옆마당 — 마당 경계에서 그때그때 (layout.js L)
+        (() => { const w = L.westCourt, x = (w.x0 + w.x1) / 2, y = L.courtyard.y; return { name: 'westcourt', player: [x, w.z1 - 3], pos: [x, y + 1.9, w.z1 - 1], look: [x, y + 1.2, w.z0 + 8] }; })(),
+        (() => { const hy = L.hallYard, x = (hy.x0 + hy.x1) / 2, y = L.courtyard.y; return { name: 'hallyard', player: [x, hy.z1 - 2], pos: [x, y + 1.9, hy.z1 + 1], look: [x, y + 1.2, hy.z0 + 4] }; })()
       ];
     });
     if (ONLY) shots = shots.filter((s) => ONLY.includes(s.name));
@@ -111,7 +115,7 @@ try {
         if (hs === '13') base[s.name] = r.mean;
         const ratio = base[s.name] ? r.mean / base[s.name] : null;
         let ok = true;
-        if (w === 'clear' && hs !== '13' && ratio != null && twilight(h)) ok = ratio >= (s.name === 'hall' ? HALL_MIN : s.name === 'trail' ? TRAIL_MIN : MIN);
+        if (w === 'clear' && hs !== '13' && ratio != null && twilight(h)) ok = ratio >= (s.name === 'hall' ? HALL_MIN : s.name === 'trail' || s.name === 'westcourt' ? TRAIL_MIN : MIN);
         if (w !== 'clear') ok = Math.abs(r.starAdd) < 0.002;
         if (!ok) pass = false;
         row.push(`${s.name} ${r.mean}${ratio != null && hs !== '13' ? ` (${(ratio * 100).toFixed(0)}%)` : ''}${r.starAdd != null ? ` 별+${r.starAdd}` : ''}${ok ? '' : '✗'}`);
@@ -124,5 +128,5 @@ try {
 } finally {
   await browser.close();
 }
-console.log(`dusk.mjs ${pass ? 'PASS' : 'FAIL'} (05~08·18~23시 바깥 ≥ 13시의 ${MIN * 100}%, 산책로 ≥ ${TRAIL_MIN * 100}%, 법당 안 ≥ ${HALL_MIN * 100}%, 비·눈 별 ≈ 0)\n` + lines.join('\n'));
+console.log(`dusk.mjs ${pass ? 'PASS' : 'FAIL'} (05~08·18~23시 바깥 ≥ 13시의 ${MIN * 100}%, 산책로·서쪽 마당 ≥ ${TRAIL_MIN * 100}%, 법당 안 ≥ ${HALL_MIN * 100}%, 비·눈 별 ≈ 0)\n` + lines.join('\n'));
 process.exit(pass ? 0 : 1);

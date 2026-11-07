@@ -1,5 +1,5 @@
 /**
- * 연등탑 — 산책로·산문 숲길·경내 갈림길을 따라 일정 간격으로 세운 나무 기둥 연등, 그리고 일주문 들보 연등 (사용자 2026-11-07 「밤이 너무 어두컴컴」).
+ * 연등탑 — 산책로·산문 숲길·경내 갈림길·서쪽 마당 둘레를 따라 일정 간격으로 세운 나무 기둥 연등, 그리고 일주문 들보 연등 (사용자 2026-11-07 「밤이 너무 어두컴컴」).
  * 자리는 길 데이터(trail.js PATHS·layout.js pathX)에서 런타임에 고른다 — 맵 작업이 길을 옮겨도 따라간다 (좌표를 박지 않음).
  * 모바일 성능: 탑마다 빛을 두지 않는다. 연등은 마당 연등과 같은 지오메트리·발광 재질(InstancedMesh 하나), 기둥 하나, 바닥 빛 웅덩이 판 하나 — 그리기 3번.
  * 실제 점광원은 TOWER.LIGHTS 개뿐: 플레이어에게 가장 가까운 자리(연등탑·일주문)로 옮겨 다니고, 멀어지면 먼저 흐려진다.
@@ -35,11 +35,11 @@ function normalOn(P, s) {
 export function towerSites() {
   const out = [];
   const lamps = [...PATH_LAMPS, ...LANTERNS];
-  const free = (x, z) => {
+  const free = (x, z, court = false) => {
     if (REST_SPOTS.some((r) => Math.hypot(r.x - x, r.z - z) < 3.2)) return false;
     if (lamps.some((l) => Math.hypot(l.x - x, l.z - z) < 4)) return false;
     if (SIGNS.some((s) => Math.hypot(s.x - x, s.z - z) < 2)) return false;
-    if (crossingAt(x, z, 3) || Math.abs(z - streamZ(x)) < 3.6 || inCourts(x, z, 1)) return false;
+    if (crossingAt(x, z, 3) || Math.abs(z - streamZ(x)) < 3.6 || (!court && inCourts(x, z, 1))) return false;
     if (Math.hypot(x - L.gate.x, z - L.gate.z) < 5) return false; // 일주문은 제 연등
     if (Math.hypot(x - L.spawn.x, z - L.spawn.z) < 4.5) return false; // 들어서는 자리 바로 옆은 비운다 (첫 화면 앞을 가리고 번진다)
     if (out.some((o) => Math.hypot(o.x - x, o.z - z) < 7)) return false;
@@ -78,6 +78,29 @@ export function towerSites() {
       const z = z0 + dj, x = pathX(z) + sd * (3.1 + dOff);
       return free(x, z) && (place(x, z, pathX(z - 1) - pathX(z + 1), -2), true);
     });
+  }
+  // 경내: 서쪽 마당 담 안쪽 둘레(서·북·남 담에서 1.2m)와 동쪽 줄(대웅전 옆마당 쪽) — 행사용 가운데 타원·협문 앞은 비운다
+  const w = L.westCourt, r = L.westReserve, g = L.westGate, IN = 1.2;
+  const courtFree = (x, z) =>
+    Math.hypot((x - r.x) / (r.rx + 1), (z - r.z) / (r.rz + 1)) > 1 && !(x > w.x1 - 3 && z > g.z0 - 2 && z < g.z1 + 2) && free(x, z, true);
+  const edges = [
+    [w.x0 + IN, w.z1 - 4, w.x0 + IN, w.z0 + 4], // 서쪽 담
+    [w.x0 + 4, w.z0 + IN, w.x1 - 3, w.z0 + IN], // 북쪽 담
+    [w.x1 - 4, w.z1 - IN, w.x0 + 4, w.z1 - IN], // 남쪽 담
+    [w.x1 - IN, w.z1 - 4, w.x1 - IN, w.z0 + 4] // 동쪽 (옆마당·협문 쪽)
+  ];
+  for (const [x0, z0, x1, z1] of edges) {
+    const len = Math.hypot(x1 - x0, z1 - z0), n = Math.max(1, Math.round(len / 10));
+    for (let i = 0; i <= n; i++) {
+      const u = i / n;
+      for (const dj of [0, 1.5, -1.5, 3, -3]) {
+        const x = x0 + (x1 - x0) * u + ((x1 - x0) / len) * dj, z = z0 + (z1 - z0) * u + ((z1 - z0) / len) * dj;
+        if (courtFree(x, z)) {
+          place(x, z, x1 - x0, z1 - z0);
+          break;
+        }
+      }
+    }
   }
   return out;
 }
