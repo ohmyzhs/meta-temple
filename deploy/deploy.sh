@@ -6,7 +6,8 @@
 #
 # VM layout: /srv/temple/dist (static files) · /srv/temple/logs (nginx logs)
 # nginx listens on 127.0.0.1:8091 only; outside traffic comes through the saju-oracle cloudflared tunnel
-# (ingress rule for temple.lotiony.com in /srv/saju/deploy/cloudflared/config.yml).
+# (ingress rules for temple.lotiony.com and sound-temple.lotiony.com in /srv/saju/deploy/cloudflared/config.yml;
+# both → 127.0.0.1:8091, nginx server_name _ so either host works).
 # CI (.github/workflows/deploy.yml) uses the same rsync with TEMPLE_DEPLOY_KEY, a key locked to rrsync /srv/temple/dist.
 # macOS /usr/bin/rsync (openrsync) is refused by rrsync — on the Mac, deploy with the default saju_oci key.
 #

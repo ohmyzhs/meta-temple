@@ -4,7 +4,7 @@
 
 > 말없이 함께 머물며 산사의 바람·풍경 소리를 듣고, 절·연등·사경·차담으로 마음을 비우는 웹 3D 디지털 안식처
 
-- 라이브: https://temple.lotiony.com (sound-temple.lotiony.com 연결 예정)
+- 라이브: https://sound-temple.lotiony.com · https://temple.lotiony.com (같은 서버. 수행 기록은 브라우저 저장이라 주소마다 따로)
 - 대문: 사용자가 제공한 「소리사원」 현판 영상의 가로·세로 판. 별도 제공 로고에서 분리한 처마 풍경 엠블럼은 투명 SVG(`web/assets/brand/temple-emblem-v2.svg`)로 두고 상태판과 사이트 아이콘에 쓴다. 서비스 이름은 기존 설정대로 사운드템플이다.
 - 기획·설계 문서: [`docs/`](./docs) — 출시판 설계는 [`docs/superpowers/specs/2026-11-05-launch-upgrade-design.md`](./docs/superpowers/specs/2026-11-05-launch-upgrade-design.md), 단계별 계획·결과는 [`docs/superpowers/plans/`](./docs/superpowers/plans)
 
