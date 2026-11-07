@@ -22,7 +22,7 @@ import { placeStone, findJoinable, areaCount, AREA_CAP, AREA_RADIUS, GATE_ID } f
 import { ModalManager } from './ui/modalManager.js';
 import { LiveLink, sharedApi } from './core/live.js';
 import { YEBUL_TRACKS } from './data/credits.js';
-import { NATURE_PRESETS, SLEEP_MINUTES, SCENE_MINUTES, LISTEN_MODES } from './data/natureSounds.js';
+import { NATURE_PRESETS, SLEEP_MINUTES, SCENE_MINUTES, LISTEN_MODES, MIX_ADD, MY_MIX_CAP, MIX_SOUNDS } from './data/natureSounds.js';
 import { ASMR_TRACKS } from './data/asmr.js';
 // 테마 ASMR 을 듣는 동안 엔진의 자연의 소리는 모두 쉰다 (낮·맑음 — 밤새·천둥도 나지 않게)
 const ASMR_QUIET = { id: 'asmr', time: 'day', weather: 'clear', mix: {} };
@@ -61,6 +61,7 @@ const REPLY_DELAY_MS = 600; // 도반의 합장을 받고 돌아서 답례하기
 const FP_CIRCLE_LOOK = -1.0;
 const wrapAngle = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 const LISTEN_SHOT_SEC = 40; // 예불 듣기: 한 장면을 이만큼 천천히 흘린 뒤 다음 장면으로 끊는다
+const MAT_SLOPE = 16; // 휴식 돗자리를 펼 수 있는 기울기(°) — 산책로 돗자리 자리 실측 중앙 6°·최대 14.7°, 길 옆 숲 최대 15.1° (tools/qa/mixer.mjs 가 다시 잰다)
 const MODE_LABEL = { one: '한 곡', all: '연속', repeat: '반복' }; // 듣기 방식 (data/natureSounds.js LISTEN_MODES)
 const fmtTime = (s) => (Number.isFinite(s) ? `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}` : '–:––');
 
@@ -465,7 +466,7 @@ class MetaTempleApp {
       },
       onBow: () => this._doProstration(true),
       onMala: () => {
-        // 염주를 세는 곳은 여기 하나 (염주 창·가부좌 중 3 키). 너무 빠르면 세지 않고 false
+        // 염주를 세는 곳은 여기 하나 (염주 창의 단추·스페이스·3 키). 너무 빠르면 세지 않고 false
         const now = performance.now();
         if (now - (this._malaAt || 0) < MALA_MIN_MS) return false;
         this._malaAt = now;
@@ -505,6 +506,7 @@ class MetaTempleApp {
       onExport: () => this.store.exportState(),
       onImport: (json) => this.store.importState(json),
       onYebul: (track) => (this._listening?.track === track ? this.modals.close() : this.listen(track)), // 듣는 중 다시 연 목록에서 지금 것을 누르면 닫기만
+      onHereMix: () => this.listen(this._hereTrack()), // 자연의 소리 창 「내 소리」의 「이 자리 소리」
       onPracticeEnd: () => {
         if (this._listening) return this._listenBack(); // 듣는 중에 다시 연 목록을 닫음: 앉은 채 재생기로
         // 좌복·쉼터에서 하던 수행을 닫으면 그 자리에 그대로 앉아 있는다 (일어나려면 움직이면 된다)
@@ -750,6 +752,8 @@ class MetaTempleApp {
     const ls = this._listening;
     ls.track = track;
     ls.gone = 0;
+    ls.draft = null; // 조절하던 것(담지 않은)은 다른 장면으로 넘어가면 사라진다
+    ls.dirty = false;
     if (ls.nature) {
       // 녹음 한 곡이 아니라 장면: 엔진이 그 장면의 소리만 섞고, 하늘·날씨도 장면에 맞춘다
       ls.ready = true;
@@ -782,6 +786,11 @@ class MetaTempleApp {
     $('#listen [data-l="prev"]').setAttribute('aria-label', `이전 ${what}`);
     $('#listen [data-l="next"]').setAttribute('aria-label', `다음 ${what}`);
     $('#listen-seek').disabled = !!this._listening.nature; // 장면은 구간 이동이 없다 — 한 편 안의 위치만
+    // 자연의 소리: 소리 단추가 「조절」 — 소리마다 크기를 맞추는 나만의 소리 창 (테마 ASMR·예불은 섞인 원음이라 크기만)
+    const vb = $('#listen [data-l="vol"]');
+    vb.querySelector('span').textContent = this._listening.nature ? '조절' : '소리';
+    vb.setAttribute('aria-label', this._listening.nature ? '소리 조절 — 나만의 소리' : '소리 크기');
+    vb.setAttribute('aria-haspopup', this._listening.nature ? 'dialog' : 'false');
   }
 
   /** 첫 장면으로 끊고 제목을 잠시 띄운다 */
@@ -1034,7 +1043,8 @@ class MetaTempleApp {
   }
 
   _listenStep(k) {
-    const list = this._listening.nature ? NATURE_PRESETS : this._listening.asmr ? ASMR_TRACKS : YEBUL_TRACKS;
+    const t = this._listening.track;
+    const list = t.mine ? this.store.state.settings.myMixes || [t] : this._listening.nature ? NATURE_PRESETS : this._listening.asmr ? ASMR_TRACKS : YEBUL_TRACKS;
     this.listen(list[(list.indexOf(this._listening.track) + k + list.length) % list.length]);
   }
 
@@ -1079,10 +1089,92 @@ class MetaTempleApp {
   _listenList() {
     const ls = this._listening;
     this._listenVol(false);
-    if (ls.kind !== 'yebul') this.store.setSetting('natureTab', ls.asmr ? 'asmr' : 'scenes');
+    if (ls.kind !== 'yebul') this.store.setSetting('natureTab', ls.asmr ? 'asmr' : ls.track.mine || ls.track.id === 'here' ? 'mine' : 'scenes');
     this.modals.open(ls.kind === 'yebul' ? 'yebul' : 'nature');
     $('#listen').classList.add('l-away');
     $$('#modal-body .yebul-item').forEach((b) => b.setAttribute('aria-current', String(b.dataset.id === ls.track.id)));
+  }
+
+  /** 「조절」: 지금 장면을 나만의 소리로 고치는 창. 창이 떠 있는 동안 재생기는 비켜 서고, 소리는 그대로 들으며 맞춘다 */
+  _listenMixer() {
+    this._listenVol(false);
+    this._mixDraft();
+    this.modals.open('mixer', { mix: this._mixApi() });
+    $('#listen').classList.add('l-away');
+  }
+
+  /** 고치는 장면(초안): 처음 열 때 지금 장면을 나만의 소리로 굽는다 (바꾸기 전에는 듣던 그대로) — 장면 목록·내 소리 원본은 건드리지 않는다 */
+  _mixDraft() {
+    const ls = this._listening;
+    if (!ls.draft) {
+      const t = ls.track;
+      ls.draft = t.free ? { ...t, mix: { ...t.mix } } : this.sound.bake(t);
+      ls.dirty = false;
+      this.sound.setPreset(ls.draft);
+    }
+    return ls.draft;
+  }
+
+  /** 조절 창이 쓰는 손잡이 (ui/modalManager.js _mixer) */
+  _mixApi() {
+    const ls = this._listening;
+    const edit = (fn) => {
+      if (this._listening !== ls) return;
+      fn(this._mixDraft().mix);
+      ls.dirty = true;
+      this.sound.remix();
+    };
+    return {
+      state: () => {
+        const n = (this.store.state.settings.myMixes || []).length + 1;
+        return { title: ls.track.title, mine: !!ls.track.mine, dirty: !!ls.dirty, mix: this._mixDraft().mix, vols: this.store.state.settings.volumes, cap: MY_MIX_CAP, suggest: `나만의 소리 ${n}` };
+      },
+      level: (k, v) => edit((m) => (m[k] = v)),
+      add: (k) => edit((m) => (m[k] = Math.min(MIX_ADD, MIX_SOUNDS.find((x) => x.k === k)?.max ?? MIX_ADD))),
+      remove: (k) => edit((m) => delete m[k]),
+      volume: (ch, v) => this._setVolume(ch, v),
+      save: (title, asNew) => this._mixSave(title, asNew)
+    };
+  }
+
+  /** 내 소리로 담기: 그 자체로 들을 수 있는 장면(free)으로 저장한다 — 장면 이름에 기대지 않는다 (장면은 계속 손본다). 고쳐 담기면 같은 자리에 */
+  _mixSave(title, asNew) {
+    const ls = this._listening;
+    if (!ls?.nature) return null;
+    const d = this._mixDraft();
+    const list = [...(this.store.state.settings.myMixes || [])];
+    const i = !asNew && ls.track.mine ? list.findIndex((m) => m.id === ls.track.id) : -1;
+    if (i < 0 && list.length >= MY_MIX_CAP) return null;
+    const names = MIX_SOUNDS.filter((x) => x.k in d.mix).map((x) => x.name);
+    const { id: _id, title: _t, note: _n, ...rest } = d;
+    const rec = {
+      ...rest,
+      v: 1,
+      mine: true,
+      free: true,
+      id: i >= 0 ? ls.track.id : `my-${Date.now().toString(36)}`,
+      title: title || ls.track.title,
+      note: names.length > 3 ? `${names.slice(0, 3).join('·')} 외 ${names.length - 3}가지` : names.join('·') || '고요',
+      mix: { ...d.mix }
+    };
+    if (i >= 0) list[i] = rec;
+    else list.unshift(rec);
+    this.store.setSetting('myMixes', list);
+    // 이제 그 내 소리를 듣고 있다 (소리는 같은 값이라 바뀌지 않는다)
+    ls.track = rec;
+    ls.draft = { ...rec, mix: { ...rec.mix } };
+    ls.dirty = false;
+    this.sound.setPreset(ls.draft);
+    this._listenLabel(rec.title, rec.note);
+    this.sound.setNowPlaying(rec.title, '소리사원 · 나만의 소리');
+    return rec;
+  }
+
+  /** 「이 자리 소리」: 지금 선(앉은) 곳에서 들리는 자연음을 그대로 한 장면으로 — 하늘·날씨도 지금 그대로 */
+  _hereTrack() {
+    const seat = this.player.seat;
+    const where = seat?.kind === 'rest' ? seat._ref.name : ZONES[this.zone]?.name || '이곳';
+    return { id: 'here', title: '이 자리 소리', note: `${where} · 지금 들리는 그대로`, ...this.sound.here() };
   }
 
   /** 다시 연 목록을 닫았다: 재생기로 돌아온다 */
@@ -1118,7 +1210,7 @@ class MetaTempleApp {
       else if (act === 'next') this._listenStep(1);
       else if (act === 'mode') this._listenMode();
       else if (act === 'sleep') this._listenSleep();
-      else if (act === 'vol') this._listenVol($('#listen-vol').hidden);
+      else if (act === 'vol') return this._listening.nature ? this._listenMixer() : this._listenVol($('#listen-vol').hidden);
       else if (act === 'list') return this._listenList();
       else if (act === 'fold' || act === 'unfold') this._listenFold(act === 'fold');
       else if (act === 'exit') this.exitListening();
@@ -1184,7 +1276,7 @@ class MetaTempleApp {
       this.avatars.sitAt(seat, 'sit');
       this.player.restState = 'sit';
       if (then) then();
-      else this.toast('🪷 좌복에 앉았습니다 · 2 큰절 · 3 가부좌 · 움직이면 일어납니다');
+      else this.toast('🪷 좌복에 앉았습니다 · 2 큰절 · 움직이면 일어납니다');
     };
     if (zoneAt(p.x, p.z) !== 'DAEUNGJEON') return this._teleport(c.x, c.z + 0.8, Math.PI, () => setTimeout(go, 200));
     this.avatars.moveTo(c.x, c.z + 0.75, go);
@@ -1252,6 +1344,30 @@ class MetaTempleApp {
     const here = trail.nearest(p.x, p.z), there = trail.nearest(st.x, st.z);
     if (here && there && here.d < 2 && Math.abs(there.s - here.s) < 60) return this.avatars.moveTo(st.x, st.z, go, trail.route(here.s, there.s, 3));
     this._jump(st.x, st.z, s.ry, go);
+  }
+
+  /**
+   * 휴식 (하단 독 · 3 키, 사용자 2026-11-07: 가부좌 대신): 선 자리에 돗자리를 펴고 앉는다 — 쉼터처럼 「예불 듣기」·「자연의 소리 듣기」가 뜬다.
+   * 돗자리(1.0×1.5m)는 땅을 따라 기울이고, 네 귀퉁이가 걸을 수 있는 땅이고 MAT_SLOPE° 안일 때만 편다 (물·담·계단은 안 됨). 법당 안은 가까운 좌복에
+   */
+  _restHere() {
+    const pl = this.player, p = pl.root.position;
+    if (this.modals.current === 'mala') return; // 염주 창에서 3 은 염주 한 알 (창이 센다)
+    if (pl.seat?.kind === 'rest') return this.toast('🎧 아래 「예불 듣기」·「자연의 소리 듣기」를 누르면 이 자리에서 듣습니다');
+    if (zoneAt(p.x, p.z) === 'DAEUNGJEON') {
+      const c = this.avatars.freeCushionNear(p.x, p.z);
+      return c ? this._sitCushion(c.index) : this.toast('빈 좌복이 없습니다');
+    }
+    if (pl.sitting) return this.toast('이미 앉아 있습니다 · 움직이면 일어납니다');
+    const ry = pl.heading, c = Math.cos(ry), sn = Math.sin(ry);
+    const P = [[0, 0], [0.5, 0.75], [-0.5, 0.75], [0.5, -0.75], [-0.5, -0.75]].map(([lx, lz]) => ({ x: p.x + c * lx + sn * lz, z: p.z - sn * lx + c * lz }));
+    const h = P.map((q) => walkHeight(q.x, q.z));
+    const front = Math.atan(((h[1] + h[2]) - (h[3] + h[4])) / 2 / 1.5), side = Math.atan(((h[1] + h[3]) - (h[2] + h[4])) / 2 / 1.0);
+    if (!P.every((q) => isWalkable(q.x, q.z)) || Math.max(Math.abs(front), Math.abs(side)) > (MAT_SLOPE * Math.PI) / 180) {
+      return this.toast('🧺 여기는 돗자리를 펴기 어렵습니다 · 조금 평평한 곳으로 옮겨 보세요');
+    }
+    const s = { id: 'mat_here', name: '돗자리', kind: 'mat', x: p.x, z: p.z, y: h[0] + 0.03, ry, tilt: [-front, side], stand: { x: p.x, z: p.z }, seatH: 0.03, listenPitch: 0.02 };
+    this._sitRest(s);
   }
 
   /** 지금 알려진 길가 돌탑 + 일주문 옆 돌탑 */
@@ -1643,19 +1759,8 @@ class MetaTempleApp {
       case 'prostrate':
         if (this._doProstration(false)) this.toast('🙇 두 무릎을 꿇고 이마를 바닥에 대어 절을 올립니다');
         break;
-      case 'meditate': {
-        const pl = this.player;
-        if (pl.state === 'meditate') {
-          // 가부좌 중에는 한 번 누를 때마다 염주 한 알
-          this._modalCallbacks().onMala();
-          break;
-        }
-        this.avatars.triggerAction('meditate');
-        pl.restState = 'meditate';
-        this.world.setFocusVignette(true);
-        this.toast('📿 가부좌로 앉아 숨을 고릅니다 · 3을 다시 누르면 염주 한 알');
-        break;
-      }
+      case 'rest':
+        return this._restHere();
       case 'incense':
         if (zone === 'DAEUNGJEON') return this.activate('incense');
         this.player.restState = null;
@@ -1765,16 +1870,16 @@ class MetaTempleApp {
   }
 
   /**
-   * 하단 독: 이 자리에서만 하는 신행·몸짓(특수 행동)이 늘 맨 앞, 남는 칸에 일반 몸짓(합장 → 헌향 → 큰절 → 가부좌 순).
-   * 칸이 모자라면 가부좌·큰절부터 「더보기」로. 몸짓 단추는 새로 만들지 않고 옮긴다 (누름 처리가 그대로 남게).
+   * 하단 독: 이 자리에서만 하는 신행·몸짓(특수 행동)이 늘 맨 앞, 남는 칸에 일반 몸짓(합장 → 헌향 → 큰절 → 휴식 순).
+   * 칸이 모자라면 휴식·큰절부터 「더보기」로. 몸짓 단추는 새로 만들지 않고 옮긴다 (누름 처리가 그대로 남게).
    */
   _zoneRituals(z) {
     const DOCK_SLOTS = 6; // 「더보기」 빼고 (360px 폰 세로까지 48px 단추가 들어가는 수)
     const PLACE_GESTURES = { COURTYARD: ['circumambulate'], DAEUNGJEON: ['incense'] };
     // 다실에서는 「다선」을 숨긴다: 찻자리 4m 안에서 누르면 「차담」과 똑같이 찻자리에 앉는다 (gesture 'tea') — 같은 일을 하는 단추 둘
     const HIDE = { TEAHOUSE: ['tea'] };
-    const GENERAL = ['bow_half', 'incense', 'prostrate', 'meditate', 'tea', 'circumambulate'];
-    const DOCK_GENERAL = new Set(['bow_half', 'incense', 'prostrate', 'meditate']); // 「더보기」에 원래 있던 탑돌이·다선은 제자리에서만 앞으로
+    const GENERAL = ['bow_half', 'incense', 'prostrate', 'rest', 'tea', 'circumambulate'];
+    const DOCK_GENERAL = new Set(['bow_half', 'incense', 'prostrate', 'rest']); // 「더보기」에 원래 있던 탑돌이·다선은 제자리에서만 앞으로
     const rituals = [...(DOCK_RITUALS[z] || []), ...ZONES[z].rituals].filter((id, i, a) => a.indexOf(id) === i && !GENERAL.includes(id));
     const btn = (id, cls, text) => `<button class="ctl ${cls}" type="button" data-ritual="${id}" title="${RITUALS[id].label}">${icon(RITUALS[id].icon || id)}<span class="lbl">${text}</span></button>`;
     const tmp = document.createElement('div');
@@ -1971,7 +2076,7 @@ class MetaTempleApp {
     const typing = () => ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName) || document.activeElement?.isContentEditable;
     window.addEventListener('keydown', (e) => {
       if (this._listening) {
-        if (this.modals.isOpen) return; // 다시 연 목록: Esc 는 창을 닫고, 나머지 키는 창 안에서
+        if (this.modals.isOpen || e.defaultPrevented) return; // 다시 연 목록·조절 창: Esc 는 창을 닫고(닫은 Esc 로 일어나지 않게), 나머지 키는 창 안에서
         if (!e.target.closest?.('#listen') || e.code === 'Escape') this._listenKey(e); // 재생기 단추·막대는 제 키를 쓴다
         return;
       }
@@ -1983,7 +2088,7 @@ class MetaTempleApp {
       // 108배 패널이 열려 있으면 절·염주는 패널이 센다 (오늘 횟수가 어긋나지 않게)
       if (this.modals.isOpen && this.modals.current?.match(/practice_108|mala/) && (k === ' ' || e.code === 'Space' || k === '2' || k === '3')) return;
       if (['1', '2', '3', '4', '5', '6'].includes(k)) {
-        this.gesture(['bow_half', 'prostrate', 'meditate', 'incense', 'circumambulate', 'tea'][Number(k) - 1]);
+        this.gesture(['bow_half', 'prostrate', 'rest', 'incense', 'circumambulate', 'tea'][Number(k) - 1]);
       }
       if (e.code === 'KeyV') {
         this.world.toggleCameraMode();
@@ -2369,7 +2474,7 @@ class MetaTempleApp {
           $('#prompt-alt').classList.toggle('hidden', !n?.alt);
           if (n?.alt) $('#prompt-alt-text').textContent = n.alt.label;
         }
-        $$('[data-gesture]').forEach((b) => b.classList.toggle('active', this.player.state === b.dataset.gesture || (b.dataset.gesture === 'meditate' && this.player.state === 'meditate')));
+        $$('[data-gesture]').forEach((b) => b.classList.toggle('active', this.player.state === b.dataset.gesture || (b.dataset.gesture === 'rest' && this.player.seat?.kind === 'rest')));
         this._updateHUD();
       }
       const cam = this.world.camera;

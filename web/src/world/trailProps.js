@@ -545,19 +545,18 @@ export function buildTrailProps(scene) {
         }
       };
     },
+    /** 돗자리를 편다: 산책로 돗자리 쉼터면 말아 둔 것을 거두고, 휴식(아무 데서나)이면 그 자리에 — tilt: [앞뒤, 좌우] 기울기(땅을 따라) */
     showMat(s) {
       const i = matSpots.findIndex((q) => q.id === s.id);
-      if (i < 0) return;
       this.hideMat();
-      setRoll(i, false);
+      if (i >= 0) setRoll(i, false);
       flat.position.set(s.x, walkHeight(s.x, s.z) + 0.015, s.z);
-      flat.rotation.y = s.ry;
+      flat.rotation.set(s.tilt?.[0] || 0, s.ry, s.tilt?.[1] || 0, 'YXZ');
       flat.visible = true;
       shownMat = i;
     },
     hideMat() {
-      if (shownMat < 0) return;
-      setRoll(shownMat, true);
+      if (shownMat >= 0) setRoll(shownMat, true);
       flat.visible = false;
       shownMat = -1;
     }

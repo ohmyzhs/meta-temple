@@ -1405,6 +1405,66 @@ body.tea-scene .modal-overlay.is-side {
 .yebul-item[aria-current='true'] .yebul-play { background: var(--gold); color: var(--ink-900); }
 body.listening .m-yebul .m-hint, body.listening .m-nature .m-hint, body.listening .nature-sleep { display: none; }
 
+/* ───────── 나만의 소리 (자연의 소리 듣기의 「조절」 창) ─────────
+   소리마다 나무 패 같은 그림 칸 + 이름 + 크기 막대 + 빼기, 아래에 더할 수 있는 소리, 전체 크기, 담기 */
+.modal-window.side.m-mixer { max-height: calc(100vh - 86px - var(--safe-t)); max-height: calc(100dvh - 86px - var(--safe-t)); }
+.mx-now { display: flex; flex-direction: column; gap: 2px; margin: 2px 0 4px; }
+.mx-now b { font-family: var(--font-serif); font-size: 16px; font-weight: 600; }
+.mx-now small { font-size: 12px; color: var(--muk-soft); }
+.mx-h { margin: 14px 0 6px; font-family: var(--font-serif); font-size: 13.5px; font-weight: 600; color: var(--muk); }
+.mx-h small { font-family: var(--font-sans); font-weight: 400; font-size: 12px; color: var(--muk-soft); margin-left: 4px; }
+.mx-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.mx-row { display: grid; grid-template-columns: 48px minmax(0, 1fr) 48px; align-items: center; gap: 10px; }
+.mx-tile {
+  width: 48px; height: 48px; border-radius: 12px; display: grid; place-items: center; color: #5a4122;
+  background: linear-gradient(155deg, #ecd8ae, #d4b277);
+  box-shadow: inset 0 0 0 1px rgba(120, 90, 40, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 1px 3px rgba(80, 60, 30, 0.22);
+}
+.mx-tile .i { width: 26px; height: 26px; }
+.mx-main { display: flex; flex-direction: column; min-width: 0; padding-top: 4px; }
+.mx-name { font-size: 13.5px; color: var(--muk); line-height: 1.2; }
+.mx-main input[type='range'] { width: 100%; height: 48px; margin: -6px 0 -6px; accent-color: var(--m-gold-ink); cursor: pointer; }
+.mx-del {
+  width: 48px; height: 48px; border-radius: 999px; border: 0; padding: 0; display: grid; place-items: center;
+  background: transparent; color: var(--muk-soft); cursor: pointer; font: inherit; font-size: 12.5px; white-space: nowrap;
+}
+.mx-del:hover, .mx-del:focus-visible { background: rgba(43, 39, 34, 0.08); color: var(--muk); outline: none; }
+.mx-del .i { width: 18px; height: 18px; }
+.mx-del.confirm { width: auto; padding: 0 14px; background: #9b3a2c; color: #fff; }
+.mx-empty { padding: 10px 0; font-size: 13px; color: var(--muk-soft); }
+.mx-add { display: grid; grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); gap: 8px; }
+.mx-addbtn {
+  min-height: 70px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
+  border-radius: 12px; border: 1px dashed rgba(120, 95, 60, 0.4); background: rgba(255, 252, 244, 0.6);
+  color: var(--muk); font: inherit; font-size: 12px; cursor: pointer; transition: border-color 0.2s, background 0.2s;
+}
+.mx-addbtn .i { width: 24px; height: 24px; color: #6b4e28; }
+.mx-addbtn:hover, .mx-addbtn:focus-visible { border-style: solid; border-color: var(--gold); background: rgba(255, 252, 244, 0.95); outline: none; }
+.mx-vols .slider { color: var(--muk); }
+.mx-foot {
+  position: sticky; bottom: 0; z-index: 1; display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; padding: 10px 0 2px;
+  background: linear-gradient(rgba(248, 243, 231, 0), rgba(248, 243, 231, 0.97) 10px);
+}
+.mx-foot .m-btn { flex: 1 1 140px; min-height: 48px; }
+.mx-name-form { display: flex; flex-wrap: wrap; gap: 8px; width: 100%; }
+.mx-name-form input {
+  flex: 1 1 100%; height: 48px; box-sizing: border-box; padding: 0 14px; border-radius: 10px; border: 1px solid rgba(120, 95, 60, 0.35);
+  background: #fffdf7; font: inherit; font-size: 16px; color: var(--muk); -webkit-user-select: text; user-select: text;
+}
+.mx-name-form input:focus { outline: 2px solid var(--gold); outline-offset: 1px; }
+.mx-msg { margin: 6px 0 0; min-height: 1.2em; font-size: 12.5px; color: var(--m-gold-ink); }
+.mx-hint { margin: 8px 0 0; font-size: 12.5px; line-height: 1.6; color: var(--muk-soft); }
+/* 자연의 소리 창 「내 소리」: 담은 소리 + 지우기(두 번) */
+.mx-saved { display: flex; align-items: center; gap: 4px; }
+.mx-saved .yebul-item { flex: 1; min-width: 0; }
+.yebul-play .i { width: 22px; height: 22px; }
+@media (max-width: 640px) {
+  .modal-window.side.m-mixer { max-height: 84vh; max-height: 84dvh; }
+}
+@media (max-height: 519px) {
+  .modal-window.side.m-mixer { max-height: calc(100vh - 16px); max-height: calc(100dvh - 16px); }
+}
+
 /* 공개 여부 */
 .m-share { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: 4px 0 12px; font-size: 13px; color: var(--muk); cursor: pointer; }
 .m-share input { width: 16px; height: 16px; accent-color: var(--gold); }
@@ -1447,6 +1507,7 @@ body.listening .m-yebul .m-hint, body.listening .m-nature .m-hint, body.listenin
 .nature-sleep .sutra-group-label { width: auto; }
 /* 자연의 소리 창 탭(장면 · 테마 ASMR) */
 .nature-tabs { margin-bottom: 12px; }
+.nature-tabs .m-chip { min-height: 48px; padding: 0 16px; } /* 손가락 48px (장면 · 테마 ASMR · 내 소리) */
 .asmr-badge {
   display: inline-flex; align-items: center; gap: 3px; margin-right: 7px; padding: 1px 7px 1px 5px; border-radius: 999px; vertical-align: 2px;
   font-size: 11px; font-weight: 600; line-height: 1.5; color: var(--g); background: color-mix(in srgb, var(--g) 13%, transparent);

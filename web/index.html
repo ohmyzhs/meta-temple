@@ -133,7 +133,7 @@
       <div class="dock-rituals" id="dock-rituals"></div>
       <button class="ctl dock-btn" type="button" data-gesture="bow_half" data-icon="bow_half" title="합장 반배"><span class="lbl">합장</span><kbd>1</kbd></button>
       <button class="ctl dock-btn" type="button" data-gesture="prostrate" data-icon="prostrate" title="큰절"><span class="lbl">큰절</span><kbd>2</kbd></button>
-      <button class="ctl dock-btn" type="button" data-gesture="meditate" data-icon="meditate" title="가부좌 · 염주"><span class="lbl">가부좌</span><kbd>3</kbd></button>
+      <button class="ctl dock-btn" type="button" data-gesture="rest" data-icon="rest_mat" title="휴식 · 돗자리를 펴고 앉아 듣기"><span class="lbl">휴식</span><kbd>3</kbd></button>
       <button class="ctl dock-btn" type="button" data-gesture="incense" data-icon="incense" title="헌향 · 헌촉"><span class="lbl">헌향</span><kbd>4</kbd></button>
       <button class="ctl dock-btn" type="button" id="more-btn" data-sheet="more-sheet" aria-controls="more-sheet" aria-expanded="false" data-icon="more"><span class="lbl">더보기</span></button>
     </nav>
@@ -252,7 +252,7 @@
       <button type="button" class="l-btn l-main" data-l="play" aria-label="일시정지"><svg class="i-pause" viewBox="0 0 24 24"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/></svg><svg class="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13l10.5-6.5z"/></svg></button>
       <button type="button" class="l-btn" data-l="next" aria-label="다음"><svg viewBox="0 0 24 24"><path d="M16 5h2v14h-2zM5 5.8v12.4L14.5 12z"/></svg></button>
       <button type="button" class="l-btn l-tog l-sleep" data-l="sleep" aria-pressed="false" aria-label="잠자기 타이머"><svg viewBox="0 0 24 24"><path d="M12.6 3a8.6 8.6 0 1 0 8.4 10.5A7 7 0 0 1 12.6 3z"/></svg><span>타이머</span></button>
-      <button type="button" class="l-btn l-tog l-volbtn" data-l="vol" aria-expanded="false" aria-controls="listen-vol" aria-label="소리 크기"><svg viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4zm12.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z"/></svg><span>소리</span></button>
+      <button type="button" class="l-btn l-tog l-volbtn" data-l="vol" aria-expanded="false" aria-controls="listen-vol" aria-label="소리 크기"><svg class="i-vol" viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4zm12.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z"/></svg><svg class="i-mix" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4 7h4.4M12 7h8M4 17h9.6M17.2 17H20M4 12h1.6M9.2 12H20"/><circle cx="10.2" cy="7" r="1.8"/><circle cx="15.4" cy="17" r="1.8"/><circle cx="7.4" cy="12" r="1.8"/></svg><span>소리</span></button>
       <!-- 소리 크기: 소리 창(#pop-sound)의 슬라이더와 같은 값 (main.js _setVolume) -->
       <div class="l-vol" id="listen-vol" hidden>
         <label class="slider"><span>자연 환경음 <small>계곡·바람·산새·빗소리</small></span><input type="range" data-vol="nature" min="0" max="1" step="0.05" /></label>

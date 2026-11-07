@@ -11,7 +11,7 @@
 import { nameFeedback, NAME_PLACEHOLDER } from './nameField.js';
 import { NAME_MAX, checkText } from '../core/moderation.js';
 import { CREDITS, CREDIT_GROUPS, CREDIT_SOURCES, LICENSE_URLS, YEBUL_TRACKS, creditSource } from '../data/credits.js';
-import { NATURE_PRESETS, SLEEP_MINUTES } from '../data/natureSounds.js';
+import { NATURE_PRESETS, SLEEP_MINUTES, MIX_SOUNDS, MIX_MAX } from '../data/natureSounds.js';
 import { ASMR_TRACKS } from '../data/asmr.js';
 import { SUTRA_VERSES, DHARMA_CARDS, localMonkResponse, isCrisisText, OPENING_SUGGESTIONS, BLOCKED_REPLIES, COOLED_LINE, REST_SUGGESTIONS, TEA_LINES, voiceKey, cardVoiceText } from '../data/dharmaTexts.js';
 import { LIVE_API } from '../core/live.js';
@@ -30,6 +30,7 @@ const VIEWS = {
   tea_chat: { title: '심검당 차담', hanja: '茶談', sub: '차 한 잔 사이에 두고, 편히 이야기하세요.', render: '_tea', variant: 'side' },
   yebul: { title: '예불 듣기', hanja: '禮佛', sub: '산사에서 실제로 올린 예불을 처음부터 끝까지.', render: '_yebul', variant: 'side' },
   nature: { title: '자연의 소리 듣기', hanja: '自然', sub: '장면이나 그 자리에서 녹음한 원음을 골라 앉아서 오래 듣습니다.', render: '_nature', variant: 'side' },
+  mixer: { title: '나만의 소리', hanja: '調', sub: '들리는 소리를 하나씩 맞추어 내 소리로 담습니다.', render: '_mixer', variant: 'side' },
   dharma_card: { title: '오늘의 죽비', hanja: '竹篦', sub: '지금 내 걸음에 닿는 경전 한 구절.', render: '_card' },
   profile: { title: '수행 기록', hanja: '修行', sub: '견주지 않는, 나만의 조용한 흔적.', render: '_profile' },
   help: { title: '산사 안내', hanja: '案內', sub: '천천히 둘러보세요. 서두를 곳이 없습니다.', render: '_help' },
@@ -251,7 +252,9 @@ export class ModalManager {
       if (isTextField(e.target)) e.stopPropagation();
     });
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && !e.isComposing && this.isOpen && !isTextField(e.target)) this.back();
+      if (e.key !== 'Escape' || e.isComposing || !this.isOpen || isTextField(e.target)) return;
+      this.back();
+      e.preventDefault(); // 창이 받은 Esc — 산사(듣기 중 「일어나기」 등)가 한 번 더 쓰지 않게
     });
   }
 
@@ -1832,7 +1835,26 @@ export class ModalManager {
     const cur = () => this.store.state.settings.natureSleep ?? 30;
     const label = (m) => (m ? `${m}분` : '끄기');
     const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
-    const tab = this.store.state.settings.natureTab === 'asmr' ? 'asmr' : 'scenes';
+    const tab = ['asmr', 'mine'].includes(this.store.state.settings.natureTab) ? this.store.state.settings.natureTab : 'scenes';
+    const mixes = () => this.store.state.settings.myMixes || [];
+    // 내 소리 (사용자 2026-11-07): 지금 이 자리 소리 + 조절 창에서 담은 소리들. 지우기는 두 번 눌러야
+    const mine = () => `
+      <ul class="yebul-list">
+        <li>
+          <button type="button" class="yebul-item" data-here aria-label="이 자리 소리 듣기">
+            <span class="yebul-play" aria-hidden="true">${icon('rest_mat')}</span>
+            <span class="yebul-meta"><b>이 자리 소리</b><small>지금 선 곳에서 들리는 그대로 — 조절해서 담을 수 있습니다</small></span>
+          </button>
+        </li>${mixes().map((m) => `
+        <li class="mx-saved">
+          <button type="button" class="yebul-item" data-id="${esc(m.id)}" aria-label="${esc(m.title)} 듣기">
+            <span class="yebul-play" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 5.5v13l10.5-6.5z"/></svg></span>
+            <span class="yebul-meta"><b>${esc(m.title)}</b><small>${esc(m.note || '')}</small></span>
+          </button>
+          <button type="button" class="mx-del" data-delmine="${esc(m.id)}" aria-label="${esc(m.title)} 지우기">${icon('close')}</button>
+        </li>`).join('')}
+      </ul>
+      <p class="mx-hint">${mixes().length ? '' : '아직 담은 소리가 없습니다. '}장면을 듣다가 재생기의 「조절」로 소리를 하나씩 맞추고 저장하면 여기에 모입니다.</p>`;
     // 테마 ASMR 카드의 배지: 묶음마다 아이콘과 색 (사용자 2026-11-07 「물·비·새를 아이콘이나 배지로」)
     const THEME = { 물: ['th_water', '#3b7290'], 비: ['w_rain', '#566a7e'], 새: ['th_bird', '#4b7843'], 숲: ['th_bug', '#8a6820'], 절: ['bell_strike', '#9b3a2c'] };
     const badge = (g) => (THEME[g] ? `<span class="asmr-badge" style="--g:${THEME[g][1]}">${icon(THEME[g][0])}${esc(g)}</span>` : '');
@@ -1853,6 +1875,7 @@ export class ModalManager {
       <div class="sutra-chips nature-tabs" role="tablist" aria-label="자연의 소리">
         <button type="button" role="tab" class="m-chip" data-tab="scenes" aria-selected="${tab === 'scenes'}">장면</button>
         <button type="button" role="tab" class="m-chip" data-tab="asmr" aria-selected="${tab === 'asmr'}">테마 ASMR</button>
+        <button type="button" role="tab" class="m-chip" data-tab="mine" aria-selected="${tab === 'mine'}">내 소리</button>
       </div>
       <div data-pane="scenes"${tab === 'scenes' ? '' : ' hidden'}>
       <div class="sutra-group nature-sleep"><span class="sutra-group-label">잠자기 타이머</span>
@@ -1870,6 +1893,7 @@ export class ModalManager {
       </div>
       <div data-pane="asmr"${tab === 'asmr' ? '' : ' hidden'}>${asmr}
       </div>
+      <div data-pane="mine"${tab === 'mine' ? '' : ' hidden'}>${mine()}</div>
       <p class="m-hint"><button type="button" class="m-link" data-yebul>예불 듣기 →</button></p>`);
     this._on(root, 'click', (e) => {
       const tb = e.target.closest('[data-tab]');
@@ -1886,9 +1910,127 @@ export class ModalManager {
         return;
       }
       if (e.target.closest('[data-yebul]')) return this.open('yebul');
+      const del = e.target.closest('[data-delmine]');
+      if (del) {
+        if (!del.classList.contains('confirm')) {
+          del.classList.add('confirm');
+          del.setAttribute('aria-label', '한 번 더 누르면 지웁니다');
+          del.textContent = '지우기';
+          this._later(() => del.isConnected && (del.classList.remove('confirm'), (del.innerHTML = icon('close'))), 4000);
+          return;
+        }
+        this.store.setSetting('myMixes', mixes().filter((m) => m.id !== del.dataset.delmine));
+        root.querySelector('[data-pane="mine"]').innerHTML = mine();
+        return;
+      }
+      if (e.target.closest('[data-here]')) return this.cb.onHereMix?.();
       const b = e.target.closest('.yebul-item');
-      if (b) this.cb.onYebul?.(b.closest('[data-pane="asmr"]') ? ASMR_TRACKS.find((x) => x.id === b.dataset.id) : NATURE_PRESETS.find((x) => x.id === b.dataset.id));
+      if (!b) return;
+      const pane = b.closest('[data-pane]')?.dataset.pane;
+      const list = pane === 'asmr' ? ASMR_TRACKS : pane === 'mine' ? mixes() : NATURE_PRESETS;
+      this.cb.onYebul?.(list.find((x) => x.id === b.dataset.id));
     });
+    return {};
+  }
+
+  /* ───── 나만의 소리: 자연의 소리를 듣는 중 재생기의 「조절」 — 소리마다 크기·더하기·빼기, 내 소리로 담기 ─────
+   * payload.mix: main.js 가 주는 조절 손잡이 { state(), level(k, v), add(k), remove(k), volume(ch, v), save(title, asNew) } */
+  _mixer({ mix }) {
+    const byK = Object.fromEntries(MIX_SOUNDS.map((x) => [x.k, x]));
+    const top = (k) => byK[k]?.max ?? MIX_MAX; // 막대 끝 (화롯불은 낮다)
+    const toX = (k, v) => Math.sqrt(Math.min(top(k), v) / top(k)); // 막대 x → x² × 끝 (가운데쯤이 장면 기본 크기)
+    const root = this._root(`
+      <div class="mx-now" tabindex="-1" data-autofocus><b data-title></b><small data-sub></small></div>
+      <h3 class="mx-h">들리는 소리 <small data-count></small></h3>
+      <ul class="mx-list" data-list></ul>
+      <h3 class="mx-h">소리 더하기</h3>
+      <div class="mx-add" data-add></div>
+      <h3 class="mx-h">전체 크기</h3>
+      <div class="mx-vols">
+        <label class="slider"><span>자연 환경음</span><input type="range" data-vol="nature" min="0" max="1" step="0.05" /></label>
+        <label class="slider"><span>사찰 공간음</span><input type="range" data-vol="temple" min="0" max="1" step="0.05" /></label>
+      </div>
+      <div class="mx-foot" data-foot></div>
+      <p class="mx-msg" data-msg aria-live="polite"></p>`);
+    const $r = (sel) => root.querySelector(sel);
+    let naming = null; // 이름을 받는 중이면 { asNew }
+    const draw = () => {
+      const st = mix.state();
+      $r('[data-title]').textContent = st.title;
+      $r('[data-sub]').textContent = st.dirty ? '바꾼 소리 · 아직 담지 않았습니다' : st.mine ? '내 소리' : '장면 그대로';
+      const on = MIX_SOUNDS.filter((x) => x.k in st.mix);
+      $r('[data-count]').textContent = `${on.length}가지`;
+      $r('[data-list]').innerHTML = on.length
+        ? on.map((x) => `
+        <li class="mx-row">
+          <span class="mx-tile" aria-hidden="true">${icon(x.icon)}</span>
+          <label class="mx-main"><span class="mx-name">${esc(x.name)}</span><input type="range" min="0" max="1" step="0.01" value="${toX(x.k, st.mix[x.k]).toFixed(3)}" data-k="${x.k}" aria-label="${esc(x.name)} 크기" /></label>
+          <button type="button" class="mx-del" data-del="${x.k}" aria-label="${esc(x.name)} 빼기">${icon('close')}</button>
+        </li>`).join('')
+        : '<li class="mx-empty">아래에서 소리를 더해 보세요</li>';
+      $r('[data-add]').innerHTML = MIX_SOUNDS.filter((x) => !(x.k in st.mix))
+        .map((x) => `<button type="button" class="mx-addbtn" data-addk="${x.k}" aria-label="${esc(x.name)} 더하기">${icon(x.icon)}<span>${esc(x.name)}</span></button>`)
+        .join('') || '<p class="mx-hint">모든 소리를 더했습니다</p>';
+      root.querySelectorAll('[data-vol]').forEach((i) => (i.value = st.vols[i.dataset.vol]));
+      const name = naming
+        ? `<form class="mx-name-form" data-form><input type="text" maxlength="16" enterkeyhint="done" aria-label="내 소리 이름" value="${esc(st.mine && !naming.asNew ? st.title : st.suggest)}" />
+            <button type="submit" class="m-btn primary">담기</button><button type="button" class="m-btn" data-cancel>그만두기</button></form>`
+        : st.mine
+          ? `<button type="button" class="m-btn primary" data-save ${st.dirty ? '' : 'disabled'}>고친 대로 담기</button><button type="button" class="m-btn" data-saveas>새 이름으로 담기</button>`
+          : `<button type="button" class="m-btn primary" data-saveas>내 소리로 담기</button>`;
+      $r('[data-foot]').innerHTML = name;
+      if (naming) {
+        const inp = $r('[data-form] input');
+        inp.focus({ preventScroll: true });
+        inp.select();
+      }
+    };
+    const say = (t) => ($r('[data-msg]').textContent = t);
+    this._on(root, 'input', (e) => {
+      const k = e.target.dataset.k;
+      if (k) {
+        const x = Number(e.target.value);
+        mix.level(k, +(x * x * top(k)).toFixed(3));
+        $r('[data-sub]').textContent = '바꾼 소리 · 아직 담지 않았습니다';
+        const sv = $r('[data-save]');
+        if (sv) sv.disabled = false;
+        return;
+      }
+      if (e.target.dataset.vol) mix.volume(e.target.dataset.vol, Number(e.target.value));
+    });
+    this._on(root, 'click', (e) => {
+      const t = e.target.closest('button');
+      if (!t) return;
+      if (t.dataset.del) {
+        mix.remove(t.dataset.del);
+        draw();
+      } else if (t.dataset.addk) {
+        mix.add(t.dataset.addk);
+        draw();
+        say(`${byK[t.dataset.addk].name}을(를) 더했습니다`);
+      } else if ('save' in t.dataset) {
+        const r = mix.save(null, false);
+        say(r ? `「${r.title}」에 고친 대로 담았습니다` : '담지 못했습니다');
+        draw();
+      } else if ('saveas' in t.dataset) {
+        naming = { asNew: true };
+        draw();
+      } else if ('cancel' in t.dataset) {
+        naming = null;
+        draw();
+      }
+    });
+    this._on(root, 'submit', (e) => {
+      e.preventDefault();
+      const title = $r('[data-form] input').value.trim().slice(0, 16);
+      if (!title) return say('이름을 적어 주세요');
+      const r = mix.save(title, naming.asNew);
+      naming = null;
+      if (!r) say(`내 소리는 ${mix.state().cap}개까지 담을 수 있습니다 · 자연의 소리 창 「내 소리」에서 하나를 지워 주세요`);
+      else say(`「${r.title}」을(를) 내 소리에 담았습니다 · 자연의 소리 창 「내 소리」에서 다시 들을 수 있습니다`);
+      draw();
+    });
+    draw();
     return {};
   }
 
@@ -2160,7 +2302,7 @@ export class ModalManager {
     const keys = [
       ['1', '합장 반배'],
       ['2', '큰절'],
-      ['3', '가부좌 · 염주'],
+      ['3', '휴식 · 돗자리 펴고 앉기 (앉으면 듣기)'],
       ['4', '헌향 · 헌촉'],
       ['5', '탑돌이'],
       ['6', '차 마시기'],

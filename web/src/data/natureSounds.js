@@ -113,3 +113,29 @@ export const SLEEP_MINUTES = [0, 15, 30, 60];
 export const SCENE_MINUTES = 10;
 /** 듣기 방식: 한 곡 → 연속 → 반복 */
 export const LISTEN_MODES = ['one', 'all', 'repeat'];
+
+/**
+ * 나만의 소리 (자연의 소리 듣기의 「조절」 창): 고를 수 있는 소리 — k 는 엔진 레이어 이름, 풍경(chimes)만 레이어가 아니라 처마 풍경 원샷의 세기.
+ * 테마 ASMR 은 이미 섞인 원음이라 조절하지 않는다
+ */
+export const MIX_SOUNDS = [
+  { k: 'stream', name: '계곡 물', icon: 'th_water' },
+  { k: 'rain', name: '빗소리', icon: 'w_rain' },
+  { k: 'wind', name: '바람', icon: 'mx_wind' },
+  { k: 'birds', name: '산새', icon: 'th_bird' },
+  { k: 'cicadas', name: '매미', icon: 'mx_cicada' },
+  { k: 'crickets', name: '풀벌레', icon: 'th_bug' },
+  { k: 'frogs', name: '개구리', icon: 'mx_frog' },
+  { k: 'bamboo', name: '대숲', icon: 'mx_bamboo' },
+  { k: 'spring', name: '샘물', icon: 'mx_drop' },
+  { k: 'chimes', name: '풍경', icon: 'mx_chime' },
+  { k: 'kettle', name: '찻물', icon: 'tea' },
+  { k: 'brazier', name: '화롯불', icon: 'burn_worry', max: 0.6 }, // 타닥 봉우리가 커서 끝을 낮춘다 (화롯가 장면 0.46 의 1.3배). 실측 리미터 최대: 2 → -6.2dB, 0.9 + 나머지 모두 끝 → -1.6~-4.3dB, 0.6 + 나머지 모두 끝 → -1.1~-1.3dB (세 번)
+  { k: 'chant', name: '독송', icon: 'yebul' }
+];
+/** 조절 막대 끝의 장면 배율 — 막대 x(0~1) → x² × (소리의 max ?? MIX_MAX). 새로 더한 소리는 MIX_ADD 에서 시작.
+ *  실측(리미터 누름, headroom.mjs 기준 평균 > -1dB · 최대 > -3dB): 화롯불 빼고 모두 2 → 평균 -0.2 · 최대 -2.0dB (tools/qa/mixer.mjs) */
+export const MIX_MAX = 2;
+export const MIX_ADD = 0.6;
+/** 내 소리는 이만큼까지 저장한다 */
+export const MY_MIX_CAP = 20;

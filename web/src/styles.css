@@ -627,6 +627,9 @@ body.listening.l-idle, body.listening.l-idle canvas { cursor: none; }
 .l-mode { grid-area: mode; }
 .l-sleep { grid-area: sleep; }
 .l-volbtn { grid-area: vol; }
+/* 자연의 소리: 소리 단추가 「조절」(나만의 소리 창) — 그림도 막대 셋 */
+.l-volbtn .i-mix, .listen.nature .l-volbtn .i-vol { display: none; }
+.listen.nature .l-volbtn .i-mix { display: block; fill: none; }
 .l-mode svg { display: none; }
 .l-mode[data-mode='one'] .i-one, .l-mode[data-mode='all'] .i-all, .l-mode[data-mode='repeat'] .i-repeat { display: block; }
 

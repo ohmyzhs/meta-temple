@@ -1401,16 +1401,9 @@ export class TempleSoundEngine {
     if (!L) return;
     for (const [name, def] of Object.entries(LAYERS)) {
       const layer = L[name];
-      let f = (def.t ? T[def.t] : 1) * (def.w ? W[def.w] : 1) * (def.z ? Z[def.z] : 1);
-      if (def.max) f = Math.min(def.max, f);
-      let g = def.base * f * (P ? P.mix[name] ?? 0 : 1);
-      // 녹음 배경이 있는 레이어는 지금(계절·시간대) 쓸 조각이 있을 때만 — 겨울엔 풀벌레 합성음도 쉰다
-      if (!this._avail(name) && this._nbeds?.some((b) => b.layer === layer)) g = 0;
+      let g = this._layerGain(name, def, P, Z, W, T);
       const src = PLACED[name] && this._src?.[name];
-      if (PLACED[name]) {
-        g *= src ? src.gain : 0; // 자리 소리: 전파 (propagate × 담 가림)
-        if (src && layer.tone) this._ramp(layer.tone.frequency, airTone(src.d), dur);
-      }
+      if (src && layer.tone) this._ramp(layer.tone.frequency, airTone(src.d), dur);
       if (def.duck && this._track) g = 0;
       if (this._solo && this._solo !== name) g = 0; // 점검: 한 레이어만 (solo)
       if (def.flare && this._flare) {
@@ -1422,6 +1415,74 @@ export class TempleSoundEngine {
       this._ramp(layer.level.gain, g, def.fade ? Math.max(dur, def.fade) : dur);
       for (const b of this._nbeds || []) if (b.chorus && b.layer === layer) this._ramp(b.vg.gain, g, dur); // 겹소리도 같은 크기로
     }
+  }
+
+  /** 레이어 하나의 목표 크기: base × 시간대·날씨·구역 배율 × 장면 배율 × 전파(자리 소리). 나만의 소리(free)는 배율 없이 고른 크기 그대로 */
+  _layerGain(name, def, P, Z, W, T) {
+    let f = P?.free ? 1 : (def.t ? T[def.t] : 1) * (def.w ? W[def.w] : 1) * (def.z ? Z[def.z] : 1);
+    if (def.max) f = Math.min(def.max, f);
+    let g = def.base * f * (P ? P.mix[name] ?? 0 : 1);
+    // 녹음 배경이 있는 레이어는 지금(계절·시간대) 쓸 조각이 있을 때만 — 겨울엔 풀벌레 합성음도 쉰다
+    if (!this._avail(name) && this._nbeds?.some((b) => b.layer === this.L[name])) g = 0;
+    if (PLACED[name]) g *= this._src?.[name]?.gain ?? 0; // 자리 소리: 전파 (propagate × 담 가림)
+    return g;
+  }
+
+  /* ───────── 나만의 소리 (자연의 소리 듣기의 조절 창) ───────── */
+
+  /** 장면을 나만의 소리(free)로 옮긴다 — 장면의 시간대·날씨 배율을 크기에 구워 넣어, 바꾸기 전에는 듣던 그대로 들린다 */
+  bake(p) {
+    const keep = this.preset;
+    this.preset = p; // 시간대·날씨·달·쓸 조각을 그 장면 것으로
+    const W = WEATHER_MIX[this._weather()], T = TIME_MIX[this._time()];
+    const mix = {};
+    for (const [name, def] of Object.entries(LAYERS)) {
+      const k = p.mix[name] ?? 0;
+      if (!k) continue;
+      let f = (def.t ? T[def.t] : 1) * (def.w ? W[def.w] : 1) * (def.z ? PRESET_ZONE[def.z] : 1);
+      if (def.max) f = Math.min(def.max, f);
+      if (!this._avail(name) && this._nbeds?.some((b) => b.layer === this.L[name])) f = 0;
+      if (f * k > 0.005) mix[name] = +(f * k).toFixed(3);
+    }
+    if (p.chimes) mix.chimes = 1;
+    this.preset = keep;
+    return { ...p, free: true, mix };
+  }
+
+  /**
+   * 「이 자리 소리」: 지금 선 자리에서 들리는 자연음을 나만의 소리(free)로 잰다 — 장면을 듣는 중이어도 자리의 소리를.
+   * 자리 소리(물·대숲·화로 …)는 장면 자리(PLACED.preset)에서 같은 크기가 되게 옮긴다. 법당 안 먹먹함(저역 통과)·방향은 따라가지 않는다
+   */
+  here() {
+    const keep = this.preset;
+    this.preset = null;
+    this._placeSources(0);
+    const Z = this._zoneMix(), W = WEATHER_MIX[this._weather()], T = TIME_MIX[this._time()];
+    const mix = {};
+    for (const [name, def] of Object.entries(LAYERS)) {
+      let g = this._layerGain(name, def, null, Z, W, T);
+      if (this.L[name].panner?._bus !== 'temple') g *= Z.outside; // 자연음 버스는 구역 배율(법당 안 0.4)을 한 번 더 지난다
+      const pl = PLACED[name];
+      const at = pl ? propagate(Math.hypot(...pl.preset), pl.ref, pl.shape, pl.alpha) : 1;
+      const k = g / (def.base * at);
+      if (k > 0.01) mix[name] = +k.toFixed(3);
+    }
+    if (this.emit.chimes.some((q) => dist(q, this._lp) < 30)) mix.chimes = 0.6; // 가까운 처마에 풍경이 있으면
+    const out = { time: this.time, weather: this.weather, month: this.month, free: true, mix };
+    this.preset = keep;
+    this._placeSources(0);
+    return out;
+  }
+
+  /** 나만의 소리를 고치는 중: 장면 배율이 바뀌었으니 곧바로 다시 섞는다 */
+  remix(dur = 0.25) {
+    if (this.L) this._mix(dur);
+  }
+
+  /** 장면 듣기의 처마 풍경 세기: 장면은 chimes 표시(1), 나만의 소리는 mix.chimes */
+  _chimes() {
+    const P = this.preset;
+    return !P ? 0 : P.free ? P.mix.chimes ?? 0 : P.chimes ? 1 : 0;
   }
 
   _tick() {
@@ -1543,7 +1604,8 @@ export class TempleSoundEngine {
         this._chimeAt(i, now + rand(0.6, 2.2), rand(0.4, 0.9) * (strong ? 1 : 0.6));
       }
     });
-    if (this.preset?.chimes && Math.random() < (strong ? 0.5 : 0.06)) this._chimeNear(now + rand(0.6, 2.2), rand(0.4, 0.9) * (strong ? 1 : 0.6));
+    const ch = this._chimes();
+    if (ch && Math.random() < (strong ? 0.5 : 0.06)) this._chimeNear(now + rand(0.6, 2.2), rand(0.4, 0.9) * (strong ? 1 : 0.6) * ch);
     if (target > 0.9 && this._src?.bamboo?.gain > 0.05 && Math.random() < 0.5) this._bambooKnock(now + rand(0.8, 2)); // 대숲이 들리는 곳에서만 (크기는 대숲 레이어의 전파를 따른다)
   }
 
@@ -1566,7 +1628,8 @@ export class TempleSoundEngine {
     this.emit.chimes.forEach((p, i) => {
       if (dist(p, this._lp) < 30 && Math.random() < 0.35) this._chimeAt(i, t + rand(1.5, 3.5), rand(0.4, 0.8));
     });
-    if (this.preset?.chimes && Math.random() < 0.35) this._chimeNear(t + rand(1.5, 3.5), rand(0.4, 0.8));
+    const ch = this._chimes();
+    if (ch && Math.random() < 0.35) this._chimeNear(t + rand(1.5, 3.5), rand(0.4, 0.8) * ch);
   }
 
   /** 장면 듣기의 처마 풍경: 듣는 자리 위 앞쪽 처마 어딘가 */
@@ -1842,7 +1905,8 @@ export class TempleSoundEngine {
   _pool(def) {
     const t = this._time(), m = this._month();
     const only = this.preset?.only?.[def.layer]; // 장면이 이 레이어의 조각을 한 가지로 정했으면 그것만 (봄밤: 백령도 청개구리)
-    return def.pieces.filter((p) => (!p.time || p.time.includes(t)) && (!p.months || p.months.includes(m)) && (!only || p.f.startsWith(only)));
+    const ok = def.pieces.filter((p) => (!p.time || p.time.includes(t)) && (!p.months || p.months.includes(m)) && (!only || p.f.startsWith(only)));
+    return ok.length || !this.preset?.free ? ok : def.pieces.filter((p) => !only || p.f.startsWith(only)); // 나만의 소리: 철이 아니어도 고른 소리는 난다
   }
 
   /** 이 레이어에 지금 쓸 조각이 있는가 (계절이 아니면 개구리·매미가 쉰다) */
