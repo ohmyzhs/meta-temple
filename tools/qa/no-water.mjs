@@ -1,6 +1,6 @@
 // 물 없는 곳 검사 — node tools/qa/no-water.mjs   (먼저 python3 .claude/devserver.py 8097, BASE=)
 // 사용자 2026-11-06 「물길 근처가 아니면 물소리가 절대로 나면 안 된다」
-// 물길에서 가장 먼 산책로(계곡까지 68m)에 60초 서서: 물 레이어(계곡·샘물·개구리)의 실제 출력이 0 인지,
+// 물길(계곡·연못·옹달샘)에서 가장 먼 산책로 자리(고리를 1m 마다 재어 고른다 — 뒷산 중턱 길)에 60초 서서: 물 레이어(계곡·샘물·개구리)의 실제 출력이 0 인지,
 // 그동안 산 어디서나 나는 원샷(돌풍·밤새·범종)이 무엇이었는지 적는다. 그 원샷들의 녹음에 물이 없는지는 tools/audio/water_check.py
 import { launch, enter } from './lib.mjs';
 
@@ -13,7 +13,16 @@ try {
   const r = await page.evaluate(async () => {
     const t = window.temple, e = t.sound;
     window.temple.world.cam.mode = 'first';
-    await new Promise((ok) => t._teleport(10.3, -50.6, 0, ok));
+    const { loop } = await import('./src/world/trail.js');
+    const { streamZ, L } = await import('./src/world/layout.js');
+    let far = null;
+    for (let s = 0; s < loop.length; s += 1) {
+      const p = loop.at(s);
+      let d = Math.hypot(p.x - L.pond.x, p.z - L.pond.z);
+      for (let x = -48; x <= 48; x += 1) d = Math.min(d, Math.hypot(p.x - x, p.z - streamZ(x)));
+      if (!far || d > far.d) far = { ...p, d };
+    }
+    await new Promise((ok) => t._teleport(far.x, far.z, 0, ok));
     await new Promise((ok) => setTimeout(ok, 5000));
     const WATER = ['stream', 'spring', 'frogs'];
     const an = Object.fromEntries(WATER.map((k) => { const a = e.ctx.createAnalyser(); a.fftSize = 2048; e.L[k].level.connect(a); return [k, a]; }));

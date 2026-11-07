@@ -62,17 +62,27 @@ export const TRAIL_CTRL = [
   [-41.5, -14.5],
   [-44, -21],
   [-50, -25.5],
-  [-50.5, -32.5],
-  [-42.5, -38],
-  [-35, -42.5],
-  [-26, -46.5],
-  [-15, -49.5],
-  [-4, -51],
-  [6, -51],
-  [16, -49.5],
-  [26, -46],
-  [35, -41],
-  [42, -35],
+  // 뒷산 중턱 (사용자 2026-11-07 「지붕이 너무 높게 올라와 전경이 안 보인다」): 대웅전 뒤 절벽에서 떨어져 서쪽 산자락을 길게 돌아 오르고,
+  // 용마루(27.8m) 높이쯤의 중턱을 지나 동쪽 골짜기로 내려온다
+  [-47.5, -31],
+  [-46.5, -38],
+  [-46, -45],
+  [-45.5, -51.5],
+  [-43, -56.5],
+  [-37, -60],
+  [-29, -62.5],
+  [-20, -63.5],
+  [-11, -63.5],
+  [-2, -63.5],
+  [7, -63.5],
+  [15, -63],
+  [24, -66.5],
+  [31, -68.5],
+  [36.5, -65],
+  [37.5, -59],
+  [38, -52],
+  [40, -44.5],
+  [43.5, -38],
   [49, -29],
   [46.5, -21.5],
   [51, -14],
@@ -299,14 +309,31 @@ export function deckRiseAt(nr) {
   return nr && nr.path === trail && nr.d <= DECK.halfW + 0.05 ? deckRise(nr.s) : 0;
 }
 
+
+export const MAX_GRADE = 0.18; // 산책로 기울기 상한 (18%) — 넘는 곳은 비탈을 깎거나 북돋운다
+/**
+ * 뒷산(z < HILL_Z)은 산비탈이 40~100% 라 18% 길로는 용마루(27.8m) 높이까지 오를 수 없다 — 산비탈을 따라 깔고,
+ * STAIR_MIN 보다 가파른 곳은 돌계단을 놓는다 (trailProps.js buildStairs). 계단은 경사로로 근사하고 계단 메쉬가 위를 덮는다.
+ */
+export const HILL_Z = -28;
+export const HILL_GRADE = 0.55;
+export const STAIR_MIN = 0.2;
+/** 이 자리의 기울기 상한 */
+export const gradeAt = (p) => (p.z < HILL_Z ? HILL_GRADE : MAX_GRADE);
+
+/** 순환로에서 (x, z) 에 가장 가까운 자리의 길이 s — 길 모양을 고쳐도 쉼터·석등·돌담 자리가 따라오게 좌표로 적는다 */
+function sAt(x, z) {
+  const n = trail.nearest(x, z);
+  if (!n) throw new Error(`trail.js: (${x}, ${z}) 는 산책로에서 ${TRAIL_REACH}m 밖`);
+  return Math.round(n.s * 10) / 10;
+}
+
 /** 우거진 숲 구간 (나무를 빽빽이 심는 순환로 s 범위) — 데크 숲, 서쪽 굽이길, 남동 전나무숲 */
 export const DENSE_FOREST = [
   [8, 95],
-  [104, 168],
-  [346, 436]
+  [104, sAt(-46.5, -38)], // 뒷산 돌계단 아래까지 (중턱은 산사 쪽 시야를 연다)
+  [sAt(22.6, 23.3), trail.length]
 ];
-
-export const MAX_GRADE = 0.18; // 산책로 기울기 상한 (18%) — 넘는 곳은 비탈을 깎거나 북돋운다
 
 export function setTrailProfile(heightFn) {
   PATHS.forEach((p) => p.setProfile(heightFn));
@@ -330,7 +357,7 @@ export function setTrailProfile(heightFn) {
     for (const dir of [1, -1]) {
       for (let k = dir > 0 ? 1 : h.length - 2; k >= 0 && k < h.length; k += dir) {
         if (lock[k]) continue;
-        const j = k - dir, lim = MAX_GRADE * Math.abs(P.s[k] - P.s[j]);
+        const j = k - dir, lim = Math.min(gradeAt(P.pts[k]), gradeAt(P.pts[j])) * Math.abs(P.s[k] - P.s[j]);
         h[k] = clamp(h[k], h[j] - lim, h[j] + lim);
       }
     }
@@ -342,18 +369,23 @@ export function setTrailProfile(heightFn) {
  * look: 앉아서 바라보는 곳, seatH: 땅에서 앉는 면까지 높이. 모양은 trailProps.js 의 같은 kind 빌더가 만든다.
  * 예불 듣기(1인칭)는 vista 쪽을(없으면 look 쪽을) listenPitch 만큼 내려다본다. view: 그 쪽으로 나무를 비우는 거리(m).
  */
+/** 중턱 정자 몸채: 앞 마루 끝(쉼터 자리)에서 뒤로 half 가 한가운데, 기둥 사이 반폭 half — 길 아래 비탈에 돌 주초로 세운다 */
+export const PAVILION = { half: 1.1 };
+
 const REST_DEFS = [
-  { id: 'deck_bench', name: '전나무숲 데크', kind: 'bench', s: 38, side: -1, off: 0.85, look: [-24, 40], seatH: 0.46, onDeck: true, listenPitch: -0.06 },
+  // 데크 벤치: 왼쪽 난간에 붙여 길과 나란히, 데크 건너편 숲을 본다 (사용자 2026-11-07 「데크길 중간에 잘못 놓인 돌벤치」 — 비스듬히 데크를 가로지르던 돌 벤치)
+  { id: 'deck_bench', name: '전나무숲 데크', kind: 'woodbench', s: 38, side: -1, off: DECK.halfW - 0.32, across: true, seatH: 0.46, onDeck: true, listenPitch: -0.06 },
   { id: 'bridge', name: '나무다리', kind: 'bridge', s: 98.8, side: 0, off: 0, look: [-20, 14.6] },
-  { id: 'stump_a', name: '숲속 그루터기', kind: 'stump', s: 117, side: -1, off: 2.2, look: [-30, 0], seatH: 0.42, view: 14, listenPitch: -0.04 },
-  { id: 'stump_b', name: '숲속 그루터기', kind: 'stump', s: 120.5, side: -1, off: 2.5, look: [-30, -4], seatH: 0.36, view: 14, listenPitch: -0.06 },
-  { id: 'spring', name: '약수터', kind: 'spring', s: 147, side: -1, off: 2.3, look: [-60, -26], seatH: 0.36, vista: [-30, -12], view: 18, listenPitch: -0.03 },
-  { id: 'lookout', name: '전망 바위', kind: 'lookout', s: 221, side: 1, off: 3.2, look: [6, -10], seatH: 0.95, view: 34, vista: [20, -6], listenPitch: 0.1 },
-  { id: 'mat_ridge', name: '능선 돗자리', kind: 'mat', s: 241, side: 1, off: 2.4, look: [12, -10], seatH: 0.03, view: 24, listenPitch: 0.1 },
-  { id: 'bench_bamboo', name: '대숲 쉼터', kind: 'bench', s: 282, side: 1, off: 2.1, look: [30, -14], seatH: 0.46, view: 22, listenPitch: 0.02 },
-  { id: 'mat_stream', name: '계곡 돗자리', kind: 'mat', s: 322, side: -1, off: 2.4, look: [33, 16], seatH: 0.03 },
-  { id: 'bench_stream', name: '징검다리 쉼터', kind: 'bench', s: 347, side: 1, off: 2.2, look: [10, 12], seatH: 0.46, view: 12 },
-  { id: 'stump_c', name: '남쪽 숲 그루터기', kind: 'stump', s: 408, side: 1, off: 2.3, look: [12, 36], seatH: 0.4, view: 12, listenPitch: -0.05 }
+  { id: 'stump_a', name: '숲속 그루터기', kind: 'stump', s: sAt(-50.4, -0.3), side: -1, off: 2.2, look: [-30, 0], seatH: 0.42, view: 14, listenPitch: -0.04 },
+  { id: 'stump_b', name: '숲속 그루터기', kind: 'stump', s: sAt(-50.8, -3.7), side: -1, off: 2.5, look: [-30, -4], seatH: 0.36, view: 14, listenPitch: -0.06 },
+  { id: 'spring', name: '약수터', kind: 'spring', s: sAt(-48.1, -23.8), side: -1, off: 2.3, look: [-60, -26], seatH: 0.36, vista: [-30, -12], view: 18, listenPitch: -0.03 },
+  // 뒷산 중턱: 서쪽 어깨의 정자(서쪽 마당·앞마당이 대웅전 옆으로 비스듬히 내려다보인다) · 꼭대기 전망 바위(눈이 대웅전 용마루보다 높다)
+  { id: 'pavilion_ridge', name: '중턱 정자', kind: 'pavilion', s: sAt(-23.5, -63.2), side: 1, off: TRAIL_HALF + 0.15 + PAVILION.half * 2, look: [-8, -14], seatH: 0.42, view: 32, vista: [-8, -12], listenPitch: 0.16 },
+  { id: 'lookout', name: '전망 바위', kind: 'lookout', s: sAt(8.5, -63.4), side: 1, off: 3.2, look: [2, -20], seatH: 0.95, view: 34, vista: [1, -14], listenPitch: 0.14 },
+  { id: 'bench_bamboo', name: '대숲 쉼터', kind: 'bench', s: sAt(50, -16.2), side: 1, off: 2.1, look: [30, -14], seatH: 0.46, view: 22, listenPitch: 0.02 },
+  { id: 'rocks_stream', name: '계곡 돌무더기', kind: 'rocks', s: sAt(32.5, 8.2), side: -1, off: 2.4, look: [33, 16], seatH: 0.5 },
+  { id: 'bench_stream', name: '징검다리 쉼터', kind: 'bench', s: sAt(23, 24.2), side: 1, off: 2.2, look: [10, 12], seatH: 0.46, view: 12 },
+  { id: 'stump_c', name: '남쪽 숲 그루터기', kind: 'stump', s: sAt(22, 54.5), side: 1, off: 2.3, look: [12, 36], seatH: 0.4, view: 12, listenPitch: -0.05 }
 ];
 
 export const REST_LABEL = {
@@ -361,6 +393,8 @@ export const REST_LABEL = {
   stump: '그루터기에 앉기',
   mat: '돗자리 펴고 앉기',
   lookout: '전망 바위에 앉기',
+  pavilion: '정자에 걸터앉기',
+  rocks: '돌무더기에 걸터앉기',
   bridge: '다리에 걸터앉기',
   spring: '약수터에서 쉬기',
   woodbench: '나무 벤치에 앉기',
@@ -374,6 +408,8 @@ export const REST_SIT_MSG = {
   stump: '🪵 그루터기에 걸터앉았습니다 · 움직이면 일어납니다',
   mat: '🧺 돗자리를 펴고 앉았습니다 · 일어서면 걷힙니다',
   lookout: '⛰️ 전망 바위에 앉았습니다 · 산사가 한눈에 내려다보입니다',
+  pavilion: '🛖 중턱 정자에 걸터앉았습니다 · 대웅전 지붕 너머로 먼 산이 펼쳐집니다',
+  rocks: '🪨 돌무더기에 걸터앉았습니다 · 계곡 물소리가 가깝습니다',
   bridge: '🌉 작은 다리에 걸터앉았습니다 · 발아래로 계곡물이 흐릅니다',
   spring: '💧 약수 한 모금 — 약수터 돌에 앉아 숨을 고릅니다',
   woodbench: '🪑 나무 벤치에 앉았습니다 · 움직이면 일어납니다',
@@ -403,21 +439,36 @@ export const REST_SPOTS = REST_DEFS.map((d) => {
   // 일어설 자리: 중심선에서 쉼터 쪽으로 0.5m (산책로 반폭 안). 데크 위 벤치는 벤치 맞은편 판 위로
   const so = d.onDeck ? -0.35 : Math.min(0.5, d.off);
   const stand = { x: c.x + n.x * d.side * so, z: c.z + n.z * d.side * so };
-  const ry = Math.atan2(d.look[0] - x, d.look[1] - z);
+  const ry = d.across ? Math.atan2(-n.x * d.side, -n.z * d.side) : Math.atan2(d.look[0] - x, d.look[1] - z);
   return { ...d, x, z, ry, stand, label: REST_LABEL[d.kind] };
 });
 
-/** 전망 바위·능선 돗자리에서 산사 쪽으로 열린 시야 (이 안에는 나무를 심지 않는다) */
+/**
+ * 뒷산 중턱 길에서 산사 쪽으로 틔운 좁은 시야 (10m 마다) — 나무 사이로 지붕·마당이 내려다보이게.
+ * { x, z, a(바라보는 방위), view(거리), w0·k(폭: w0 + 앞으로 간 거리 × k) }
+ */
+export const TRAIL_VISTAS = (() => {
+  const out = [];
+  for (let s = sAt(-46, -45); s < sAt(39.6, -45.7); s += 10) {
+    const p = trail.at(s);
+    // 서쪽 어깨는 서쪽 마당·앞마당, 동쪽 골짜기는 다실 마당, 가운데는 대웅전 지붕 너머를 본다
+    const [tx, tz] = p.x < -14 ? [-14, -6] : p.x > 16 ? [22, -8] : [0, -24];
+    out.push({ x: p.x, z: p.z, a: Math.atan2(tx - p.x, tz - p.z), view: 30, w0: 2.5, k: 0.3 });
+  }
+  return out;
+})();
+
+/** 쉼터(전망 바위·정자 등 view 가 있는 곳)와 중턱 길에서 산사 쪽으로 열린 시야 (이 안에는 나무를 심지 않는다) */
 export function inLookoutView(x, z) {
-  for (const l of REST_SPOTS) {
-    if (!l.view) continue;
-    const dx = x - l.x, dz = z - l.z;
-    if (dx * dx + dz * dz > l.view * l.view) continue;
-    const a = l.vista ? Math.atan2(l.vista[0] - l.x, l.vista[1] - l.z) : l.ry;
+  const cone = (px, pz, a, view, w0, k) => {
+    const dx = x - px, dz = z - pz;
+    if (dx * dx + dz * dz > view * view) return false;
     const vx = Math.sin(a), vz = Math.cos(a);
     const along = dx * vx + dz * vz;
-    if (along > -2 && Math.abs(dx * vz - dz * vx) < 3 + Math.max(along, 0) * 0.55) return true;
-  }
+    return along > -2 && Math.abs(dx * vz - dz * vx) < w0 + Math.max(along, 0) * k;
+  };
+  for (const l of REST_SPOTS) if (l.view && cone(l.x, l.z, l.vista ? Math.atan2(l.vista[0] - l.x, l.vista[1] - l.z) : l.ry, l.view, 3, 0.55)) return true;
+  for (const v of TRAIL_VISTAS) if (cone(v.x, v.z, v.a, v.view, v.w0, v.k)) return true;
   return false;
 }
 
@@ -429,8 +480,8 @@ export const FENCE_OFF = TRAIL_HALF + 0.4;
 const FENCE_STEP = 2;
 /** 돌담 구간 (순환로 s): 능선 비탈(깎은 언덕 쪽은 석축처럼)과 계곡 북쪽 기슭. 나머지는 나무 울타리 */
 const STONE_RUNS = [
-  [148, 256],
-  [300, 330]
+  [sAt(-48.9, -24.3), sAt(44.8, -36.1)], // 뒷산 산길 (돌계단·중턱)
+  [sAt(50.5, 0.8), sAt(24.6, 9.1)]
 ];
 
 /** 진행 방향 오른쪽 법선 (P 위 s) */
@@ -445,7 +496,7 @@ function offsetOn(P, s, side, off) {
 }
 
 /** 갈림목·전망 자리 석등 (순환로 s, 오른쪽 2.3m) */
-export const LANTERNS = [3, 93, 214, 288, 330, 344, 432].map((s) => offsetOn(trail, s, 1, 2.3));
+export const LANTERNS = [3, 93, REST_SPOTS.find((r) => r.id === 'lookout').s - 7, sAt(50.2, -10.5), sAt(24.6, 9.1), sAt(21.8, 21.4), sAt(1.8, 43.5)].map((s) => offsetOn(trail, s, 1, 2.3));
 
 /** 길 등: 순환로를 따라 약 20m 마다 좌우 번갈아 (밤길 표시). 데크 구간은 난간 바로 밖 */
 export const PATH_LAMPS = (() => {
@@ -478,6 +529,7 @@ export function fenceRuns() {
     if (LANTERNS.some((l) => Math.hypot(l.x - q.x, l.z - q.z) < 1.0) || PATH_LAMPS.some((l) => Math.hypot(l.x - q.x, l.z - q.z) < 0.6)) return true;
     if (q.z > 5 && q.z < 47 && Math.abs(q.x - forestPathX(q.z)) < 6.5) return true; // 일주문 숲길 (넓은 길)
     if (nearOther(P, q)) return true;
+    if (FENCE_GAPS.some((g) => Math.hypot(g.x - q.x, g.z - q.z) < 2.6 && rectDist(g.rect, q.x, q.z) < rectDist(g.rect, g.x, g.z))) return true; // 평탄 부지 입구
     return (P.nearest(q.x, q.z)?.d ?? 0) < FENCE_OFF - 0.05; // 굽은 안쪽에서 길 쪽으로 파고드는 자리
   };
   for (const P of PATHS) {
@@ -609,6 +661,14 @@ export function trailDistFar(x, z) {
   }
   return d;
 }
+
+/** 평탄 부지 입구: 길 위 점 { x, z, rect:[x0,x1,z0,z1] } — 그 점 2.6m 안에서 부지 쪽 울타리를 비운다 (layout.js 가 L.sites 로 채운다) */
+let FENCE_GAPS = [];
+export function setFenceGaps(list) {
+  FENCE_GAPS = list;
+  FENCE_SPANS = null;
+}
+const rectDist = ([x0, x1, z0, z1], x, z) => Math.hypot(Math.max(x0 - x, 0, x - x1), Math.max(z0 - z, 0, z - z1));
 
 /** 길별·쪽별 울타리 구간 [s0, s1] (fenceRuns 를 한 번만 잰다) */
 let FENCE_SPANS = null;

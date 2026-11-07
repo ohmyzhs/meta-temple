@@ -66,12 +66,12 @@ const trailViews = () =>
       t04_bridge: at(90, 0, 0.25),
       t05_west_forest: at(125),
       t06_west_climb: at(158, 0.2),
-      t07_ridge: at(212, 0.6, 0.3, 8),
-      t08_bamboo_east: at(272),
-      t09_stream_north: at(318),
-      t10_stones: at(330, 0, 0.3),
-      t11_se_forest: at(372),
-      t12_se_south: at(400, 0.3),
+      t07_ridge: at(trail.nearest(-6, -63.5).s, 0.6, 0.3, 8), // 뒷산 중턱 (2026-11-07 길을 옮긴 뒤 s 대신 자리로)
+      t08_bamboo_east: at(trail.nearest(50.5, -11).s),
+      t09_stream_north: at(trail.nearest(33, 8.4).s),
+      t10_stones: at(trail.nearest(21.3, 15.5).s, 0, 0.3),
+      t11_se_forest: at(trail.nearest(38, 33.5).s),
+      t12_se_south: at(trail.nearest(31, 50.5).s, 0.3),
       g01_gate: { pos: [0, 38], ry: Math.PI, yaw: 0, pitch: 0.12, dist: 8 },
       g02_court_w: { pos: [0, -2], ry: -Math.PI / 2, yaw: Math.PI / 2, pitch: 0.12, dist: 8 },
       g03_court_s: { pos: [0, -12], ry: 0, yaw: -Math.PI, pitch: 0.12, dist: 8 }
@@ -83,7 +83,7 @@ const PERF_SPOTS = {
   court: { pos: [0, 2], ry: Math.PI, yaw: 0 },
   deck: { s: 45 },
   westForest: { s: 125 },
-  lookout: { pos: [3, -49.5], ry: 0, yaw: Math.PI },
+  lookout: { pos: [8.5, -63.4], ry: 0, yaw: Math.PI }, // 뒷산 중턱 전망 바위 앞 (2026-11-07)
   bambooEast: { s: 272 },
   stones: { s: 330 }
 };
@@ -172,7 +172,7 @@ async function shots(browser) {
   for (const [k, id] of ids.entries()) {
     if (process.env.REST === '0') break;
     for (const time of times) {
-      if (time !== 'day' && !/lookout|mat_ridge|bench_bamboo|spring/.test(id)) continue;
+      if (time !== 'day' && !/lookout|pavilion_ridge|bench_bamboo|spring/.test(id)) continue;
       await page.evaluate(async ([id, time]) => {
         const t = window.temple, s = t.temple.trail.spots.find((q) => q.id === id);
         if (t._listening) {

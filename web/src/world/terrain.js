@@ -16,7 +16,8 @@ import {
   clamp,
   addCircleCollider,
   onCourtGround,
-  courtEdge
+  courtEdge,
+  siteAt
 } from './layout.js';
 import { nearestTrail, trail, REST_SPOTS, trailDistFar, FLOOR_REACH } from './trail.js';
 import { groundDetailTexture, waterNormalTexture, graniteTextures } from './textures.js';
@@ -69,9 +70,9 @@ function groundColor(x, z, h, slope, out) {
     out.copy(COL.court).lerp(COL.courtEdge, (1 - smooth(0, 1.6, edge)) * 0.6 + n2 * 0.15);
   }
   // 다실 마당 잔디
-  const t = L.teahouseTerrace;
-  if (x > t.x0 - 1 && z < t.z1 + 1 && z > t.z0 - 1 && x < t.x1 + 1) {
-    out.lerp(COL.lawn, 0.75 - n2 * 0.2);
+  const t = L.teahouseTerrace, bb = L.bamboo;
+  if (x > t.x0 - 1 && z < t.z1 + 1 && z > t.z0 - 1 && x < t.x1 + 1 && !(x > bb.x0 + 1 && z < bb.z1 - 1)) {
+    out.lerp(COL.lawn, 0.75 - n2 * 0.2); // 옛 대숲 바닥은 잔디가 아니다
   }
   const lk = L.teaLink;
   if (x > lk.x0 - 0.3 && x < lk.x1 + 0.6 && z > lk.z0 && z < lk.z1) out.lerp(COL.court, 0.7);
@@ -135,7 +136,7 @@ export function buildTerrain(scene, quality) {
     );
   };
   // 가까운 경내: 촘촘한 격자
-  const IN = { x0: -62, x1: 62, z0: -58, z1: 62 }; // 순환 산책로(서쪽 x -51, 남쪽 z 52)와 그 둘레 6.5m 가 0.45m 격자 안에 들게
+  const IN = { x0: -62, x1: 62, z0: -78, z1: 62 }; // 순환 산책로(서쪽 x -52.5, 남쪽 z 54.5, 뒷산 중턱 z -68.5)와 그 둘레 6.5m 가 0.45m 격자 안에 들게
   const res = quality === 'low' ? 0.7 : 0.45;
   const inner = new THREE.Mesh(buildGroundMesh(IN.x0, IN.x1, IN.z0, IN.z1, res), mkMat(52));
   inner.receiveShadow = true;
@@ -167,10 +168,11 @@ export const waterUniforms = {
   uRain: { value: 0 }
 };
 
-function waterMaterial(flow, scale) {
+/** 물 재질 (계곡·연못·옹달샘 공용). clear: 0 탁함 … 1 맑음 (연못은 잉어·바닥이 비치게 덜 불투명) */
+export function waterMaterial(flow, scale, clear = 0) {
   waterUniforms.uNormal.value = waterNormalTexture();
   return new THREE.ShaderMaterial({
-    uniforms: { ...waterUniforms, uFlow: { value: flow }, uScale: { value: scale }, ...THREE.UniformsLib.fog },
+    uniforms: { ...waterUniforms, uFlow: { value: flow }, uScale: { value: scale }, uClear: { value: clear }, ...THREE.UniformsLib.fog },
     transparent: true,
     depthWrite: false,
     fog: true,
@@ -187,7 +189,7 @@ function waterMaterial(flow, scale) {
     fragmentShader: `
       uniform float uTime; uniform sampler2D uNormal; uniform vec3 uSkyTop; uniform vec3 uSkyHorizon;
       uniform vec3 uSunDir; uniform vec3 uSunColor; uniform vec3 uDeep; uniform vec2 uFlow; uniform float uScale;
-      uniform float uNight; uniform float uRain;
+      uniform float uNight; uniform float uRain; uniform float uClear;
       varying vec3 vWorld;
       #include <fog_pars_fragment>
       void main() {
@@ -201,7 +203,7 @@ function waterMaterial(flow, scale) {
         vec3 sky = mix(uSkyHorizon, uSkyTop, clamp(R.y * 1.5, 0.0, 1.0));
         float spec = pow(max(dot(R, normalize(uSunDir)), 0.0), 180.0) * (1.0 - uNight * 0.8);
         vec3 col = mix(uDeep, sky, 0.18 + fres * 0.75) + uSunColor * spec * 1.6;
-        float alpha = mix(0.78, 0.95, fres);
+        float alpha = mix(0.78 - uClear * 0.36, 0.95, fres);
         gl_FragColor = vec4(col, alpha);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
@@ -233,7 +235,7 @@ function buildWater(scene) {
   const p = L.pond;
   const pg = new THREE.CircleGeometry(1, 48);
   pg.rotateX(-Math.PI / 2);
-  const pond = new THREE.Mesh(pg, waterMaterial(new THREE.Vector2(0.008, 0.005), 0.3));
+  const pond = new THREE.Mesh(pg, waterMaterial(new THREE.Vector2(0.008, 0.005), 0.3, 0.55)); // 반쯤 맑게 — 잉어가 비치되 물빛은 남게
   pond.scale.set(p.rx + 0.15, 1, p.rz + 0.15);
   pond.position.set(p.x, p.waterY, p.z);
   pond.renderOrder = 2;
@@ -370,14 +372,16 @@ function buildRocks(scene) {
     if ((nearestTrail(x, z)?.d ?? 0) < 1.7) continue;
     items.push([x, z, 0.18 + r() * 0.42, false]);
   }
-  // 연못 둘레
-  const p = L.pond;
-  for (let i = 0; i < 22; i++) {
-    const a = (i / 22) * Math.PI * 2 + r() * 0.2;
-    items.push([p.x + Math.cos(a) * (p.rx + 0.35), p.z + Math.sin(a) * (p.rz + 0.35), 0.25 + r() * 0.3, false]);
+  // 연못 둘레 (정자 주초·옹달샘 자리는 비운다)
+  const p = L.pond, pv = L.pondPavilion, sp = L.pondSpring;
+  for (let i = 0; i < 48; i++) {
+    const a = (i / 48) * Math.PI * 2 + r() * 0.1;
+    const x = p.x + Math.cos(a) * (p.rx + 0.35), z = p.z + Math.sin(a) * (p.rz + 0.35);
+    if (Math.max(Math.abs(x - pv.x), Math.abs(z - pv.z)) < pv.half + 0.7 || Math.hypot(x - sp.x, z - sp.z) < 1.6) continue;
+    items.push([x, z, 0.25 + r() * 0.3, false]);
   }
   // 산책로를 막는 큰 바위는 뺀다 (길가 작은 돌은 위에서 일부러 둔 것)
-  const keep = items.filter(([x, z, s]) => (nearestTrail(x, z)?.d ?? 99) > (s < 0.45 ? 1.6 : Math.max(1.7, s * 0.9 + 1.3))); // 징검다리 줄·다리 밑에도 돌을 두지 않는다
+  const keep = items.filter(([x, z, s]) => (nearestTrail(x, z)?.d ?? 99) > (s < 0.45 ? 1.6 : Math.max(1.7, s * 0.9 + 1.3)) && !siteAt(x, z, s + 0.5)); // 징검다리 줄·다리 밑, 평탄 부지에도 돌을 두지 않는다
   items.length = 0;
   items.push(...keep);
   const gr = graniteTextures();

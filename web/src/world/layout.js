@@ -4,7 +4,7 @@
  * 단위 m, +Y 위, -Z 북쪽(산 쪽). 스폰은 (0, 0, 34) 일주문 남쪽.
  */
 import { ImprovedNoise } from 'three/addons/math/ImprovedNoise.js';
-import { forestPathX, nearestTrail, setTrailProfile, crossingAt, crossingY, deckRise, deckRiseAt, DECK, trail, TRAIL_HALF, REST_SPOTS, inLookoutView, trailDistFar, fenceBarrier, FLOOR_REACH } from './trail.js';
+import { forestPathX, nearestTrail, setTrailProfile, setFenceGaps, PATHS, crossingAt, crossingY, deckRise, deckRiseAt, DECK, trail, TRAIL_HALF, REST_SPOTS, inLookoutView, trailDistFar, fenceBarrier, FLOOR_REACH } from './trail.js';
 
 const perlin = new ImprovedNoise();
 export const noise2 = (x, z) => perlin.noise(x, 0.37, z);
@@ -58,15 +58,48 @@ export const L = {
     zs: [-39.4, -33.07, -26.73, -20.4]
   },
   altar: { z: -35.6 }, // 불단 중심 = 뒷벽 + 3.8
-  teahouseTerrace: { x0: 17.6, x1: 33, z0: -19, z1: -1, y: 1.2 },
+  teahouseTerrace: { x0: 17.6, x1: 40, z0: -19, z1: 5.6, y: 1.2 }, // 연못 정원을 들이며 남·동쪽으로 넓혔다 (x1 33 → 40, z1 −1 → 5.6). 옛 대숲 자리는 걷지 않는다 (isOnPath)
   teaLink: { x0: 17.2, x1: 20, z0: -9.6, z1: -2.6 },
-  pond: { x: 23.6, z: -3.7, rx: 3.6, rz: 2.2, waterY: 0.92 },
+  // 후원 연못 (사용자 2026-11-07 「아주 작은 연못을 키운다」→「다른 컨텐츠를 더할 수 있게 3배는」): 3.6×2.2 → 8.6×5.4 (넓이 약 6배, 146㎡).
+  // 서쪽 끝은 다실 담 사이 길(teaLink x 20) 밖, 북쪽은 심검당 기단(z −7.5) 앞 1.8m, 남쪽은 마당 끝(z 5.6) 안.
+  // 정자(pondPavilion)·잉어·옹달샘은 pondGarden.js, 연꽃은 vegetation.js 가 이 값을 따른다
+  pond: { x: 28.6, z: -0.4, rx: 8.6, rz: 5.4, waterY: 0.92 },
+  pondSpring: { x: 22.6, z: 4.6, r: 0.45 }, // 연못 남서 물가 옹달샘 (실개울로 연못에 든다 · 앞마당 동쪽 담 끝에서 4m)
   teahouse: { x: 27.2, z: -12.5, halfW: 2.6, halfD: 4.6 },    // 심검당 (서쪽을 봄, 긴 축은 z)
   teaSeat: { x: 23.75, z: -12.5, y: 1.72 },
-  bamboo: { x0: 30.5, x1: 40, z0: -24, z1: 0 },
+  bamboo: { x0: 30.5, x1: 40, z0: -24, z1: -6.2 }, // 남쪽 끝 0 → −6.2: 커진 연못 자리를 비운다
   bambooEast: { x0: 43, x1: 56, z0: -37, z1: -1 }, // 순환 산책로 동쪽 대숲
-  spawn: { x: 0, z: 36 }
+  spawn: { x: 0, z: 36 },
+  // 평탄 부지 (사용자 2026-11-07 「나중에 개인 공간(작은 암자나 사찰)·텐트 등을 놓을 평지」) — 건물은 아직 없고 나무·바위·충돌체·돌탑도 비워 둔다.
+  // x, z 가운데 · w(동서 폭) · d(남북 깊이) m · y 고른 높이 (그 사각형 안 지형 높이 평균을 잰 값). 둘레 SITE_FALL m 에 걸쳐 바탕 지형으로.
+  // 산책로에서 가장 가까운 울타리에 입구(4m 남짓 틈)를 낸다.
+  sites: [
+    { id: 'valleyNE', name: '북동 골짜기 터', x: 47, z: -57, w: 9, d: 8, y: 14.6 }, // 뒷산 동쪽 돌계단 옆 골짜기 바닥 (암자 후보) — 옆 길(14.1)에서 걸어 오르게 땅 평균(16.0)보다 낮춰 동쪽을 깎았다
+    { id: 'forestSouth', name: '남쪽 숲 터', x: -11, z: 49, w: 8, d: 7, y: 0.0 }, // 일주문 숲길과 전나무숲 데크 사이 (텐트 후보)
+    { id: 'glenSE', name: '남동 전나무숲 터', x: 34.5, z: 43, w: 8, d: 7, y: 0.0 }, // 남동 순환로가 휘감는 안쪽
+    { id: 'westSlope', name: '서쪽 산자락 터', x: -39, z: -1.5, w: 7, d: 8, y: 0.4 } // 서쪽 마당 담 밖, 서쪽 굽이길 안쪽
+  ]
 };
+/** 연못 정자: 연못 동쪽 가에 반쯤 물 위로 (avatarManager 의 정자 명상 NPC 자리 식 pond.x + rx + 0.55, pond.z + 0.6 과 같다), 기둥 사이 반폭 half */
+L.pondPavilion = { x: L.pond.x + L.pond.rx + 0.55, z: L.pond.z + 0.6, half: 1.6 };
+export const SITE_FALL = 3;
+const siteRect = (st, pad = 0) => [st.x - st.w / 2 - pad, st.x + st.w / 2 + pad, st.z - st.d / 2 - pad, st.z + st.d / 2 + pad];
+/** 평탄 부지 안인가 (pad 만큼 넓혀서) → 그 부지, 아니면 null */
+export function siteAt(x, z, pad = 0) {
+  for (const st of L.sites) {
+    const [x0, x1, z0, z1] = siteRect(st, pad);
+    if (x >= x0 && x <= x1 && z >= z0 && z <= z1) return st;
+  }
+  return null;
+}
+// 부지마다 가운데에서 가장 가까운 길 위 점에 울타리 입구 (가운데는 길에서 8m 넘게 떨어지기도 해 표본 점을 다 훑는다)
+setFenceGaps(
+  L.sites.map((st) => {
+    let best = null;
+    for (const P of PATHS) for (const q of P.pts) if (!best || Math.hypot(q.x - st.x, q.z - st.z) < Math.hypot(best.x - st.x, best.z - st.z)) best = q;
+    return { x: best.x, z: best.z, rect: siteRect(st) };
+  })
+);
 
 /** 경내 마당들 (모두 L.courtyard.y 높이): 앞마당 + 서쪽 마당 + 대웅전 서쪽 옆마당 */
 export const COURTS = [L.courtyard, L.westCourt, L.hallYard];
@@ -96,14 +129,14 @@ L.gate.x = pathX(L.gate.z);
 
 /**
  * 지붕이 덮는 곳: 이 상자 안, 이 높이 아래로는 비·눈·낙엽이 들이치지 않고 바닥이 젖거나 눈이 쌓이지 않는다.
- * [x0, z0, x1, z1, y] — y 는 지붕 밑면 최저점(위로 쏜 광선으로 잰 값: 대웅전 8.19, 심검당 4.77, 범종각 5.35, 정자 4.28)에서 0.1m 뺀 값.
+ * [x0, z0, x1, z1, y] — y 는 지붕 밑면 최저점(위로 쏜 광선으로 잰 값: 대웅전 8.19, 심검당 4.77, 범종각 5.35, 연못 정자 3.77)에서 0.1m 뺀 값.
  * 상자는 처마 안쪽이라 처마 끝 바로 밖에는 비가 그대로 떨어진다.
  */
 export const ROOF_COVERS = [
   [-16.9, -41.9, 16.9, -17.9, 8.28], // 대웅전 (중층 5×3칸: 기둥 줄에서 2.5m 밖까지, 밑면 최저 8.38 — 아랫지붕 옆 처마, 위로 쏜 광선)
   [23.2, -18.5, 31.2, -6.5, 4.67], // 심검당
   [11.0, -15.4, 17.8, -8.6, 5.25], // 범종각
-  [25.95, -4.9, 29.55, -1.3, 4.18] // 연못 정자
+  [L.pondPavilion.x - L.pondPavilion.half - 0.35, L.pondPavilion.z - L.pondPavilion.half - 0.35, L.pondPavilion.x + L.pondPavilion.half + 0.35, L.pondPavilion.z + L.pondPavilion.half + 0.35, 3.67] // 연못 정자 (pondGarden.js · 위로 쏜 광선 최저 3.77 = 창방 밑)
 ];
 /** GLSL: float roofCover(vec3 worldPos) → 지붕 밑이면 1 */
 export const ROOF_COVER_GLSL = `float roofCover(vec3 p) {
@@ -171,6 +204,7 @@ function baseHeight(x, z) {
   return lerp(h, forestY, corridor);
 }
 setTrailProfile(baseHeight);
+export { baseHeight }; // 산책로를 깔기 전 바탕 지형 (QA·길 설계 탐침이 읽는다)
 
 export function terrainHeight(x, z) {
   let h = baseHeight(x, z);
@@ -223,6 +257,12 @@ export function terrainHeight(x, z) {
   const bank = Math.max(rectMask(x, z, wc.x0 - 0.9, c.x0, wc.z0 - 0.9, wc.z1, 2.5) * (z < wc.z1 ? 1 : 0), rectMask(x, z, hy.x0, hy.x1, hy.z0 - 0.9, hy.z1, 2.5)); // 앞(남)은 석축이 맡는다
   if (bank > 0 && !(x >= s.x0 && x <= s.x1 && z >= s.z0 && z <= s.z1)) h = lerp(h, Math.max(h, c.y - 0.08), bank);
   if (inRect(x, z, wc.x0 - 0.9, c.x0, wc.z0 - 0.9, wc.z1) || (x < hy.x1 && inRect(x, z, hy.x0, hy.x1, hy.z0 - 0.9, hy.z1))) h = c.y;
+
+  // 7c. 평탄 부지 (마당 둑 완충보다 나중에 — 부지 안은 어디서나 st.y)
+  for (const st of L.sites) {
+    const k = rectMask(x, z, ...siteRect(st), SITE_FALL);
+    if (k > 0) h = lerp(h, st.y, k);
+  }
 
   // 8. 계단 경사로
   const cs = L.courtStairs;
@@ -289,7 +329,8 @@ function gentle(x, z) {
  * 0.45m 지형 격자 안이라 발이 땅에 맞는다. 나무·큰 바위는 충돌체가 있다 (vegetation.js·terrain.js).
  */
 export function onForestFloor(x, z) {
-  if (x < -60 || x > 60 || z < -56 || z > 60) return false;
+  if (x < -60 || x > 60 || z < -76 || z > 60) return false; // 안쪽 지형 격자(terrain.js IN) 안
+  if (siteAt(x, z)) return true; // 평탄 부지는 길에서 멀어도 걸어 들어간다
   if (trailDistFar(x, z) > FLOOR_REACH) return false;
   if (fenceBarrier(x, z)) return false;
   if (Math.abs(z - streamZ(x)) < 3.2) return false;
@@ -332,7 +373,7 @@ export function isOnPath(x, z) {
   const link = L.teaLink;
   if (inRect(x, z, link.x0, link.x1, link.z0 + 0.4, link.z1 - 0.4)) return true;
   const t = L.teahouseTerrace;
-  if (inRect(x, z, t.x0, t.x1 - 1.5, t.z0 + 0.8, t.z1 - 0.6)) {
+  if (inRect(x, z, t.x0, t.x1 - 1.5, t.z0 + 0.8, t.z1 - 0.6) && !inRect(x, z, L.bamboo.x0 + 0.5, L.bamboo.x1, L.bamboo.z0, L.bamboo.z1)) {
     const p = L.pond;
     if (Math.hypot((x - p.x) / (p.rx + 0.35), (z - p.z) / (p.rz + 0.35)) < 1) return false;
     return true;
@@ -425,6 +466,7 @@ export function stepMove(x, z, nx, nz, r = 0.32) {
 /* 나무 심기 금지 영역 */
 export function isClearForTree(x, z, margin = 0) {
   if (isOnPath(x, z)) return false; // 열린 숲 바닥에는 나무를 그대로 심는다 (충돌체로 비켜 걷는다)
+  if (siteAt(x, z, 1.5 + margin)) return false; // 평탄 부지는 비워 둔다
   if ((nearestTrail(x, z)?.d ?? 99) < 3.4 + margin) return false;
   for (const s of REST_SPOTS) if (Math.hypot(x - s.x, z - s.z) < 4 + margin) return false;
   if (inLookoutView(x, z)) return false;
@@ -448,6 +490,7 @@ export function isClearForTree(x, z, margin = 0) {
 export function canBuildCairn(x, z) {
   if (!isWalkable(x, z) || zoneAt(x, z) !== 'FOREST') return false;
   if (crossingAt(x, z, 0.5)) return false;
+  if (siteAt(x, z, 0.5)) return false; // 평탄 부지는 비워 둔다 (돌탑도 충돌체)
   const tr = nearestTrail(x, z);
   if (tr?.path === trail && tr.s > DECK.s0 - 1 && tr.s < DECK.s1 + 1) return false; // 데크 위 (돌탑이 판 밑에 묻힌다)
   const b = L.bridge;

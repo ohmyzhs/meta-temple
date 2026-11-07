@@ -5,7 +5,7 @@
  */
 import { PATHS, trail, DECK, CROSSINGS, REST_SPOTS } from '../world/trail.js';
 
-export const VIEW = { x0: -58, z0: -56, w: 116, h: 116 };
+export const VIEW = { x0: -66, z0: -73, w: 132, h: 132 }; // 뒷산 중턱 길(z -68.5)까지
 const PICK_R = 8; // m
 
 /** 지도에 찍을 점: 가람 네 곳 + 쉼터(6m 안 쉼터는 하나로 — 그루터기 둘) */
