@@ -2003,9 +2003,7 @@ class MetaTempleApp {
     $('#audio-toggle-btn').classList.toggle('active', on);
     $('#audio-toggle-btn').setAttribute('aria-pressed', String(on));
     const bg = this.store.state.settings.bgAudio !== false;
-    $('#bg-audio-btn').textContent = bg ? '켜짐' : '꺼짐';
-    $('#bg-audio-btn').classList.toggle('active', bg);
-    $('#bg-audio-btn').setAttribute('aria-pressed', String(bg));
+    $('#bg-audio-btn').setAttribute('aria-checked', String(bg)); // 음악 연속재생 모드 스위치
     $('#sound-tool').classList.toggle('muted', !on);
     const quick = $('#quick-sound');
     quick.setAttribute('aria-pressed', String(on));
@@ -2211,7 +2209,6 @@ class MetaTempleApp {
       this.store.setSetting('bgAudio', on);
       this.sound.setBackground(on); // 누른 순간(사용자 동작)이라 안드로이드 닻도 바로 튼다
       this._syncSoundButton();
-      this.toast(on ? '🌙 화면이 꺼져도 산사 소리와 예불이 이어집니다' : '화면이 꺼지면 소리도 쉽니다');
     });
     $('#nature-listen-btn').addEventListener('click', () => {
       closeAll();

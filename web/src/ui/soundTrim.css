@@ -1,16 +1,44 @@
-/* 메뉴 > 소리 「들리는 소리 하나씩」 (ui/soundTrim.js) — 어두운 시트 위, 나만의 소리 창과 같은 나무 패 그림 */
+/* 메뉴 > 소리 (ui/soundTrim.js) — 글 대신 그림: 나무 패 그림 칸 + 이름 + 막대. 설명 글씨 없이 (사용자 2026-11-08) */
 .trim-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
-.trim-row { display: grid; grid-template-columns: 40px minmax(0, 1fr); align-items: center; gap: 10px; }
-.trim-row.far { opacity: 0.55; }
+.trim-row { display: grid; grid-template-columns: 40px minmax(0, 1fr); align-items: center; gap: 12px; transition: opacity 0.2s; }
+.trim-row.far { opacity: 0.45; } /* 전에 바꿔 두었지만 여기서는 안 들리는 소리 */
 .trim-tile {
   width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; color: #5a4122;
   background: linear-gradient(155deg, #e6cf9f, #c9a66a);
   box-shadow: inset 0 0 0 1px rgba(120, 90, 40, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  transition: box-shadow 0.2s;
 }
 .trim-tile .i { width: 22px; height: 22px; }
-.trim-main { display: flex; flex-direction: column; min-width: 0; padding-top: 4px; }
-.trim-name { display: flex; align-items: baseline; gap: 8px; font-size: 12.5px; color: var(--hanji-50); }
-.trim-name small { font-size: 11px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.trim-row.changed .trim-tile { box-shadow: inset 0 0 0 1px rgba(120, 90, 40, 0.3), 0 0 0 2px var(--gold); } /* 원래 크기에서 바꾼 소리 */
+.trim-main { position: relative; display: flex; flex-direction: column; min-width: 0; padding-top: 4px; }
+.trim-name { font-size: 12.5px; color: var(--hanji-50); }
 .trim-main input { width: 100%; height: 48px; margin: -8px 0 -6px; accent-color: var(--gold); }
-.trim-foot { display: flex; justify-content: flex-end; margin-top: 6px; }
-.trim-foot .chip:disabled { opacity: 0.45; }
+/* 원래 크기 눈금 (막대 손잡이 16px 의 가운데 길 위) */
+.trim-tick {
+  position: absolute; bottom: 12px; left: calc(8px + (100% - 16px) * var(--mid)); width: 2px; height: 12px; margin-left: -1px;
+  border-radius: 1px; background: rgba(243, 236, 220, 0.55); pointer-events: none;
+}
+
+/* 제목 줄: 왼쪽 제목 · 오른쪽 조작 (되돌리기 ↺ · 스위치) */
+.snd-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; }
+.snd-head[hidden] { display: none; }
+.snd-head .sheet-sub { margin: 0 2px; }
+.snd-reset { border-radius: 50%; color: var(--text-dim); }
+.snd-reset .i { width: 20px; height: 20px; }
+.snd-reset:disabled { opacity: 0.3; cursor: default; }
+.snd-reset:not(:disabled):hover { color: var(--hanji-50); background: rgba(243, 236, 220, 0.08); }
+.snd-vols { margin-top: 2px; }
+
+/* 켜고 끄는 스위치 (role=switch, aria-checked) — 48px 누르는 자리 안에 52×30 길 */
+.switch { position: relative; width: 60px; flex: none; }
+.switch::before {
+  content: ''; position: absolute; left: 4px; right: 4px; top: 50%; height: 30px; margin-top: -15px; border-radius: 999px;
+  background: rgba(243, 236, 220, 0.16); box-shadow: inset 0 0 0 1px rgba(243, 236, 220, 0.18); transition: background 0.2s;
+}
+.switch::after {
+  content: ''; position: absolute; left: 8px; top: 50%; width: 22px; height: 22px; margin-top: -11px; border-radius: 50%;
+  background: var(--hanji-100); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4); transition: transform 0.2s var(--ease), background 0.2s;
+}
+.switch[aria-checked='true']::before { background: var(--gold); box-shadow: none; }
+.switch[aria-checked='true']::after { transform: translateX(22px); background: #fffaf0; }
+.switch:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; border-radius: 999px; }

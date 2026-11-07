@@ -47,10 +47,10 @@ for (const vp of [[360, 780], [390, 844], [430, 932], [844, 390], [1280, 800]]) 
   const before = await targets(page);
   await page.evaluate((key) => { const i = document.querySelector(`#sound-trim [data-trim="${key}"]`); i.value = '0.4'; i.dispatchEvent(new Event('input', { bubbles: true })); }, k);
   await page.waitForTimeout(300);
-  let s = await page.evaluate((key) => ({ saved: window.temple.store.state.settings.soundTrim?.[key], eng: window.temple.sound.trim[key], pct: document.querySelector(`[data-pct="${key}"]`).textContent }), k);
+  let s = await page.evaluate((key) => ({ saved: window.temple.store.state.settings.soundTrim?.[key], eng: window.temple.sound.trim[key], pct: document.querySelector(`[data-trim="${key}"]`).getAttribute('aria-valuetext'), ring: document.querySelector(`[data-trim="${key}"]`).closest('.trim-row').classList.contains('changed') }), k);
   const after = await targets(page);
   const ratio = after[k] / before[k];
-  check(`막대 → 엔진·저장 (${k} 0.32배)`, s.saved === 0.32 && s.eng === 0.32 && s.pct === '32%' && Math.abs(ratio - 0.32) < 0.02, `${JSON.stringify(s)} 크기 ${before[k]?.toFixed(4)}→${after[k]?.toFixed(4)}`);
+  check(`막대 → 엔진·저장 (${k} 0.32배)`, s.saved === 0.32 && s.eng === 0.32 && s.pct === '32%' && s.ring && Math.abs(ratio - 0.32) < 0.02, `${JSON.stringify(s)} 크기 ${before[k]?.toFixed(4)}→${after[k]?.toFixed(4)}`);
   // 다시 들어와도 그대로
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => window.temple && !document.querySelector('#intro-enter').disabled, null, { timeout: 90000 });

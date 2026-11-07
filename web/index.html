@@ -230,16 +230,14 @@
 
     <section class="sheet hidden" id="pop-sound" data-parent="menu-sheet" aria-label="소리">
       <header class="sheet-head"><button class="ctl" type="button" data-sheet-back data-icon="back" aria-label="메뉴로"></button><h2>소리</h2><button class="ctl" type="button" data-sheet-close data-icon="close" aria-label="닫기"></button></header>
-      <label class="slider"><span>자연 환경음 <small>계곡·솔바람·산새·빗소리</small></span><input id="vol-nature" type="range" min="0" max="1" step="0.05" /></label>
-      <label class="slider"><span>사찰 공간음 <small>풍경·독송·범종</small></span><input id="vol-temple" type="range" min="0" max="1" step="0.05" /></label>
-      <label class="slider"><span>수행 효과음 <small>목탁·죽비·염주·발걸음</small></span><input id="vol-sfx" type="range" min="0" max="1" step="0.05" /></label>
-      <h3 class="sheet-sub">들리는 소리 하나씩 <small>지금 이 자리 · 가운데가 그대로</small></h3>
+      <ul class="trim-list snd-vols">
+        <li class="trim-row"><span class="trim-tile" data-icon="zone_forest" aria-hidden="true"></span><label class="trim-main"><span class="trim-name">자연 환경음</span><input id="vol-nature" type="range" min="0" max="1" step="0.05" /></label></li>
+        <li class="trim-row"><span class="trim-tile" data-icon="bell_strike" aria-hidden="true"></span><label class="trim-main"><span class="trim-name">사찰 공간음</span><input id="vol-temple" type="range" min="0" max="1" step="0.05" /></label></li>
+        <li class="trim-row"><span class="trim-tile" data-icon="practice_108" aria-hidden="true"></span><label class="trim-main"><span class="trim-name">수행 효과음</span><input id="vol-sfx" type="range" min="0" max="1" step="0.05" /></label></li>
+      </ul>
+      <div class="snd-head"><h3 class="sheet-sub">자연의 소리 조정</h3><button class="ctl snd-reset" type="button" data-trim-reset aria-label="모두 원래 크기로" disabled><svg class="i" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3M4.5 4.5v3.7h3.7" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
       <div id="sound-trim"></div>
-      <div class="pop-row">
-        <h3 class="sheet-sub">화면 꺼져도 계속 듣기</h3>
-        <button class="ctl chip" type="button" id="bg-audio-btn" aria-pressed="true">켜짐</button>
-      </div>
-      <p class="pop-note">폰 화면이 꺼지거나 다른 앱으로 가도 산사 소리와 예불이 이어집니다. 전화나 다른 소리가 나면 잠시 멈췄다가 끝나면 다시 이어집니다.</p>
+      <div class="snd-head"><h3 class="sheet-sub">음악 연속재생 모드</h3><button class="ctl switch" type="button" id="bg-audio-btn" role="switch" aria-checked="true" aria-label="음악 연속재생 모드 — 화면이 꺼져도 계속"></button></div>
     </section>
   </div>
 
