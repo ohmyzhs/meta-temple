@@ -17,7 +17,8 @@ import {
   addCircleCollider,
   onCourtGround,
   courtEdge,
-  siteAt
+  siteAt,
+  isWalkable
 } from './layout.js';
 import { nearestTrail, trail, REST_SPOTS, trailDistFar, FLOOR_REACH } from './trail.js';
 import { groundDetailTexture, waterNormalTexture, graniteTextures } from './textures.js';
@@ -394,7 +395,7 @@ function buildRocks(scene) {
     o.scale.set(s * (0.8 + r() * 0.5), s, s * (0.8 + r() * 0.5));
     o.updateMatrix();
     inst.setMatrixAt(i, o.matrix);
-    if (s > 0.6 && (collide || trailDistFar(x, z) < FLOOR_REACH + 1.5)) addCircleCollider(x, z, s * 0.8, s); // 숲 바닥 안 큰 바위도
+    if (s > 0.6 && (collide || trailDistFar(x, z) < FLOOR_REACH + 1.5 || isWalkable(x, z))) addCircleCollider(x, z, s * 0.8, s); // 걸을 수 있는 숲 바닥 안 큰 바위도
   });
   inst.castShadow = true;
   inst.receiveShadow = true;

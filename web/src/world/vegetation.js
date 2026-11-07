@@ -3,7 +3,7 @@
  */
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { L, terrainHeight, isClearForTree, addCircleCollider, pathX, noise2, streamZ } from './layout.js';
+import { L, terrainHeight, isClearForTree, isWalkable, addCircleCollider, pathX, noise2, streamZ } from './layout.js';
 import { windSway, weatherable } from './materials.js';
 import { bambooTexture } from './textures.js';
 import { nearestTrail, trail, REST_SPOTS, inLookoutView, DENSE_FOREST, trailDistFar, FLOOR_REACH } from './trail.js';
@@ -208,9 +208,9 @@ export function buildVegetation(scene, quality) {
     m.receiveShadow = true;
     scene.add(m);
   }
-  // 길 가까운 나무만 충돌
+  // 길 가까운 나무와 걸을 수 있는 숲 바닥(산책로 고리 안은 길에서 멀어도)의 나무만 충돌
   for (const k of ['fir', 'pine', 'maple']) {
-    for (const [x, z, s] of spots[k]) if (Math.abs(x - pathX(z)) < 8 || z < 6 || trailDistFar(x, z) < FLOOR_REACH + 1.5) addCircleCollider(x, z, 0.45 * s, 5 * s);
+    for (const [x, z, s] of spots[k]) if (Math.abs(x - pathX(z)) < 8 || z < 6 || trailDistFar(x, z) < FLOOR_REACH + 1.5 || isWalkable(x, z)) addCircleCollider(x, z, 0.45 * s, 5 * s);
   }
 
   const bamboo = buildBamboo(scene, low);
@@ -244,6 +244,7 @@ function buildBamboo(scene, low) {
     if (trailDist(x, z) < 2.3 || REST_SPOTS.some((q) => Math.hypot(q.x - x, q.z - z) < 2.2)) continue; // 대숲 사이 산책로
     if (open(x, z)) continue;
     stalks.push([x, z, h, rot]);
+    addCircleCollider(x, z, 0.12, h); // 옛 대숲 자리는 다실 마당으로 걷는다 (남은 대 몇 그루는 비켜 간다)
   }
   // 다실 뒤 띠
   for (let i = 0; i < (low ? 60 : 110); i++) {

@@ -211,6 +211,7 @@ export class Temple {
       w.castShadow = true;
       w.receiveShadow = true;
       this.scene.add(w);
+      addBoxCollider(x0, c.z1 - 0.05, x1, c.z1 + 0.55, h); // 석축 아래 땅도 걸으므로 (layout onForestFloor) 마당으로 기어오르지 않게
     };
     front(L.westCourt.x0 - 1.0, -L.courtStairs.halfW - 0.3);
     front(L.courtStairs.halfW + 0.3, c.x1 + 0.6);

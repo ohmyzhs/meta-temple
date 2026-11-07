@@ -4,7 +4,7 @@
  * 단위 m, +Y 위, -Z 북쪽(산 쪽). 스폰은 (0, 0, 34) 일주문 남쪽.
  */
 import { ImprovedNoise } from 'three/addons/math/ImprovedNoise.js';
-import { forestPathX, nearestTrail, setTrailProfile, setFenceGaps, PATHS, crossingAt, crossingY, deckRise, deckRiseAt, DECK, trail, TRAIL_HALF, REST_SPOTS, inLookoutView, trailDistFar, fenceBarrier, FLOOR_REACH } from './trail.js';
+import { forestPathX, nearestTrail, setTrailProfile, setFenceGaps, PATHS, crossingAt, crossingY, deckRise, deckRiseAt, DECK, trail, TRAIL_HALF, REST_SPOTS, inLookoutView, trailDistFar, fenceBarrier, FLOOR_REACH, loop } from './trail.js';
 
 const perlin = new ImprovedNoise();
 export const noise2 = (x, z) => perlin.noise(x, 0.37, z);
@@ -324,21 +324,44 @@ function gentle(x, z) {
   return v;
 }
 
+/** 산책로 고리 안(경내 쪽)인가 — 2m 칸으로 처음 한 번 재 둔다 (지형 격자 x −60..60, z −76..60) */
+let LOOP_IN = null;
+function insideLoop(x, z) {
+  if (!LOOP_IN) {
+    LOOP_IN = new Uint8Array(60 * 68);
+    const ring = loop.pts;
+    for (let j = 0; j < 68; j++) for (let i = 0; i < 60; i++) {
+      const px = -60 + i * 2 + 1, pz = -76 + j * 2 + 1;
+      let c = false;
+      for (let a = 0, b = ring.length - 1; a < ring.length; b = a++) {
+        const A = ring[a], B = ring[b];
+        if (A.z > pz !== B.z > pz && px < ((B.x - A.x) * (pz - A.z)) / (B.z - A.z) + A.x) c = !c;
+      }
+      LOOP_IN[j * 60 + i] = c ? 1 : 0;
+    }
+  }
+  const i = Math.floor((x + 60) / 2), j = Math.floor((z + 76) / 2);
+  return i >= 0 && j >= 0 && i < 60 && j < 68 && LOOP_IN[j * 60 + i] === 1;
+}
+
+/** 다실 뒤 대숲 띠 (vegetation.js 가 대나무 84그루를 빽빽이 심는 자리) — 대숲은 보이는 막힘이라 걷지 않는다 */
+const TEA_BACK_GROVE = { x0: 20, x1: 30, z0: -23, z1: -19.5 };
+
 /**
- * 산책로 둘레 숲 바닥 (중간 방안): 길에서 FLOOR_REACH(10m) 안, 울타리 띠·계곡·대숲·경내(마당·다실 마당·법당 둘레)·가파른 비탈 밖.
- * 0.45m 지형 격자 안이라 발이 땅에 맞는다. 나무·큰 바위는 충돌체가 있다 (vegetation.js·terrain.js).
+ * 숲 바닥: 울타리 띠·계곡·대숲·가파른 비탈(기단·석축 같은 턱 포함) 밖. 산책로 고리 밖은 길에서 FLOOR_REACH(10m) 안까지만 (세상 끝),
+ * 고리 안(경내 쪽)은 길에서 멀어도 걷는다 — 사용자 2026-11-08 「아무 경계도 없는데 안 가지는 곳이 많다」(tools/qa/walk-survey.mjs 전수조사).
+ * 마당·다실 마당·기단 윗면 안은 isOnPath 가 정하고, 그 둘레는 담·석축(충돌체)과 기울기가 막는다 (예전에는 둘레 2.5~6m 를 통째로 막았다).
+ * 0.45m 지형 격자 안이라 발이 땅에 맞는다. 걸을 수 있는 땅의 나무·큰 바위는 충돌체가 있다 (vegetation.js·terrain.js).
  */
 export function onForestFloor(x, z) {
   if (x < -60 || x > 60 || z < -76 || z > 60) return false; // 안쪽 지형 격자(terrain.js IN) 안
   if (siteAt(x, z)) return true; // 평탄 부지는 길에서 멀어도 걸어 들어간다
-  if (trailDistFar(x, z) > FLOOR_REACH) return false;
+  if (trailDistFar(x, z) > FLOOR_REACH && !insideLoop(x, z)) return false;
   if (fenceBarrier(x, z)) return false;
   if (Math.abs(z - streamZ(x)) < 3.2) return false;
-  for (const b of [L.bamboo, L.bambooEast]) if (inRect(x, z, b.x0 - 0.6, b.x1 + 0.6, b.z0 - 0.6, b.z1 + 0.6)) return false;
+  for (const b of [L.bambooEast, TEA_BACK_GROVE]) if (inRect(x, z, b.x0 - 0.6, b.x1 + 0.6, b.z0 - 0.6, b.z1 + 0.6)) return false;
   const c = L.courtyard, t = L.teahouseTerrace, s = L.stylobate;
-  if (inRect(x, z, c.x0 - 2.5, c.x1 + 2.5, c.z0 - 4, c.z1 + 3.5) || inCourts(x, z, 2.5)) return false;
-  if (inRect(x, z, t.x0 - 1, t.x1 + 1, t.z0 - 5, t.z1 + 1)) return false;
-  if (inRect(x, z, s.x0 - 4, s.x1 + 4, s.z0 - 6, s.z1)) return false;
+  if (inRect(x, z, c.x0, c.x1, c.z0, c.z1) || inCourts(x, z) || inRect(x, z, t.x0, t.x1, t.z0, t.z1) || inRect(x, z, s.x0, s.x1, s.z0, s.z1)) return false;
   return gentle(x, z);
 }
 
@@ -350,6 +373,7 @@ export function isOnPath(x, z) {
     if (tr.path === trail && deckRise(tr.s) > 0 && tr.d > DECK.halfW) return false; // 데크 판 밖은 허공
     return Math.abs(z - streamZ(x)) >= 2.6 || !!crossingAt(x, z);
   }
+  if (fenceBarrier(x, z)) return false; // 길 울타리는 어디서든 막힘 (다실 마당 안까지 들어온 다실 갈래길 울타리 — 예전에는 다실 마당 안쪽을 좁혀서 우연히 막혔다)
   // 서쪽 마당·옆마당 (담에서 0.5m 안쪽, 기단 옆면에서 0.4m), 앞마당 서쪽 담의 협문 — 법당 계단 띠 판정보다 먼저
   const wc = L.westCourt, hy = L.hallYard, g = L.westGate;
   if (inRect(x, z, wc.x0 + 0.5, wc.x1, wc.z0 + 0.5, wc.z1)) return true;
@@ -362,18 +386,18 @@ export function isOnPath(x, z) {
     if (sd < 2.3 && Math.abs(x - L.bridge.x) > L.bridge.halfWidth) return false;
     return true;
   }
-  const cs = L.courtStairs;
-  if (z >= cs.z0 - 0.01 && z <= cs.z1) return Math.abs(x) <= cs.halfW - 0.3;
-  const c = L.courtyard;
+  // 마당 앞 계단·법당 계단 띠: 계단 폭 밖은 여기서 정하지 않는다 (석축 아래·기단 앞 땅은 숲 바닥 규칙으로). 예전에는 x 를 가리지 않아 다실 마당 남·북 가장자리까지 잘랐다
+  const cs = L.courtStairs, c = L.courtyard, s = L.stylobate;
+  if (z >= cs.z0 - 0.01 && z <= cs.z1 && Math.abs(x) <= cs.halfW - 0.3) return true;
   if (inRect(x, z, c.x0 + 0.5, c.x1 - 0.5, c.z0, c.z1)) return true;
   const hs = L.hallStairs;
-  if (z < hs.z0 && z >= hs.z1) return Math.abs(x) <= hs.halfW - 0.3;
-  const s = L.stylobate;
+  if (z < hs.z0 && z >= hs.z1 && Math.abs(x) <= hs.halfW - 0.3) return true;
   if (inRect(x, z, s.x0 + 0.5, s.x1 - 0.5, s.z0 + 0.5, s.z1)) return true;
   const link = L.teaLink;
   if (inRect(x, z, link.x0, link.x1, link.z0 + 0.4, link.z1 - 0.4)) return true;
+  // 다실 마당 전체 (옛 대숲 자리 L.bamboo 는 대나무 12그루만 남아 잔디밭 — 남은 대는 충돌체로 비켜 걷는다). 연못 물과 물가 돌만 뺀다
   const t = L.teahouseTerrace;
-  if (inRect(x, z, t.x0, t.x1 - 1.5, t.z0 + 0.8, t.z1 - 0.6) && !inRect(x, z, L.bamboo.x0 + 0.5, L.bamboo.x1, L.bamboo.z0, L.bamboo.z1)) {
+  if (inRect(x, z, t.x0, t.x1, t.z0, t.z1)) {
     const p = L.pond;
     if (Math.hypot((x - p.x) / (p.rx + 0.35), (z - p.z) / (p.rz + 0.35)) < 1) return false;
     return true;
