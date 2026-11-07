@@ -70,7 +70,7 @@ ALTER TABLE stones ADD COLUMN IF NOT EXISTS x double precision;
 ALTER TABLE stones ADD COLUMN IF NOT EXISTS z double precision;
 CREATE INDEX IF NOT EXISTS stones_cairn ON stones (cairn_id) WHERE cairn_id IS NOT NULL;
 -- 기록 지키기 (복구키, web/src/core/recovery.js): 키는 화면에만 있다. 서버에는 키에서 유도한 조회값을 소금 해시한 id 와
--- 화면이 gzip·AES-GCM 으로 잠근 덩어리(base64)만 — DB 가 새어도 읽을 수 없다
+-- 화면이 gzip·AES-GCM 으로 잠근 덩어리(base64)만 — 키는 오지 않는다 (6자 키라 DB·ID_SALT 가 함께 새면 PBKDF2 가 맞혀 보기를 늦출 뿐)
 CREATE TABLE IF NOT EXISTS backups (
   id text PRIMARY KEY,
   data text NOT NULL,

@@ -151,7 +151,7 @@ export function mountMeHub({ store, modals, rename, setName, importState, openMi
     ${sub(
       'me-backup',
       '기록 지키기',
-      `<p class="me-note">기록을 이 기기에서 암호화해 산사 서버에 맡깁니다. 복구키가 있으면 다른 기기에서도, 브라우저 기록을 지운 뒤에도 되찾을 수 있습니다. 서버도 운영자도 내용을 읽을 수 없습니다.</p>
+      `<p class="me-note">기록을 이 기기에서 잠가 산사 서버에 맡깁니다. 복구키는 서버로 보내지 않습니다. 복구키가 있으면 다른 기기에서도 되찾습니다.</p>
       <div class="bk-state" data-bk-state></div>
       <p class="bk-live" data-bk-live aria-live="polite"></p>
       <h3 class="sheet-sub">복구키로 되찾기</h3>
