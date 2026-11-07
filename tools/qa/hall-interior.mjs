@@ -21,8 +21,9 @@ async (page) => {
     await page.setViewportSize(md.vp);
     await page.goto('http://localhost:8083/' + md.q);
     await page.waitForFunction(() => window.temple && !document.querySelector('#intro-enter').disabled, null, { timeout: 120000 });
+    await page.click('#intro-enter'); // 누름은 바로 받고 산사 짓기를 기다렸다 들어간다
+    await page.waitForFunction(() => window.temple.entered && window.temple.avatars, null, { timeout: 120000 });
     await page.evaluate(() => {
-      document.querySelector('#intro-enter').click();
       window.temple.avatars.solo = true;
       window.temple.avatars.teleport(0, -24, Math.PI);
     });

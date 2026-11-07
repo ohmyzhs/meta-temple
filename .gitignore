@@ -5,3 +5,5 @@ node_modules/
 # 자연의 소리 원본(국립공원공단 영상 등, 수 GB)과 스펙트로그램 확인 그림 — tools/audio/build.py
 tools/audio/raw/
 tools/audio/check/
+# 밤하늘 원본 별지도 (NASA SVS, 36 MB) — tools/sky/build.py
+tools/sky/raw/

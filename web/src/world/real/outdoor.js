@@ -859,7 +859,9 @@ class Outdoor {
     if (v) {
       if (Object.keys(v.loaded).length) v.k += (v.want - v.k) * (1 - Math.exp(-dt * 1.6));
       this._setPhoto(v.u, v.loaded, w);
-      v.u.uAlpha.value = smooth(0, 1, v.k) * (1 - overcast * 0.6);
+      // 밤 경치 사진에는 그려 넣은 은하수·별·달이 있어 절차 하늘과 겹쳐 층이 지고, 비·눈에도 비쳐 보였다 (사용자 2026-11-07) — 밤 비율만큼,
+      // 그리고 하늘에 별이 보이기 시작하면(해질녘 사진의 노을 하늘이 별하늘 위에 겹치지 않게) 걷어 낸다
+      v.u.uAlpha.value = smooth(0, 1, v.k) * (1 - overcast * 0.6) * (1 - w[2]) * (1 - smooth(0.05, 0.3, W.skyMat.uniforms.uStars.value));
       v.u.uHaze.value.copy(haze);
       v.u.uHazeK.value = overcast * 0.5;
       v.u.uGain.value = gain;

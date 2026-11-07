@@ -6,17 +6,22 @@
 //   (a) 화면 평균 루마 ≥ 같은 구도 13시 평균의 18%
 //   (b) 지붕선 국소 대비(지붕 윗선 바로 위 띠 vs 바로 아래 지붕 띠, 루마 차) ≥ 0.06
 //       — 산문·마당은 지붕 위가 숲·산이라 그 대비로, 대웅전 지붕 구도는 위 띠가 모두 하늘인 지붕선만으로
-//   (c) 하늘 영역에서 루마 0.6 이상 별 픽셀 ≥ 300 (달 둘레 6°·넓게 번진 블룸 제외)      — 바깥 구도
-//   (d) 은하수 띠(대원 ±5°) 평균 루마 > 주변 하늘(띠에서 12~25°), 은하수만 끈 화면과의 차도 띠 > 주변 — 바깥 구도
+//   (c) 보이는 별(둘레보다 밝은 꼭짓점, 루마 ≥ 0.3·둘레보다 0.12 이상)이 하늘 1000px 당 ≥ 0.15 (달 둘레 6°·블룸 제외) — 바깥 구도.
+//       천정 구도는 1000px 당 ≥ 0.5, 또렷한 별(루마 0.6 이상 픽셀) ≥ 10
+//       (옛 기준 '0.6 이상 별 픽셀 ≥ 300' 은 굵고 밝은 별로 맞춘 값 — 사용자 2026-11-07 「너무 밝다」로 사진처럼 대부분 희미하고 드물게 밝은 별로 바꿨다)
+//   (d) 은하수 띠(은하 적도 ±5°) 평균 루마 > 주변 하늘(띠에서 12~25°), 은하수만 끈 화면과의 차도 띠 > 주변
+//       — 띠가 2000px 이상 들어온 구도에서. 하늘이 실제 별지도로 시각에 따라 돌므로(2026-11-08) 천정 구도는 늘 띠를 품어야 한다
+//   천정 구도(zenith)는 하늘만 보는 구도라 (a)(b) 를 재지 않는다
 async (page) => {
   const OUT = '.playwright-mcp/qa/night';
-  const HOURS = [0, 2, 22];
+  const HOURS = globalThis.NIGHT_HOURS || [0, 2, 22]; // mcp-run.mjs 로 돌릴 때 NIGHT_HOURS=22 처럼 줄일 수 있다
   await page.setViewportSize({ width: 1280, height: 800 });
   const base = /^http:\/\/(localhost|127\.0\.0\.1)/.test(page.url()) ? new URL(page.url()).origin : 'http://localhost:8080';
   await page.goto(base + '/?q=high');
   await page.waitForFunction(() => window.temple && !document.querySelector('#intro-enter').disabled, null, { timeout: 90000 });
+  await page.click('#intro-enter'); // 누름은 바로 받고 산사 짓기(build)를 기다렸다 들어간다
+  await page.waitForFunction(() => window.temple.entered && window.temple.avatars, null, { timeout: 120000 });
   await page.evaluate(async () => {
-    document.querySelector('#intro-enter').click();
     await new Promise((r) => setTimeout(r, 1200));
     const t = window.temple, W = t.world;
     t._loop = () => {}; // 실시간 루프를 멈추고 프레임을 직접 돌린다 (가려진 창의 rAF 는 2fps)
@@ -34,11 +39,13 @@ async (page) => {
     const plain = () => W.renderer.render(W.scene, W.camera);
     // 하늘 마스크: 하늘 돔만 두 가지 단색으로 바꿔 그려 달라진 픽셀 = 하늘
     const skyMask = () => {
-      const keep = W.sky.material;
+      const keep = W.sky.material, pts = W.nightSky?.points;
       const key = (c) => new THREE.MeshBasicMaterial({ color: c, side: THREE.BackSide, depthWrite: false, fog: false });
+      if (pts) pts.visible = false; // 하늘 위에 더해 그리는 점 별이 두 단색을 다 하얗게 채워 밝은 별 자리가 하늘에서 빠지지 않게
       W.sky.material = key(0xff00ff); const a = grab(plain);
       W.sky.material = key(0x00ff00); const b = grab(plain);
       W.sky.material = keep;
+      if (pts) pts.visible = true;
       const mask = new Uint8Array(Wd * Ht);
       for (let p = 0, i = 0; p < mask.length; p++, i += 4) mask[p] = Math.abs(a[i] - b[i]) + Math.abs(a[i + 1] - b[i + 1]) > 120 ? 1 : 0;
       return mask;
@@ -114,7 +121,7 @@ async (page) => {
         const moonOn = mp.z < 1 && Math.abs(mp.x) < 1.3 && Math.abs(mp.y) < 1.3;
         const mx = (mp.x * 0.5 + 0.5) * Wd, my = (-mp.y * 0.5 + 0.5) * Ht;
         // (c) 별, (d) 은하수
-        let stars = 0, skyPx = 0;
+        let stars = 0, seen = 0, skyPx = 0;
         for (let y = 0; y < Ht; y++) {
           for (let x = 0; x < Wd; x++) {
             const p = y * Wd + x;
@@ -126,6 +133,13 @@ async (page) => {
             if (l >= 0.6 && x > 4 && y > 4 && x < Wd - 5 && y < Ht - 5) {
               const ring = (L(x - 4, y) + L(x + 4, y) + L(x, y - 4) + L(x, y + 4)) / 4;
               if (l - ring >= 0.25) stars++;
+            }
+            // 보이는 별 = 둘레 8칸보다 밝은 꼭짓점이면서 밝기 0.3 이상, 4px 둘레보다 0.12 이상 밝은 점 (한 별을 한 번만 센다)
+            if (l >= 0.3 && x > 4 && y > 4 && x < Wd - 5 && y < Ht - 5) {
+              let peak = true;
+              for (let dy = -1; dy <= 1 && peak; dy++) for (let dx = -1; dx <= 1; dx++) if ((dx || dy) && L(x + dx, y + dy) > l) { peak = false; break; }
+              const ring = (L(x - 4, y) + L(x + 4, y) + L(x, y - 4) + L(x, y + 4)) / 4;
+              if (peak && l - ring >= 0.12) seen++;
             }
           }
         }
@@ -156,7 +170,7 @@ async (page) => {
           const f = (k, j) => (k[2] ? +(k[j] / k[2]).toFixed(4) : null);
           milky = { band: f(acc.band, 0), ref: f(acc.ref, 0), bandAdd: f(acc.band, 1), refAdd: f(acc.ref, 1), px: [acc.band[2], acc.ref[2]] };
         }
-        Object.assign(out, { skyPx, stars, milky });
+        Object.assign(out, { skyPx, stars, seen, milky });
         frames(1); // 스크린샷용으로 실제 화면을 다시 그린다
         return out;
       }
@@ -168,8 +182,11 @@ async (page) => {
     { name: 'gate', outdoor: true, player: [gx + 0.6, 40.5], pos: [gx + 0.6, 2.3, 38.5], look: [gx, 6.0, 26] },
     { name: 'courtyard', outdoor: true, player: [5.2, 4.4], pos: [5.0, 2.1, 2.6], look: [1, 6.5, -16] },
     { name: 'hall', outdoor: false, player: [1.5, -20.8], pos: [1.2, 4.7, -21.0], look: [0, 4.2, -28.4] },
-    // 대웅전 계단 앞에서 올려다본 지붕: 용마루 쪽 지붕면이 뒷산보다 높아 하늘 앞에 선다 → (b) 를 하늘 앞 지붕선으로 잰다 (석등 북쪽이라 석등이 가리지 않음)
-    { name: 'hallroof', outdoor: true, skyRoof: true, player: [1.5, -11.5], pos: [1.5, 1.9, -13.6], look: [0, 10, -25] }
+    // 서쪽 마당에서 올려다본 대웅전 서쪽 지붕: 중층으로 커진 지붕(2026-11-07)이 뒷산보다 높아 하늘 앞에 선다 → (b) 를 하늘 앞 지붕선으로 잰다
+    // (옛 구도 — 계단 앞 [1.5, 1.9, −13.6] — 은 커진 법당 정면이 화면을 다 덮어 하늘이 0px 이 됐다)
+    { name: 'hallroof', outdoor: true, skyRoof: true, player: [-29, -9], pos: [-26, 1.9, -12], look: [0, 18, -30] },
+    // 산문 앞 숲길에서 올려다본 천정 하늘 (밤 시각 0·2·22시 모두 백조자리~카시오페이아 은하수가 지나간다)
+    { name: 'zenith', outdoor: true, skyOnly: true, player: [0, 47], pos: [0, 2.4, 46], look: [-14, 50, 30] }
   ];
   const run = async (h, s, tag) => {
     await page.evaluate(([h, s]) => { window.__qa.setHour(h); window.__qa.shot(s); }, [h, s]);
@@ -186,16 +203,17 @@ async (page) => {
     for (const s of SHOTS) {
       const r = await run(h, s, tag);
       const ratio = +(r.mean / day[s.name].mean).toFixed(3);
+      const dens = r.skyPx ? (r.seen / r.skyPx) * 1000 : 0, bandIn = (r.milky?.px[0] ?? 0) >= 2000;
       const ok = {
-        a: ratio >= 0.18,
-        b: !s.outdoor || ((s.skyRoof ? r.roofSkyContrast : r.roofContrast) ?? 0) >= 0.06,
-        c: !s.outdoor || r.stars >= 300,
-        d: !s.outdoor || (!!r.milky?.px[0] && !!r.milky.px[1] && r.milky.band > r.milky.ref && r.milky.bandAdd > r.milky.refAdd)
+        a: s.skyOnly || ratio >= 0.18,
+        b: s.skyOnly || !s.outdoor || ((s.skyRoof ? r.roofSkyContrast : r.roofContrast) ?? 0) >= 0.06,
+        c: !s.outdoor || (s.skyOnly ? dens >= 0.5 && r.stars >= 10 : dens >= 0.15),
+        d: !s.outdoor || (!bandIn && !s.skyOnly) || (bandIn && !!r.milky.px[1] && r.milky.band > r.milky.ref && r.milky.bandAdd > r.milky.refAdd)
       };
       const all = Object.values(ok).every(Boolean);
       pass &&= all;
       rows.push(`${String(h).padStart(2, '0')}h ${s.name.padEnd(9)} ${all ? 'PASS' : 'FAIL'} mean ${r.mean} (낮 ${day[s.name].mean}, ${(ratio * 100).toFixed(1)}%${ok.a ? '' : '✗'})` +
-        (s.outdoor ? ` | 지붕선 ${r.roofContrast}${ok.b ? '' : '✗'} (하늘 앞 ${r.roofSkyContrast}, px ${r.roofEdgePx}) | 별 ${r.stars}${ok.c ? '' : '✗'} / 하늘 ${r.skyPx}px | 은하수 ${r.milky?.band} vs ${r.milky?.ref} (더한 밝기 ${r.milky?.bandAdd} vs ${r.milky?.refAdd}, px ${r.milky?.px})${ok.d ? '' : '✗'}` : ''));
+        (s.outdoor ? ` | 지붕선 ${r.roofContrast}${ok.b ? '' : '✗'} (하늘 앞 ${r.roofSkyContrast}, px ${r.roofEdgePx}) | 별 ${r.stars}${ok.c ? '' : '✗'} (보이는 별 ${r.seen}, 하늘 1000px 당 ${r.skyPx ? (r.seen / r.skyPx * 1000).toFixed(2) : '-'}) / 하늘 ${r.skyPx}px | 은하수 ${r.milky?.band} vs ${r.milky?.ref} (더한 밝기 ${r.milky?.bandAdd} vs ${r.milky?.refAdd}, px ${r.milky?.px})${ok.d ? '' : '✗'}` : ''));
     }
   }
   return `night.mjs ${pass ? 'PASS' : 'FAIL'}\n` + rows.join('\n');
