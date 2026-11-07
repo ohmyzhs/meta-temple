@@ -29,7 +29,7 @@ import { ASMR_TRACKS } from './data/asmr.js';
 const ASMR_QUIET = { id: 'asmr', time: 'day', weather: 'clear', mix: {} };
 import { bindNameForm } from './ui/nameField.js';
 import { veil } from './ui/veil.js';
-import { dissolveMove } from './ui/mapDissolve.js';
+import { travelFade } from './ui/travelFade.js';
 import { createTier, decideTier, netReady } from './core/qualityTier.js';
 import { applyRenderTier, tierCap, warmRenderTier } from './world/renderTier.js';
 import { DOCK_RITUALS } from './data/templeData.js';
@@ -51,7 +51,8 @@ function detectQuality() {
   return (coarse && small) || weak ? 'low' : 'high';
 }
 
-// 장소 이동: 가림막(디졸브) 없이 바로 옮긴다 — 맵이 한 공간이라 디졸브는 어색하기만 했다 (사용자 2026-11-06 「제거해라」)
+// 순간이동(미니맵·장소 시트·범종·기와불사·쉼터…)은 어두워졌다 밝아지는 약 2초 페이드 뒤로 (ui/travelFade.js, 사용자 2026-11-08 「너무 빠르다」).
+// 걸어서 구역을 넘을 때는 페이드 없이 그대로 (사용자 2026-11-06 「제거해라」)
 const ARRIVAL = { pitch: 0.22, dist: 9 }; // 도착 구도: 입장 때와 같은 높이·거리, 방위는 도착해서 바라보는 쪽의 뒤 (법당 안은 실내 규칙이 줄인다)
 const MALA_MIN_MS = 3000; // 염주 한 알 사이 최소 간격 3초 — 광클릭으로 세지 않게 (사용자 결정 2026-11-06, 한 알에 한 숨)
 const FP_TURN = 2.0; // 1인칭 A/D·조이스틱 좌우로 도는 빠르기(rad/s)
@@ -980,13 +981,21 @@ class MetaTempleApp {
     return this._teleport(z.spawn.x, z.spawn.z, z.spawn.ry, () => this.toast(`📍 ${z.name}(으)로 발걸음을 옮겼습니다`));
   }
 
-  /** 다른 구역으로 순간 이동: 바로 옮기고 그 자리에서 바라보는 쪽 뒤에 카메라를 놓는다 */
+  /**
+   * 순간 이동: 화면이 어두워지면 옮기고 그 자리에서 바라보는 쪽 뒤에 카메라를 놓은 뒤 밝아진다 (ui/travelFade.js, 약 2초).
+   * then(앉기·범종 치기·알림…)은 다 밝아진 뒤에. 페이드 중에 또 부르면 무시한다 — 연달아 눌러도 한 번만 옮긴다.
+   */
   _teleport(x, z, ry, then) {
+    if (this._fading) return this._fading;
+    const go = travelFade(() => this._place(x, z, ry));
+    return (this._fading = go.finally(() => (this._fading = null)).then(() => then?.()));
+  }
+
+  /** 페이드 없이 바로 옮기고 도착 구도로 (_teleport 의 가운데 · QA 가 자리를 잡을 때) */
+  _place(x, z, ry) {
     this.avatars.teleport(x, z, ry);
     this.world.snapCameraTo(ry - Math.PI, ARRIVAL.pitch, ARRIVAL.dist);
     this._onZoneChange(true);
-    then?.();
-    return Promise.resolve();
   }
 
   /** 장면들: 좌복(c) 기준. 세로 화면은 삼존불이 다 들어오지 않으니 더 가깝고 높게 잡는다 */
@@ -2133,7 +2142,7 @@ class MetaTempleApp {
       )
       .join('');
 
-    // 장소 시트의 작은 지도 + 산책길 쉼터 목록: 누르면 그리로 간다 (쉼터는 가서 앉는다). 지도로 순간이동할 때만 디졸브 (ui/mapDissolve.js)
+    // 장소 시트의 작은 지도 + 산책길 쉼터 목록: 누르면 그리로 간다 (쉼터는 가서 앉는다)
     this.miniMap = createMiniMap($('#minimap'), {
       zones: Object.values(ZONES),
       geo: { streamZ, pathX, L },
@@ -2141,7 +2150,8 @@ class MetaTempleApp {
       onPick: (m) => {
         closeAll();
         if (!this.store.state.settings.mapUsed) this.store.setSetting('mapUsed', true);
-        dissolveMove(this.world, () => (m.kind === 'zone' ? this.travelTo(m.id) : this._goRest(m.id)), () => this.player.root.position);
+        if (m.kind === 'zone') this.travelTo(m.id);
+        else this._goRest(m.id);
       }
     });
     $('#rest-list').innerHTML = this.miniMap.markers
@@ -2307,7 +2317,7 @@ class MetaTempleApp {
         if (!e.target.closest?.('#listen') || e.code === 'Escape') this._listenKey(e); // 재생기 단추·막대는 제 키를 쓴다
         return;
       }
-      if (typing() || !this.entered) return;
+      if (typing() || !this.entered || this._fading) return; // 순간이동 페이드 중에는 키를 받지 않는다
       if (this.modals.isOpen && !this.modals.current?.match(/practice_108|mala|tea_chat/)) return;
       this.keys[e.code] = true;
       if (this._teaScene) return; // 차담 장면: 1·2·3 은 예상 응답을 고른다. 걷는 키만 남긴다 (걸으면 일어난다)
@@ -2651,7 +2661,7 @@ class MetaTempleApp {
 
     // 이동 입력 (카메라 기준)
     let ix = 0, iz = 0;
-    if (this.entered && !this._listening && !(this.modals.isOpen && !['practice_108', 'mala', 'tea_chat'].includes(this.modals.current))) {
+    if (this.entered && !this._listening && !this._fading && !(this.modals.isOpen && !['practice_108', 'mala', 'tea_chat'].includes(this.modals.current))) {
       const k = this.keys;
       if (k.KeyW || k.ArrowUp) iz -= 1;
       if (k.KeyS || k.ArrowDown) iz += 1;

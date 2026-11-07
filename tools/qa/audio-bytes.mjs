@@ -57,7 +57,7 @@ try {
   console.log(`   뒤에서 더 받음: ${sum(got)} MB ${got.length}개 · 받아 둔 압축본 ${pk.n}개 ${pk.mb} MB`);
   // 마당으로
   got = [];
-  await page.evaluate(() => window.temple._teleport(0, 0, Math.PI));
+  await page.evaluate(() => window.temple._place(0, 0, Math.PI));
   await page.waitForTimeout(2000);
   await settled();
   await page.waitForTimeout(1500);

@@ -1,9 +1,9 @@
 // 장소 전환 검사 — Playwright MCP 로 실행한다:
 //   browser_run_code_unsafe { filename: '<repo>/tools/qa/travel.mjs' }
 // 열린 탭이 localhost 면 그 주소(포트)를 쓰고, 아니면 http://localhost:8080.
-// 디졸브(가림막)는 없앴다 — 맵이 한 공간이라 어색하기만 했다 (사용자 2026-11-06 「제거해라」). 가림막은 예불 듣기에만 남는다.
+// 걸어서 넘을 때 디졸브는 없앴다 (사용자 2026-11-06 「제거해라」). 순간이동은 어두워졌다 밝아지는 약 2초 페이드 뒤로 (ui/travelFade.js, 사용자 2026-11-08).
 // 기준:
-//   (a) 가람 이동 4곳(app.travelTo): 가림막 없이(불투명도 0) 바로 옮기고, 0.6초 안에 카메라가 도착 구도
+//   (a) 가람 이동 4곳(app.travelTo): 순간이동 덮개(#travel-fade)가 다 어두워진(≥ 0.99) 순간 옮기고, 페이드가 끝난 뒤 0.6초 안에 카메라가 도착 구도
 //       (방위 = 바라보는 쪽 뒤, 높이각 0.22 — 실내 규칙 뒤 값) ±0.05 rad
 //   (b) 걸어서 법당 문턱·산문(마당 계단)을 넘어도 가림막이 내려오지 않고 카메라를 끊어 옮기지 않는다 (방위가 넘기 전과 0.05rad 안)
 //   (b') 키를 누른 채 넘으면 2초 뒤에도 가던 쪽으로 계속 가 있다 (넘은 자리에서 1.5m 이상 더 — 걷기 1.1m/s × 2초 = 2.2m)
@@ -28,7 +28,7 @@ async (page) => {
     let snaps = 0, veiled = false;
     const snap = W.snapCameraTo.bind(W);
     let atSnap = null;
-    W.snapCameraTo = (...a) => { snaps++; atSnap = { target: a }; snap(...a); };
+    W.snapCameraTo = (...a) => { snaps++; atSnap = { target: a, fade: +getComputedStyle(document.querySelector('#travel-fade') || document.body).opacity }; snap(...a); };
     const watchVeil = () => (veiled ||= veilEl.classList.contains('on') || +getComputedStyle(veilEl).opacity > 0.01);
     const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
     const framing = () => {
@@ -49,8 +49,8 @@ async (page) => {
       const [yaw, pitch] = atSnap.target;
       const f = framing();
       const dy = Math.abs(wrap(f.yaw - yaw)), dp = Math.abs(f.pitch - pitch);
-      const ok = !veiled && dy <= 0.05 && dp <= 0.05;
-      lines.push(`${ok ? 'PASS' : 'FAIL'} 이동 → ${ZONES[id].short}: 가림막 ${veiled ? '내려옴 ✗' : '없음'} | 0.6초 뒤 방위 차 ${dy.toFixed(3)} 높이각 차 ${dp.toFixed(3)} rad (거리 ${f.dist.toFixed(2)})`);
+      const ok = !veiled && atSnap.fade >= 0.99 && dy <= 0.05 && dp <= 0.05;
+      lines.push(`${ok ? 'PASS' : 'FAIL'} 이동 → ${ZONES[id].short}: 옮길 때 덮개 ${atSnap.fade.toFixed(3)} · 듣기 가림막 ${veiled ? '내려옴 ✗' : '없음'} | 0.6초 뒤 방위 차 ${dy.toFixed(3)} 높이각 차 ${dp.toFixed(3)} rad (거리 ${f.dist.toFixed(2)})`);
     }
     // (b) 걸어서 문턱 넘기: 가림막·카메라 끊기 없이
     const walk = async (from, to, label) => {

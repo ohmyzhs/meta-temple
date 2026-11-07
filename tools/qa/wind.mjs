@@ -29,7 +29,7 @@ try {
   for (const [where, pos] of [['산문', null], ['마당', [0, 0]]]) {
     const r = await page.evaluate(async (pos) => {
       const t = window.temple, e = t.sound;
-      if (pos) t._teleport(pos[0], pos[1], 0);
+      if (pos) t._place(pos[0], pos[1], 0);
       const wait = (ms) => new Promise((ok) => setTimeout(ok, ms));
       const rms = (a, buf) => {
         a.getFloatTimeDomainData(buf);
