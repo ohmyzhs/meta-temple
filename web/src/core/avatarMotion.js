@@ -6,8 +6,17 @@
  * 스스로 고른다 — 서버(ACTIONS 허용 목록)와 이전 클라이언트를 바꾸지 않아도 섞여서 깨지지 않는다.
  */
 
-/** 경내: 마당·법당·다실에서는 두 손을 모으고(차수) 다닌다. 숲길은 팔을 흔들며 걷는다. */
+/** 경내: 마당·법당·다실에서 서 있을 때는 두 손을 모은다(차수). 걸을 때는 어디서나 팔을 흔든다 (2026-11-07 사용자 요청). */
 export const PRECINCT = new Set(['COURTYARD', 'DAEUNGJEON', 'TEAHOUSE']);
+
+/**
+ * 이동 빠르기 (m/s) — 블렌더 클립이 이 빠르기로 구워져 있다 (tools/blender/avatar_clips.py WALK_SPEED·FAST_SPEED, avatarMotion.test.js 가 monk.json 과 견준다).
+ * 걷기 1.5 (2026-11-07: 1.3 → 1.5), 빠르게 걷기(Shift·빠르게 단추)는 그 2.5배 — 가벼운 뜀 클립.
+ */
+export const WALK_SPEED = 1.5;
+export const FAST_SPEED = 3.75;
+/** 이보다 빠르면 빠르게 걷기 클립 (두 클립 배속이 똑같이 어색해지는 곳: √(1.5·3.75) ≈ 2.4) — 다른 도반도 실제 움직인 빠르기로 고른다 */
+export const FAST_AT = 2.4;
 
 /** 한 번 하고 끝나는 동작 (seq) → 클립. 돌탑·기와·연등은 신행을 마칠 때 (main.js) */
 const ONCE = {
@@ -42,6 +51,7 @@ const FALLBACK = {
   gassho: ['gassho', 'idle_chasu', 'idle'],
   idle_chasu: ['idle_chasu', 'idle'],
   walk_chasu: ['walk_chasu', 'walk'],
+  walk_fast: ['walk_fast', 'walk'],
   walk_gassho: ['walk_gassho', 'walk_chasu', 'walk']
 };
 
@@ -62,7 +72,7 @@ export function pickMotion({ seq = null, state = 'idle', speed = 0, zone = null,
   const precinct = PRECINCT.has(zone);
   if (speed > MOVING) {
     if (state === 'circumambulate') return ok('walk_gassho');
-    return ok(precinct ? 'walk_chasu' : 'walk');
+    return ok(speed > FAST_AT ? 'walk_fast' : 'walk');
   }
   switch (state) {
     case 'sit':

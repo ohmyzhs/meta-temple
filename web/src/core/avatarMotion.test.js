@@ -6,12 +6,22 @@ const TRIAL = ['idle', 'idle_chasu', 'walk', 'walk_chasu', 'walk_gassho', 'bow_h
 const hasOf = (list) => (n) => list.includes(n);
 const has = hasOf(TRIAL);
 
-test('경내에서는 차수, 숲길에서는 팔을 흔들며 걷는다', () => {
-  assert.equal(pickMotion({ speed: 1.2, zone: 'COURTYARD', has }), 'walk_chasu');
-  assert.equal(pickMotion({ speed: 1.2, zone: 'DAEUNGJEON', has }), 'walk_chasu');
-  assert.equal(pickMotion({ speed: 1.2, zone: 'FOREST', has }), 'walk');
+test('걸을 때는 경내·숲길 모두 팔을 흔들고, 경내에 서 있을 때만 차수', () => {
+  assert.equal(pickMotion({ speed: 1.5, zone: 'COURTYARD', has }), 'walk');
+  assert.equal(pickMotion({ speed: 1.5, zone: 'DAEUNGJEON', has }), 'walk');
+  assert.equal(pickMotion({ speed: 1.5, zone: 'FOREST', has }), 'walk');
   assert.equal(pickMotion({ speed: 0, zone: 'COURTYARD', has }), 'idle_chasu');
   assert.equal(pickMotion({ speed: 0, zone: 'FOREST', has }), 'idle');
+});
+
+test('빠르게 걷기: FAST_AT 넘으면 가벼운 뜀 클립, 없으면 걷기로', async () => {
+  const { FAST_AT, FAST_SPEED, WALK_SPEED } = await import('./avatarMotion.js');
+  const withFast = hasOf([...TRIAL, 'walk_fast']);
+  assert.equal(pickMotion({ speed: FAST_SPEED, zone: 'COURTYARD', has: withFast }), 'walk_fast');
+  assert.equal(pickMotion({ speed: FAST_AT - 0.1, zone: 'FOREST', has: withFast }), 'walk');
+  assert.equal(pickMotion({ speed: FAST_SPEED, zone: 'FOREST', has }), 'walk'); // 클립이 없는 옛 GLB
+  assert.ok(WALK_SPEED < FAST_AT && FAST_AT < FAST_SPEED);
+  assert.ok(Math.abs(FAST_SPEED / WALK_SPEED - 2.5) < 1e-9, '빠르게 걷기는 걷기의 2.5배');
 });
 
 test('탑돌이는 합장하고 걷는다', () => {
@@ -73,7 +83,11 @@ test('큰절 시각이 구운 GLB(monk.json)와 같다', async () => {
   assert.ok(Math.abs(c.foreheadMinAt - PROSTRATE.forehead) < 1 / 30 + 1e-6, '이마가 정한 때 바닥에 닿는다');
   for (const n of ['stand_up', 'sit_down']) assert.ok(meta.clips[n], n);
   assert.ok(!meta.clips.run, '달리기는 없앴다');
-  assert.ok(Math.abs(meta.clips.walk.speed - 1.3) < 1e-6, '걷기는 게임 이동 속도(1.3m/s)로 굽는다');
+  const { WALK_SPEED, FAST_SPEED } = await import('./avatarMotion.js');
+  for (const n of ['walk', 'walk_chasu', 'walk_gassho']) assert.ok(Math.abs(meta.clips[n].speed - WALK_SPEED) < 1e-6, `${n} 은 게임 걷기 속도(${WALK_SPEED}m/s)로 굽는다`);
+  assert.ok(Math.abs(meta.clips.walk_fast.speed - FAST_SPEED) < 1e-6, `빠르게 걷기는 ${FAST_SPEED}m/s 로 굽는다`);
+  for (const n of ['walk', 'walk_fast']) assert.ok(meta.clips[n].slip < 0.01, `${n}: 디딤발이 미끄러지지 않는다 (${meta.clips[n].slip}m/s)`);
+  assert.ok(meta.label?.head && meta.label?.hat, '이름표 자리(머리·삿갓 타원체)');
 });
 
 test('넓힌 동작: 상태마다 제 클립, 다실 선사는 앉은 채 찻잔을 건넨다', async () => {
@@ -101,7 +115,11 @@ test('연꽃 등불 정령: 없는 동작은 가까운 것으로', async () => {
   const { readFile } = await import('node:fs/promises');
   const meta = JSON.parse(await readFile(new URL('../../assets/avatars/spirit.json', import.meta.url), 'utf8'));
   const has = (n) => !!meta.clips[n];
-  assert.equal(pickMotion({ speed: 1.1, zone: 'COURTYARD', has }), 'walk');
+  assert.equal(pickMotion({ speed: 1.5, zone: 'COURTYARD', has }), 'walk');
+  assert.equal(pickMotion({ speed: 3.75, zone: 'FOREST', has }), 'walk_fast');
+  const { WALK_SPEED, FAST_SPEED } = await import('./avatarMotion.js');
+  assert.equal(meta.clips.walk.speed, WALK_SPEED);
+  assert.equal(meta.clips.walk_fast.speed, FAST_SPEED);
   assert.equal(pickMotion({ state: 'meditate', has }), 'sit');
   assert.equal(pickMotion({ seq: 'write_tile', has }), 'bow_half');
   assert.equal(pickMotion({ state: 'circumambulate', has }), 'idle');

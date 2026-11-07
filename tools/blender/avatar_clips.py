@@ -229,10 +229,10 @@ def clip_idle(name, hands):
 
 
 # ───────────────────────── 걷기 (제자리, 실제 이동은 런타임) ─────────────────────────
-# 게임 이동 빠르기 그대로에서 발이 미끄러지지 않게 굽는다 (2026-11-06: 모두 1.3m/s, 뛰지 않는다 — avatarManager WALK_SPEED).
+# 게임 이동 빠르기 그대로에서 발이 미끄러지지 않게 굽는다 (2026-11-07: 1.3 → 1.5m/s — avatarManager WALK_SPEED).
 # 다리(0.31m)가 짧아 보폭을 내려면 골반을 낮추고(무릎을 굽힌 채 미끄러지듯) 골반을 크게 돌린다.
-WALK_SPEED = 1.3
-WALK_T = 18 / FPS  # 한 주기(두 걸음) 0.6s — 초당 3.3걸음 (보폭을 더 늘리면 골반이 너무 낮아진다)
+WALK_SPEED = 1.5
+WALK_T = 16 / FPS  # 한 주기(두 걸음) 0.53s — 초당 3.75걸음 (보폭을 더 늘리면 골반이 너무 낮아진다)
 WALK_BETA = 0.55   # 한 발이 땅에 닿아 있는 비율
 WALK_A = WALK_SPEED * WALK_BETA * WALK_T / 2  # 디딤발이 앞뒤로 움직이는 반폭 0.2m
 WALK_YAW = 12.0    # 골반 돌림° — 엉덩관절이 ±0.016m 앞뒤로 가며 보폭을 보탠다
@@ -292,7 +292,67 @@ def walk_pose(t, style):
 
 def clip_walk(name, style):
     return {'name': name, 'frames': round(WALK_T * FPS), 'loop': True, 'proc': lambda t: walk_pose(t, style),
-            'meta': {'speed': round(WALK_SPEED, 4), 'cycle': WALK_T}}
+            'meta': {'speed': round(WALK_SPEED, 4), 'cycle': WALK_T, 'beta': WALK_BETA}}
+
+
+# ───────────────────────── 빠르게 걷기 (가벼운 뜀) ─────────────────────────
+# Shift·빠르게 단추 (avatarManager FAST_SPEED = 걷기의 2.5배). 한 발씩 땅을 차고 두 발이 다 뜨는 짧은 순간이 있다.
+# 발이 땅에 닿은 동안은 몸이 가는 빠르기 그대로 뒤로 (미끄러지지 않게), 팔은 팔꿈치를 굽혀 크게 앞뒤로.
+FAST_SPEED = 3.75
+FAST_T = 12 / FPS  # 한 주기(두 걸음) 0.4s — 초당 5걸음
+FAST_BETA = 0.3    # 한 발이 땅에 닿아 있는 비율 (나머지 두 번 0.08초씩 두 발이 다 뜬다)
+FAST_A = FAST_SPEED * FAST_BETA * FAST_T / 2  # 디딤발 반폭 0.225m
+FAST_YAW = 14.0
+FAST_HIP = 0.06 + 0.985 * math.sqrt(_LEG ** 2 - (FAST_A - 0.075 * math.sin(math.radians(FAST_YAW))) ** 2) + 0.03  # 발이 닿는 순간의 골반 높이
+
+
+def fast_pose(t):
+    ph = (t / FAST_T) % 1.0
+    d = {}
+    ank = J['ankle.L'][2]
+    for s, x, off in (('L', 1, 0.0), ('R', -1, 0.5)):
+        q = (ph + off) % 1.0
+        if q < FAST_BETA:  # 디딤: 앞(-A)에서 뒤(+A)로 일정한 속도, 발볼로 딛고 차고 나간다
+            u = q / FAST_BETA
+            y = -FAST_A + 2 * FAST_A * u
+            lift = 0.03 * smooth((u - 0.5) / 0.5)
+            toe = -8 * (1 - smooth(u / 0.25)) + 38 * smooth((u - 0.45) / 0.55)
+            z = ank + lift + 0.01 * (1 - smooth(u / 0.25))
+            d[f'toe.{s}'] = 30 * smooth((u - 0.45) / 0.55)
+        else:  # 흔들기: 뒤꿈치를 엉덩이 쪽으로 차올렸다가 앞으로 뻗어 내린다
+            u = (q - FAST_BETA) / (1 - FAST_BETA)
+            e = smooth(u)
+            y = FAST_A - 2 * FAST_A * e + 0.05 * math.sin(math.pi * u) * (1 - u)  # 차올릴 때 발이 조금 뒤에 머문다
+            z = ank + 0.03 * (1 - smooth(u / 0.15)) + 0.1 * math.sin(math.pi * min(u ** 0.8 * 1.08, 1.0)) + 0.01 * smooth((u - 0.85) / 0.15)
+            toe = 38 * (1 - smooth(u / 0.45)) - 8 * smooth((u - 0.65) / 0.35)
+            d[f'toe.{s}'] = 30 * (1 - smooth(u / 0.25))
+        d[f'foot.{s}'] = foot(x * 0.07, y + 0.005, z, toe)
+        d[f'pole_leg.{s}'] = (x * 0.1, -0.5, 0.25)
+    c = math.cos(TAU * ph)
+    sw = math.sin(TAU * (ph - 0.05))
+    hq = (2 * ph) % 1.0  # 한 걸음 안: 디딤(0~0.6) 동안 무릎이 받아 낮아지고, 뜨는 동안(0.6~1) 조금 오른다
+    bob = -0.016 * math.sin(math.pi * hq / (2 * FAST_BETA)) if hq < 2 * FAST_BETA else 0.012 * math.sin(math.pi * (hq - 2 * FAST_BETA) / (1 - 2 * FAST_BETA))
+    d['hips_loc'] = (0.008 * sw, -0.01, FAST_HIP + bob)
+    d['hips'] = (9.0, -FAST_YAW * c, 3.0 * sw)
+    d['spine'] = (3.0, 8.0 * c, -1.5 * sw)
+    d['chest'] = (1.0, 10.0 * c, -1.0 * sw)
+    d['neck'] = (-3.0, -3.0 * c, -0.8 * sw)
+    d['head'] = (-6.0 - 2.0 * math.cos(2 * TAU * ph), -2.5 * c, -1.5 * sw)
+    for s, sg in (('L', 1), ('R', -1)):
+        a = sg * c  # 왼다리가 앞일 때(ph=0) 왼팔은 뒤
+        x = 0.17 if s == 'L' else -0.17
+        fwd = max(0.0, -a)
+        d[f'hand.{s}'] = dict(space='chest', pos=(x - sg * 0.03 * fwd, -0.04 + 0.11 * a, 0.5 + 0.06 * fwd - 0.02 * max(0, a)),
+                              aim=(-sg * (0.15 + 0.2 * fwd), -0.9, 0.25 + 0.35 * fwd), palm=(-1 if s == 'L' else 1, 0.0, 0.15))
+        d[f'fingers.{s}'] = 55.0
+        d[f'thumb.{s}'] = (-25.0, 0.0, 0.0)
+        d[f'pole_arm.{s}'] = (x * 1.8, 0.45, 0.5)
+    return P(d)
+
+
+def clip_walk_fast():
+    return {'name': 'walk_fast', 'frames': round(FAST_T * FPS), 'loop': True, 'proc': fast_pose,
+            'meta': {'speed': round(FAST_SPEED, 4), 'cycle': FAST_T, 'beta': FAST_BETA}}
 
 
 # ───────────────────────── 합장 반배 ─────────────────────────
@@ -616,7 +676,7 @@ def clip_sutra():
 
 CLIPS = [
     clip_idle('idle', HANG_H), clip_idle('idle_chasu', CHASU),
-    clip_walk('walk', 'walk'), clip_walk('walk_chasu', 'chasu'), clip_walk('walk_gassho', 'gassho'),
+    clip_walk('walk', 'walk'), clip_walk('walk_chasu', 'chasu'), clip_walk('walk_gassho', 'gassho'), clip_walk_fast(),
     clip_bow_half(), clip_prostrate(), clip_sit(), clip_stand_up(), clip_sit_down(),
     breathe_loop('gassho', P(GASSHO_H, stand()), head=(4, 0, 0)),
     breathe_loop('look_up', P(CHASU, stand(neck=(-8, 0, 0))), head=(-22, 0, 0)),

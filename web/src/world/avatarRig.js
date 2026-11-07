@@ -111,6 +111,8 @@ let loading = null;
 const BLINK = 0.12; // 사람 눈 깜빡임 0.1~0.15초
 const EYES_SHUT = new Set(['sit', 'tea', 'meditate', 'serve_tea', 'prostrate', 'bow_half', 'sutra']);
 
+const _m = new THREE.Matrix4(), _n = new THREE.Matrix3(), _u = new THREE.Vector3();
+
 /** 블렌더 좌표(Z 위, -Y 앞) → three (Y 위, +Z 앞) */
 const fromBlender = ([x, y, z]) => new THREE.Vector3(x, z, -y);
 
@@ -132,7 +134,11 @@ function loadOne(key, url) {
         o.material.envMapIntensity = 0.9;
         if (o.material.name === 'wanderer') inkRim(o.material); // 삿갓 행자: 가장자리 먹빛 번짐
       });
-      libs[key] = { scene: g.scene, clips: g.animations, meta, eyeLocal, bindWorld: bindPose(g.scene) };
+      const bindWorld = bindPose(g.scene);
+      // 이름표 자리: 머리(삿갓)를 감싸는 수평 타원 고리들 [가운데, 좌우·앞뒤 반지름] — 쉬는 자세 좌표 (블렌더 → three)
+      const label = {};
+      for (const [k, rings] of Object.entries(meta.label || {})) label[k] = rings.map((v) => ({ c: fromBlender(v), rx: v[3], rz: v[4] }));
+      libs[key] = { scene: g.scene, clips: g.animations, meta, eyeLocal, bindWorld, label, headBindInv: bindWorld.get('head').clone().invert() };
       return libs[key];
     })
     .catch((e) => {
@@ -259,8 +265,10 @@ export class RigBody {
     next.reset();
     next.setEffectiveTimeScale(1);
     next.setEffectiveWeight(1);
-    // 걷기끼리 바뀔 때는 발 위상을 이어 받는다
-    if (prev && this.name?.startsWith('walk') && name.startsWith('walk')) next.time = (prev.time / prev.getClip().duration) * next.getClip().duration;
+    // 걷기끼리 바뀔 때는 발 위상을 이어 받고, 섞이는 동안 나가는 쪽도 같은 위상으로 돈다 (걷기 ↔ 빠르게 걷기는 한 주기 길이가 다르다)
+    const walkSwap = prev && this.name?.startsWith('walk') && name.startsWith('walk');
+    if (walkSwap) next.time = (prev.time / prev.getClip().duration) * next.getClip().duration;
+    this._walkOut = walkSwap ? prev : null;
     next.play();
     if (prev && prev !== next) {
       if (fade > 0) next.crossFadeFrom(prev, fade, false);
@@ -270,7 +278,7 @@ export class RigBody {
     this.current = next;
   }
 
-  /** speed: 실제 이동 속도(m/s) — 걷기 클립은 1.3m/s 로 구웠고, 그보다 느리면(조이스틱 반쯤) 그만큼 느리게 (발이 미끄러지지 않게) */
+  /** speed: 실제 이동 속도(m/s) — 걷기 클립은 제 빠르기(meta speed: 걷기 1.5·빠르게 3.75m/s)로 구웠고, 다르면 그만큼 배속을 바꾼다 (발이 미끄러지지 않게) */
   update(dt, speed, onStep, onRustle) {
     if (this._then && this.current && this.current.time >= this.current.getClip().duration - 1e-3) {
       const n = this._then;
@@ -281,7 +289,10 @@ export class RigBody {
     const t0 = c ? c.time : 0;
     if (c && this.name.startsWith('walk')) {
       const ref = this.lib.meta.clips?.[this.name]?.speed || 1;
-      c.setEffectiveTimeScale(Math.max(0.35, speed / ref));
+      const ts = Math.max(0.35, speed / ref);
+      c.setEffectiveTimeScale(ts);
+      const o = this._walkOut;
+      if (o && o !== c && o.isRunning()) o.setEffectiveTimeScale((ts * o.getClip().duration) / c.getClip().duration);
     }
     // 동작이 뼈 크기를 쓰는 프레임도, 안 쓰는 프레임(한 번짜리 동작이 끝나 멈춘 뒤)도 있다 — 1 로 되돌린 뒤 갱신하고 곱해야 누적되지 않는다
     if (this.look) this.head.scale.setScalar(1);
@@ -312,6 +323,30 @@ export class RigBody {
     const shut = (EYES_SHUT.has(this.name) && !this.look?.open.has(this.name)) || this._blink > 0;
     this.eyesOpen.visible = !shut;
     this.eyesClosed.visible = shut;
+  }
+
+  /**
+   * 이름표가 붙을 점(월드): 머리(삿갓을 썼으면 삿갓) 겉모양 — 수평 타원 고리들의 볼록 껍질 — 에서 화면 위쪽(카메라 위 방향 up) 끝.
+   * 카메라를 숙이든 당기든 머리 바로 위 — 예전엔 발밑에서 1.6m 고정이라 가까이·낮게 보면 한 뼘 넘게 떠 보였다.
+   * @returns 없으면(옛 GLB) false
+   */
+  labelAnchor(out, up) {
+    const L = (this.hat?.visible && this.lib.label.hat) || this.lib.label.head;
+    if (!L) return false;
+    this.head.updateWorldMatrix(true, false);
+    _m.multiplyMatrices(this.head.matrixWorld, this.lib.headBindInv); // 쉬는 자세 → 지금 (몸·머리 돌림, 크기까지)
+    _u.copy(up).applyMatrix3(_n.setFromMatrix4(_m).transpose()).normalize(); // 지금 화면 위쪽으로 가장 먼 점을 쉬는 자세에서 찾는 방향 (Mᵀ·up)
+    let best = -Infinity;
+    for (const { c, rx, rz } of L) {
+      const ex = rx * rx * _u.x, ez = rz * rz * _u.z, h = Math.sqrt(_u.x * ex + _u.z * ez); // 타원 고리의 그 방향 끝
+      const s = c.x * _u.x + c.y * _u.y + c.z * _u.z + h;
+      if (s > best) {
+        best = s;
+        out.set(c.x + (h ? ex / h : 0), c.y, c.z + (h ? ez / h : 0));
+      }
+    }
+    out.applyMatrix4(_m);
+    return true;
   }
 
   eyeWorld(out) {

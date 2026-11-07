@@ -246,6 +246,9 @@ def pose_at(name, t):
     if name == 'walk':  # 앞으로 기울어 미끄러지듯, 꽃잎은 뒤로 조금 날린다
         T = 1.2
         return dict(lift=0.012 * s(TAU * t / T * 2), tilt=12 + 2 * s(TAU * t / T), sway=4 * s(TAU * t / T), pulse=1.0, o=10 + 3 * s(TAU * t / T * 2), i=6)
+    if name == 'walk_fast':  # 빠르게: 더 숙여 쏜살같이, 꽃잎은 뒤로 더 날린다 (게임 3.75m/s)
+        T = 0.8
+        return dict(lift=0.02 * s(TAU * t / T * 2), tilt=24 + 3 * s(TAU * t / T), sway=3 * s(TAU * t / T), pulse=1.0, o=18 + 4 * s(TAU * t / T * 2), i=10)
     if name == 'look_up':
         T = 4.0
         return dict(lift=0.02 * s(TAU * t / T), tilt=-24 + 2 * s(TAU * t / T), sway=0.0, pulse=1.0, o=8, i=6)
@@ -264,13 +267,31 @@ def pose_at(name, t):
     raise KeyError(name)
 
 
-CLIPS = [('idle', 3.0, True), ('walk', 1.2, True), ('look_up', 4.0, True), ('sit', 5.0, True), ('bow_half', 74 / 30, False), ('prostrate', 7.6, False)]
+CLIPS = [('idle', 3.0, True), ('walk', 1.2, True), ('walk_fast', 0.8, True), ('look_up', 4.0, True), ('sit', 5.0, True), ('bow_half', 74 / 30, False), ('prostrate', 7.6, False)]
+
+
+
+
+def label_rings(ob, bands=8):
+    """이름표 자리: 몸(등불·꽃잎) 정점을 높이로 나눠 칸마다 가장 먼 수평 거리 고리 [x,y,z, 좌우·앞뒤 반지름] (블렌더 좌표, 쉬는 자세) — avatar_build 의 label 과 같은 꼴"""
+    ps = [ob.matrix_world @ v.co for v in ob.data.vertices]
+    z0, z1 = min(p.z for p in ps), max(p.z for p in ps)
+    out = []
+    for k in range(bands):
+        a, b = z0 + (z1 - z0) * k / bands, z0 + (z1 - z0) * (k + 1) / bands
+        band = [p for p in ps if a <= p.z <= b]
+        if band:
+            r = max(math.hypot(p.x, p.y) for p in band)
+            out.append([0.0, 0.0, round(b, 4), round(r * 1.04, 4), round(r * 1.04, 4)])  # 칸 위 높이에 칸에서 가장 넓은 고리 (조금 넉넉히)
+    return out
+
+SPEED = {'walk': AB.AC.WALK_SPEED, 'walk_fast': AB.AC.FAST_SPEED}
 
 
 def bake(arm):
     arm.animation_data_create()
     pbs = arm.pose.bones
-    meta = {'fps': FPS, 'clips': {}, 'eye': list(EYE), 'height': FLOAT + 0.25}
+    meta = {'fps': FPS, 'clips': {}, 'eye': list(EYE), 'height': FLOAT + 0.25, 'label': {}}
     for name, T, loop in CLIPS:
         act = bpy.data.actions.new(name)
         arm.animation_data.action = act
@@ -292,7 +313,7 @@ def bake(arm):
         act.use_frame_range = True
         act.frame_start, act.frame_end = 0, n
         act.use_fake_user = True
-        meta['clips'][name] = {'duration': n / FPS, 'loop': loop, **({'speed': 1.3} if name == 'walk' else {})}  # 게임 걸음 1.3m/s
+        meta['clips'][name] = {'duration': n / FPS, 'loop': loop, **({'speed': SPEED[name]} if name in SPEED else {})}  # 게임 걸음 (avatar_clips 와 같은 빠르기)
         arm.animation_data.action = None
     return meta
 
@@ -322,6 +343,8 @@ if __name__ == '__main__':
     log('spirit', tris, 'tris')
     meta = bake(arm)
     meta['tris'] = tris
+    meta['label'] = {'head': label_rings(body)}  # 등불이 머리 뼈 하나에 붙어 함께 뜨고 숙인다
+    log('label rings', meta['label'])
     if AB.PREVIEW:
         eyes[1].hide_render = True
         os.makedirs(AB.PREVIEW, exist_ok=True)

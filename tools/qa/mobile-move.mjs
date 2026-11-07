@@ -1,8 +1,10 @@
 // 모바일 이동·합장 답례 검사 (390×844 터치 화면에서 실제 rAF 루프로).
 //   Playwright MCP: browser_run_code_unsafe { filename: '<repo>/tools/qa/mobile-move.mjs' } — 터치 화면(hasTouch)이어야 조이스틱이 보인다.
-// (1) 조이스틱 크기·자리 (2) 앞으로 끝까지 0.6초 버티면 자동 걷기 → 손을 떼도 1.3m/s, 좌우로 밀면 방향, 톡 누르면 멈춤
+// (1) 조이스틱 크기·자리 (2) 앞으로 끝까지 0.6초 버티면 자동 걷기 → 손을 떼도 1.5m/s, 좌우로 밀면 방향, 톡 누르면 멈춤
 // (3) 바닥을 0.3초 눌러 버티면 손가락 밑으로 걷고, 끌면 따라가고, 떼면 선다 (4) 도반이 먼저 합장하면 그쪽으로 돌아 반배,
-// 앉아 있으면 답례 단추. 결과 PNG: OUT/mobile-*.png
+// 앉아 있으면 답례 단추 (5) 조이스틱 가운데 그랩을 톡: 달리기(3.75m/s 가벼운 뜀) ↔ 걷기(1.5m/s), 그림이 바뀌고 톡 하는 동안 걷지 않는다.
+//     그랩에서 끌면 평소 조이스틱, 자동 걷기 중 그랩 톡은 자동 달리기, 테두리 톡은 멈춤.
+// 결과 PNG: OUT/mobile-*.png
 async (page) => {
   const OUT = globalThis.AVATAR_QA_OUT || '/tmp/mobile-move';
   (await import('fs')).mkdirSync(OUT, { recursive: true });
@@ -44,15 +46,16 @@ async (page) => {
   await page.mouse.up();
   const s1 = await st();
   lines.push(`    오른쪽으로 1초: 카메라 방위 ${a1.yaw.toFixed(2)} → ${s1.yaw.toFixed(2)} rad (자동 걷기 ${s1.auto})`);
-  // 톡 눌러 멈춤
-  await page.mouse.move(cx, cy);
+  // 테두리를 톡 눌러 멈춤 (가운데 그랩은 달리기 단추)
+  await page.mouse.move(cx, cy + r * 0.75);
   await page.mouse.down();
   await page.waitForTimeout(80);
   await page.mouse.up();
   await page.waitForTimeout(600);
   const s2 = await st();
   lines.push(`    톡 누르면: 자동 걷기 ${s2.auto} · 빠르기 ${s2.speed.toFixed(2)}m/s`);
-  const ok2 = held.auto && walked > 2.0 && Math.abs(a1.speed - 1.3) < 0.1 && s1.yaw < a1.yaw - 0.3 && !s2.auto && s2.speed < 0.3;
+  const { WALK_SPEED, FAST_SPEED } = await page.evaluate(async () => { const m = await import('/src/core/avatarMotion.js'); return { WALK_SPEED: m.WALK_SPEED, FAST_SPEED: m.FAST_SPEED }; });
+  const ok2 = held.auto && walked > 2.0 && Math.abs(a1.speed - WALK_SPEED) < 0.1 && s1.yaw < a1.yaw - 0.3 && !s2.auto && s2.speed < 0.3;
   lines.push(`    ${ok2 ? 'PASS' : 'FAIL'}`);
   // (3) 눌렀다 끌어 걷기
   await page.evaluate(() => { const t = window.temple; t.avatars.teleport(5, 3, Math.PI); t.world.cam.yaw = 0; t.world.cam.pitch = 0.5; });
@@ -100,11 +103,56 @@ async (page) => {
   });
   await page.screenshot({ path: `${OUT}/mobile-reply-button.png` });
   const bb = await page.locator('#reply-btn').boundingBox();
+
   await page.locator('#reply-btn').click();
   const r6 = await page.evaluate(() => ({ hidden: document.querySelector('#reply-btn').classList.contains('hidden'), bowed: performance.now() - (window.temple._lastBowAt || 0) < 2000, sitting: window.temple.player.sitting }));
   const ok4 = r4.seq === 'bow_half' && r4.err < 0.25 && r5.shown && r6.hidden && r6.bowed && r6.sitting;
   lines.push(`(4) ${ok4 ? 'PASS' : 'FAIL'} 서 있을 때: ${r4.seq} · 도반 쪽과 ${r4.err.toFixed(2)}rad · '${r4.toast}'`);
   lines.push(`    앉아 있을 때: 단추 ${r5.shown} '${r5.text}' ${bb ? Math.round(bb.width) + '×' + Math.round(bb.height) + 'px' : ''} → 누르면 숨김 ${r6.hidden}, 답례 보냄 ${r6.bowed}, 앉은 채 ${r6.sitting}`);
+  // (5) 가운데 그랩 톡 = 달리기 ↔ 걷기
+  await page.evaluate(() => { const t = window.temple; t.player.sitting && t.avatars.standUp(); t.avatars.teleport(0, 30, Math.PI); t.world.cam.yaw = 0; });
+  await page.waitForTimeout(1500);
+  const jb2 = await page.locator('#joystick').boundingBox();
+  const kx = jb2.x + jb2.width / 2, ky = jb2.y + jb2.height / 2, kr = jb2.width / 2;
+  const knobState = () => page.evaluate(() => { const k = document.querySelector('.joy-knob'); const vis = (sel) => +getComputedStyle(k.querySelector(sel)).opacity; return { run: k.classList.contains('run'), on: window.temple.fastWalk.on, walkIcon: vis('.fw-walk'), runIcon: vis('.fw-run') }; });
+  const tapAt = async (x, y) => { await page.mouse.move(x, y); await page.mouse.down(); await page.waitForTimeout(90); await page.mouse.up(); await page.waitForTimeout(400); };
+  const push = async (frac, ms) => { await page.mouse.move(kx, ky); await page.mouse.down(); for (let i = 1; i <= 4; i++) await page.mouse.move(kx, ky - kr * frac * (i / 4)); await page.waitForTimeout(ms); };
+  const k0 = await knobState();
+  const p0 = await st();
+  await tapAt(kx, ky);
+  const k1 = await knobState(), p1 = await st();
+  await page.screenshot({ path: `${OUT}/mobile-knob-run.png` });
+  await push(0.7, 1200); // 70% — 자동 걷기(80%) 아래
+  const f1 = await st();
+  await page.mouse.up();
+  await page.waitForTimeout(600);
+  await tapAt(kx, ky);
+  const k2 = await knobState();
+  await push(0.7, 1200);
+  const f2 = await st();
+  await page.mouse.up();
+  await page.waitForTimeout(600);
+  // 자동 걷기 중 그랩 톡 → 자동 달리기, 테두리 톡 → 멈춤
+  await push(0.95, 900);
+  await page.mouse.up();
+  await page.waitForTimeout(500);
+  const ky2 = (await page.locator('.joy-knob').boundingBox()); // 자동 걷기면 그랩이 위로 조금 올라가 있다
+  await tapAt(ky2.x + ky2.width / 2, ky2.y + ky2.height / 2);
+  await page.waitForTimeout(600);
+  const a2 = await st();
+  await page.screenshot({ path: `${OUT}/mobile-autorun.png` });
+  await tapAt(kx, ky + kr * 0.75);
+  await page.waitForTimeout(500);
+  const a3 = await st();
+  await tapAt(kx, ky); // 달리기 끄기
+  const k3 = await knobState();
+  const still = Math.hypot(p1.x - p0.x, p1.z - p0.z);
+  const ok5 = !k0.on && k0.walkIcon > 0.9 && k1.on && k1.run && k1.runIcon > 0.9 && k1.walkIcon < 0.1 && still < 0.05 &&
+    Math.abs(f1.speed - FAST_SPEED) < 0.15 && f1.clip === 'walk_fast' && !f1.auto && !k2.on && Math.abs(f2.speed - WALK_SPEED) < 0.1 && f2.clip === 'walk' &&
+    a2.auto && Math.abs(a2.speed - FAST_SPEED) < 0.15 && !a3.auto && a3.speed < 0.3 && !k3.on;
+  lines.push(`(5) ${ok5 ? 'PASS' : 'FAIL'} 그랩 톡 → 달리기 ${k1.on} (그림 걷기 ${k1.walkIcon}→달리기 ${k1.runIcon}, 톡 하는 동안 ${still.toFixed(3)}m 움직임)`);
+  lines.push(`    달리기로 밀면 ${f1.speed.toFixed(2)}m/s ${f1.clip} · 다시 톡 → 걷기 ${!k2.on}, 밀면 ${f2.speed.toFixed(2)}m/s ${f2.clip}`);
+  lines.push(`    자동 걷기 중 그랩 톡 → 자동 ${a2.auto} ${a2.speed.toFixed(2)}m/s ${a2.clip} · 테두리 톡 → 자동 ${a3.auto} ${a3.speed.toFixed(2)}m/s`);
   // 가로 화면
   await page.setViewportSize({ width: 844, height: 390 });
   await page.waitForTimeout(800);

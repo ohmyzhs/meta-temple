@@ -14,11 +14,14 @@ import { crossingAt, nearestTrail, deckRiseAt } from './trail.js';
 import { faceTexture, softDotTexture } from './textures.js';
 import { generateDharmaName } from '../data/templeData.js';
 import { RigBody, rigLib, RIG_STYLES } from './avatarRig.js';
-import { pickMotion, MOVING, SEATED, PROSTRATE } from '../core/avatarMotion.js';
+import { pickMotion, MOVING, SEATED, PROSTRATE, WALK_SPEED, FAST_SPEED } from '../core/avatarMotion.js';
 
 const TAU = Math.PI * 2;
-/** 이동 빠르기 (m/s) — 경내·숲길·탑돌이·참배객 모두 같다. 걷고 뛰지 않는다 (2026-11-06 사용자 결정: 1.1 → 1.3). */
-export const WALK_SPEED = 1.3;
+/**
+ * 이동 빠르기 (m/s) — 경내·숲길·탑돌이·참배객 모두 같은 걷기 (2026-11-07 사용자 결정: 1.3 → 1.5).
+ * 내가 Shift·빠르게 단추로 걸을 때만 FAST_SPEED (2.5배, 가벼운 뜀 클립). 값은 core/avatarMotion.js — 블렌더 클립과 함께 시험한다.
+ */
+export { WALK_SPEED, FAST_SPEED };
 /** 조이스틱을 이만큼(반지름 비율) 밀면 다 빠르기 — 그 안은 비례. 예전엔 기울기를 두 번 곱해 반쯤 밀면 1/4 빠르기였다 */
 export const FULL_TILT = 0.55;
 const damp = (a, b, k, dt) => a + (b - a) * (1 - Math.exp(-k * dt));
@@ -397,7 +400,23 @@ export class Avatar {
     this.labelEl = div;
     this.label = new CSS2DObject(div);
     this.label.position.set(0, this.style === 'lantern_spirit' ? 1.55 : 1.6, 0);
+    this.label.center.set(0.5, LABEL_LIFT); // 이름표 아래 끝이 그 점 바로 위에 (가운데가 아니라)
     this.root.add(this.label);
+  }
+
+  /** 이름표를 머리(삿갓) 바로 위로 — up: 카메라 위 방향(월드). 매 프레임 이름표가 보이는 사람만 부른다 */
+  placeLabel(up) {
+    const a = _labelAt;
+    if (this.rig) {
+      if (!this.rig.labelAnchor(a, up)) return;
+    } else if (this.spirit) {
+      this.spirit.updateWorldMatrix(true, false);
+      a.setFromMatrixPosition(this.spirit.matrixWorld).addScaledVector(up, 0.3);
+    } else if (this.head) {
+      this.head.updateWorldMatrix(true, false);
+      this.head.localToWorld(a.set(0, 0.19, 0)).addScaledVector(up, 0.21); // 절차식 머리 공 (반지름 0.2)
+    } else return;
+    this.label.position.copy(this.root.worldToLocal(a));
   }
 
   setName(n) {
@@ -596,7 +615,20 @@ export class Avatar {
   }
 }
 
-const _prev = new THREE.Vector3();
+/**
+ * 한 프레임 이동을 0.15m 씩 나눠 막힘을 본다 — 빠르게 걷기(3.75m/s)에 프레임이 떨어지면(dt 0.1) 한 번에 0.375m 라
+ * 얇은 담·난간(충돌 반지름 0.32m)을 건너뛸 수 있다. 걷기 30fps 이상이면 한 번에 끝난다.
+ */
+function stepMoveFine(x, z, nx, nz) {
+  const n = Math.ceil(Math.hypot(nx - x, nz - z) / 0.15);
+  let m = { x, z };
+  for (let i = 1; i <= n; i++) m = stepMove(m.x, m.z, x + ((nx - x) * i) / n, z + ((nz - z) * i) / n);
+  return m;
+}
+
+/** 이름표 아래 끝과 머리 사이 틈 — 이름표 높이의 비율 (14px 글자 상자 약 22px → 약 3px) */
+const LABEL_LIFT = 1.12;
+const _labelAt = new THREE.Vector3();
 
 /* ───── 동석 참배객 시나리오 ───── */
 const VISITOR_PLANS = [
@@ -626,6 +658,7 @@ export class AvatarManager {
     this.hooks = hooks;
     this.visitors = [];
     this.remote = new Map();
+    this._clock = 0; // 이 관리자의 시계 (s) — 실제 도반 자리를 받은 때를 잰다 (시험에서 프레임을 직접 넘겨도 맞게)
     this.player = null;
     this.moveTarget = null;
     this.circling = null;
@@ -988,11 +1021,11 @@ export class AvatarManager {
         av.labelEl.classList.add('peer'); // 실제 접속한 도반은 이름 빛깔을 달리한다
         av.root.position.set(peer.x, peer.y, peer.z);
         this.scene.add(av.root);
-        r = { av, target: new THREE.Vector3(), ry: 0, action: null, seq: null };
+        r = { av, target: new THREE.Vector3(peer.x, peer.y, peer.z), ry: 0, action: null, seq: null, q: [], v: 0, lastAt: this._clock };
         this.remote.set(peer.id, r);
       }
       if (peer.dharmaName && r.av.name !== peer.dharmaName) r.av.setName(peer.dharmaName);
-      r.target.set(peer.x, peer.y, peer.z);
+      this._remoteRecv(r, peer);
       r.ry = peer.ry ?? 0;
       // 같은 동작을 거듭해도(큰절 연속) 순번(actionSeq)이 바뀌면 다시 재생
       // 사경 서안 자리에 앉은 도반은 사경 중 ('sit' 으로 오지만 붓으로 쓰는 모습으로 — avatarMotion.wireState)
@@ -1027,6 +1060,54 @@ export class AvatarManager {
     }
   }
 
+  /**
+   * 실제 도반 자리 받기: 0.2초 틱마다 오는 자리를 길(점 줄)로 쌓고, 받은 간격으로 빠르기를 어림한다 — _remoteFollow 가 그 길을 고르게 따라간다.
+   * 예전처럼 받은 자리로 바로 끌려가면(lerp) 틱 사이 빠르기가 0.2~1.8배로 출렁여, 빠르게 걷는 도반이 울컥울컥 튀었다 (tools/qa/avatar-sync.mjs (e)).
+   * 한 번에 REMOTE.jump 넘게 옮기면 걸어서는 못 가는 거리 — 순간이동(장소 옮기기)으로 보고 그 자리에 바로 놓는다.
+   */
+  _remoteRecv(r, peer) {
+    const now = this._clock;
+    const d = Math.hypot(peer.x - r.target.x, peer.z - r.target.z);
+    if (d > REMOTE.jump) {
+      r.q.length = 0;
+      r.v = 0;
+      r.av.root.position.set(peer.x, peer.y, peer.z);
+    } else if (d > 0.005 || Math.abs(peer.y - r.target.y) > 0.005) {
+      const inst = d / clamp(now - r.lastAt, 0.15, 1.2);
+      r.v = r.v < 0.3 ? inst : r.v + (inst - r.v) * REMOTE.ema;
+      r.q.push(new THREE.Vector3(peer.x, peer.y, peer.z));
+      if (r.q.length > 16) r.q.splice(0, r.q.length - 16);
+    }
+    r.lastAt = now;
+    r.target.set(peer.x, peer.y, peer.z);
+  }
+
+  /** 받은 길을 따라 걷는다: 남은 길이 REMOTE.lag 초 몫보다 길면 조금 빨리, 짧으면 조금 천천히 (0.5~2배) — 틱이 늦거나 몰려 와도 고르게 */
+  _remoteFollow(r, dt) {
+    const pos = r.av.root.position;
+    if (this._clock - r.lastAt > 0.5) r.v *= Math.exp(-dt * 4); // 소식이 끊기면(섰거나 멀어서 1초 틱) 빠르기를 거둔다
+    let L = 0, prev = pos;
+    for (const p of r.q) {
+      L += prev.distanceTo(p);
+      prev = p;
+    }
+    const Ls = Math.max(r.v * REMOTE.lag, 0.05);
+    let step = Math.max(r.v * clamp(1 + REMOTE.gain * (L - Ls) / Ls, 0.5, 2), L * 2) * dt; // L*2: 빠르기를 잃어도 남은 길은 끝까지 간다
+    const x0 = pos.x, z0 = pos.z;
+    while (step > 1e-6 && r.q.length) {
+      const p = r.q[0], d = pos.distanceTo(p);
+      if (d <= step) {
+        pos.copy(p);
+        r.q.shift();
+        step -= d;
+      } else {
+        pos.lerp(p, step / d);
+        step = 0;
+      }
+    }
+    r.av.speed = damp(r.av.speed, dt > 0 ? Math.hypot(pos.x - x0, pos.z - z0) / dt : 0, 8, dt);
+  }
+
   /** 실제 도반이 많아지면 NPC 참배객을 그만큼 줄인다 (상주 스님은 남긴다) */
   setNpcBudget(n) {
     let left = n;
@@ -1056,6 +1137,7 @@ export class AvatarManager {
    * @param input { x, z } 월드 이동 벡터(-1..1)
    */
   update(dt, t, input, night) {
+    this._clock += dt;
     const pl = this.player;
     const p = pl.root.position;
     let speed = 0;
@@ -1065,9 +1147,9 @@ export class AvatarManager {
       this.moveTarget = null;
       this.circling = null;
       if (pl.busy) pl.seq = null;
-      const sp = WALK_SPEED * Math.min(len / FULL_TILT, 1);
+      const sp = (input.fast ? FAST_SPEED : WALK_SPEED) * Math.min(len / FULL_TILT, 1);
       const nx = p.x + (input.x / len) * sp * dt, nz = p.z + (input.z / len) * sp * dt;
-      const m = stepMove(p.x, p.z, nx, nz);
+      const m = stepMoveFine(p.x, p.z, nx, nz);
       speed = Math.hypot(m.x - p.x, m.z - p.z) / dt;
       p.x = m.x;
       p.z = m.z;
@@ -1087,9 +1169,9 @@ export class AvatarManager {
         if (mt.keepCircling && this.circling) this.circling.ready = true;
         mt.onArrive?.();
       } else {
-        const sp = Math.min(WALK_SPEED, d * 3 + 0.4);
+        const sp = Math.min(input.fast ? FAST_SPEED : WALK_SPEED, d * 3 + 0.4);
         const nx = p.x + (dx / d) * sp * dt, nz = p.z + (dz / d) * sp * dt;
-        const m = stepMove(p.x, p.z, nx, nz);
+        const m = stepMoveFine(p.x, p.z, nx, nz);
         const moved = Math.hypot(m.x - p.x, m.z - p.z);
         speed = moved / dt;
         p.x = m.x;
@@ -1120,7 +1202,7 @@ export class AvatarManager {
       speed = WALK_SPEED;
       pl.state = 'circumambulate';
     }
-    if (!pl.sitting) p.y = damp(p.y, walkHeight(p.x, p.z), 14, dt);
+    if (!pl.sitting) p.y = damp(p.y, walkHeight(p.x, p.z), 14 * Math.max(1, pl.speed / WALK_SPEED), dt); // 빠르게 걸어도 계단에서 발이 덜 묻게 (같은 거리만큼 따라간다)
     pl.speed = damp(pl.speed, speed, 10, dt);
     if (pl.speed > 0.2 && pl.state === 'idle') pl.state = 'idle';
     pl.root.rotation.y = angleDamp(pl.root.rotation.y, pl.heading, 10, dt);
@@ -1139,15 +1221,13 @@ export class AvatarManager {
       this._crowdLod(v.av, view, dt, t, night, 9, 3, 1); // 이름표는 먹 상자째 흐려지므로 가까이선 끝까지 진하게 (흰 하늘 위 대비)
     }
     for (const r of this.remote.values()) {
-      const before = _prev.copy(r.av.root.position);
-      r.av.root.position.lerp(r.target, 1 - Math.exp(-dt * 6));
-      const moved = dt > 0 ? r.av.root.position.distanceTo(before) / dt : 0;
-      r.av.speed = damp(r.av.speed, r.av.root.position.distanceTo(r.target) > 0.05 ? moved : 0, 6, dt);
+      this._remoteFollow(r, dt);
       r.av.root.rotation.y = angleDamp(r.av.root.rotation.y, r.ry, 8, dt);
       this._crowdLod(r.av, view, dt, t, night, 14, 4, 1);
     }
     this._crowdShadows(view);
     setLabel(pl, pl.speed > 0.3 ? 0 : 1);
+    if (pl.label.visible) pl.placeLabel(view.up);
   }
 
   /** 이 프레임의 카메라 시야 (카메라가 없으면 — 시험 등 — 모두 보이는 것으로) */
@@ -1157,8 +1237,10 @@ export class AvatarManager {
     V.frame++;
     V.on = !!cam;
     V.shadowed.length = 0;
+    (V.up ||= new THREE.Vector3()).set(0, 1, 0);
     if (cam) {
       cam.updateMatrixWorld();
+      V.up.applyQuaternion(cam.quaternion); // 이름표를 머리 위 화면 위쪽 끝에 (placeLabel)
       V.m.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse);
       V.frustum.setFromProjectionMatrix(V.m);
       V.cam.setFromMatrixPosition(cam.matrixWorld);
@@ -1215,9 +1297,18 @@ export class AvatarManager {
     V.shadowed.forEach(([, av, label], i) => {
       setCasting(av, i < CROWD.shadows, V.frame);
       setLabel(av, i < CROWD.labels ? label : 0);
+      if (av.label.visible) av.placeLabel(V.up);
     });
   }
 }
+
+/* ───── 실제 도반 따라가기 (scratchpad 모의실험: 보내기 5Hz·서버 틱 0.2초·지연 흔들림 0~0.15초에서 빠르기 출렁임이 lerp 의 1/3) ───── */
+const REMOTE = {
+  jump: 6, // m — 한 틱(먼 도반은 1초)에 빠르게 걷기(3.75m/s)로도 못 가는 거리: 순간이동
+  ema: 0.15, // 받은 간격으로 잰 빠르기를 이만큼씩 따라간다
+  lag: 0.35, // s — 이만큼 뒤에서 따라간다 (틱이 늦어도 멈추지 않게)
+  gain: 0.5 // 남은 길이 lag 몫과 어긋난 만큼 빠르기를 고친다
+};
 
 /* ───── 군중 (다른 사람들) 성능 단계 — tools/qa/crowd.mjs 로 잰 값 ───── */
 const CROWD = {

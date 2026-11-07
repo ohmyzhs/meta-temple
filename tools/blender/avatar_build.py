@@ -334,18 +334,42 @@ def eye_patch(name, kind):
     return new_obj(name, bm)
 
 
+# 삿갓 치수 (2026-11-07 사용자 요청: 깊이 눌러써 머리 절반 넘게, 앞은 코 근처까지).
+# 테 가운데 높이 HAT_Z, 반지름 HAT_R, 높이 HAT_H, 옆모습 r = R·(1 − (h/H)^p) (위가 둥근 원뿔), 앞으로 HAT_TILT° 숙임.
+# → 테 앞 0.968m (코 0.955m) · 옆 1.02m (머리 0.755~1.335m 의 54%) · 뒤 1.072m · 꼭대기 1.418m.
+#   안쪽 면과 머리 사이 가장 좁은 틈 1.1cm (build_hat 이 재서 로그에 남긴다).
+HAT_Z, HAT_R, HAT_H, HAT_P, HAT_TILT, HAT_THICK = 1.02, 0.5, 0.4, 1.7, 6.0, 0.014
+HAT_RINGS = []  # build_hat 이 채운다
+
+
 def build_hat():
-    """삿갓: 넓고 얕은 원뿔(위) + 오목한 안쪽(아래)을 한 몸으로, 꼭대기 꼭지. 정수리에 얹고 앞으로 조금 숙인다."""
-    c = V((0, HC.y + 0.01, AC.J['crown'][2] - 0.075))
-    R, n = 0.43, 36
-    prof = [(0.0, 0.215), (0.012, 0.212), (0.03, 0.2), (0.12, 0.15), (0.25, 0.085), (0.36, 0.028), (R, 0.0),  # 위
-            (R, -0.012), (0.36, 0.012), (0.24, 0.045), (0.16, 0.06), (0.0, 0.07)]  # 아래 (머리에 닿는 안쪽)
-    tilt = Matrix.Rotation(math.radians(7), 3, 'X')  # 앞이 조금 숙는다
+    """삿갓: 위가 둥근 깊은 원뿔(위) + 같은 꼴로 조금 작은 안쪽(아래)을 한 몸으로, 꼭대기 꼭지. 머리를 깊이 덮고 앞으로 조금 숙인다."""
+    c = V((0, HC.y + 0.01, HAT_Z))
+    R, H, p, n = HAT_R, HAT_H, HAT_P, 36
+    Ri, Hi = R - 0.02, H - 0.03
+    outer = [(R * (1 - (k / 8) ** p), H * k / 8) for k in range(8, -1, -1)]  # 꼭대기 → 테
+    inner = [(Ri * (1 - (k / 7) ** p), Hi * k / 7 - HAT_THICK) for k in range(0, 8)]  # 테 안쪽 → 안 꼭대기
+    prof = [(0.0, H + 0.022), (0.014, H + 0.02), (0.022, H + 0.008)] + outer[1:] + [(R, -HAT_THICK)] + inner[1:]
+    top_n = 3 + len(outer) - 1  # 위(바깥)면 고리 수 — UV v 0→0.6
+    tilt = Matrix.Rotation(math.radians(HAT_TILT), 3, 'X')  # 앞이 조금 숙는다
     rings, vs = [], []
     for k, (r, z) in enumerate(prof):
         rr = max(r, 0.004)
         rings.append([c + tilt @ V((rr * math.sin(TAU * i / n), rr * math.cos(TAU * i / n), z)) for i in range(n)])
-        vs.append(0.6 * k / 6 if k <= 6 else 0.6 + 0.4 * (k - 6) / 5)
+        vs.append(0.6 * k / (top_n - 1) if k < top_n else 0.6 + 0.4 * (k - top_n + 1) / (len(prof) - top_n))
+    # 안쪽 면과 머리(귀 포함) 사이 틈: 쉬는 자세에서 재어 남긴다 (머리·삿갓 모두 머리 뼈만 따르므로 어느 동작에서나 같다)
+    inv = tilt.inverted()
+    gap = 9.0
+    for i in range(72):
+        for k in range(41):
+            q = inv @ (head_point(TAU * i / 72, -math.pi / 2 + math.pi * k / 40) - c)
+            h = q.z + HAT_THICK
+            if 0 <= h <= Hi:
+                gap = min(gap, Ri * (1 - (h / Hi) ** p) - math.hypot(q.x, q.y))
+    HAT_RINGS[:] = [[*(c + tilt @ V((0, 0, z))), r * 1.03, r * 1.03] for r, z in prof[:top_n]]  # 이름표 자리 (위 바깥면 고리들, 6° 숙임만큼 넉넉히)
+    log('hat', {'front': round((c + tilt @ V((0, -R, 0))).z, 3), 'side': round(c.z, 3), 'back': round((c + tilt @ V((0, R, 0))).z, 3),
+                'apex': round((c + tilt @ V((0, 0, H))).z, 3), 'gap': round(gap, 4)})
+    assert gap > 0.004, f'삿갓 안쪽이 머리에 닿는다 ({gap:.4f}m)'
     return loft('wanderer_hat', rings, R_HAT, vs, cap0=True, cap1=True)
 
 
@@ -889,10 +913,15 @@ def paint(atlas_n, pal):
     Z = HC.z + HR.z * np.sin(ph)
     front = -np.cos(th)
     col = skin[None, None, :] * (0.97 + 0.04 * Vv)[..., None]
-    # 깎은 머리: 이마선 위로 푸르스름한 회색이 부드럽게
-    hair_line = 1.0 + 0.17 * (front * 0.5 + 0.5)
-    scalp = smooth_np((Z - hair_line) / 0.09) * 0.38
-    col = col * (1 - scalp[..., None]) + to_lin(hexrgb('#8f939d'))[None, None, :] * scalp[..., None]
+    # 깎은 머리: 이마선 위로 푸르스름한 잿빛 (2026-11-07: 계란처럼 보이지 않게 짙게) — 이마선은 또렷하게, 그 안에 모근 점이 자글자글
+    hair_line = 1.0 + 0.165 * (front * 0.5 + 0.5)
+    scalp = smooth_np((Z - hair_line) / 0.03)
+    h_, w_ = U.shape
+    prng = np.random.default_rng(213)  # 따로 — 다른 질감의 잡음은 그대로
+    pores = (prng.random((h_, w_)) < 0.32) * (0.55 + 0.45 * prng.random((h_, w_)))  # 모근 (한 텍셀 ≈ 3.7mm)
+    mottle = vnoise(h_, w_, 48, 96, seed=212) - 0.5  # 고르지 않게 짙고 옅은 자리
+    stubble = scalp * np.clip(0.7 + 0.12 * mottle + 0.2 * pores, 0, 0.95)
+    col = col * (1 - stubble[..., None]) + to_lin(hexrgb('#65686d'))[None, None, :] * stubble[..., None]
 
     def stroke(d, width, alpha):
         return (np.clip(1 - d / width, 0, 1) ** 0.7 * alpha * (front > 0.3))[..., None]
@@ -909,7 +938,7 @@ def paint(atlas_n, pal):
     col = col * (1 - a) + to_lin(hexrgb('#a95c4e')) * a
     nose = np.exp(-((X / 0.009) ** 2 + ((Z - 0.955) / 0.007) ** 2)) * (front > 0.5)
     col *= (1 - 0.12 * nose)[..., None]
-    at.put(R_HEAD, col, np.zeros(U.shape), 0.6, HR.x * TAU, HR.z * np.pi)
+    at.put(R_HEAD, col, 0.00012 * pores * scalp, 0.6, HR.x * TAU, HR.z * np.pi)
     at.rough[at.region(R_HEAD)] = np.where(scalp > 0.3, 0.7, 0.6)
 
     # 뜬 눈: 짙은 밤색 눈동자, 아래로 갈수록 밝은 갈색, 큰 반짝임 + 작은 반짝임
@@ -1162,7 +1191,13 @@ def solve_keys(arm, clip):
 
 
 def bake_clips(arm, body):
-    meta = {'fps': AC.FPS, 'clips': {}, 'eye': list(EYE), 'height': J['crown'].z}
+    # label: 이름표를 머리(삿갓) 바로 위에 — 머리 뼈를 따르는 겉모양을 수평 타원 고리 몇 개로 [가운데 x,y,z, 좌우 반지름, 앞뒤 반지름]
+    # (블렌더 좌표, 쉬는 자세). 런타임은 고리들의 볼록 껍질에서 화면 위쪽 끝을 찾는다 (avatarRig.labelAnchor)
+    ry = (HR.y * 0.985 + HR.y * 1.03) / 2  # 얼굴 쪽 0.985, 뒤통수 1.03 (head_point)
+    head = [[0.0, HC.y + HR.y * (1.03 - 0.985) / 2, HC.z + HR.z * math.sin(math.radians(a)), HR.x * math.cos(math.radians(a)), ry * math.cos(math.radians(a))]
+            for a in (-60, -35, 0, 20, 40, 55, 70, 80, 90)]  # 아래쪽 고리: 큰절·반배로 머리가 숙어도
+    label = {'head': [[round(x, 4) for x in r] for r in head], 'hat': [[round(x, 4) for x in r] for r in HAT_RINGS]}
+    meta = {'fps': AC.FPS, 'clips': {}, 'eye': list(EYE), 'height': J['crown'].z, 'label': label}
     arm.animation_data_create()
     measured = {}
     for clip in AC.CLIPS:
@@ -1212,7 +1247,23 @@ def measure(arm, body, act, clip):
             out['foreheadMin'] = fo.z
             contact = f / AC.FPS
     out['foreheadMinAt'] = contact
-    if clip['name'] in ('prostrate', 'stand_up', 'sit_down', 'walk') or '--legs' in A:
+    sp = clip.get('meta', {}).get('speed')
+    if sp:  # 발 미끄러짐: 디딤 동안(동작표의 beta — 왼발 0~beta, 오른발 0.5~0.5+beta) 발목이 몸에 대해 뒤로 가는 빠르기와 게임 이동 빠르기의 차 (m/s, 최댓값).
+        # IK 가 목표에 못 닿으면(다리가 짧으면) 여기서 드러난다. glTF 는 프레임마다 뽑아 선형으로 잇으므로 프레임 단위로 잰다
+        n, beta = clip['frames'], clip['meta']['beta']
+        slip = 0.0
+        for s_, off in (('L', 0.0), ('R', 0.5)):
+            fb = pbs[f'foot.{s_}']
+            ps = []
+            for f in range(n + 1):
+                SC.frame_set(f)
+                ps.append(arm.matrix_world @ fb.head)
+            for f in range(1, n):
+                q = (f / n - off) % 1.0
+                if q - 1 / n >= -1e-6 and q + 1 / n <= beta + 1e-6:  # 앞뒤 프레임까지 디딤 안
+                    slip = max(slip, abs((ps[f + 1].y - ps[f - 1].y) * AC.FPS / 2 - sp))
+        out['slip'] = round(slip, 3)
+    if clip['name'] in ('prostrate', 'stand_up', 'sit_down', 'walk', 'walk_fast') or '--legs' in A:
         out['legs'] = leg_report(arm, clip)
     for k in ('eyeMin', 'eyeMax', 'foreheadMin'):
         out[k] = round(out[k], 4)
@@ -1352,8 +1403,9 @@ if __name__ == '__main__':  # avatar_spirit.py 가 도구 함수만 가져다 �
         shots = [('rest_front', None, 0, 0, 8, 3.0), ('rest_34', None, 0, 35, 12, 3.0), ('rest_back', None, 0, 180, 10, 3.0)]
         TIMES = {'prostrate': [round(x * 0.2, 1) for x in range(39)], 'bow_half': [0.5, 1.2, 1.5, 2.0],
                  'stand_up': [0, 0.3, 0.45, 0.65, 0.85, 1.0, 1.2, 1.5], 'sit_down': [0, 0.3, 0.5, 0.65, 0.85, 1.05, 1.3, 1.5],
-                 'walk': [0, 0.17, 0.33, 0.5], 'walk_chasu': [0, 0.17, 0.33, 0.5], 'walk_gassho': [0.1, 0.4], 'sit': [0, 2.5],
-                 'idle': [0], 'idle_chasu': [0]}
+                 'walk': [0, 0.13, 0.27, 0.4], 'walk_chasu': [0, 0.17, 0.33, 0.5], 'walk_fast': [0, 0.067, 0.133, 0.2, 0.267, 0.333], 'walk_gassho': [0.1, 0.4], 'sit': [0, 2.5],
+                 'idle': [0], 'idle_chasu': [0], 'gassho': [0], 'incense': [0.6, 1.4, 2.0], 'offer_stone': [0.8, 1.4], 'write_tile': [0.6, 1.6, 2.4],
+                 'hang_lantern': [0.6, 1.2, 1.8], 'tea': [1.5, 3.0, 4.5], 'look_up': [0, 2.0], 'serve_tea': [0.8, 1.6], 'meditate': [0, 2.5], 'sutra': [0, 2.0]}
         for c in ([] if ONLY_MODEL else AC.CLIPS):
             for i, tt in enumerate(TIMES.get(c['name'], [0])):
                 if c['name'] == 'prostrate':  # 다리 꼬임 검사: 옆·뒤·앞비스듬히

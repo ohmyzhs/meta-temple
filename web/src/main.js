@@ -33,6 +33,7 @@ import { DOCK_RITUALS } from './data/templeData.js';
 import { icon, ZONE_ICONS } from './ui/icons.js';
 import { toggleSheet, openSheet, closeTop, closeAll } from './ui/sheets.js';
 import { installBackGuard } from './ui/backGuard.js';
+import { createFastWalk } from './ui/fastWalk.js';
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
@@ -405,8 +406,8 @@ class MetaTempleApp {
     this._applyItems();
     setTimeout(() => {
       this.toast(matchMedia('(pointer: coarse)').matches
-        ? '산문에 들어섰습니다 · 조이스틱이나 바닥을 눌러 걸어 보세요'
-        : '산문에 들어섰습니다 · WASD 또는 바닥을 눌러 걸어 보세요');
+        ? '산문에 들어섰습니다 · 조이스틱이나 바닥을 눌러 걸어 보세요 · 조이스틱 가운데를 톡 누르면 달리기'
+        : '산문에 들어섰습니다 · WASD 또는 바닥을 눌러 걸어 보세요 · Shift 를 누르면 빠르게');
       if (isNewDay && streak > 1) setTimeout(() => this.toast(`🍃 ${streak}일째 이어진 발걸음입니다`), 2600);
       if (this.store.renamedFrom) {
         // 법명이 10자로 줄어든 뒤 처음 들어온 옛 방문자 (state.js shortenName)
@@ -2417,16 +2418,24 @@ class MetaTempleApp {
       const reach = r.width * 0.3; // 조이스틱 크기(116/96px)에 비례
       knob.style.transform = `translate(${x * reach}px, ${y * reach}px)`;
     };
-    let jdown = null; // { t, far(앞으로 끝까지 민 시작 시각), moved }
+    this.fastWalk = createFastWalk(knob); // 가운데 그랩 = 걷기·달리기 단추 (데스크톱은 Shift — _frame)
+    let jdown = null; // { t, far(앞으로 끝까지 민 시작 시각), moved, x, y, knob(그랩을 눌렀나), live(조이스틱으로 움직이는 중) }
     joy.addEventListener('pointerdown', (e) => {
       jid = e.pointerId;
       joy.setPointerCapture(jid);
-      jdown = { t: performance.now(), far: null, moved: 0 };
-      setJoy(e);
+      const onKnob = this.fastWalk.hit(e.clientX, e.clientY);
+      jdown = { t: performance.now(), far: null, moved: 0, x: e.clientX, y: e.clientY, knob: onKnob, live: !onKnob };
+      if (onKnob) this.fastWalk.press(true); // 그랩: 끌기 전까지는 걷지 않는다 (톡 누르면 달리기 ↔ 걷기)
+      else setJoy(e);
       this.sound.init();
     });
     joy.addEventListener('pointermove', (e) => {
       if (e.pointerId !== jid) return;
+      if (!jdown.live) {
+        if (Math.hypot(e.clientX - jdown.x, e.clientY - jdown.y) < 10) return;
+        jdown.live = true;
+        this.fastWalk.press(false);
+      }
       setJoy(e);
       jdown.moved = Math.max(jdown.moved, Math.hypot(this.joy.x, this.joy.z));
       if (this.autoWalk) {
@@ -2441,7 +2450,10 @@ class MetaTempleApp {
     });
     const jend = () => {
       const tap = jdown && performance.now() - jdown.t < 220 && jdown.moved < 0.3;
-      if (this.autoWalk && tap) this._setAutoWalk(false); // 톡 누르면 멈춤
+      if (jdown?.knob && !jdown.live) {
+        if (performance.now() - jdown.t < 450) this.fastWalk.toggle(); // 그랩을 톡: 달리기 ↔ 걷기 (자동 걷기 중이면 자동 달리기)
+        else this.fastWalk.press(false);
+      } else if (this.autoWalk && tap) this._setAutoWalk(false); // 테두리를 톡 누르면 멈춤
       jid = null;
       jdown = null;
       this.joy = { x: 0, z: 0 };
@@ -2468,7 +2480,7 @@ class MetaTempleApp {
       navigator.vibrate?.(15);
       if (!this._autoTold) {
         this._autoTold = true;
-        this.toast('자동 걷기 · 조이스틱을 좌우로 밀면 방향, 아래로 당기거나 톡 누르면 멈춥니다');
+        this.toast('자동 걷기 · 조이스틱을 좌우로 밀면 방향, 아래로 당기거나 테두리를 톡 누르면 멈춥니다');
       }
     }
   }
@@ -2697,7 +2709,8 @@ class MetaTempleApp {
     const wz = -ix * Math.sin(yaw) + iz * Math.cos(yaw);
     if ((ix || iz) && this.modals.isOpen && ['practice_108', 'mala'].includes(this.modals.current)) this.modals.close();
     const night = this.world.env.night;
-    this.avatars.update(dt, t, { x: wx, z: wz, face }, night); // 뛰지 않는다 (Shift 달리기 없앰 — WALK_SPEED 1.3m/s)
+    const fast = !!(this.keys.ShiftLeft || this.keys.ShiftRight || this.fastWalk?.on); // 달리기 (FAST_SPEED — 걷기의 2.5배): Shift 또는 조이스틱 가운데 톡
+    this.avatars.update(dt, t, { x: wx, z: wz, face, fast }, night);
     this.temple.cairns.update(dt, pl.root.position.x, pl.root.position.z);
     this._strollTick(dt);
     if (fp) cam.yaw = pl.root.rotation.y - Math.PI + this._fp.off;
