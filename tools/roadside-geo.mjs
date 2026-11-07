@@ -36,19 +36,22 @@ export function buildGeo() {
   const discs = [];
   const disc = (x, z, r) => discs.push(r2(x), r2(z), r);
   // 숲길 석등 쌍·일주문·소원 돌탑 (temple.js _forest 와 같은 자리), 마당 계단 앞, 숲길 홍예 석교
-  for (const z of [33, 20.5, 9.6]) for (const sx of [-1, 1]) disc(forestPathX(z) + sx * 2.5, z, 0.9);
-  disc(forestPathX(27), 27, 3.4); // 일주문 기둥 ±2.0m(충돌 0.55) 앞뒤를 비운다
+  // 석등: 받침 바위(지름 약 1.6m)와 밑돌(반지름 0.35m)이 겹치지 않게 — 실서버 옛 탑으로 확인 (tools/qa/cairn-roadside.mjs)
+  for (const z of [33, 20.5, 9.6]) for (const sx of [-1, 1]) disc(forestPathX(z) + sx * 2.5, z, 1.3);
+  disc(forestPathX(27), 27, 4); // 일주문 기둥 ±2.0m 와 받침 바위 앞뒤를 비운다
   disc(forestPathX(31) + 3.3, 31, 1.6);
   disc(0, 5.8, 3);
   disc(forestPathX(15), streamZ(forestPathX(15)), 4.6);
   // 산책로: 건너는 곳, 쉼터(정자는 지붕 아래·들어가는 앞까지), 석등, 길 등, 이정표
   for (const c of CROSSINGS) disc(c.x, (c.z0 + c.z1) / 2, r2((c.z1 - c.z0) / 2 + 1));
   for (const s of REST_SPOTS) disc(s.x, s.z, s.kind === 'pavilion' ? r2(PAVILION.half * Math.SQRT2 + 1.2) : 2.2);
-  for (const l of LANTERNS) disc(l.x, l.z, 0.9);
-  for (const l of PATH_LAMPS) disc(l.x, l.z, 0.6);
+  for (const l of LANTERNS) disc(l.x, l.z, 1.3);
+  for (const l of PATH_LAMPS) disc(l.x, l.z, 0.9);
   for (const g of SIGNS) disc(g.x, g.z, 0.7);
 
-  return { paths: [...PATHS.map((P) => thin(P.pts)), thin(forest)], stream: stream.flatMap((p) => [r2(p.x), r2(p.z)]), discs };
+  // 비워 둘 사각형 [x0,x1,z0,z1]: 앞마당과 앞 석축(layout.js L.courtyard x ±18.6, z −15.4..4.6 — 석축 앞면 z 5.15) 앞 1m
+  const rects = [-19.6, 19.6, -16.4, 6.2];
+  return { paths: [...PATHS.map((P) => thin(P.pts)), thin(forest)], stream: stream.flatMap((p) => [r2(p.x), r2(p.z)]), discs, rects };
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

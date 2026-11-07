@@ -79,10 +79,12 @@ test('forest_path_keeps_lanterns_and_gate_clear', () => {
   assert.equal(roadsideOk(2.5 + G.paths[3][0], 33, G), false); // 석등 자리 (숲길 z 33 오른쪽 2.5m 근처)
 });
 
-test('far_slope_pulled_to_roadside', () => {
-  // 옛 북쪽 길(z −50) 자리 — 길을 중턱으로 옮긴 뒤 13m 밖 비탈에 남은 탑
-  const r = toRoadside(5.87, -50.05, G);
-  assert.ok(r.moved && nearestPath(G, r.x, r.z).d <= 10);
+test('far_and_court_spots', () => {
+  // 옛 북쪽 길(z −50) 자리 — 길을 중턱으로 옮긴 뒤 13m 밖 비탈에 남은 탑은 옮기지 않는다 (가까운 길가가 가파른 비탈)
+  assert.deepEqual(toRoadside(5.87, -50.05, G), { x: 5.87, z: -50.05, moved: false });
+  // 마당 갈림길 위의 탑은 앞마당 석축 쪽이 아니라 길 건너편으로
+  const r = toRoadside(4.64, 6.59, G);
+  assert.ok(r.moved && r.z > 6.2, JSON.stringify(r));
 });
 
 test('roadside_list_spreads_moved_cairns', () => {

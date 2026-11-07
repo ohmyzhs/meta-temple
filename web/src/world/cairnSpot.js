@@ -8,6 +8,7 @@ import { roadsideOk, roadsideCandidates, findJoinable, areaCount, AREA_CAP, GATE
 import { ROADSIDE_GEO } from '../core/roadsideGeo.js';
 
 const r2 = (v) => Math.round(v * 100) / 100;
+const MAX_WALK = 6; // 이보다 멀리 걸어가야 하면 길가 자리를 내지 않는다 (순환로 한가운데서 평균 2.2m — 평탄 부지 안처럼 길에서 먼 곳에서 끌려가지 않게)
 
 /**
  * (x,z) = 몸 앞 0.9m. list = 알려진 탑(+일주문 돌탑, 길가로 옮겨 그린 자리). standOk(x,z) = 캐릭터가 설 수 있는 칸인가.
@@ -27,7 +28,7 @@ export function pickCairnSpot(x, z, list, standOk) {
       { x: at.x - c.nx * 0.9, z: at.z - c.nz * 0.9 },
       { x: c.px + c.nx * 1.05, z: c.pz + c.nz * 1.05 }
     ].find((q) => standOk(q.x, q.z));
-    if (stand) return { at, cairn: j || null, stand, moved: true };
+    if (stand && Math.hypot(stand.x - x, stand.z - z) <= MAX_WALK) return { at, cairn: j || null, stand, moved: true };
   }
   return null;
 }

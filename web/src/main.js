@@ -742,8 +742,9 @@ class MetaTempleApp {
     const def = this._interactable(id);
     switch (id) {
       case 'stone_pagoda': {
-        // 독의 「돌탑」: 선 자리에 쌓을 수 있으면 여기서, 아니면 일주문 옆 돌탑으로
-        const here = this._cairnHere();
+        // 독의 「돌탑」: 선 자리에 쌓을 수 있으면 여기서(길 위면 가까운 길가로 걸어가서), 아니면 일주문 옆 돌탑으로.
+        // 소원 돌탑을 누르거나 그 알약을 누르면 곧장 일주문 옆 돌탑으로 (payload.here 없음)
+        const here = payload?.here && this._cairnHere();
         if (here) return here.stand ? this._walkToStack(here) : this._stoneHere(here.at);
         return this._goAndDo(def, () => this.modals.open(id));
       }
@@ -2188,7 +2189,7 @@ class MetaTempleApp {
     $$('#place-sheet, #more-sheet').forEach((s) => s.addEventListener('click', (e) => e.target.closest('[data-goto-zone], [data-goto-rest], [data-gesture], [data-ritual]') && closeAll()));
     $('#hud').addEventListener('click', (e) => {
       const r = e.target.closest('[data-ritual]');
-      if (r) this.activate(r.dataset.ritual);
+      if (r) this.activate(r.dataset.ritual, r.dataset.ritual === 'stone_pagoda' ? { here: true } : undefined); // 독의 「돌탑」만 선 자리에서
     });
 
     $$('[data-time]').forEach((b) =>

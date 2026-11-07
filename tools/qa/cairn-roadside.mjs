@@ -220,6 +220,33 @@ try {
     await shot(`2-${name}-c-built`);
   }
 
+  // 3b) 독의 「돌탑」 단추는 선 자리(길 위면 길가로 걸어가서), 소원 돌탑 알약·누르기는 곧장 일주문 옆 돌탑으로
+  report.entry = await page.evaluate(async () => {
+    const { trail } = await import('./src/world/trail.js');
+    const t = window.temple, pl = t.player, out = {};
+    const stand = (x, z, h) => {
+      t.modals.close?.();
+      t.avatars.moveTarget = null;
+      for (let i = 0; i < 300 && pl.busy; i++) window.__frames(1);
+      t.avatars.teleport(x, z, h);
+      pl.heading = h;
+      t._stoneSpot = null;
+      window.__frames(5);
+    };
+    const c = trail.nearest(46.9, 6.8), a = trail.at(c.s - 1), b = trail.at(c.s + 1);
+    stand(c.x, c.z, Math.atan2(b.x - a.x, b.z - a.z));
+    document.querySelector('#hud [data-ritual="stone_pagoda"]').click();
+    for (let i = 0; i < 30 * 15 && !t.modals.isOpen; i++) window.__frames(1);
+    const p = pl.root.position;
+    out.dock = { open: t.modals.isOpen, spot: t._stoneSpot, walked: +Math.hypot(p.x - c.x, p.z - c.z).toFixed(2) };
+    const g = t.temple.cairnPos;
+    stand(g.x - 2.6, g.z, Math.PI / 2);
+    t.activate('stone_pagoda'); // 알약 「소원 돌탑에 돌 얹기」와 같은 길
+    for (let i = 0; i < 30 * 15 && !t.modals.isOpen; i++) window.__frames(1);
+    out.gatePill = { open: t.modals.isOpen, spot: t._stoneSpot, scope: t._stoneScope().id };
+    return out;
+  });
+
   // 4) 덮는 범위
   report.coverage = await page.evaluate(async () => {
     const { trail, forestPathX } = await import('./src/world/trail.js');

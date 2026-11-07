@@ -7,7 +7,7 @@
  */
 import * as THREE from 'three';
 import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
-import { terrainHeight } from './layout.js';
+import { terrainHeight, canBuildCairn } from './layout.js';
 import { pickVisible, roadsideList } from '../core/cairns.js';
 import { ROADSIDE_GEO } from '../core/roadsideGeo.js';
 import { mats } from './materials.js';
@@ -83,13 +83,14 @@ export class CairnField {
 
   /**
    * 알려진 탑 전체 [{id,x,z,n}] (state.cairnList()). 길가 규칙 전에 길 위에 세운 옛 탑은 가까운 길가로 옮겨 그린다
-   * (core/cairns.js roadsideList — DB 는 그대로, 서버와 같은 규칙이라 어느 기기에서나 같은 자리). 목록 자리가 그대로면 다시 재지 않는다.
+   * (core/cairns.js roadsideList — DB 는 그대로, 서버와 같은 규칙). 바위·나무에 박히지 않게 이 기기의 canBuildCairn 도 본다 —
+   * 나무 수가 화질마다 달라, 규칙만으로 고른 자리가 나무에 걸리는 드문 탑은 기기마다 몇십 cm 다를 수 있다. 목록 자리가 그대로면 다시 재지 않는다.
    */
   setCairns(list) {
     const sig = list.map((c) => `${c.id}:${c.x}:${c.z}`).join('|');
     if (sig !== this._sig) {
       this._sig = sig;
-      this._spot = new Map(roadsideList(list, ROADSIDE_GEO).map((c) => [c.id, { x: c.x, z: c.z }]));
+      this._spot = new Map(roadsideList(list, ROADSIDE_GEO, canBuildCairn).map((c) => [c.id, { x: c.x, z: c.z }]));
     }
     this.all = list.map((c) => ({ ...c, ...this._spot.get(c.id) }));
     this._refresh(this.at.x, this.at.z);

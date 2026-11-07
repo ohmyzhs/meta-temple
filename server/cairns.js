@@ -73,13 +73,14 @@ export function parsePlace(body) {
 /* ───── 길가 (사용자 2026-11-08 「길바닥 아무 데나 쌓지 말고 근처 길가로」) ─────
  * 돌탑은 걷는 길 위가 아니라 길가에. 화면과 서버가 같은 자료(roadsideGeo.js, trail.js 에서 만든다)로 같은 답을 낸다 —
  * 나무·바위 충돌체처럼 화질에 따라 달라지는 것은 보지 않으므로 어느 기기에서나 같은 자리에 그려진다.
- * geo: { paths: [[x0,z0,x1,z1,…]…] 걷는 길 중심선, stream: [x,z,…] 계곡 중심선, discs: [x,z,r,…] 비워 둘 자리(석등·일주문·쉼터…) }
+ * geo: { paths: [[x0,z0,x1,z1,…]…] 걷는 길 중심선, stream: [x,z,…] 계곡 중심선, discs: [x,z,r,…] 비워 둘 자리(석등·일주문·쉼터…),
+ *        rects: [x0,x1,z0,z1,…] 비워 둘 사각형(앞마당·석축) }
+ * 길에서 먼 탑(옛 길 자리에 남은 탑)은 옮기지 않는다 — 이 규칙은 비탈을 몰라, 가까운 길가가 가파른 산비탈(밑돌 0.7m 에 0.9m 높낮이)이면 더 나빠진다.
  * 거리는 실측 (tools/qa/cairn-roadside.mjs, 중심선에서): 다져진 흙길(지면 aTrod 0.5) 끝 순환로 1.39m(95%)·최대 1.53m, 숲길 1.79m,
  * 울타리 기둥 1.90m, 넘어 다닐 수 없는 울타리 띠 끝 2.45m (trail.js fenceBarrier). 그 밖에 밑돌(반지름 약 0.35m)을 놓는다.
  */
 export const ROADSIDE = 2.8; // 길가 돌탑을 놓는 거리 (중심선에서)
 export const ROADSIDE_MIN = 2.5; // 이보다 가까우면 길 위 (서버가 받을 때 다시 잰다 — 자료를 1m 로 솎아 몇 cm 어긋나도 그대로 두게 0.3m 여유)
-export const ROADSIDE_FAR = 10; // 이보다 멀면 길에서 닿지 않는 비탈 (숲 바닥 FLOOR_REACH)
 export const ROADSIDE_REACH = 8; // 길을 따라 앞뒤로 이만큼까지 찾는다
 export const STREAM_CLEAR = 3.4; // 계곡 중심선에서 (STREAM_HALF 3.2 + 0.2)
 
@@ -116,13 +117,15 @@ export function nearestPath(geo, x, z) {
   return best;
 }
 
-/** 길가 돌탑을 둘 수 있는 자리인가 (길 위·먼 비탈·계곡·비워 둘 자리가 아니면) */
+/** 길가 돌탑을 둘 수 있는 자리인가 (길 위·계곡·비워 둘 자리가 아니면) */
 export function roadsideOk(x, z, geo) {
   const n = nearestPath(geo, x, z);
-  if (!n || n.d < ROADSIDE_MIN || n.d > ROADSIDE_FAR) return false;
+  if (n && n.d < ROADSIDE_MIN) return false;
   if (geo.stream && nearOn(geo.stream, x, z).d < STREAM_CLEAR) return false;
   const c = geo.discs || [];
   for (let i = 0; i < c.length; i += 3) if (Math.hypot(x - c[i], z - c[i + 1]) < c[i + 2]) return false;
+  const q = geo.rects || [];
+  for (let i = 0; i < q.length; i += 4) if (x >= q[i] && x <= q[i + 1] && z >= q[i + 2] && z <= q[i + 3]) return false;
   return true;
 }
 
@@ -161,7 +164,7 @@ export function roadsideCandidates(x, z, geo, reach = ROADSIDE_REACH) {
 
 const r2 = (v) => Math.round(v * 100) / 100;
 
-/** 길 위(또는 닿지 않는 비탈)의 돌탑 자리 → 가장 가까운 길가 { x, z, moved }. 이미 길가면 그대로, 둘레에 길가가 없어도 그대로 */
+/** 길 위의 돌탑 자리 → 가장 가까운 길가 { x, z, moved }. 이미 길가면 그대로, 둘레에 길가가 없어도 그대로 */
 export function toRoadside(x, z, geo) {
   if (roadsideOk(x, z, geo)) return { x, z, moved: false };
   for (const c of roadsideCandidates(x, z, geo)) {
@@ -172,10 +175,11 @@ export function toRoadside(x, z, geo) {
 }
 
 /**
- * 탑 목록 [{id,x,z,n}] 을 길가로: 이미 길가인 탑은 그대로, 길 위·닿지 않는 탑(길가 규칙 전의 옛 탑)만 가까운 길가로 옮긴다.
+ * 탑 목록 [{id,x,z,n}] 을 길가로: 이미 길가인 탑은 그대로, 길 위의 탑(길가 규칙 전의 옛 탑)만 가까운 길가로 옮긴다.
  * 옮긴 탑끼리·남은 탑과 JOIN_RADIUS 안으로 겹치지 않게 (id 순서로 자리를 잡아 어느 기기에서나 같다). DB 는 그대로 두고 그릴 때만.
+ * fits(x,z): 화면이 더 보는 조건 (바위·나무 충돌체·비탈 — world/layout.js canBuildCairn). 맞는 후보가 없으면 규칙만으로 고른 자리.
  */
-export function roadsideList(list, geo) {
+export function roadsideList(list, geo, fits = () => true) {
   const placed = [], moving = [];
   for (const c of list) (roadsideOk(c.x, c.z, geo) ? placed : moving).push(c);
   const free = (x, z) => placed.every((o) => (o.x - x) ** 2 + (o.z - z) ** 2 >= JOIN_RADIUS * JOIN_RADIUS);
@@ -184,7 +188,7 @@ export function roadsideList(list, geo) {
     let q = null;
     for (const k of roadsideCandidates(c.x, c.z, geo)) {
       const p = { x: r2(k.x), z: r2(k.z) };
-      if (roadsideOk(p.x, p.z, geo) && free(p.x, p.z)) {
+      if (roadsideOk(p.x, p.z, geo) && free(p.x, p.z) && fits(p.x, p.z)) {
         q = p;
         break;
       }
