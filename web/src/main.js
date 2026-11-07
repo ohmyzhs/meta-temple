@@ -19,7 +19,8 @@ import { createMiniMap } from './ui/miniMap.js';
 import { scrollFade } from './ui/scrollFade.js';
 import { trail, loop, J1, REST_SIT_MSG, REST_GROUND_MSG, REST_SPOTS } from './world/trail.js';
 import { restSlots, restGroundSlot } from './world/trailProps.js';
-import { placeStone, findJoinable, areaCount, AREA_CAP, AREA_RADIUS, GATE_ID } from './core/cairns.js';
+import { placeStone, findJoinable, AREA_RADIUS, GATE_ID } from './core/cairns.js';
+import { pickCairnSpot } from './world/cairnSpot.js';
 import { ModalManager } from './ui/modalManager.js';
 import { LiveLink, sharedApi } from './core/live.js';
 import { YEBUL_TRACKS } from './data/credits.js';
@@ -743,7 +744,7 @@ class MetaTempleApp {
       case 'stone_pagoda': {
         // 독의 「돌탑」: 선 자리에 쌓을 수 있으면 여기서, 아니면 일주문 옆 돌탑으로
         const here = this._cairnHere();
-        if (here) return this._stoneHere(here.at);
+        if (here) return here.stand ? this._walkToStack(here) : this._stoneHere(here.at);
         return this._goAndDo(def, () => this.modals.open(id));
       }
       case 'wish_tile':
@@ -1519,17 +1520,35 @@ class MetaTempleApp {
     return { cairnId: r.id, x: r.x, z: r.z };
   }
 
-  /** 지금 선 자리(몸 앞 0.9m 또는 발밑)에 돌탑을 쌓거나 얹을 수 있으면 { at } (일주문 옆 돌탑 1.5m 안은 아님) */
+  /**
+   * 지금 선 자리(몸 앞 0.9m)의 돌탑 자리 → { at, cairn, stand, moved } (world/cairnSpot.js) 또는 null (일주문 옆 돌탑 1.5m 안도 null).
+   * 길 위면 가까운 길가 자리와 설 곳. 같은 자리·방향·탑 목록이면 다시 찾지 않는다 (멈춰 서 있는 동안 매 프레임 부른다)
+   */
   _cairnHere() {
-    const pl = this.player, p = pl.root.position;
+    const pl = this.player, p = pl.root.position, all = this.temple.cairns.all;
+    const key = `${p.x.toFixed(2)},${p.z.toFixed(2)},${pl.heading.toFixed(2)},${all.length}`;
+    if (this._spotKey === key && this._spotAll === all) return this._spot;
+    this._spotKey = key;
+    this._spotAll = all;
     const fx = p.x + Math.sin(pl.heading) * 0.9, fz = p.z + Math.cos(pl.heading) * 0.9;
-    const at = canBuildCairn(fx, fz) ? { x: fx, z: fz } : canBuildCairn(p.x, p.z) ? { x: p.x, z: p.z } : null;
-    if (!at) return null;
-    const list = this._cairnsWithGate();
-    const c = findJoinable(list, at.x, at.z);
-    if (c?.id === GATE_ID) return null;
-    if (c) return { at: { x: c.x, z: c.z } };
-    return areaCount(list, at.x, at.z) >= AREA_CAP ? null : { at };
+    return (this._spot = pickCairnSpot(fx, fz, this._cairnsWithGate(), (x, z) => this._standable(x, z)));
+  }
+
+  /** 길 위에서 쌓으려 하면 가까운 길가 자리 앞까지 걸어가 거기서 돌 올리기 창을 연다 (다른 움직임이 끼어들면 그만) */
+  _walkToStack(spot) {
+    this.sound.init();
+    if (this._stroll) this._stopStroll('구역');
+    const p = this.player.root.position, st = spot.stand, at = spot.at;
+    const arrive = () => {
+      const q = this.player.root.position;
+      if (Math.hypot(q.x - st.x, q.z - st.z) > 1.2) return; // 길에 걸려 닿지 못했다 — 알약이 다시 뜬다
+      this.player.heading = Math.atan2(at.x - q.x, at.z - q.z);
+      this.player.root.rotation.y = this.player.heading;
+      this._stoneHere(at);
+    };
+    if (Math.hypot(p.x - st.x, p.z - st.z) < 0.25) return arrive();
+    const path = this._pf().find(p.x, p.z, st.x, st.z);
+    this.avatars.moveTo(st.x, st.z, arrive, path?.slice(1, -1));
   }
 
   /* ───────── 자동 산책: 순환 산책로(+ 산문 앞 숲길)를 한 바퀴씩 천천히 ───────── */
@@ -1648,7 +1667,7 @@ class MetaTempleApp {
       const id = s.cairnId || GATE_ID;
       let c = by.get(id);
       if (!c) {
-        const at = id === GATE_ID ? this.temple.cairnPos : { x: s.x, z: s.z };
+        const at = id === GATE_ID ? this.temple.cairnPos : this.temple.cairns.get(id) || { x: s.x, z: s.z }; // 길가로 옮겨 그린 자리
         c = { id, x: at.x, z: at.z, n: id === GATE_ID ? this.store.gateStoneTotal : list.find((k) => k.id === id)?.n || 0, mine: 0, last: '' };
         by.set(id, c);
       }
@@ -1675,12 +1694,16 @@ class MetaTempleApp {
   /** 걸어서 찾아갈 길 (0.5m 칸, 몸 반지름보다 넉넉히 비켜서) — 처음 부를 때 만든다.
    * 칸 가운데와 네 귀(±0.22m)가 모두 걸을 수 있어야 지나간다: 곧게 당긴 줄이 울타리 띠·길 가장자리를 스치지 않게 */
   _pf() {
+    // z 는 뒷산 중턱 길(최북 −68.5)까지 — 지형 안쪽 격자(terrain.js IN z −78)와 같게
+    return (this._pathfinder ||= createPathfinder((x, z) => this._standable(x, z), { x0: -64, z0: -78, w: 128, h: 142 }));
+  }
+
+  /** 캐릭터가 설 수 있는 0.5m 칸인가 (가운데와 네 귀 모두 걸을 수 있고 충돌체에서 몸 반지름 넘게) */
+  _standable(x, z) {
     const E = 0.22;
-    return (this._pathfinder ||= createPathfinder((x, z) => {
-      if (!isWalkable(x, z) || !isWalkable(x + E, z + E) || !isWalkable(x - E, z + E) || !isWalkable(x + E, z - E) || !isWalkable(x - E, z - E)) return false;
-      const q = resolveCollisions(x, z, 0.38);
-      return Math.hypot(q.x - x, q.z - z) < 1e-3;
-    }));
+    if (!isWalkable(x, z) || !isWalkable(x + E, z + E) || !isWalkable(x - E, z + E) || !isWalkable(x + E, z - E) || !isWalkable(x - E, z - E)) return false;
+    const q = resolveCollisions(x, z, 0.38);
+    return Math.hypot(q.x - x, q.z - z) < 1e-3;
   }
 
   /** 내가 쌓은 탑까지 걸어서 (순간 이동 없이). 다른 움직임이 끼어들면 멈추고, 길에 걸리면 그 자리에서 길을 다시 찾는다 (3번까지) */
@@ -1724,16 +1747,12 @@ class MetaTempleApp {
     const s = this._still;
     if (!s || Math.hypot(p.x - s.x, p.z - s.z) > 0.05 || this.avatars.moveTarget || pl.busy) this._still = { x: p.x, z: p.z, t: now };
     if (now - this._still.t < 600 || pl.sitting) return null;
-    // 몸 앞 0.9m 에 쌓는다 (그 자리가 안 되면 발밑)
-    const fx = p.x + Math.sin(pl.heading) * 0.9, fz = p.z + Math.cos(pl.heading) * 0.9;
-    const at = canBuildCairn(fx, fz) ? { x: fx, z: fz } : canBuildCairn(p.x, p.z) ? { x: p.x, z: p.z } : null;
-    if (!at) return null;
-    const list = this._cairnsWithGate();
-    const c = findJoinable(list, at.x, at.z);
-    if (c?.id === GATE_ID) return null; // 일주문 옆 돌탑은 원래 알약이 맡는다
-    if (c) return { id: `cairn:${c.id}`, label: `돌탑에 돌 얹기 · ${c.n}층`, at: { x: c.x, z: c.z } };
-    if (areaCount(list, at.x, at.z) >= AREA_CAP) return null;
-    return { id: 'cairn:new', label: '여기에 돌탑 쌓기', at };
+    // 몸 앞 0.9m 에 쌓는다 — 길 위면 가까운 길가로 걸어가서 (일주문 옆 돌탑은 원래 알약이 맡는다)
+    const h = this._cairnHere();
+    if (!h) return null;
+    if (h.cairn) return { id: `cairn:${h.cairn.id}`, label: `돌탑에 돌 얹기 · ${h.cairn.n}층`, at: h.at, stand: h.stand };
+    if (h.moved) return { id: 'cairn:roadside', label: '길가에 돌탑 쌓기', at: h.at, stand: h.stand }; // 표시 고리가 길가 자리를 짚는다 (_markCairn)
+    return { id: 'cairn:new', label: '여기에 돌탑 쌓기', at: h.at };
   }
 
   /** 108배·염주: 자리를 옮기지 않고 지금 그 자리에서 (좌복 위든 마루 위든) */
@@ -2605,7 +2624,7 @@ class MetaTempleApp {
     if (!n) return;
     if (n.id === 'cushion') return this._sitCushion(n.cushionIndex);
     if (n.spot) return this._sitRest(n.spot);
-    if (n.at) return this._stoneHere(n.at);
+    if (n.at) return n.stand ? this._walkToStack(n) : this._stoneHere(n.at);
     this.activate(n.id);
   }
 
@@ -2714,7 +2733,7 @@ class MetaTempleApp {
         this._syncMiniMap();
         const n = this.modals.isOpen ? null : this._findNearby();
         this._markCairn(n, t);
-        if (n?.id !== this.nearby?.id || n?.cushionIndex !== this.nearby?.cushionIndex) {
+        if (n?.id !== this.nearby?.id || n?.cushionIndex !== this.nearby?.cushionIndex || n?.at !== this.nearby?.at) { // at: 돌탑 자리가 바뀌면 (몸을 돌려 다른 길가를 짚으면)
           this.nearby = n;
           $('#prompt').classList.toggle('hidden', !n);
           if (n) $('#prompt-text').textContent = n.label;

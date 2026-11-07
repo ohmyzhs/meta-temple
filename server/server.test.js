@@ -4,6 +4,8 @@ import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import WebSocket from 'ws';
+import { roadsideOk, nearestPath, ROADSIDE_MIN } from './cairns.js';
+import { ROADSIDE_GEO } from './roadsideGeo.js';
 
 const PORT = 8199;
 const BASE = `http://127.0.0.1:${PORT}`;
@@ -143,40 +145,71 @@ test('products_disabled_by_default', async () => {
 /* ───── 돌탑 어디서나 (요구 8): stones 의 선택 필드 cairnId, x, z ───── */
 const cid = () => 'c_' + randomUUID();
 const shared = () => fetch(`${BASE}/api/shared`).then((r) => r.json());
+// 길가 규칙(cairns.js toRoadside)을 그대로 통과하는 자리: 순환로 오른쪽 6m, 둘레 3m 고리까지 모두 길가인 곳. 시험끼리 섞이지 않게 30m 씩 떨어뜨린다
+const used = [];
+const r2 = (v) => Math.round(v * 100) / 100;
+function quietSpot() {
+  const p = ROADSIDE_GEO.paths[0];
+  for (let i = 2; i + 3 < p.length; i += 2) {
+    const tx = p[i + 2] - p[i - 2], tz = p[i + 3] - p[i - 1], l = Math.hypot(tx, tz);
+    const c = { x: r2(p[i] - (tz / l) * 6), z: r2(p[i + 1] + (tx / l) * 6) };
+    const ring = [0, 1, 2, 3, 4, 5].map((k) => ({ x: r2(c.x + 3 * Math.cos((k * Math.PI) / 3)), z: r2(c.z + 3 * Math.sin((k * Math.PI) / 3)) }));
+    if (used.some((u) => Math.hypot(u.x - c.x, u.z - c.z) < 30) || ![c, ...ring].every((q) => roadsideOk(q.x, q.z, ROADSIDE_GEO))) continue;
+    used.push(c);
+    return { c, ring };
+  }
+  throw new Error('no quiet roadside spot');
+}
 
 test('stone_cairn_fields', async () => {
-  const c = cid(), id = sid();
-  const r = await post('/api/stones', { id, wish: '계곡 물소리', clientId: 'c-cairn1', cairnId: c, x: -12.34, z: 20.1 }, '10.1.0.1');
+  const c = cid(), id = sid(), q = quietSpot().c;
+  const r = await post('/api/stones', { id, wish: '계곡 물소리', clientId: 'c-cairn1', cairnId: c, x: q.x, z: q.z }, '10.1.0.1');
   assert.equal(r.status, 201);
-  assert.deepEqual(await r.json().then(({ cairnId, x, z }) => ({ cairnId, x, z })), { cairnId: c, x: -12.34, z: 20.1 });
+  assert.deepEqual(await r.json().then(({ cairnId, x, z }) => ({ cairnId, x, z })), { cairnId: c, x: q.x, z: q.z });
   const s = await shared();
-  assert.deepEqual(s.cairns.find((k) => k.id === c), { id: c, x: -12.34, z: 20.1, n: 1 });
+  assert.deepEqual(s.cairns.find((k) => k.id === c), { id: c, x: q.x, z: q.z, n: 1 });
   assert.equal(s.stones.find((k) => k.id === id).cairnId, c);
 });
 
 test('stone_joins_nearby_cairn', async () => {
-  const first = cid();
-  assert.equal((await post('/api/stones', { id: sid(), wish: '하나', clientId: 'c-join1', cairnId: first, x: 30, z: -40 }, '10.1.0.2')).status, 201);
+  const first = cid(), q = quietSpot().c;
+  assert.equal((await post('/api/stones', { id: sid(), wish: '하나', clientId: 'c-join1', cairnId: first, x: q.x, z: q.z }, '10.1.0.2')).status, 201);
   // 다른 사람이 1m 옆에 새 탑을 세우려 해도 → 있던 탑에 한 층 더
-  const r = await post('/api/stones', { id: sid(), wish: '둘', clientId: 'c-join2', cairnId: cid(), x: 30.8, z: -40.6 }, '10.1.0.3');
+  const r = await post('/api/stones', { id: sid(), wish: '둘', clientId: 'c-join2', cairnId: cid(), x: r2(q.x + 0.8), z: r2(q.z - 0.6) }, '10.1.0.3');
   assert.equal(r.status, 201);
   const b = await r.json();
-  assert.deepEqual([b.cairnId, b.x, b.z], [first, 30, -40]);
+  assert.deepEqual([b.cairnId, b.x, b.z], [first, q.x, q.z]);
   // 아는 탑 id 로 엉뚱한 자리를 보내도 탑 자리는 그대로
   const r3 = await post('/api/stones', { id: sid(), wish: '셋', clientId: 'c-join3', cairnId: first, x: 99, z: 99 }, '10.1.0.4');
-  assert.deepEqual(await r3.json().then((j) => [j.x, j.z]), [30, -40]);
+  assert.deepEqual(await r3.json().then((j) => [j.x, j.z]), [q.x, q.z]);
   assert.equal((await shared()).cairns.find((k) => k.id === first).n, 3);
 });
 
 test('stone_area_cap', async () => {
+  const { c, ring } = quietSpot();
   for (let i = 0; i < 6; i++) {
-    const a = (i / 6) * Math.PI * 2;
-    const r = await post('/api/stones', { id: sid(), wish: `탑 ${i}`, clientId: `c-area${i}`, cairnId: cid(), x: 60 + 3 * Math.cos(a), z: 60 + 3 * Math.sin(a) }, `10.1.1.${i}`);
+    const r = await post('/api/stones', { id: sid(), wish: `탑 ${i}`, clientId: `c-area${i}`, cairnId: cid(), x: ring[i].x, z: ring[i].z }, `10.1.1.${i}`);
     assert.equal(r.status, 201);
   }
-  const r = await post('/api/stones', { id: sid(), wish: '일곱째', clientId: 'c-area7', cairnId: cid(), x: 60, z: 60 }, '10.1.1.9');
+  const r = await post('/api/stones', { id: sid(), wish: '일곱째', clientId: 'c-area7', cairnId: cid(), x: c.x, z: c.z }, '10.1.1.9');
   assert.equal(r.status, 422);
   assert.equal((await r.json()).reason, 'cairn_area_full');
+});
+
+// 사용자 2026-11-08 「길바닥 아무 데나 쌓지 말고 근처 길가로」: 옛 화면이 길 한가운데 세우려던 새 탑은 서버가 길가로 옮겨 받는다
+test('stone_on_path_moved_to_roadside', async () => {
+  const p = ROADSIDE_GEO.paths[0], i = 2 * 150; // 순환로 한가운데
+  const c = cid();
+  const r = await post('/api/stones', { id: sid(), wish: '길 위', clientId: 'c-onpath', cairnId: c, x: p[i], z: p[i + 1] }, '10.1.5.1');
+  assert.equal(r.status, 201);
+  const j = await r.json();
+  assert.equal(j.cairnId, c);
+  assert.ok(roadsideOk(j.x, j.z, ROADSIDE_GEO), JSON.stringify(j));
+  assert.ok(nearestPath(ROADSIDE_GEO, j.x, j.z).d >= ROADSIDE_MIN);
+  assert.ok(Math.hypot(j.x - p[i], j.z - p[i + 1]) < 5); // 가까운 길가
+  // 같은 자리에 또 세우려 하면 → 방금 옮긴 그 탑에 한 층 더
+  const r2_ = await post('/api/stones', { id: sid(), wish: '길 위 둘', clientId: 'c-onpath2', cairnId: cid(), x: p[i], z: p[i + 1] }, '10.1.5.2');
+  assert.deepEqual(await r2_.json().then((k) => [k.cairnId, k.x, k.z]), [c, j.x, j.z]);
 });
 
 test('stone_bad_cairn_400', async () => {
@@ -188,9 +221,9 @@ test('stone_bad_cairn_400', async () => {
 
 test('cairn_stones_only_that_cairn', async () => {
   const a = cid(), b = cid();
-  const ia = sid(), ib = sid();
-  assert.equal((await post('/api/stones', { id: ia, wish: '이 탑의 글', clientId: 'c-only1', cairnId: a, x: -50, z: 50 }, '10.1.4.1')).status, 201);
-  assert.equal((await post('/api/stones', { id: ib, wish: '저 탑의 글', clientId: 'c-only2', cairnId: b, x: 50, z: -50 }, '10.1.4.2')).status, 201);
+  const ia = sid(), ib = sid(), qa = quietSpot().c, qb = quietSpot().c;
+  assert.equal((await post('/api/stones', { id: ia, wish: '이 탑의 글', clientId: 'c-only1', cairnId: a, x: qa.x, z: qa.z }, '10.1.4.1')).status, 201);
+  assert.equal((await post('/api/stones', { id: ib, wish: '저 탑의 글', clientId: 'c-only2', cairnId: b, x: qb.x, z: qb.z }, '10.1.4.2')).status, 201);
   const ra = await (await fetch(`${BASE}/api/stones?cairn=${a}`)).json();
   assert.deepEqual([ra.n, ra.stones.map((s) => s.id)], [1, [ia]]);
   const gate = await (await fetch(`${BASE}/api/stones?cairn=gate`)).json();

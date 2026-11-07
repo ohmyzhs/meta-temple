@@ -35,7 +35,7 @@ import { buildTrailProps } from './trailProps.js';
 import { buildPondGarden } from './pondGarden.js';
 import { buildWestCourt, buildWestGate } from './westCourt.js';
 import { buildHallAdorn, buildHallLanterns } from './hallAdorn.js';
-import { CairnField } from './cairnField.js';
+import { CairnField, stoneGeometry } from './cairnField.js';
 import { taenghwaTexture, ceilingTexture, sumidanTexture, canopyTexture, valanceTexture, tileWishTexture, softDotTexture, latticeTextures, graniteTextures, coalBedTextures } from './textures.js';
 
 function rand(seed) {
@@ -72,7 +72,7 @@ export class Temple {
     this._teahouse();
     this.lanterns = new LanternSystem(scene);
     buildHallLanterns(scene, this.lanterns.mesh, quality); // 법당 안 대중 위 연등 (마당 연등과 같은 지오메트리·재질)
-    this.cairn = new Cairn(scene, this.cairnPos);
+    this.cairn = new Cairn(scene, this.cairnPos, this.m.stoneDark);
     // 순환 산책로: 쉼터·작은 다리·갈림목 석등, 그리고 길가 돌탑
     this.trail = buildTrailProps(scene);
     this.trail.lanterns.forEach(({ x, z, y, r, i }) => this.glowDecals.push({ x, z, y, r, i }));
@@ -1176,7 +1176,8 @@ class LanternSystem {
 
 /* ───────────────────────── 돌탑 ───────────────────────── */
 class Cairn {
-  constructor(scene, pos) {
+  /** mat: 맵 돌담·장식 돌탑과 같은 돌 재질 (사람이 얹는 돌이 맵 돌과 같아 보이게 — 사용자 2026-11-08) */
+  constructor(scene, pos, mat) {
     this.scene = scene;
     this.group = new THREE.Group();
     this.group.position.copy(pos);
@@ -1185,16 +1186,8 @@ class Cairn {
     this.count = 0;
     this.r = rand(321);
     this.falling = [];
-    this.geo = new THREE.IcosahedronGeometry(1, 2);
-    const p = this.geo.attributes.position;
-    for (let i = 0; i < p.count; i++) {
-      const v = new THREE.Vector3().fromBufferAttribute(p, i);
-      v.multiplyScalar(1 + 0.12 * Math.sin(v.x * 5 + v.z * 3));
-      p.setXYZ(i, v.x, v.y, v.z);
-    }
-    this.geo.computeVertexNormals();
-    const gr = graniteTextures();
-    this.mat = weatherable(new THREE.MeshStandardMaterial({ map: gr.color, color: 0xa29e94, roughness: 0.9 }), { snow: 1, wet: 1 });
+    this.geo = stoneGeometry(2);
+    this.mat = mat;
     // 바닥 큰 돌
     for (let i = 0; i < 3; i++) this._place(0.55 - i * 0.05, true);
   }
