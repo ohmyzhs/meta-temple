@@ -736,9 +736,17 @@ class MetaTempleApp {
       fn();
     };
     if (near) return run();
-    // 다른 구역이거나 멀면(숲길은 산책로까지 450m) 가람 이동처럼 바로 옮긴다 — 곧장 걷다 막혀 엉뚱한 데서 열리지 않게
-    if (!sameZone || Math.hypot(p.x - a.x, p.z - a.z) > 15) return this._teleport(a.x, a.z, a.ry, () => setTimeout(run, 250));
-    this.avatars.moveTo(a.x, a.z, run);
+    // 다른 구역이면 순간이동(페이드). 같은 구역 안(마당·법당·다실)은 거리와 상관없이 길을 찾아 걸어간다 (사용자 2026-11-08 「마당 안은 걷기」).
+    // 숲길만은 15m 넘으면 순간이동 — 산책로까지 450m 라서. 길이 없거나 걷다 막혀 그 자리에 못 닿았으면 엉뚱한 데서 열지 않고 옮겨 간다.
+    const jump = () => this._teleport(a.x, a.z, a.ry, () => setTimeout(run, 250));
+    if (!sameZone || (def.zone === 'FOREST' && Math.hypot(p.x - a.x, p.z - a.z) > 15)) return jump();
+    const path = this._pf().find(p.x, p.z, a.x, a.z);
+    if (!path) return jump();
+    this.avatars.moveTo(a.x, a.z, () => {
+      const q = this.player.root.position;
+      if (Math.hypot(q.x - a.x, q.z - a.z) > 1) return jump();
+      run();
+    }, path.slice(1, -1));
   }
 
   activate(id, payload) {
