@@ -4,6 +4,7 @@
 
 GEN : 생성 이미지 폴더. GEN/<이름>/<이름>.png (투명 배경 PNG) — 프롬프트는 tools/outdoor/prompts/
       ridge_{near,mid,far}_{1,2,3}[ _dusk | _night ], atlas_{fir,pine,maple,bamboo}, imp_{fir,pine,maple}, vista_<쉼터 id>[_night]
+      해질녘·밤 경치(vista_*_dusk·_night)는 먼저 tools/outdoor/vista_sky.py 로 산등성이 위 하늘을 투명하게 뺀 폴더를 GEN 으로 (ONLY=vistas)
 DL  : Poly Haven 2k jpg (<id>_diffuse_2k.jpg, <id>_nor_gl_2k.jpg) — 목록은 아래 GROUND·BARK·PROPS, 출처는 credits.json
 WORK: 중간 PNG 를 두는 곳 (git 밖)
 폰은 1K 예산: 반복 질감 1024, 노멀 512, 잎 아틀라스·원경 나무 _lo(1024), 원경 띠 _lo(4096×256 = 1K² 픽셀).
