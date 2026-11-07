@@ -50,11 +50,11 @@ export function setMediaActions(handlers) {
   }
 }
 
-/** art: assets/covers/<art>-256|512.jpg (게임 안 장면을 찍어 만든 표지 — 없으면 잠금화면에 크롬 로고·빈 그림이 뜬다) */
-export function setNowPlaying(title, artist, art = 'forest') {
+/** 잠금화면에는 장면이 바뀌어도 같은 소리사원 표지를 표시한다. */
+export function setNowPlaying(title, artist) {
   if (!('mediaSession' in navigator) || typeof MediaMetadata === 'undefined') return;
-  const artwork = [256, 512].map((n) => ({ src: new URL(`./assets/covers/${art}-${n}.jpg`, location.href).href, sizes: `${n}x${n}`, type: 'image/jpeg' }));
-  navigator.mediaSession.metadata = new MediaMetadata({ title, artist, album: '사운드템플 · 입체 ASMR', artwork });
+  const artwork = [256, 512].map((n) => ({ src: new URL(`./assets/covers/sorisawon-v1-${n}.jpg`, location.href).href, sizes: `${n}x${n}`, type: 'image/jpeg' }));
+  navigator.mediaSession.metadata = new MediaMetadata({ title, artist, album: '소리사원 · 입체 ASMR', artwork });
 }
 
 export function setPlaybackState(state) {

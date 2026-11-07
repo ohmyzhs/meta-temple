@@ -1,3 +1,5 @@
+import { setNowPlaying } from '../audio/background.js';
+
 /** 움직이는 대문과 대문 전용 소리. 산사 안의 소리 설정과 저장소는 건드리지 않는다. */
 export function createIntroBackground() {
   const video = document.querySelector('#intro-video');
@@ -41,6 +43,9 @@ export function createIntroBackground() {
     playAudio();
   });
   for (const name of ['play', 'pause', 'ended', 'error']) audio.addEventListener(name, syncButton);
+  audio.addEventListener('play', () => {
+    if (active) setNowPlaying('산문에 머무는 소리', '소리사원 · 자연의 소리');
+  });
 
   function align() {
     const hidden = !video.videoWidth || !video.videoHeight;

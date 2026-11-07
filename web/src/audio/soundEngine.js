@@ -357,8 +357,8 @@ export class TempleSoundEngine {
     else this._anchorPause();
   }
 
-  setNowPlaying(title, artist, art) {
-    setNowPlaying(title, artist, art);
+  setNowPlaying(title, artist) {
+    setNowPlaying(title, artist);
   }
 
   /** 예불 듣는 동안 잠금화면의 이전·다음 단추 (null 이면 뺀다) */
