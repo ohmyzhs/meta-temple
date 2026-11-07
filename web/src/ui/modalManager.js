@@ -8,15 +8,15 @@
  * 게임 로직은 main.js 콜백이 맡고, 여기서는 보여 주고 콜백을 부르기만 한다.
  * 번뇌 소각 글은 어디에도 저장·기록·전송하지 않는다.
  */
-import { nameFeedback, NAME_PLACEHOLDER } from './nameField.js';
-import { NAME_MAX, checkText } from '../core/moderation.js';
+import { checkText } from '../core/moderation.js';
+import { helpSections, zoneList } from '../data/guide.js';
 import { CREDITS, CREDIT_GROUPS, CREDIT_SOURCES, LICENSE_URLS, YEBUL_TRACKS, creditSource } from '../data/credits.js';
 import { NATURE_PRESETS, SLEEP_MINUTES, MIX_SOUNDS, MIX_MAX } from '../data/natureSounds.js';
 import { ASMR_TRACKS } from '../data/asmr.js';
 import { SUTRA_VERSES, DHARMA_CARDS, localMonkResponse, isCrisisText, OPENING_SUGGESTIONS, BLOCKED_REPLIES, COOLED_LINE, REST_SUGGESTIONS, TEA_LINES, voiceKey, cardVoiceText } from '../data/dharmaTexts.js';
 import { LIVE_API } from '../core/live.js';
 import { icon } from './icons.js';
-import { LANTERN_COLORS, ZONES, RITUALS } from '../data/templeData.js';
+import { LANTERN_COLORS } from '../data/templeData.js';
 import { kstDateString } from '../core/state.js';
 
 const VIEWS = {
@@ -32,23 +32,9 @@ const VIEWS = {
   nature: { title: '자연의 소리 듣기', hanja: '自然', sub: '장면이나 그 자리에서 녹음한 원음을 골라 앉아서 오래 듣습니다.', render: '_nature', variant: 'side' },
   mixer: { title: '나만의 소리', hanja: '調', sub: '들리는 소리를 하나씩 맞추어 내 소리로 담습니다.', render: '_mixer', variant: 'side' },
   dharma_card: { title: '오늘의 죽비', hanja: '竹篦', sub: '지금 내 걸음에 닿는 경전 한 구절.', render: '_card' },
-  profile: { title: '수행 기록', hanja: '修行', sub: '견주지 않는, 나만의 조용한 흔적.', render: '_profile' },
   help: { title: '산사 안내', hanja: '案內', sub: '천천히 둘러보세요. 서두를 곳이 없습니다.', render: '_help' },
   credits: { title: '자료 출처', hanja: '出處', sub: '산사를 빚는 데 쓴 자료와 그 출처입니다.', render: '_credits' }
 };
-
-const STAT_LABELS = [
-  ['bowCount', '절', '배'],
-  ['malaCount', '염주', '알'],
-  ['lanternCount', '연등', '개'],
-  ['tileCount', '기와', '장'],
-  ['stoneCount', '돌탑', '개'],
-  ['sutraCopiedCount', '사경', '구절'],
-  ['circumambulationLoops', '탑돌이', '바퀴'],
-  ['incenseCount', '헌향', '번'],
-  ['bellStrikes', '범종', '번'],
-  ['teaChats', '차담', '번']
-];
 
 const CARD_IDS = new Set(DHARMA_CARDS.map((c) => c.id));
 const BOW_CYCLE_MS = 8000; // 108배 연속 모드: 8초에 한 번 천천히 (큰절 한 번 7.6초 — core/avatarMotion.js PROSTRATE)
@@ -331,6 +317,11 @@ export class ModalManager {
   back() {
     if (this._view?.back?.()) return;
     this.close();
+  }
+
+  /** 스님 목소리로 읽기 — 직접 누른 것 (나 › 간직한 죽비의 듣기) */
+  speak(text) {
+    this._voice(text, { force: true });
   }
 
   /* ───── 생명주기 ───── */
@@ -2144,226 +2135,26 @@ export class ModalManager {
     return { draw, syncKept, speak: () => cur && this._voice(cardVoiceText(cur)) };
   }
 
-  /* ═════════ 9. 수행 기록 ═════════ */
-  _profile() {
-    const root = this._root('');
-    const render = () => {
-      const p = this.store.profile;
-      const s = this.store.stats;
-      const att = p.attendance || { streak: 0, totalDays: 0 };
-      const has = (id) => (p.unlockedItems || []).includes(id);
-      const bar = (v, max) => `<span class="pf-bar"><span style="width:${Math.min(100, (v / max) * 100).toFixed(1)}%"></span></span>`;
-      const rewards = [
-        {
-          id: 'wooden_mala',
-          name: '자단목 단주',
-          desc: '손목에 채워지는 붉은 나무 단주',
-          how: '큰절 21배, 또는 염주 108알',
-          progress: `절 ${Math.min(s.bowCount, 21)} / 21 · 염주 ${Math.min(s.malaCount, 108)} / 108`,
-          ratio: Math.max(s.bowCount / 21, s.malaCount / 108)
-        },
-        {
-          id: 'hand_lantern',
-          name: '연꽃 손연등',
-          desc: '밤 산책길에 곁을 비추는 작은 손연등',
-          how: '소원 연등 하나, 또는 사경 한 구절',
-          progress: `연등 ${Math.min(s.lanternCount, 1)} / 1 · 사경 ${Math.min(s.sutraCopiedCount, 1)} / 1`,
-          ratio: Math.max(s.lanternCount, s.sutraCopiedCount)
-        },
-        {
-          id: 'jade_mala',
-          name: '백옥 단주',
-          desc: '꾸준히 찾아온 걸음에 채워지는 흰 옥 단주',
-          how: '일곱 날 이어서 산사에 들르기',
-          progress: `${Math.min(att.streak, 7)} / 7일`,
-          ratio: att.streak / 7
-        }
-      ];
-      const kept = (p.dharmaCards || []).map((k) => DHARMA_CARDS.find((c) => c.id === k.id)).filter(Boolean);
-      root.innerHTML = `
-        <section class="pf-name">
-          <p class="m-label">나의 법명</p>
-          <p class="pf-dharma" data-name>${esc(p.dharmaName)}</p>
-          <div class="pf-name-acts">
-            <button type="button" class="m-link" data-act="rename">법명 다시 받기</button>
-            <button type="button" class="m-link" data-act="custom-name" aria-expanded="false">직접 짓기</button>
-          </div>
-          <form class="name-form pf-name-form hidden" data-name-form autocomplete="off">
-            <input type="text" data-name-input maxlength="${NAME_MAX + 4}" placeholder="${esc(NAME_PLACEHOLDER)}" aria-label="법명 직접 짓기" enterkeyhint="done" />
-            <button type="submit" class="name-ok">정하기</button>
-            <p class="name-hint" data-hint aria-live="polite"></p>
-          </form>
-        </section>
-        <section class="pf-att">
-          <div><b>${att.streak || 0}</b><span>일째 이어 오는 걸음</span></div>
-          <div><b>${att.totalDays || 0}</b><span>일 산사에 머묾</span></div>
-        </section>
-        <h3 class="m-sub">쌓인 수행</h3>
-        <dl class="pf-stats">
-          ${STAT_LABELS.map(([k, label, unit]) => `<div><dt>${label}</dt><dd><b>${(s[k] || 0).toLocaleString('ko-KR')}</b>${unit}</dd></div>`).join('')}
-        </dl>
-        <h3 class="m-sub">조용한 흔적</h3>
-        <p class="m-hint pf-note">순위도 경쟁도 없습니다. 수행이 쌓이면 아바타에 조용히 나타납니다.</p>
-        <ul class="pf-rewards">
-          ${rewards
-            .map(
-              (r) => `<li class="pf-reward${has(r.id) ? ' is-on' : ''}">
-                <span class="pf-reward-icon pf-${r.id}" aria-hidden="true"></span>
-                <span class="pf-reward-body">
-                  <span class="pf-reward-name">${r.name}${has(r.id) ? '<em>지니고 있습니다</em>' : ''}</span>
-                  <span class="pf-reward-desc">${r.desc}</span>
-                  ${has(r.id) ? '' : `<span class="pf-reward-how">${r.how}</span>${bar(r.ratio, 1)}<span class="pf-reward-progress">${r.progress}</span>`}
-                </span></li>`
-            )
-            .join('')}
-        </ul>
-        <h3 class="m-sub">간직한 죽비 <small>${kept.length}장</small></h3>
-        ${
-          kept.length
-            ? `<ul class="pf-cards">${kept
-                .map(
-                  (c) => `<li><span class="jk-quote">${esc(c.quote)}</span><span class="jk-source">${esc(c.source)}</span>
-                    <button type="button" class="pf-listen" data-listen="${esc(c.id)}" aria-label="${esc(c.source)} — 스님 목소리로 듣기">${icon('sound')}</button></li>`
-                )
-                .join('')}</ul>`
-            : '<p class="m-hint">후원 다실의 죽비에서 마음에 닿는 구절을 간직해 보세요.</p>'
-        }
-        <p class="m-hint pf-privacy">이 기록은 이 브라우저에만 남습니다. 다른 기기로 옮기거나 지켜 두려면 백업 파일로 내려받으세요.</p>
-        <div class="pf-backup">
-          <button type="button" class="m-btn" data-act="export">기록 내보내기</button>
-          <button type="button" class="m-btn" data-act="import">기록 가져오기</button>
-          <input type="file" accept="application/json,.json" data-import-file hidden />
-        </div>
-        <p class="m-live" data-backup-live aria-live="polite"></p>`;
-    };
-    const flash = (msg) => {
-      const el = root.querySelector('[data-backup-live]');
-      if (el) el.textContent = msg;
-    };
-    this._on(root, 'input', (e) => {
-      if (!e.target.matches('[data-name-input]')) return;
-      const f = e.target.closest('[data-name-form]');
-      const r = nameFeedback(e.target.value);
-      f.querySelector('[data-hint]').textContent = r ? r.message : '';
-      f.classList.toggle('is-bad', !!r && !r.ok);
-    });
-    this._on(root, 'submit', (e) => {
-      const f = e.target.closest('[data-name-form]');
-      if (!f) return;
-      e.preventDefault();
-      const input = f.querySelector('[data-name-input]');
-      const r = nameFeedback(input.value);
-      const res = r?.ok ? this.cb.onSetName?.(r.text) : r;
-      if (!res || !res.ok) {
-        f.querySelector('[data-hint]').textContent = res?.message || '';
-        f.classList.add('is-bad');
-        return input.focus();
-      }
-      this._sfx('playUIClick');
-      render();
-      root.querySelector('[data-name]')?.classList.add('is-new');
-    });
-    this._on(root, 'change', async (e) => {
-      if (!e.target.matches('[data-import-file]')) return;
-      const file = e.target.files?.[0];
-      e.target.value = '';
-      if (!file) return;
-      if (!window.confirm('백업 파일의 기록으로 바꿉니다. 지금 이 브라우저의 기록은 백업 파일 내용으로 덮어씁니다. 계속할까요?')) return;
-      const res = this.cb.onImport?.(await file.text());
-      if (!res?.ok) return flash(res?.message || '가져오지 못했습니다');
-      flash('기록을 가져왔습니다. 산문을 다시 엽니다…');
-      setTimeout(() => location.reload(), 900);
-    });
-    this._on(root, 'click', (e) => {
-      const listen = e.target.closest('[data-listen]');
-      if (listen) {
-        const c = DHARMA_CARDS.find((x) => x.id === listen.dataset.listen);
-        if (c) this._voice(cardVoiceText(c), { force: true });
-        return;
-      }
-      if (e.target.closest('[data-act="custom-name"]')) {
-        const b = e.target.closest('[data-act="custom-name"]');
-        const f = root.querySelector('[data-name-form]');
-        const open = f.classList.toggle('hidden') === false;
-        b.setAttribute('aria-expanded', String(open));
-        if (open) f.querySelector('input').focus({ preventScroll: true });
-        return;
-      }
-      if (e.target.closest('[data-act="export"]')) {
-        const json = this.cb.onExport?.();
-        if (!json) return;
-        const day = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
-        a.download = `사운드템플-수행기록-${day}.json`;
-        a.click();
-        setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-        return flash('기록 파일을 내려받았습니다');
-      }
-      if (e.target.closest('[data-act="import"]')) return root.querySelector('[data-import-file]').click();
-      if (!e.target.closest('[data-act="rename"]')) return;
-      const name = this.cb.onRename?.();
-      this._sfx('playUIClick');
-      render();
-      const el = root.querySelector('[data-name]');
-      if (name && el) el.textContent = name;
-      el?.classList.add('is-new');
-      root.querySelector('[data-act="rename"]')?.focus({ preventScroll: true });
-    });
-    render();
-    return { refresh: render };
-  }
-
   /* ═════════ 10. 산사 안내 ═════════ */
   _help() {
-    const touch = mq('(pointer: coarse)');
-    const keys = [
-      ['1', '합장 반배'],
-      ['2', '큰절'],
-      ['3', '휴식 · 돗자리 펴고 앉기 (앉으면 듣기)'],
-      ['4', '헌향 · 헌촉'],
-      ['5', '탑돌이'],
-      ['6', '차 마시기'],
-      ['V', '3인칭 ↔ 1인칭 시점'],
-      ['E', '가까이 있는 것과 마주하기']
-    ];
-    const zones = Object.values(ZONES)
+    const sections = helpSections({ touch: mq('(pointer: coarse)') }); // 글은 data/guide.js (둘러보기 안내와 한곳)
+    const zones = zoneList()
       .map(
         (z) => `<li class="help-zone"><span class="help-zone-no">${z.index}</span><span>
           <b>${esc(z.name)}</b><span class="help-zone-sub">${esc(z.subtitle)}</span>
-          <span class="help-zone-acts">${z.rituals.map((r) => esc(RITUALS[r]?.label || r)).join(' · ')}</span></span></li>`
+          <span class="help-zone-acts">${z.rituals.map(esc).join(' · ')}</span></span></li>`
       )
       .join('');
-    this._root(`
-      <section class="help-sec">
-        <h3 class="m-sub">걷고 둘러보기</h3>
-        <ul class="help-list">
-          ${touch ? '<li><span class="help-keys">조이스틱</span>왼쪽 아래 조이스틱으로 걷기</li>' : '<li><span class="help-keys"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> · <kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd></span>걷기</li>'}
-          <li><span class="help-keys">땅 누르기</span>그 자리까지 천천히 걸어갑니다</li>
-          <li><span class="help-keys">좌복 누르기</span>고른 좌복에 앉습니다 · 대웅전에서 108배를 시작하면 빈 좌복으로 갑니다</li>
-          <li><span class="help-keys">끌기</span>고개를 돌려 둘러보기</li>
-          <li><span class="help-keys">${touch ? '두 손가락' : '휠 · 두 손가락'}</span>가까이, 멀리</li>
-        </ul>
-      </section>
-      <section class="help-sec">
-        <h3 class="m-sub">말없는 몸짓</h3>
-        ${touch ? '<p class="help-p">화면 아래의 몸짓 단추를 눌러 합장하거나 수행할 수 있습니다.</p>' : `<ul class="help-keygrid">${keys.map(([k, v]) => `<li><kbd>${k}</kbd><span>${v}</span></li>`).join('')}</ul>`}
-      </section>
-      <section class="help-sec">
-        <h3 class="m-sub">네 구역</h3>
-        <ol class="help-zones">${zones}</ol>
-      </section>
-      <section class="help-sec">
-        <h3 class="m-sub">산사의 예절</h3>
-        <p class="help-p"><b>말을 걸지 않는 따뜻한 동석.</b> 이곳에는 채팅이 없습니다. 같은 시간에 머무는 도반들과는 합장 반배로 인사를 나누고,
-          옆 방석에 나란히 앉아 각자의 수행을 지켜 줍니다. 대웅전 안은 온전한 침묵의 자리입니다.</p>
-      </section>
-      <section class="help-sec">
-        <h3 class="m-sub">기록과 비밀</h3>
-        <p class="help-p">법명, 쌓인 수행, 연등·기와·돌탑, 간직한 죽비는 <b>이 브라우저에만</b> 저장됩니다. 회원가입도, 서버 계정도 없습니다.</p>
-        <p class="help-p"><b>번뇌 소각</b>에 적은 글은 어디에도 저장되거나 보내지지 않으며, 태우는 순간 화면에서도 사라집니다.</p>
-        <p class="help-p"><b>차담</b>의 말은 AI 스님의 답을 받으려고 서버를 거쳐 AI 회사(OpenRouter 를 통해 Anthropic 등)에 전해집니다. 산사의 서버는 대화를 저장하지 않습니다. 다음 차담에서 이어 갈 수 있게 스님이 짧게 적은 메모 하나만 <b>이 브라우저에</b> 남고(기록 내보내기에도 담깁니다), 차담 창의 「잊게 하기」로 언제든 지울 수 있습니다. 기도와 고민은 광고에 쓰이지 않습니다.</p>
-      </section>
+    this._root(`${sections
+      .map(
+        (sec) => `<section class="help-sec">
+        <h3 class="m-sub">${sec.title}</h3>
+        ${sec.zones ? `<ol class="help-zones">${zones}</ol>` : ''}
+        ${sec.rows ? `<ul class="help-list">${sec.rows.map(([k, t, slot]) => `<li${slot ? ` data-slot="${slot}"` : ''}><span class="help-keys">${k}</span><span>${t}</span></li>`).join('')}</ul>` : ''}
+        ${(sec.p || []).map((p) => `<p class="help-p">${p}</p>`).join('')}
+      </section>`
+      )
+      .join('')}
       <p class="help-foot"><button type="button" class="m-link" data-act="credits">자료 출처</button></p>`);
     this._on(this.body, 'click', (e) => e.target.closest('[data-act="credits"]') && this.open('credits'));
     return {};

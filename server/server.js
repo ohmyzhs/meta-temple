@@ -1,7 +1,7 @@
 /**
  * 청연산사 실시간 동석 서버
  *  - WebSocket /ws : 접속자끼리 위치·모습·동작만 주고받는다 (채팅 없음, 합장 인사만)
- *  - HTTP /api/*   : 다른 도반이 공개한 연등·기와·돌탑 (최근 일부), 차담 스님 AI(/api/monk, monk.js)
+ *  - HTTP /api/*   : 다른 도반이 공개한 연등·기와·돌탑 (최근 일부), 차담 스님 AI(/api/monk, monk.js), 복구키로 맡긴 기록(/api/backup)
  * nginx(temple 컨테이너)가 /ws, /api 를 이 서버로 넘긴다.
  */
 import http from 'node:http';
@@ -31,6 +31,10 @@ const KINDS = { '/api/lanterns': 'lanterns', '/api/tiles': 'tiles', '/api/stones
 const WISH_MAX = { lanterns: 80, tiles: 24, stones: 30 };
 const REPORT_HIDE = 3; // 서로 다른 사람 셋이 신고하면 숨긴다
 const POST_COOLDOWN_MS = Number(process.env.POST_COOLDOWN_MS) || 20000; // 같은 사람이 같은 종류를 연달아 올리는 간격
+// 기록 지키기 (복구키, web/src/core/recovery.js): 화면이 잠근 덩어리(base64)만 받는다
+const BACKUP_ID_RE = /^[0-9a-f]{64}$/;
+const BACKUP_MAX = 128 * 1024; // base64 글자 수 — 연등·기와·돌 900개를 쌓은 무거운 기록도 gzip 후 약 46KB (실측). nginx 는 160k 까지 넘긴다
+const B64_RE = /^[A-Za-z0-9+/]+={0,2}$/;
 
 const store = await createStore(process.env.DATABASE_URL);
 const monk = createMonk();
@@ -57,6 +61,25 @@ setInterval(() => {
   const now = Date.now();
   for (const [k, v] of ipHits) if (!v.some((t) => now - t < 60000)) ipHits.delete(k);
 }, 60000).unref();
+
+/** 창(windowMs) 안에 max 번까지. 키(보통 IP)마다 따로 센다 — 메모리에만 (서버를 다시 띄우면 초기화) */
+function limiter(windowMs, max) {
+  const hits = new Map();
+  setInterval(() => {
+    const now = Date.now();
+    for (const [k, v] of hits) if (!v.some((t) => now - t < windowMs)) hits.delete(k);
+  }, 60000).unref();
+  return (key) => {
+    const now = Date.now();
+    const arr = (hits.get(key) || []).filter((t) => now - t < windowMs);
+    arr.push(now);
+    hits.set(key, arr);
+    return arr.length <= max;
+  };
+}
+const backupSave = limiter(10 * 60000, 12);
+const backupSaveDay = limiter(86400000, 40);
+const backupRestore = limiter(10 * 60000, 10); // 키가 6자(56^6)라 마구 맞혀 보기를 막는다 — 화면 쪽 PBKDF2 와 함께
 
 function send(res, code, body) {
   res.writeHead(code, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'access-control-allow-origin': '*' });
@@ -114,10 +137,11 @@ async function api(req, res) {
   if (req.method !== 'POST') return send(res, 404, { error: 'not found' });
   let body;
   try {
-    body = await readJson(req, url.pathname === '/api/monk' ? MONK_BODY_MAX : 4096);
+    body = await readJson(req, url.pathname === '/api/monk' ? MONK_BODY_MAX : url.pathname === '/api/backup' ? BACKUP_MAX + 1024 : 4096);
   } catch (e) {
     return send(res, 400, { error: e.message });
   }
+  if (url.pathname === '/api/backup' || url.pathname === '/api/backup/restore') return backup(url.pathname, body, ip, res);
   const clientHash = hash(clean(body.clientId, 64) || ip);
   if (url.pathname === '/api/monk') {
     const r = await monk.ask(body, clientHash, hash(ip));
@@ -166,6 +190,29 @@ async function api(req, res) {
   }
   const saved = await store.add(kind, item);
   return send(res, saved ? 201 : 200, saved || { duplicate: true });
+}
+
+/**
+ * 기록 지키기. 화면이 보내는 id 는 복구키에서 유도한 값(키 자체가 아님) — 그것도 소금 해시해서 행 이름으로 쓴다.
+ *  POST /api/backup         { id, data, create? } → { updatedAt }   (같은 키로 다시 맡기면 덮어쓴다.
+ *                           create: 화면이 새로 만든 키 — 6자라 드물게 겹칠 수 있으니 이미 있으면 409, 화면은 새 키로 다시)
+ *  POST /api/backup/restore { id }       → { data, updatedAt } | 404   (id 를 주소에 남기지 않으려고 POST)
+ */
+async function backup(path, body, ip, res) {
+  const id = String(body.id || '');
+  if (!BACKUP_ID_RE.test(id)) return send(res, 400, { error: 'bad id' });
+  const row = hash(`backup:${id}`); // ID_SALT 를 바꾸면 맡긴 기록을 모두 못 찾는다 — 바꾸지 말 것
+  if (path === '/api/backup/restore') {
+    if (!backupRestore(ip)) return send(res, 429, { error: '되찾기를 여러 번 시도했습니다. 10분 뒤에 다시 해 주세요' });
+    const r = await store.getBackup(row);
+    return r ? send(res, 200, r) : send(res, 404, { error: '이 복구키로 맡긴 기록이 없습니다' });
+  }
+  const data = String(body.data || '');
+  if (data.length > BACKUP_MAX) return send(res, 413, { error: '기록이 너무 커서 맡길 수 없습니다' });
+  if (data.length < 40 || !B64_RE.test(data)) return send(res, 400, { error: 'bad data' });
+  if (!backupSave(ip) || !backupSaveDay(ip)) return send(res, 429, { error: '잠시 뒤에 다시 맡겨 주세요' });
+  const r = await store.putBackup(row, data, { create: body.create === true });
+  return r ? send(res, 200, r) : send(res, 409, { error: 'taken' });
 }
 
 const server = http.createServer((req, res) => {

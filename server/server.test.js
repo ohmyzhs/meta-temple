@@ -206,3 +206,48 @@ test('old_stone_still_gate', async () => {
   assert.equal((await r.json()).cairnId, undefined);
   assert.equal((await shared()).gateStones, before + 1);
 });
+
+/* ───── 기록 지키기 (복구키): 화면이 잠근 덩어리만 오간다 ───── */
+import { newKey, sealBackup, openBackup, backupId } from '../web/src/core/recovery.js';
+
+test('backup_save_restore_overwrite', async () => {
+  const key = newKey();
+  const json = JSON.stringify({ profile: { dharmaName: '청풍' }, stats: { bowCount: 108 } });
+  const a = await sealBackup(json, key);
+  const r = await post('/api/backup', a, '10.2.0.1');
+  assert.equal(r.status, 200);
+  assert.ok(Date.parse((await r.json()).updatedAt));
+  const got = await (await post('/api/backup/restore', { id: await backupId(key) }, '10.2.0.2')).json();
+  assert.equal(await openBackup(got.data, key), json);
+  // 같은 키로 다시 맡기면 덮어쓴다
+  const json2 = JSON.stringify({ profile: { dharmaName: '명월' } });
+  assert.equal((await post('/api/backup', await sealBackup(json2, key), '10.2.0.1')).status, 200);
+  const got2 = await (await post('/api/backup/restore', { id: a.id }, '10.2.0.2')).json();
+  assert.equal(await openBackup(got2.data, key), json2);
+});
+
+test('backup_new_key_never_overwrites', async () => {
+  const key = newKey();
+  const a = await sealBackup('{"who":"first"}', key);
+  assert.equal((await post('/api/backup', { ...a, create: true }, '10.2.3.1')).status, 200);
+  // 다른 사람이 우연히 같은 키를 새로 만들었다 → 409, 처음 사람 기록은 그대로
+  assert.equal((await post('/api/backup', { ...(await sealBackup('{"who":"second"}', key)), create: true }, '10.2.3.2')).status, 409);
+  const got = await (await post('/api/backup/restore', { id: a.id }, '10.2.3.3')).json();
+  assert.equal(await openBackup(got.data, key), '{"who":"first"}');
+});
+
+test('backup_bad_requests', async () => {
+  const { id, data } = await sealBackup('{}', newKey());
+  assert.equal((await post('/api/backup/restore', { id: await backupId(newKey()) }, '10.2.1.1')).status, 404);
+  assert.equal((await post('/api/backup', { id: newKey(), data }, '10.2.1.2')).status, 400); // 복구키 자체는 받지 않는다 (유도한 id 만)
+  assert.equal((await post('/api/backup', { id: id.toUpperCase(), data }, '10.2.1.2')).status, 400);
+  assert.equal((await post('/api/backup', { id, data: '{"profile":{}} 평문' }, '10.2.1.2')).status, 400);
+  assert.equal((await post('/api/backup', { id, data: 'A'.repeat(128 * 1024 + 4) }, '10.2.1.3')).status, 413);
+});
+
+test('backup_restore_rate_limited_per_ip', async () => {
+  const id = await backupId(newKey());
+  for (let i = 0; i < 10; i++) assert.equal((await post('/api/backup/restore', { id }, '10.2.2.1')).status, 404, `try ${i + 1}`);
+  assert.equal((await post('/api/backup/restore', { id }, '10.2.2.1')).status, 429);
+  assert.equal((await post('/api/backup/restore', { id }, '10.2.2.2')).status, 404); // 다른 IP 는 따로
+});

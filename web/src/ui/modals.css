@@ -455,7 +455,7 @@
 .lantern-swatch[aria-pressed='true'] { border-color: var(--gold); background: rgba(201, 163, 90, 0.14); color: var(--muk); }
 .lantern-swatch:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 
-.lantern-list, .stone-list, .giwa-grid, .pf-rewards, .pf-cards, .help-list, .help-keygrid, .help-zones {
+.lantern-list, .stone-list, .giwa-grid, .help-list, .help-keygrid, .help-zones {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -1162,7 +1162,6 @@ body.tea-scene .modal-overlay.is-side {
 .jk-source { display: block; font-family: var(--font-serif); font-size: 12.5px; letter-spacing: 0.06em; color: var(--m-gold-ink); }
 .jk-original { display: block; font-family: var(--font-serif); font-size: 13.5px; line-height: 1.7; letter-spacing: 0.14em; color: var(--muk-soft); word-break: keep-all; }
 .jk-quote { display: block; margin: auto 0; font-family: var(--font-serif); font-weight: 600; font-size: 19px; line-height: 1.75; color: var(--muk); word-break: keep-all; }
-.pf-cards .jk-quote { margin: 0; }
 .jk-reflection { display: block; font-size: 13px; line-height: 1.8; color: var(--muk-soft); word-break: keep-all; }
 .jk-seal {
   position: absolute;
@@ -1183,88 +1182,8 @@ body.tea-scene .modal-overlay.is-side {
 .jukbi.is-compact .m-actions { margin-top: 10px; }
 .jukbi.is-compact .m-btn { min-height: 36px; padding: 0 16px; font-size: 13px; }
 
-/* ───────── 9. 수행 기록 ───────── */
-.pf-name { text-align: center; padding: 4px 0 6px; }
-.pf-name .m-label { margin: 0 0 4px; font-size: 12px; }
-.pf-dharma {
-  display: inline-block;
-  margin: 0 0 4px;
-  padding: 0 4px 4px;
-  font-family: var(--font-serif);
-  font-weight: 600;
-  font-size: 25px;
-  letter-spacing: 0.06em;
-  border-bottom: 1px solid var(--gold);
-}
-.pf-dharma.is-new { animation: m-ink 0.7s var(--ease) both; }
-.pf-name .m-link { display: block; margin: 4px auto 0; }
-.pf-att { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 18px; }
-.pf-att div {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 14px 8px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.35);
-  border: 1px solid var(--m-line-soft);
-}
-.pf-att b { font-family: var(--font-serif); font-weight: 600; font-size: 28px; line-height: 1; }
-.pf-att span { font-size: 12px; color: var(--muk-soft); }
-.pf-stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin: 0; }
-.pf-stats div { padding: 10px 4px; text-align: center; border-radius: 10px; background: rgba(255, 255, 255, 0.28); border: 1px solid var(--m-line-soft); }
-.pf-stats dt { font-family: var(--font-serif); font-size: 12px; color: var(--muk-soft); }
-.pf-stats dd { margin: 4px 0 0; font-size: 11px; color: var(--muk-soft); }
-.pf-stats dd b { margin-right: 1px; font-family: var(--font-serif); font-weight: 600; font-size: 18px; color: var(--muk); font-variant-numeric: tabular-nums; }
-.pf-note { text-align: left; margin: -4px 0 10px; }
-.pf-reward { display: flex; gap: 14px; padding: 12px 4px; border-bottom: 1px dashed var(--m-line); }
-.pf-reward-icon { flex: none; width: 42px; height: 42px; border-radius: 50%; border: 1px dashed var(--m-line); position: relative; opacity: 0.55; }
-.pf-reward.is-on .pf-reward-icon { opacity: 1; border: 1px solid var(--gold); background: rgba(201, 163, 90, 0.1); }
-.pf-wooden_mala::after, .pf-jade_mala::after {
-  content: '';
-  position: absolute;
-  inset: 9px;
-  border-radius: 50%;
-  border: 5px dotted #8a4b2a;
-}
-.pf-jade_mala::after { border-color: #d9dccf; filter: drop-shadow(0 0 1px rgba(80, 90, 70, 0.6)); }
-.pf-hand_lantern::after {
-  content: '';
-  position: absolute;
-  left: 13px;
-  top: 9px;
-  width: 16px;
-  height: 22px;
-  border-radius: 50% 50% 45% 45%;
-  background: radial-gradient(circle at 50% 40%, #ffe6b0, #f3a24a 70%);
-  box-shadow: 0 0 10px rgba(243, 162, 74, 0.6);
-}
-.pf-reward-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
-.pf-reward-name { font-family: var(--font-serif); font-weight: 600; font-size: 14.5px; }
-.pf-reward-name em { margin-left: 8px; font-family: var(--font-sans); font-weight: 400; font-size: 11.5px; }
-.pf-reward-desc { font-size: 12.5px; color: var(--muk-soft); }
-.pf-reward-how { margin-top: 4px; font-size: 12.5px; color: var(--muk); }
-.pf-reward-how::before { content: '얻는 길 · '; color: var(--m-gold-ink); }
-.pf-bar { display: block; height: 3px; margin-top: 6px; border-radius: 3px; background: rgba(120, 95, 60, 0.14); overflow: hidden; }
-.pf-bar span { display: block; height: 100%; background: var(--gold); border-radius: 3px; }
-.pf-reward-progress { font-size: 11px; color: var(--muk-soft); font-variant-numeric: tabular-nums; }
-.pf-cards li { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; margin-bottom: 8px; border-left: 2px solid var(--gold); background: rgba(255, 255, 255, 0.3); border-radius: 0 10px 10px 0; }
-.pf-cards .jk-quote { font-size: 14.5px; }
-/* 간직한 죽비: 스님 목소리로 듣기 (누르는 자리 48px) */
-.pf-cards li { position: relative; padding-right: 62px; }
-.pf-listen {
-  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
-  width: 48px; height: 48px; padding: 0; border: 0; border-radius: 50%;
-  display: grid; place-items: center; cursor: pointer;
-  color: var(--m-gold-ink); background: rgba(138, 106, 46, 0.1);
-  -webkit-tap-highlight-color: transparent; touch-action: manipulation; -webkit-user-select: none; user-select: none;
-  transition: background 0.2s;
-}
-.pf-listen .i { width: 20px; height: 20px; }
-.pf-listen:hover, .pf-listen:focus-visible { background: rgba(138, 106, 46, 0.22); outline: none; }
 .jk-listen { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
 .jk-listen .i { width: 18px; height: 18px; }
-.pf-privacy { margin-top: 24px; }
 
 /* ───────── 10. 산사 안내 ───────── */
 .help-sec + .help-sec { margin-top: 4px; }
@@ -1365,11 +1284,6 @@ body.tea-scene .modal-overlay.is-side {
   .sutra-input { font-size: 22px; }
 
   .lantern-quote { font-size: 26px; }
-  .pf-stats { grid-template-columns: repeat(5, 1fr); gap: 6px; }
-  .pf-stats div { padding: 8px 2px; }
-  .pf-stats dt { font-size: 11px; }
-  .pf-stats dd b { font-size: 16px; }
-  .pf-stats dd { font-size: 10px; }
   .help-keys { width: 116px; }
   .help-keygrid { grid-template-columns: 1fr; }
   .giwa-grid { grid-template-columns: 1fr 1fr; }
@@ -1539,16 +1453,6 @@ body.listening .m-yebul .m-hint, body.listening .m-nature .m-hint, body.listenin
 }
 .modal-window.side .yebul-item,
 .modal-window.side .m-tabs { background-color: rgba(255, 252, 244, 0.5); }
-
-/* 수행 기록: 법명 직접 짓기 · 백업 */
-.pf-name-acts { display: flex; justify-content: center; gap: 14px; flex-wrap: wrap; }
-.modal-window .name-form input { background: #fffdf7; color: var(--muk); border-color: rgba(120, 95, 60, 0.35); }
-.modal-window .name-form input:focus { border-color: var(--gold); }
-.modal-window .name-form .name-ok { color: var(--muk); background: rgba(201, 163, 90, 0.2); border-color: rgba(160, 120, 50, 0.6); }
-.modal-window .name-form .name-hint { color: var(--muk-soft); }
-.modal-window .name-form.is-bad .name-hint { color: #a3432b; }
-.pf-backup { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 6px; }
-.pf-backup .m-btn { min-height: 44px; }
 
 /* 남의 공유 글 신고 단추 — 작게, 눌러야 할 때만 보이게 */
 .m-report {

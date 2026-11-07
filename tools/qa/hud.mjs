@@ -15,7 +15,8 @@ const SHEETS = [
   ['#menu-btn', '#menu-sheet'],
   ['#place-btn', '#place-sheet'],
   ['#more-btn', '#more-sheet'],
-  ['#menu-btn', '#menu-sheet [data-sheet="pop-sound"]', '#pop-sound'] // 시간·날씨·시점·모습은 메뉴 한 장에 (하위 시트 없음)
+  ['#menu-btn', '#menu-sheet [data-sheet="pop-sound"]', '#pop-sound'], // 시간·날씨·시점·모습은 메뉴 한 장에 (하위 시트 없음)
+  ['#menu-btn', '#me-btn', '#me-sheet'] // 나 (법명·기록) — 그 아래 하위 시트는 tools/qa/me.mjs
 ];
 
 /** 페이지 안에서: scope 안의 보이는 단추·입력 */
