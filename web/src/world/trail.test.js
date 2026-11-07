@@ -17,7 +17,7 @@ import {
   DENSE_FOREST,
   REST_SPOTS,
   TRAIL_HALF,
-  MAX_GRADE,
+  gradeAt,
   setTrailProfile,
   inLookoutView
 } from './trail.js';
@@ -39,8 +39,8 @@ test('loop_joins_forest_path_and_is_about_twice_as_long', () => {
 });
 
 test('stays_inside_fine_terrain', () => {
-  // 안쪽 지형 격자(terrain.js IN: x -62..62, z -58..62) 에서 6.5m(지형 다듬는 폭) 이상 안쪽
-  for (const P of PATHS) for (const p of P.pts) assert.ok(p.x > -55.5 && p.x < 55.5 && p.z > -51.5 && p.z < 55.5, `${p.x},${p.z}`);
+  // 안쪽 지형 격자(terrain.js IN: x -62..62, z -78..62) 에서 6.5m(지형 다듬는 폭) 이상 안쪽
+  for (const P of PATHS) for (const p of P.pts) assert.ok(p.x > -55.5 && p.x < 55.5 && p.z > -71.5 && p.z < 55.5, `${p.x},${p.z}`);
 });
 
 test('no_sharp_kinks', () => {
@@ -59,7 +59,7 @@ test('grade_capped', () => {
     for (let i = 1; i < P.pts.length; i++) {
       if (crossingAt(P.pts[i].x, P.pts[i].z, 0.3)) continue;
       const g = Math.abs(P.h[i] - P.h[i - 1]) / (P.s[i] - P.s[i - 1]);
-      assert.ok(g <= MAX_GRADE + 1e-6, `grade ${g} at ${i}`);
+      assert.ok(g <= Math.min(gradeAt(P.pts[i]), gradeAt(P.pts[i - 1])) + 1e-6, `grade ${g} at ${i}`);
     }
   }
 });
@@ -102,7 +102,8 @@ test('nearest_matches_bruteforce', () => {
 
 test('rest_spots_reachable', () => {
   assert.equal(new Set(REST_SPOTS.map((s) => s.id)).size, REST_SPOTS.length);
-  for (const k of ['bench', 'stump', 'mat', 'lookout', 'bridge', 'spring']) assert.ok(REST_SPOTS.some((s) => s.kind === k), k);
+  for (const k of ['bench', 'stump', 'rocks', 'pavilion', 'lookout', 'bridge', 'spring']) assert.ok(REST_SPOTS.some((s) => s.kind === k), k);
+  assert.ok(!REST_SPOTS.some((s) => s.kind === 'mat'), '돗자리는 쉼터가 아니다 (휴식으로 아무 데나 편다)');
   for (const s of REST_SPOTS) {
     const n = nearestTrail(s.stand.x, s.stand.z);
     assert.ok(n && n.d <= (s.onDeck ? DECK.halfW - 0.4 : TRAIL_HALF - 0.4), `${s.id} stand ${n?.d}`);

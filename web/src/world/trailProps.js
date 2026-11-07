@@ -1,13 +1,13 @@
 /**
- * 순환 산책로의 소품 — 쉼터 6종(돌 쉼터·그루터기·돗자리·전망 바위·작은 다리·약수터), 건너는 곳(나무다리·징검다리),
- * 전나무숲 데크, 갈림목 석등.
+ * 순환 산책로의 소품 — 쉼터 7종(돌 쉼터·그루터기·돌무더기·전망 바위·중턱 정자·작은 다리·약수터), 건너는 곳(나무다리·징검다리),
+ * 전나무숲 데크, 뒷산 돌계단, 갈림목 석등. (돗자리는 쉼터가 아니다 — 「휴식」으로 아무 데나 편다: showMat)
  * 종류마다 빌더 하나(BUILDERS[kind])가 앉는 자리를 원점, 바라보는 쪽을 +z 로 둔 Group 을 돌려준다.
  * 실사 GLB 로 바꿀 때는 그 빌더만 갈아 끼우면 된다. 재질은 mats() 공용이라 batchStatic 이 기존 묶음에 합친다.
  */
 import * as THREE from 'three';
-import { terrainHeight, walkHeight, addCircleCollider, noise2, isWalkable, resolveCollisions } from './layout.js';
-import { trail, REST_SPOTS, CROSSINGS, crossingY, DECK, deckRise, fenceRuns, LANTERNS, PATH_LAMPS, SIGNS } from './trail.js';
-import { buildStoneLantern } from './architecture.js';
+import { terrainHeight, walkHeight, addCircleCollider, addBoxCollider, noise2, isWalkable, resolveCollisions } from './layout.js';
+import { trail, REST_SPOTS, CROSSINGS, crossingY, DECK, deckRise, fenceRuns, LANTERNS, PATH_LAMPS, SIGNS, TRAIL_HALF, STAIR_MIN, PAVILION } from './trail.js';
+import { buildStoneLantern, buildHanok } from './architecture.js';
 import { mats } from './materials.js';
 
 export const mesh = (geo, mat, x = 0, y = 0, z = 0, cast = true) => {
@@ -60,6 +60,16 @@ function matTexture() {
   return t;
 }
 
+/** 중턱 정자 마루 윗면 높이: 정자 밑 땅(길 쪽이 가장 높다) 가장 높은 곳 + seatH — 비탈에 묻히지 않게 */
+function pavilionFloor(s) {
+  const h = PAVILION.half + 0.2;
+  let top = -Infinity;
+  for (let lx = -h; lx <= h + 1e-6; lx += h / 2) {
+    for (let lz = 0.2; lz >= -2 * h; lz -= h / 2) top = Math.max(top, terrainHeight(s.x + Math.cos(s.ry) * lx + Math.sin(s.ry) * lz, s.z - Math.sin(s.ry) * lx + Math.cos(s.ry) * lz));
+  }
+  return top + s.seatH;
+}
+
 const BUILDERS = {
   /** 돌 쉼터: 받침돌 둘 + 긴 판석 (앉는 면 0.46m) */
   bench(m) {
@@ -99,12 +109,63 @@ const BUILDERS = {
     g.add(r2);
     return g;
   },
-  /** 돗자리 자리: 납작한 디딤돌 하나 (돗자리는 앉을 때 따로 펴진다) */
-  mat(m) {
+  /** 나무 벤치 (데크 위): 나무 다리 둘 + 두꺼운 판 — 데크 판재와 같은 나무 */
+  woodbench(m) {
     const g = new THREE.Group();
-    const st = mesh(rockGeo(21, 0.15), m.stoneDark, 0.9, -0.08, -0.55);
-    st.scale.set(0.32, 0.3, 0.26);
-    g.add(st);
+    for (const x of [-0.62, 0.62]) g.add(mesh(new THREE.BoxGeometry(0.12, 0.38, 0.4), m.woodDark, x, 0.19, 0));
+    g.add(mesh(new THREE.BoxGeometry(1.7, 0.08, 0.44), m.woodLight, 0, 0.42, 0));
+    g.add(mesh(new THREE.BoxGeometry(1.4, 0.06, 0.06), m.woodDark, 0, 0.12, 0));
+    return g;
+  },
+  /** 돌무더기: 넓적한 돌 몇 개를 포개 쌓은 자리 (윗돌 앉는 면 seatH). 돌 밑은 땅 높이에 맞춰 묻는다 */
+  rocks(m, spot, ground) {
+    const g = new THREE.Group();
+    const h = spot.seatH;
+    const base = mesh(rockGeo(41, 0.45), m.stoneDark, 0, ground(0, -0.1) + h * 0.35 - 0.45 * 0.62, -0.1);
+    base.scale.set(0.95, 0.62, 0.75);
+    g.add(base);
+    const top = mesh(rockGeo(43, 0.3), m.granite, 0, h - 0.3 * 0.32, 0);
+    top.scale.set(0.62, 0.32, 0.5);
+    top.rotation.y = 0.3;
+    g.add(top);
+    for (const [lx, lz, sc, sd] of [[0.85, -0.35, 0.36, 47], [-0.8, -0.2, 0.3, 49], [0.35, -0.85, 0.28, 53]]) {
+      const r = mesh(rockGeo(sd, 0.35), m.stoneDark, lx, ground(lx, lz) + sc * 0.2, lz);
+      r.scale.set(sc * 1.2, sc, sc);
+      g.add(r);
+    }
+    return g;
+  },
+  /** 중턱 정자: 4~8명이 앉는 작은 정자 (2.2m 사방 한 칸, 팔작지붕). 길 아래 비탈 끝에 돌 주초를 땅까지 내려 세운다.
+   *  앞 마루 끝(원점)이 바라보는 쪽(+z, 산사)으로, 뒤는 길 쪽으로 트이고 옆은 낮은 난간. 마루 위 = seatH */
+  pavilion(m, spot, ground) {
+    const g = new THREE.Group();
+    const half = PAVILION.half, cz = -half, f = pavilionFloor(spot) - walkHeight(spot.x, spot.z);
+    const floor = mesh(new THREE.BoxGeometry(half * 2 + 0.3, 0.12, half * 2 + 0.3), m.woodLight, 0, f - 0.06, cz);
+    g.add(floor);
+    for (const [lx, lz] of [[-half, cz - half], [half, cz - half], [-half, cz + half], [half, cz + half], [0, cz - half], [0, cz + half]]) {
+      const gy = ground(lx, lz) - 0.15;
+      const pier = mesh(new THREE.BoxGeometry(0.26, Math.max(0.1, f - 0.12 - gy), 0.26), m.granite, lx, (gy + f - 0.12) / 2, lz);
+      g.add(pier);
+    }
+    const hall = buildHanok({ xs: [-half, half], zs: [-half, half], colH: 2.3, colR: 0.11, front: 'open', back: 'open', sides: 'open', brackets: 0, roof: { type: 'paljak', overhang: 0.85, height: 1.25, lift: 0.35, segs: 20 } });
+    hall.position.set(0, f, cz);
+    g.add(hall);
+    // 낮은 난간 (뒤·옆): 기둥 사이 가로대 둘 + 짧은 동자
+    const railH = 0.42, rail = new THREE.BoxGeometry(1, 0.05, 0.05), post = new THREE.BoxGeometry(0.06, railH, 0.06);
+    for (const [ax, az, bx, bz] of [[-half, cz - half + 0.35, -half, cz + half - 0.35], [half, cz - half + 0.35, half, cz + half - 0.35]]) {
+      const len = Math.hypot(bx - ax, bz - az), yaw = Math.atan2(bx - ax, bz - az);
+      for (const y of [0.18, railH]) {
+        const r = mesh(rail, m.woodDark, (ax + bx) / 2, f + y, (az + bz) / 2);
+        r.rotation.y = yaw + Math.PI / 2;
+        r.scale.x = len;
+        g.add(r);
+      }
+      for (let k = 1; k < 4; k++) g.add(mesh(post, m.woodDark, ax + ((bx - ax) * k) / 4, f + railH / 2, az + ((bz - az) * k) / 4));
+    }
+    // 뒤 디딤돌 (길에서 마루로 오르는 돌)
+    const step = mesh(rockGeo(61, 0.25), m.granite, 0, ground(0, cz - half - 0.3) + 0.08, cz - half - 0.3);
+    step.scale.set(0.55, 0.22, 0.32);
+    g.add(step);
     return g;
   },
   /** 약수터: 뒤편 돌무더기 + 대나무 홈통 + 돌확(물) + 표주박, 앉는 돌 */
@@ -218,6 +279,62 @@ function buildDeck(scene, m) {
   }
   g.userData.trailProp = true;
   scene.add(g);
+}
+
+/**
+ * 뒷산 돌계단: 순환로 높이 단면이 STAIR_MIN 보다 가파른 곳(1m 창으로 잰 기울기)에 화강암 디딤판을 한 단 STAIR_RISE 씩.
+ * 걷는 면은 경사로 그대로 — 판 윗면을 그 단 가운데의 길 높이에 맞춰 위아래 어긋남이 반 단(±0.1m) 안이다.
+ */
+const STAIR_RISE = 0.2;
+export function stairRuns() {
+  const P = trail, n = P.pts.length, steep = [];
+  for (let i = 0; i < n; i++) {
+    const a = P.at(P.s[i] - 1), b = P.at(P.s[i] + 1);
+    steep.push(Math.abs(b.h - a.h) / Math.max(1e-6, Math.hypot(b.x - a.x, b.z - a.z)) > STAIR_MIN);
+  }
+  const runs = [];
+  for (let i = 0; i < n; i++) {
+    if (!steep[i]) continue;
+    const last = runs[runs.length - 1];
+    if (last && P.s[i] - last[1] < 2) last[1] = P.s[i];
+    else runs.push([P.s[i], P.s[i]]);
+  }
+  return runs.filter(([a, b]) => b - a >= 2);
+}
+function buildStairs(scene, m) {
+  const g = new THREE.Group();
+  const geo = new THREE.BoxGeometry(TRAIL_HALF * 2 - 0.2, 1, 1);
+  const curb = new THREE.BoxGeometry(0.28, 1, 1);
+  let steps = 0;
+  for (const [s0, s1] of stairRuns()) {
+    let a = s0;
+    while (a < s1 - 0.05) {
+      // 다음 단: 높이가 STAIR_RISE 만큼 달라지는 곳 (너무 길면 1.4m 에서 끊는다)
+      const ha = trail.at(a).h;
+      let b = a + 0.1;
+      while (b < s1 && Math.abs(trail.at(b).h - ha) < STAIR_RISE && b - a < 1.4) b += 0.1;
+      b = Math.min(b, s1);
+      const p = trail.at((a + b) / 2), q0 = trail.at(a), q1 = trail.at(b);
+      const run = Math.hypot(q1.x - q0.x, q1.z - q0.z) + 0.12, yaw = Math.atan2(q1.x - q0.x, q1.z - q0.z);
+      const tread = mesh(geo, m.granite, p.x, p.h - 0.22, p.z);
+      tread.rotation.y = yaw;
+      tread.scale.set(1, 0.44, run);
+      g.add(tread);
+      for (const side of [-1, 1]) {
+        // 양옆 경계석 (계단 판보다 한 뼘 높게)
+        const o = mesh(curb, m.stoneDark, p.x + Math.cos(yaw) * side * (TRAIL_HALF - 0.05), p.h - 0.16, p.z - Math.sin(yaw) * side * (TRAIL_HALF - 0.05));
+        o.rotation.y = yaw;
+        o.scale.set(1, 0.48, run);
+        g.add(o);
+      }
+      steps++;
+      a = b;
+    }
+  }
+  g.userData.trailProp = true;
+  g.userData.steps = steps;
+  scene.add(g);
+  return steps;
 }
 
 /**
@@ -399,7 +516,9 @@ const SLOT_LAYOUT = {
   platform: [[0, 0], [-0.72, 0], [0.72, 0]],
   lookout: [[0, 0], [-0.62, -0.12], [0.62, -0.12]],
   bridge: [[0, 0], [-0.85, 0], [0.85, 0]],
-  mat: [[0, 0], [0, -0.62]]
+  rocks: [[0, 0], [0.75, -0.3]],
+  // 정자: 앞 마루 끝에 셋이 걸터앉고(sit), 마루 안에 셋이 가부좌 (셋째 값 = 앉는 자세)
+  pavilion: [[0, 0], [-0.72, 0], [0.72, 0], [-0.5, -1.0, 'meditate'], [0.5, -1.0, 'meditate'], [0, -1.7, 'meditate']]
 };
 /** 칸이 다 찼을 때 앉을 곁의 땅 후보 (쉼터 양옆·앞) */
 const GROUND_RING = [[1.0, 0.35], [-1.0, 0.35], [1.4, -0.05], [-1.4, -0.05], [0.55, 0.9], [-0.55, 0.9], [0, 1.15], [1.05, 1.05], [-1.05, 1.05]];
@@ -408,7 +527,7 @@ const toWorld = (s, lx, lz) => ({ x: s.x + Math.cos(s.ry) * lx + Math.sin(s.ry) 
 /** 쉼터 s 의 앉는 칸들 { x, y, z, ry, state, stand, occupant } (처음 부를 때 만들어 둔다) */
 export function restSlots(s) {
   if (s._slots) return s._slots;
-  s._slots = (SLOT_LAYOUT[s.kind] || [[0, 0]]).map(([lx, lz], i) => {
+  s._slots = (SLOT_LAYOUT[s.kind] || [[0, 0]]).map(([lx, lz, state = 'sit'], i) => {
     const p = i ? toWorld(s, lx, lz) : { x: s.x, z: s.z };
     const st = { x: s.stand.x + (p.x - s.x), z: s.stand.z + (p.z - s.z) }; // 일어설 자리도 같은 만큼 옆으로 (걸을 수 없으면 원래 자리)
     return {
@@ -417,7 +536,7 @@ export function restSlots(s) {
       y: s.kind === 'bridge' ? crossingY(CROSSINGS[0], p.z) : s.y,
       z: p.z,
       ry: s.ry,
-      state: 'sit',
+      state,
       stand: i && isWalkable(st.x, st.z) ? st : s.stand,
       occupant: null
     };
@@ -450,7 +569,7 @@ export function restGroundSlot(s, px, pz, taken) {
 export function buildTrailProps(scene) {
   const m = mats();
   SPRING_WATER ||= new THREE.MeshStandardMaterial({ color: 0x2e4a48, roughness: 0.06, metalness: 0.35 });
-  const spots = REST_SPOTS.map((s) => ({ ...s, y: s.kind === 'bridge' ? crossingY(CROSSINGS[0], s.z) : walkHeight(s.x, s.z) + s.seatH, occupant: null }));
+  const spots = REST_SPOTS.map((s) => ({ ...s, y: s.kind === 'bridge' ? crossingY(CROSSINGS[0], s.z) : s.kind === 'pavilion' ? pavilionFloor(s) : walkHeight(s.x, s.z) + s.seatH, occupant: null }));
 
   for (const c of CROSSINGS) {
     const g = BUILDERS[c.kind](m, c);
@@ -472,38 +591,26 @@ export function buildTrailProps(scene) {
     g.rotation.y = s.ry;
     g.userData.trailProp = true;
     scene.add(g);
-    if (s.kind === 'bench') addCircleCollider(s.x + Math.sin(s.ry) * 0.05, s.z + Math.cos(s.ry) * 0.05, s.onDeck ? 0.32 : 0.5);
+    if (s.kind === 'bench' || s.kind === 'woodbench') addCircleCollider(s.x + Math.sin(s.ry) * 0.05, s.z + Math.cos(s.ry) * 0.05, s.onDeck ? 0.32 : 0.5);
     else if (s.kind === 'stump') addCircleCollider(s.x, s.z, 0.38);
     else if (s.kind === 'lookout') addCircleCollider(s.x - Math.sin(s.ry) * 0.45, s.z - Math.cos(s.ry) * 0.45, 0.95);
     else if (s.kind === 'spring') addCircleCollider(s.x + Math.sin(s.ry) * 1.6, s.z + Math.cos(s.ry) * 1.6, 0.9);
+    else if (s.kind === 'rocks') addCircleCollider(s.x - Math.sin(s.ry) * 0.25, s.z - Math.cos(s.ry) * 0.25, 0.55);
+    else if (s.kind === 'pavilion') {
+      // 마루 밑으로 걸어 들어가지 않게: 돌린 정자 바닥(뒤 0.2m 는 길 쪽 디딤 자리로 비움)을 감싸는 축정렬 상자
+      const h = PAVILION.half, pts = [[-h - 0.1, 0], [h + 0.1, 0], [-h - 0.1, -2 * h + 0.2], [h + 0.1, -2 * h + 0.2]].map(([lx, lz]) => ({ x: s.x + Math.cos(s.ry) * lx + Math.sin(s.ry) * lz, z: s.z - Math.sin(s.ry) * lx + Math.cos(s.ry) * lz }));
+      addBoxCollider(Math.min(...pts.map((p) => p.x)), Math.min(...pts.map((p) => p.z)), Math.max(...pts.map((p) => p.x)), Math.max(...pts.map((p) => p.z)), 3.6);
+    }
   }
+  buildStairs(scene, m);
 
-  // 돗자리: 말아 둔 것(쉴 때) ↔ 편 것(앉았을 때)
-  const matSpots = spots.filter((s) => s.kind === 'mat');
+  // 돗자리 (「휴식」으로 아무 데나 펴는 것 — 산책로 쉼터에는 돗자리가 없다)
   const matMat = new THREE.MeshStandardMaterial({ map: matTexture(), roughness: 0.92 });
-  const rollGeo = new THREE.CylinderGeometry(0.09, 0.09, 0.95, 10);
-  rollGeo.rotateZ(Math.PI / 2);
-  const rolls = new THREE.InstancedMesh(rollGeo, matMat, matSpots.length);
-  rolls.castShadow = true;
-  rolls.receiveShadow = true;
-  const o = new THREE.Object3D();
-  const setRoll = (i, shown) => {
-    const s = matSpots[i];
-    o.position.set(s.x + Math.cos(s.ry) * 0.9, terrainHeight(s.x, s.z) + 0.09, s.z - Math.sin(s.ry) * 0.9);
-    o.rotation.set(0, s.ry, 0);
-    o.scale.setScalar(shown ? 1 : 0);
-    o.updateMatrix();
-    rolls.setMatrixAt(i, o.matrix);
-    rolls.instanceMatrix.needsUpdate = true;
-  };
-  matSpots.forEach((_, i) => setRoll(i, true));
-  scene.add(rolls);
   const flatGeo = new THREE.PlaneGeometry(1.0, 1.5, 4, 6); // 땅을 따라 펴려고 잘게 (showMat)
   flatGeo.rotateX(-Math.PI / 2);
   const flat = mesh(flatGeo, matMat, 0, 0, 0, false);
   flat.visible = false;
   scene.add(flat);
-  let shownMat = -1;
 
   // 갈림목·다리·전망 바위 석등과, 길을 따라 20m 마다 낮은 길 등 (밤에 바닥에 빛 웅덩이가 이어져 길이 보인다)
   const lanterns = [];
@@ -524,7 +631,7 @@ export function buildTrailProps(scene) {
   return {
     spots,
     lanterns,
-    dynamic: [rolls, flat],
+    dynamic: [flat],
     /** 이 쉼터의 한 칸에 앉는 자리 (cushionSeat 와 같은 꼴: occupant getter/setter, standAt). 칸을 안 주면 원래 자리 */
     seat(s, slot = restSlots(s)[0]) {
       return {
@@ -545,12 +652,8 @@ export function buildTrailProps(scene) {
         }
       };
     },
-    /** 돗자리를 편다: 산책로 돗자리 쉼터면 말아 둔 것을 거두고, 휴식(아무 데서나)이면 그 자리에.
-     *  천처럼 땅을 따라 덮는다 — 꼭짓점마다 그 자리 땅 위 1.5cm (기울거나 비틀린 길에서도 묻히거나 뜨지 않게) */
+    /** 휴식 돗자리를 그 자리에 편다. 천처럼 땅을 따라 덮는다 — 꼭짓점마다 그 자리 땅 위 1.5cm (기울거나 비틀린 길에서도 묻히거나 뜨지 않게) */
     showMat(s) {
-      const i = matSpots.findIndex((q) => q.id === s.id);
-      this.hideMat();
-      if (i >= 0) setRoll(i, false);
       const gy = walkHeight(s.x, s.z), c = Math.cos(s.ry), sn = Math.sin(s.ry), P = flatGeo.attributes.position;
       for (let k = 0; k < P.count; k++) {
         const lx = P.getX(k), lz = P.getZ(k);
@@ -562,12 +665,9 @@ export function buildTrailProps(scene) {
       flat.position.set(s.x, gy, s.z);
       flat.rotation.set(0, s.ry, 0);
       flat.visible = true;
-      shownMat = i;
     },
     hideMat() {
-      if (shownMat >= 0) setRoll(shownMat, true);
       flat.visible = false;
-      shownMat = -1;
     }
   };
 }

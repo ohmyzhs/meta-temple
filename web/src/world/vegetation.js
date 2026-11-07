@@ -166,7 +166,7 @@ export function buildVegetation(scene, quality) {
   }
   // 마당·대웅전 근처 단풍 포인트 (서쪽 마당은 모서리 그늘 나무 셋 — 가운데 예비 마당은 비워 둔다, 충돌체는 아래 z<6 규칙)
   [
-    [-31.4, 3.2], [-31.0, -31.2], [-18.6, -31.4], [-32.3, -26.5], [-32.3, -9.5], [16.8, -21.6], [17.2, -25], [35, 2], [7.5, 11.5], [-8, 12.5]
+    [-31.4, 3.2], [-31.0, -31.2], [-18.6, -31.4], [-32.3, -26.5], [-32.3, -9.5], [16.8, -21.6], [17.2, -25], [42.5, 3.5], [7.5, 11.5], [-8, 12.5]
   ].forEach(([x, z]) => trailDist(x, z) > 3.4 && !inLookoutView(x, z) && spots.maple.push([x, z, 1 + r() * 0.3, r() * 6]));
 
   const o = new THREE.Object3D();
@@ -351,8 +351,8 @@ function buildLotus(scene) {
   const r = rand(66);
   const p = L.pond;
   const pads = [], flowers = [];
-  for (let i = 0; i < 40; i++) {
-    const a = r() * Math.PI * 2, d = Math.sqrt(r()) * 0.88;
+  for (let i = 0, n = Math.round(1.2 * p.rx * p.rz); i < n; i++) {
+    const a = Math.PI * (0.55 + r() * 0.9), d = Math.sqrt(r()) * 0.88; // 서쪽 반에 모은다 — 동쪽 트인 물에 잉어가 보이게 (pondGarden.js)
     const x = p.x + Math.cos(a) * d * p.rx, z = p.z + Math.sin(a) * d * p.rz;
     pads.push([x, z, 0.35 + r() * 0.35, r() * 6]);
     if (r() > 0.6) flowers.push([x + 0.1, z, 0.8 + r() * 0.4, r() * 6]);

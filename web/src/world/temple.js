@@ -32,6 +32,7 @@ import { makeEmitter } from './effects.js';
 import { PaperBurn } from './burnPaper.js';
 import { buildBuddhaStatue } from './buddha.js';
 import { buildTrailProps } from './trailProps.js';
+import { buildPondGarden } from './pondGarden.js';
 import { buildWestCourt, buildWestGate } from './westCourt.js';
 import { buildHallAdorn, buildHallLanterns } from './hallAdorn.js';
 import { CairnField } from './cairnField.js';
@@ -908,33 +909,8 @@ export class Temple {
       approach: { x: jx - 0.9, z: jz, ry: Math.PI / 2 }
     });
 
-    // 연못 정자
-    const pav = buildHanok({
-      xs: [-1, 1],
-      zs: [-1, 1],
-      colH: 2.4,
-      colR: 0.13,
-      front: 'open',
-      back: 'open',
-      sides: 'open',
-      brackets: 0,
-      roof: { type: 'paljak', overhang: 0.9, height: 1.5, lift: 0.4, segs: 24 }
-    });
-    const px = L.pond.x + L.pond.rx + 0.55, pz = L.pond.z + 0.6;
-    const pbase = new THREE.Mesh(new THREE.BoxGeometry(2.5, 0.35, 2.5), m.woodLight);
-    pbase.position.set(px, ty + 0.18, pz);
-    pbase.receiveShadow = true;
-    this.scene.add(pbase);
-    pav.position.set(px, ty + 0.35, pz);
-    this.scene.add(pav);
-    addBoxCollider(px - 1.3, pz - 1.3, px + 1.3, pz + 1.3);
-    // 연못가 석등
-    const pl = buildStoneLantern(0.7);
-    const plx = L.pond.x - L.pond.rx - 0.6, plz = L.pond.z - 2.4;
-    pl.position.set(plx, terrainHeight(plx, plz), plz);
-    this.scene.add(pl);
-    addCircleCollider(plx, plz, 0.4);
-    this.glowDecals.push({ x: plx, z: plz, y: terrainHeight(plx, plz), r: 2.2, i: 0.5 });
+    // 연못 정원: 정자·잉어·옹달샘·연못가 석등 (pondGarden.js)
+    this.pondGarden = buildPondGarden(this.scene, m, this.glowDecals);
   }
 
   /** 석등 주변 바닥 빛 (가산, 밤에만) */
@@ -968,6 +944,7 @@ export class Temple {
   }
 
   update(dt, t, night) {
+    this.pondGarden?.update(dt, t);
     // 범종: 당목이 뒤로 물러났다가 친다
     const ram = this.bell.userData.ram;
     const pivot = this.bell.userData.bellPivot;
