@@ -74,7 +74,7 @@ export const CREDITS = {
   ],
   textures: [
     // 밤하늘 (web/assets/world/sky, tools/sky/build.py) — 은하수 지도 + 밝은 별 6000개 점
-    { use: '밤하늘 은하수·별', title: 'Deep Star Maps 2020', by: 'NASA SVS', url: 'https://svs.gsfc.nasa.gov/4851', note: 'Gaia DR2: ESA/Gaia/DPAC' }
+    { use: '밤하늘 은하수·별', title: 'Deep Star Maps 2020', by: 'NASA SVS', url: 'https://svs.gsfc.nasa.gov/4851' }
   ],
   patterns: [],
   // 실사 세계(world/real)의 법당 삼존·후불벽 — 3D 모델 대신 생성형 사진을 세운 판 (프롬프트: docs/art/prompts/)

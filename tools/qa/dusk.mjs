@@ -2,7 +2,8 @@
 // 사용자 2026-11-07: 18~23시·05~08시가 너무 어둡다 (대웅전 안·산책로·산문 밖이 거의 안 보임), 한밤은 달빛 덕에 낫다. 비 오는데 은하수가 보인다.
 // 구도마다 화면 평균 루마를 재고 같은 구도 13시와 견준다 (night.mjs (a) 와 같은 방식). 스크린샷: OUT/TAG-<q>-<구도>-<시>.png
 // 기준 (1280×800): 05~08·18~23시 맑음에서
-//   바깥 구도(산문 밖·숲길·마당·산책로) 평균 루마 ≥ 13시의 MIN(기본 30% — 한밤 산문 34% 를 사용자가 '낫다'고 한 데서), 법당 안 ≥ HALL_MIN(기본 40%)
+//   바깥 구도(산문 밖·숲길·마당) 평균 루마 ≥ 13시의 MIN(기본 30% — 한밤 산문 34% 를 사용자가 '낫다'고 한 데서), 법당 안 ≥ HALL_MIN(기본 40%)
+//   산책로(숲 속 작은 나무다리) ≥ TRAIL_MIN(기본 18% — 고치기 전 한밤 값. 고치기 전 19~20시는 7~10%)
 //   날씨(rain·snow 다 내린 뒤, rainramp = 비를 켜고 1초 뒤): 산문 구도에서 별·은하수·달이 더한 밝기 < 0.002
 // 환경 변수: TAG(before|after), Q=low,high, HOURS=13,5,7,18,20,22,0,rain22,snow22,rainramp22, SHOTS=gate,forest,..., NOSHOT=1(스크린샷 안 찍음), OUT
 import { mkdirSync } from 'node:fs';
@@ -13,7 +14,7 @@ const OUT = process.env.OUT || '.playwright-mcp/qa/dusk';
 const QS = (process.env.Q || 'low,high').split(',');
 const HOURS = (process.env.HOURS || '13,5,7,18,20,22,0,rain22,snow22,rainramp22').split(',');
 const ONLY = process.env.SHOTS?.split(',');
-const MIN = +(process.env.MIN || 0.3), HALL_MIN = +(process.env.HALL_MIN || 0.4);
+const MIN = +(process.env.MIN || 0.3), HALL_MIN = +(process.env.HALL_MIN || 0.4), TRAIL_MIN = +(process.env.TRAIL_MIN || 0.18);
 const twilight = (h) => (h >= 5 && h <= 8) || (h >= 18 && h <= 23);
 mkdirSync(OUT, { recursive: true });
 
@@ -110,7 +111,7 @@ try {
         if (hs === '13') base[s.name] = r.mean;
         const ratio = base[s.name] ? r.mean / base[s.name] : null;
         let ok = true;
-        if (w === 'clear' && hs !== '13' && ratio != null && twilight(h)) ok = ratio >= (s.name === 'hall' ? HALL_MIN : MIN);
+        if (w === 'clear' && hs !== '13' && ratio != null && twilight(h)) ok = ratio >= (s.name === 'hall' ? HALL_MIN : s.name === 'trail' ? TRAIL_MIN : MIN);
         if (w !== 'clear') ok = Math.abs(r.starAdd) < 0.002;
         if (!ok) pass = false;
         row.push(`${s.name} ${r.mean}${ratio != null && hs !== '13' ? ` (${(ratio * 100).toFixed(0)}%)` : ''}${r.starAdd != null ? ` 별+${r.starAdd}` : ''}${ok ? '' : '✗'}`);
@@ -123,5 +124,5 @@ try {
 } finally {
   await browser.close();
 }
-console.log(`dusk.mjs ${pass ? 'PASS' : 'FAIL'} (05~08·18~23시 바깥 ≥ 13시의 ${MIN * 100}%, 법당 안 ≥ ${HALL_MIN * 100}%, 비·눈 별 ≈ 0)\n` + lines.join('\n'));
+console.log(`dusk.mjs ${pass ? 'PASS' : 'FAIL'} (05~08·18~23시 바깥 ≥ 13시의 ${MIN * 100}%, 산책로 ≥ ${TRAIL_MIN * 100}%, 법당 안 ≥ ${HALL_MIN * 100}%, 비·눈 별 ≈ 0)\n` + lines.join('\n'));
 process.exit(pass ? 0 : 1);
