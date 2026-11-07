@@ -126,12 +126,15 @@
   letter-spacing: 0.2em;
   color: var(--m-gold-ink);
 }
+/* 부제(한 줄 설명)는 읽기 프로그램에만 — 사용자 2026-11-08 「작은 글씨 설명은 최대한 제거」 */
 .modal-subtitle {
-  margin: 6px 0 0;
-  font-family: var(--font-serif);
-  font-size: 13px;
-  line-height: 1.6;
-  color: var(--muk-soft);
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 .modal-close {
   flex: none;
@@ -294,6 +297,14 @@
 }
 .m-label small { font-size: 11.5px; color: rgba(94, 85, 74, 0.75); margin-left: 6px; }
 .m-field { position: relative; }
+.sr-only + .m-field { margin-top: 16px; } /* 이름표를 숨긴 입력칸 (자리 표시 글이 이름) */
+/* 빈 칸으로 올리면: 글 대신 칸이 살짝 흔들리고 금테 */
+.is-nudge { animation: m-nudge 0.42s var(--ease); }
+.m-field.is-nudge textarea, .m-field.is-nudge input, textarea.is-nudge { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(201, 163, 90, 0.35); }
+@keyframes m-nudge { 20% { transform: translateX(-6px); } 40% { transform: translateX(6px); } 60% { transform: translateX(-4px); } 80% { transform: translateX(3px); } }
+/* 숫자가 바뀌었다는 표시 (돌 얹은 뒤 돌 수) */
+.is-bump { display: inline-block; animation: m-bump 0.9s var(--ease); }
+@keyframes m-bump { 0% { transform: scale(1.4); color: var(--m-gold-ink); } 100% { transform: none; } }
 .m-field textarea,
 .m-field input,
 .sutra-input {
@@ -457,7 +468,7 @@
   border-bottom: 1px dashed var(--m-line);
   border-radius: 8px;
 }
-.lantern-item.is-mine { background: linear-gradient(90deg, rgba(201, 163, 90, 0.16), rgba(201, 163, 90, 0)); }
+.lantern-item.is-mine { background: linear-gradient(90deg, rgba(201, 163, 90, 0.16), rgba(201, 163, 90, 0)); box-shadow: inset 3px 0 0 var(--gold); } /* 나의 연등 */
 .lantern-item.is-new { animation: m-glow 2.4s var(--ease) both; }
 @keyframes m-glow { 0% { background-color: rgba(201, 163, 90, 0.4); } 100% { background-color: transparent; } }
 .lantern-open {
@@ -480,9 +491,10 @@
   flex: none;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  min-height: 34px;
-  padding: 0 12px;
+  gap: 5px;
+  min-height: 48px;
+  min-width: 48px;
+  padding: 0 14px 0 12px;
   border-radius: 999px;
   border: 1px solid var(--m-line);
   background: rgba(255, 255, 255, 0.45);
@@ -495,8 +507,26 @@
 .m-empathy:hover:not(:disabled) { border-color: var(--gold); }
 .m-empathy.is-done { border-color: var(--gold-soft); background: rgba(201, 163, 90, 0.12); color: var(--m-gold-ink); cursor: default; }
 .m-empathy:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.m-empathy .i, .m-empathy-big .i { width: 20px; height: 20px; } /* 합장 손 + 수 (공감함은 금빛) */
+.m-empathy-big { min-width: 112px; min-height: 48px; }
+.m-more { margin: 10px 0 0; text-align: center; font-size: 13px; letter-spacing: 0.06em; color: var(--muk-soft); } /* 목록 밖에 남은 수 */
 .lantern-detail { text-align: center; }
-.m-back { display: block; margin: -6px 0 4px; }
+.lantern-detail.is-mine .lantern-meta { color: var(--m-gold-ink); }
+.m-back {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  margin: -10px 0 -26px -12px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--muk-soft);
+  cursor: pointer;
+}
+.m-back:hover { color: var(--muk); background: rgba(43, 39, 34, 0.06); }
+.m-back:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 .lantern-quote {
   margin: 14px auto 8px;
   max-width: 400px;
@@ -573,15 +603,29 @@
 .cairn { text-align: center; }
 .cairn-svg { display: block; width: 150px; height: auto; margin: 0 auto; }
 .cairn-new { opacity: 0; }
+.cairn-svg > ellipse { transition: opacity 0.6s; }
+.cairn.is-new .cairn-svg > ellipse { opacity: 0.2; } /* 아직 돌이 없는 자리: 흐린 돌탑 */
 .cairn-new.is-drop { animation: m-drop 0.9s cubic-bezier(0.3, 0.7, 0.4, 1.2) both; }
 @keyframes m-drop { 0% { opacity: 0; transform: translateY(-26px); } 60% { opacity: 1; } 100% { opacity: 1; transform: none; } }
 .cairn-count { margin: 4px 0 0; font-family: var(--font-serif); font-size: 14px; color: var(--muk-soft); }
+.stone-n { display: inline-flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; } /* 조약돌 + 수 */
+.stone-n .stone-pebble { margin: 0; }
+.stone-meta .stone-n { gap: 5px; }
+.stone-meta .stone-pebble { width: 12px; height: 8px; }
 .cairn-count b { font-size: 20px; color: var(--muk); font-weight: 600; margin: 0 2px; font-variant-numeric: tabular-nums; }
 .cairn-name { display: block; font-size: 16px; font-weight: 600; color: var(--muk); margin-bottom: 2px; } /* 이 돌탑 이름 (길가 돌탑마다 글이 따로) */
 .my-cairns .stone-item { align-items: center; }
 .my-cairns .m-btn { margin-left: auto; flex: none; }
+.m-btn.m-walk { min-height: 48px; gap: 6px; padding: 0 14px 0 10px; font-family: var(--font-sans); font-size: 13px; letter-spacing: 0; } /* 걷는 사람 + 거리 */
+.m-walk .i { width: 20px; height: 20px; }
+.stone-item.is-here { box-shadow: inset 0 0 0 1.5px var(--gold); border-radius: 10px; border-bottom-color: transparent; } /* 지금 선 돌탑 */
+.stone-here { display: grid; place-items: center; width: 48px; height: 48px; margin-left: auto; color: var(--m-gold-ink); }
+.stone-item.is-loading { gap: 8px; align-items: center; justify-content: center; border-bottom: 0; }
+.stone-item.is-loading .stone-pebble { margin: 0; animation: m-dot 1.2s infinite; }
+.stone-item.is-loading .stone-pebble:nth-child(2) { animation-delay: 0.2s; }
+.stone-item.is-loading .stone-pebble:nth-child(3) { animation-delay: 0.4s; }
 .stone-item { display: flex; align-items: flex-start; gap: 12px; padding: 11px 6px; border-bottom: 1px dashed var(--m-line); }
-.stone-item.is-mine { background: linear-gradient(90deg, rgba(201, 163, 90, 0.15), rgba(201, 163, 90, 0)); border-radius: 8px; }
+.stone-item.is-mine { background: linear-gradient(90deg, rgba(201, 163, 90, 0.15), rgba(201, 163, 90, 0)); border-radius: 8px; box-shadow: inset 3px 0 0 var(--gold); } /* 나의 돌 */
 .stone-pebble {
   flex: none;
   width: 18px;
@@ -595,8 +639,8 @@
 .stone-meta { font-size: 11.5px; color: var(--muk-soft); }
 
 /* ───────── 4. 번뇌 소각 ───────── */
-.burn-intro { margin: 0 0 18px; font-family: var(--font-serif); font-size: 14px; line-height: 1.8; color: var(--muk-soft); }
-.burn-intro b { font-weight: 600; color: var(--muk); }
+.burn-lock { position: absolute; right: 12px; bottom: 10px; color: rgba(94, 85, 74, 0.45); pointer-events: none; } /* 저장·전송 없음 */
+.burn-lock .i { width: 18px; height: 18px; }
 .burn-stage { position: relative; padding: 4px 6px 8px; }
 .burn-stage.is-empty .burn-paper { display: none; }
 .burn-paper {
@@ -1106,7 +1150,6 @@ body.tea-scene .modal-overlay.is-side {
   color: rgba(55, 38, 14, 0.78);
   text-shadow: 0 1px 0 rgba(255, 245, 210, 0.45);
 }
-.jukbi-tap { font-family: var(--font-serif); font-size: 12px; color: rgba(55, 38, 14, 0.75); padding: 4px 12px; border-radius: 999px; background: rgba(255, 248, 225, 0.45); }
 .jukbi-front {
   transform: rotateY(180deg);
   gap: 14px;
@@ -1476,10 +1519,15 @@ body.listening .m-yebul .m-hint, body.listening .m-nature .m-hint, body.listenin
   .modal-window.side.m-mixer { max-height: calc(100vh - 16px); max-height: calc(100dvh - 16px); }
 }
 
-/* 공개 여부 */
-.m-share { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: 4px 0 12px; font-size: 13px; color: var(--muk); cursor: pointer; }
-.m-share input { width: 16px; height: 16px; accent-color: var(--gold); }
-.m-share small { flex-basis: 100%; padding-left: 22px; font-size: 11.5px; color: var(--muk-soft); }
+/* 공개 여부: 이름 + 스위치 (role=switch). 줄 전체가 누르는 자리 48px */
+.m-share { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; margin: 4px 0 6px; padding: 0 2px; font-size: 13.5px; color: var(--muk); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.m-share input {
+  -webkit-appearance: none; appearance: none; flex: none; width: 52px; height: 30px; margin: 0; border-radius: 999px; cursor: pointer;
+  background: radial-gradient(circle, #fffdf7 10.5px, transparent 11px) no-repeat 4px 50% / 22px 22px, rgba(43, 39, 34, 0.18);
+  transition: background-color 0.2s, background-position 0.2s var(--ease);
+}
+.m-share input:checked { background-color: var(--gold); background-position: 26px 50%; }
+.m-share input:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 
 /* 측면 패널: 뒤의 법당·아바타가 비쳐 보이게 (글자는 읽히도록 약한 블러만) */
 .modal-window.side {

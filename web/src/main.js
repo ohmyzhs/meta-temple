@@ -74,9 +74,9 @@ const MODE_LABEL = { one: '한 곡', all: '연속', repeat: '반복' }; // 듣�
 const fmtTime = (s) => (Number.isFinite(s) ? `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}` : '–:––');
 
 const UNLOCK_MSG = {
-  wooden_mala: '📿 손목에 붉은 자단목 단주가 채워졌습니다.',
-  hand_lantern: '🏮 밤길을 밝혀 줄 작은 손연등이 곁에 머뭅니다.',
-  jade_mala: '🤍 이레 동안의 발걸음 — 백옥 단주가 채워졌습니다.'
+  wooden_mala: '📿 자단목 단주를 받았습니다',
+  hand_lantern: '🏮 손연등을 받았습니다',
+  jade_mala: '🤍 이레 발걸음 · 백옥 단주를 받았습니다'
 };
 
 class MetaTempleApp {
@@ -210,7 +210,7 @@ class MetaTempleApp {
         this.store.addStat('circumambulationLoops');
         this._updateHUD();
         this.sound.playWindChime(0.8);
-        this.toast(`🔄 석탑을 ${n}바퀴 돌았습니다 · 누적 ${this.store.stats.circumambulationLoops}바퀴`);
+        this.toast(`🔄 ${n}바퀴`);
       },
       onStandUp: () => {
         this.world.setFocusVignette(false);
@@ -532,7 +532,6 @@ class MetaTempleApp {
         this.sound.playLanternRise();
         this._afterUnlock(res.unlocked);
         this._updateHUD();
-        setTimeout(() => this.toast('🏮 마당 하늘에 나의 소원 연등이 밝혀졌습니다'), 800);
         return res;
       },
       onEmpathize: (id) => {
@@ -554,7 +553,6 @@ class MetaTempleApp {
         if (share) this._publish('tiles', t, '기와');
         this._brushFont(wish).then(() => this.temple.tileRack.sync(this.store.state.tiles));
         this._updateHUD();
-        this.toast('🀫 기와에 새긴 서원이 불사대에 봉안되었습니다');
         return t;
       },
       onAddStone: (wish, share = true) => {
@@ -562,13 +560,8 @@ class MetaTempleApp {
         const s = this.store.addStone(wish, share, place);
         if (share) this._publish('stones', s, '돌탑의 돌');
         const drop = () => this.sound.playStoneDrop();
-        if (place) {
-          const c = this.temple.cairns.addStone({ id: place.cairnId, x: place.x, z: place.z }, drop);
-          this.toast(c.n === 1 ? '⛰️ 길가에 새 돌탑을 세웠습니다 · 첫 층' : `⛰️ 길가 돌탑에 돌을 얹었습니다 · ${c.n}층`);
-        } else {
-          this.temple.cairn.addStone(drop);
-          this.toast(`⛰️ 돌탑에 조약돌 하나를 얹었습니다 · 지금까지 ${this.store.stoneTotal}개`);
-        }
+        if (place) this.temple.cairns.addStone({ id: place.cairnId, x: place.x, z: place.z }, drop);
+        else this.temple.cairn.addStone(drop);
         this._updateHUD();
         return s;
       },
@@ -776,7 +769,6 @@ class MetaTempleApp {
       case 'circumambulate': {
         const circle = () => {
           this.avatars.triggerAction('circumambulate');
-          this.toast('🙏 두 손을 모으고 석탑을 오른쪽으로 돕니다 · 움직이면 멈춥니다');
         };
         if (zoneAt(this.player.root.position.x, this.player.root.position.z) !== 'COURTYARD') return this._teleport(0, 1.5, Math.PI, circle);
         return circle();
@@ -1399,7 +1391,6 @@ class MetaTempleApp {
     });
     this.store.addStat('bellStrikes');
     this.player.play('bow_half');
-    setTimeout(() => this.toast('🔔 청동 범종의 울림이 산사 전체로 퍼져 나갑니다'), 1100);
   }
 
   _offerIncense() {
@@ -1410,7 +1401,6 @@ class MetaTempleApp {
       this.sound.playMoktak(0.5);
     }, 1400);
     this.store.addStat('incenseCount');
-    this.toast('🕯️ 불단 앞에 향 한 대와 초 한 자루를 공손히 올립니다');
   }
 
   /** 고른 좌복으로 걸어가 그냥 앉는다 (아무 수행도 열지 않음). then 이 있으면 앉은 뒤 이어서 */
@@ -1614,7 +1604,6 @@ class MetaTempleApp {
     const w = this._walk;
     if (w && this.avatars.moveTarget !== w.mt) {
       this._walk = null; // 다른 움직임이 끼어들었다 (닿았을 때는 도착 콜백이 먼저 비운다)
-      this.toast('돌탑 찾아가기를 멈췄습니다');
     }
     const st = this._stroll || this._walk;
     if (!st) return;
@@ -1736,16 +1725,14 @@ class MetaTempleApp {
       const q = this.player.root.position;
       if (Math.hypot(q.x - end.x, q.z - end.z) > 2.5) {
         if (retry < 3) return this._walkToCairn(id, retry + 1);
-        return this.toast('길이 막혀 멈췄습니다 · 조금 움직인 뒤 다시 찾아가 보세요');
+        return this.toast('길이 막혀 멈췄습니다');
       }
       this.player.heading = Math.atan2(c.x - q.x, c.z - q.z);
       this.player.root.rotation.y = this.player.heading;
       this._stoneSpot = { x: c.x, z: c.z };
-      this.toast(`⛰️ ${c.name}에 닿았습니다 · 돌을 하나 더 얹을 수 있습니다`);
     }, via);
     this._walk = { mt: this.avatars.moveTarget, id };
-    const min = Math.max(1, Math.round(len / 1.1 / 60));
-    if (!retry) this.toast(`🚶 ${c.name}까지 걸어갑니다 · 약 ${Math.round(len)}m, ${min}분 · 움직이면 멈춥니다`);
+    if (!retry) this.toast(`🚶 ${c.name} · ${Math.round(len)}m`);
   }
 
   /** 멈춰 선 자리에서 돌탑을 쌓을 수 있으면 알약 하나 (걷는 동안에는 띄우지 않는다) */
@@ -1761,9 +1748,9 @@ class MetaTempleApp {
     const list = this._cairnsWithGate();
     const c = findJoinable(list, at.x, at.z);
     if (c?.id === GATE_ID) return null; // 일주문 옆 돌탑은 원래 알약이 맡는다
-    if (c) return { id: `cairn:${c.id}`, label: `돌탑에 돌 얹기 · ${c.n}층`, at: { x: c.x, z: c.z } };
+    if (c) return { id: `cairn:${c.id}`, label: `돌 얹기 · ${c.n}층`, at: { x: c.x, z: c.z } };
     if (areaCount(list, at.x, at.z) >= AREA_CAP) return null;
-    return { id: 'cairn:new', label: '여기에 돌탑 쌓기', at };
+    return { id: 'cairn:new', label: '돌탑 쌓기', at };
   }
 
   /** 108배·염주: 자리를 옮기지 않고 지금 그 자리에서 (좌복 위든 마루 위든) */
@@ -1864,7 +1851,7 @@ class MetaTempleApp {
           }, 1000);
       },
       onDone: () => {
-        this.toast('🔥 흔적 없이 사라졌습니다 · 깊게 한 번 내쉬어 보세요');
+        this.toast('🔥 흔적 없이 사라졌습니다');
         // 하늘로 솟은 마지막 불똥이 사라질 무렵 원래 시점으로 (종이는 불붙고 BURN 초 뒤에 다 탄다)
         setTimeout(() => this._endBurnHold(), still ? 900 : (SKY_TOTAL - BURN) * 1000);
       }
@@ -1923,7 +1910,7 @@ class MetaTempleApp {
         break;
       }
       case 'prostrate':
-        if (this._doProstration(false)) this.toast('🙇 두 무릎을 꿇고 이마를 바닥에 대어 절을 올립니다');
+        this._doProstration(false);
         break;
       case 'rest':
         return this._restHere();
@@ -1933,14 +1920,13 @@ class MetaTempleApp {
         this.avatars.triggerAction('incense');
         break;
       case 'circumambulate':
-        if (zone !== 'COURTYARD') return this.toast('탑돌이는 대웅전 앞마당의 삼층석탑에서 할 수 있습니다');
+        if (zone !== 'COURTYARD') return this.toast('탑돌이는 앞마당 석탑에서');
         this.activate('circumambulate');
         break;
       case 'tea':
         if (zone === 'TEAHOUSE' && Math.hypot(p.x - L.teaSeat.x, p.z - L.teaSeat.z) < 4) return this.activate('tea_chat');
         this.avatars.triggerAction('tea');
         this.player.restState = 'tea';
-        this.toast('🍵 따뜻한 찻잔을 두 손으로 감싸 쥡니다');
         break;
     }
   }
