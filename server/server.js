@@ -9,7 +9,8 @@ import crypto from 'node:crypto';
 import { WebSocketServer } from 'ws';
 import { createStore } from './store.js';
 import { checkText } from './moderation.js';
-import { parsePlace, placeStone, AREA_RADIUS, CAIRN_ID_RE } from './cairns.js';
+import { parsePlace, placeStone, toRoadside, roadsideList, AREA_RADIUS, CAIRN_ID_RE, ROADSIDE, ROADSIDE_REACH } from './cairns.js';
+import { ROADSIDE_GEO } from './roadsideGeo.js';
 import { PRODUCTS, paymentsEnabled } from './products.js';
 import { createMonk, MONK_BODY_MAX } from './monk.js';
 
@@ -174,9 +175,17 @@ async function api(req, res) {
     if (p.place) {
       // 이미 있는 탑이면 그 자리, 아니면 1.5m 안의 탑에 합치고, 구역이 꽉 찼으면 새 탑은 거절
       const known = await store.cairnById(p.place.cairnId);
-      const at = known ? { id: known.id, x: known.x, z: known.z } : placeStone(await store.cairnsNear(p.place.x, p.place.z, AREA_RADIUS), p.place.x, p.place.z, p.place.cairnId);
-      if (at.full) return send(res, 422, { error: '이 근처에는 돌탑이 이미 많습니다. 가까운 돌탑에 얹어 주세요', reason: 'cairn_area_full' });
-      place = { cairn_id: at.id, x: at.x, z: at.z };
+      if (known) place = { cairn_id: known.id, x: known.x, z: known.z };
+      else {
+        // 길가 규칙: 길 위(옛 화면)에 세우려던 새 탑은 가까운 길가로. 둘레 탑도 화면처럼 길가 자리(roadsideList)로 견주고, 합칠 때는 그 탑의 DB 자리를 그대로 쓴다
+        const spot = toRoadside(p.place.x, p.place.z, ROADSIDE_GEO);
+        const raw = await store.cairnsNear(spot.x, spot.z, AREA_RADIUS + ROADSIDE_REACH + ROADSIDE + 1.2);
+        const shown = roadsideList(raw, ROADSIDE_GEO);
+        const at = placeStone(shown.filter((c) => (c.x - spot.x) ** 2 + (c.z - spot.z) ** 2 <= AREA_RADIUS * AREA_RADIUS), spot.x, spot.z, p.place.cairnId);
+        if (at.full) return send(res, 422, { error: '이 근처에는 돌탑이 이미 많습니다. 가까운 돌탑에 얹어 주세요', reason: 'cairn_area_full' });
+        const base = at.isNew ? spot : raw[shown.findIndex((c) => c.id === at.id)];
+        place = { cairn_id: at.id, x: base.x, z: base.z };
+      }
     }
   }
   const key = `${clientHash}|${kind}`;

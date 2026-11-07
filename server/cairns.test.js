@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { findJoinable, placeStone, pickVisible, parsePlace, AREA_CAP, JOIN_RADIUS } from './cairns.js';
+import { findJoinable, placeStone, pickVisible, parsePlace, AREA_CAP, JOIN_RADIUS, toRoadside, roadsideOk, roadsideList, nearestPath, ROADSIDE, ROADSIDE_MIN } from './cairns.js';
+import { ROADSIDE_GEO as G } from './roadsideGeo.js';
+import { buildGeo } from '../tools/roadside-geo.mjs';
 
 const C = (id, x, z, n = 1) => ({ id, x, z, n });
 const NEW = 'c_00000000-0000-0000-0000-000000000001';
@@ -46,4 +48,52 @@ test('parse_place', () => {
   assert.equal(parsePlace({ cairnId: NEW, x: 'a', z: 1 }).error, 'bad cairn');
   assert.equal(parsePlace({ cairnId: NEW, x: 1e6, z: 1 }).error, 'bad cairn');
   assert.equal(parsePlace({ cairnId: NEW, x: 1 }).error, 'bad cairn');
+});
+
+/* ───── 길가 (사용자 2026-11-08 「길바닥 아무 데나 쌓지 말고 근처 길가로」) ───── */
+test('roadside_geo_matches_trail', () => {
+  // trail.js(길·석등·쉼터)를 고쳤으면: node tools/roadside-geo.mjs
+  assert.deepEqual(G, buildGeo(), 'server/roadsideGeo.js 가 trail.js 와 다르다 — node tools/roadside-geo.mjs 로 다시 만들 것');
+});
+
+test('on_path_moves_to_nearest_roadside', () => {
+  const p = G.paths[0];
+  for (const i of [40, 150, 300]) {
+    const x = p[2 * i], z = p[2 * i + 1];
+    assert.equal(roadsideOk(x, z, G), false);
+    const r = toRoadside(x, z, G);
+    assert.equal(r.moved, true);
+    assert.ok(roadsideOk(r.x, r.z, G));
+    const d = nearestPath(G, r.x, r.z).d;
+    assert.ok(d >= ROADSIDE_MIN && d < ROADSIDE + 1.3, `d ${d}`);
+    assert.deepEqual(toRoadside(r.x, r.z, G), { x: r.x, z: r.z, moved: false }); // 두 번 옮기지 않는다
+  }
+});
+
+test('forest_path_keeps_lanterns_and_gate_clear', () => {
+  // 실서버의 옛 탑: 일주문 숲길 한가운데(스폰 앞 12층), 숲길 석등 쌍(z 33) 앞, 일주문 바로 앞
+  for (const [x, z] of [[0, 35.1], [0, 33.1], [0.93, 26.08]]) {
+    const r = toRoadside(x, z, G);
+    assert.ok(r.moved && roadsideOk(r.x, r.z, G), `${x},${z}`);
+  }
+  assert.equal(roadsideOk(2.5 + G.paths[3][0], 33, G), false); // 석등 자리 (숲길 z 33 오른쪽 2.5m 근처)
+});
+
+test('far_and_court_spots', () => {
+  // 옛 북쪽 길(z −50) 자리 — 길을 중턱으로 옮긴 뒤 13m 밖 비탈에 남은 탑은 옮기지 않는다 (가까운 길가가 가파른 비탈)
+  assert.deepEqual(toRoadside(5.87, -50.05, G), { x: 5.87, z: -50.05, moved: false });
+  // 마당 갈림길 위의 탑은 앞마당 석축 쪽이 아니라 길 건너편으로
+  const r = toRoadside(4.64, 6.59, G);
+  assert.ok(r.moved && r.z > 6.2, JSON.stringify(r));
+});
+
+test('roadside_list_spreads_moved_cairns', () => {
+  const list = [C('c_a', 0, 35.1, 12), C('c_b', 0, 33.1, 4), C('c_c', 1.64, 34.58, 1), C('c_d', -3.29, 34.62)];
+  const out = roadsideList(list, G);
+  assert.deepEqual(out.map((c) => [c.id, c.n]), list.map((c) => [c.id, c.n]));
+  assert.deepEqual(out[3], list[3]); // 이미 길가인 탑은 그대로
+  for (const c of out) assert.ok(roadsideOk(c.x, c.z, G), c.id);
+  for (let i = 0; i < out.length; i++) for (let j = i + 1; j < out.length; j++) assert.ok(Math.hypot(out[i].x - out[j].x, out[i].z - out[j].z) >= JOIN_RADIUS - 1e-9);
+  assert.deepEqual(roadsideList(out, G), out); // 두 번 해도 같다
+  assert.deepEqual(roadsideList([...list].reverse(), G).reverse(), out); // 받은 순서와 상관없이 같다
 });

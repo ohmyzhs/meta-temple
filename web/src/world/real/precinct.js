@@ -284,7 +284,7 @@ class Precinct {
         mat.color.set(0x8c8c8c);
         break;
     }
-    if (k === 'granite' || k === 'rock' || k === 'tile') instanceJitter(mat); // 인스턴스에서만 (#ifdef USE_INSTANCING)
+    if (k === 'granite' || k === 'rock' || k === 'tile' || k === 'mossy') instanceJitter(mat); // 인스턴스에서만 (#ifdef USE_INSTANCING) — mossy: 길가 돌탑(cairnField) 돌마다 사진 다른 자리
     mat.needsUpdate = true;
   }
 }
