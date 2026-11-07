@@ -25,14 +25,25 @@ for (const vp of [[360, 780], [390, 844], [430, 932], [844, 390], [1280, 800]]) 
   const { ctx, page, errors } = await enter(browser, vp);
   await page.waitForTimeout(3500);
   await openSound(page);
-  await page.evaluate(() => (document.querySelector('#pop-sound').scrollTop = document.querySelector('#sound-trim').offsetTop - 60));
-  await page.waitForTimeout(300);
-  const s = await page.evaluate(() => {
-    const rows = [...document.querySelectorAll('#sound-trim .trim-row')].map((r) => r.querySelector('.trim-name').firstChild.textContent);
-    const small = [...document.querySelectorAll('#sound-trim input, #sound-trim button')].filter((el) => { const r = el.getBoundingClientRect(); return r.width > 0 && (r.width < 47.5 || r.height < 47.5); }).map((el) => el.dataset.trim || el.textContent);
-    return { rows, small, heard: window.temple.sound.heard() };
+  // 처음엔 접힌 작은 묶음: 제목 + 들리는 소리 작은 그림, 줄은 보이지 않는다
+  const c = await page.evaluate(() => {
+    const card = document.querySelector('.snd-trim'), body = document.querySelector('#sound-trim');
+    return { exp: card.querySelector('.snd-trim-toggle').getAttribute('aria-expanded'), vis: getComputedStyle(body).visibility, inert: body.inert, peek: card.querySelectorAll('.peek').length, h: document.querySelector('#pop-sound').getBoundingClientRect().height, reset: card.querySelector('[data-trim-reset]').getBoundingClientRect().width };
   });
-  check(`${vp.join('x')} 소리 창: 들리는 소리 ${s.rows.length}가지 · 막대 48 이상`, s.rows.length > 0 && !s.small.length, `${s.rows.join(',')} ${s.small.join(',')}`);
+  check(`${vp.join('x')} 자연의 소리 조정: 처음엔 접힘 (작은 그림 ${c.peek}개) · 바꾼 것이 없으면 ↺ 없음`, c.exp === 'false' && c.vis === 'hidden' && c.inert && c.peek > 0 && c.reset === 0, JSON.stringify(c));
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/trim-closed-${vp.join('x')}.png` });
+  await page.click('.snd-trim-toggle');
+  await page.waitForTimeout(500);
+  await page.evaluate(() => { const b = document.querySelector('.snd-trim'); b.scrollIntoView({ block: 'nearest' }); });
+  await page.waitForTimeout(200);
+  const s = await page.evaluate(() => {
+    const vis = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && getComputedStyle(el).visibility !== 'hidden'; };
+    const rows = [...document.querySelectorAll('#sound-trim .trim-row')].map((r) => r.querySelector('.trim-name').textContent);
+    const ctl = [...document.querySelectorAll('#pop-sound input, #pop-sound button')].filter(vis);
+    const small = ctl.filter((el) => { const r = el.getBoundingClientRect(); return r.width < 47.5 || r.height < 47.5; }).map((el) => el.dataset.trim || el.id || el.className);
+    return { rows, small, open: document.querySelector('.snd-trim-toggle').getAttribute('aria-expanded'), vis: getComputedStyle(document.querySelector('#sound-trim')).visibility, h: document.querySelector('#pop-sound').getBoundingClientRect().height, sh: document.querySelector('#pop-sound').scrollHeight };
+  });
+  check(`${vp.join('x')} 펼치면 아래로 늘어남 (창 ${Math.round(c.h)}→${Math.round(s.h)}px) · 소리 ${s.rows.length}가지 · 모두 48 이상`, s.open === 'true' && s.vis === 'visible' && s.rows.length > 0 && !s.small.length && (s.h > c.h + 20 || s.sh > s.h), `${s.rows.join(',')} ${s.small.join(',')}`);
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/trim-${vp.join('x')}.png` });
   check(`${vp.join('x')} 페이지 오류 없음`, !errors.length, errors.join(' | '));
   await ctx.close();

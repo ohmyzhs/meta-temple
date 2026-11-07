@@ -235,9 +235,13 @@
         <li class="trim-row"><span class="trim-tile" data-icon="bell_strike" aria-hidden="true"></span><label class="trim-main"><span class="trim-name">사찰 공간음</span><input id="vol-temple" type="range" min="0" max="1" step="0.05" /></label></li>
         <li class="trim-row"><span class="trim-tile" data-icon="practice_108" aria-hidden="true"></span><label class="trim-main"><span class="trim-name">수행 효과음</span><input id="vol-sfx" type="range" min="0" max="1" step="0.05" /></label></li>
       </ul>
-      <div class="snd-head"><h3 class="sheet-sub">자연의 소리 조정</h3><button class="ctl snd-reset" type="button" data-trim-reset aria-label="모두 원래 크기로" disabled><svg class="i" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3M4.5 4.5v3.7h3.7" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
-      <div id="sound-trim"></div>
-      <div class="snd-head"><h3 class="sheet-sub">음악 연속재생 모드</h3><button class="ctl switch" type="button" id="bg-audio-btn" role="switch" aria-checked="true" aria-label="음악 연속재생 모드 — 화면이 꺼져도 계속"></button></div>
+      <!-- 자연의 소리 조정: 마스터 크기보다 한 단계 아래 — 접힌 작은 묶음, 펼치면 아래로 늘어나며 소리마다 (ui/soundTrim.js) -->
+      <div class="snd-card snd-trim">
+        <div class="snd-trim-head"><button class="ctl snd-trim-toggle" type="button" aria-expanded="false" aria-controls="sound-trim"><span class="snd-title">자연의 소리 조정</span><span class="snd-peek" data-peek aria-hidden="true"></span><svg class="snd-chev" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button class="ctl snd-reset" type="button" data-trim-reset aria-label="모두 원래 크기로" hidden><svg class="i" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3M4.5 4.5v3.7h3.7" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
+        <div class="snd-trim-body" id="sound-trim" inert></div>
+      </div>
+      <!-- 글과 스위치가 한 묶음 (글을 눌러도 켜고 끈다) -->
+      <label class="snd-card snd-switch-row" for="bg-audio-btn"><span class="snd-title">화면 꺼져도 계속 듣기</span><button class="ctl switch" type="button" id="bg-audio-btn" role="switch" aria-checked="true" aria-label="화면 꺼져도 계속 듣기"></button></label>
     </section>
   </div>
 
