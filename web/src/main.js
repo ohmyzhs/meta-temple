@@ -29,6 +29,9 @@ import { ASMR_TRACKS } from './data/asmr.js';
 const ASMR_QUIET = { id: 'asmr', time: 'day', weather: 'clear', mix: {} };
 import { bindNameForm } from './ui/nameField.js';
 import { veil } from './ui/veil.js';
+import { dissolveMove } from './ui/mapDissolve.js';
+import { createTier, decideTier, netReady } from './core/qualityTier.js';
+import { applyRenderTier, tierCap, warmRenderTier } from './world/renderTier.js';
 import { DOCK_RITUALS } from './data/templeData.js';
 import { icon, ZONE_ICONS } from './ui/icons.js';
 import { toggleSheet, openSheet, closeTop, closeAll } from './ui/sheets.js';
@@ -79,6 +82,8 @@ class MetaTempleApp {
     const v = this.store.state.settings.volumes;
     Object.entries(v).forEach(([ch, val]) => this.sound.setChannelVolume(ch, val));
     this.quality = detectQuality();
+    // 화질 단계: 장면은 this.quality 로 짓고, 들어온 뒤 프레임이 넉넉하면 그림자·배율 몫만 high 로 (core/qualityTier.js). ?q= 로 연 화면은 고정
+    this.tier = createTier(this.quality, { forced: ['low', 'high'].includes(new URLSearchParams(location.search).get('q')) });
     this.keys = {};
     this.joy = { x: 0, z: 0 };
     this.zone = null;
@@ -1429,6 +1434,9 @@ class MetaTempleApp {
     if (!this.miniMap || $('#place-sheet').classList.contains('hidden')) return;
     const p = this.player.root.position;
     this.miniMap.setPlayer(p.x, p.z, this.player.heading);
+    const peers = [];
+    for (const r of this.avatars.remote.values()) peers.push(r.av.root.position); // 실제 접속한 도반만 (NPC 참배객은 빼고)
+    this.miniMap.setPeers(peers);
   }
 
   /** 쉼터의 빈 칸: 다른 도반이 앉은 칸은 비켜 가까운 칸, 다 찼으면 곁의 땅 (그마저 없으면 null) */
@@ -2125,14 +2133,15 @@ class MetaTempleApp {
       )
       .join('');
 
-    // 장소 시트의 작은 지도 + 산책길 쉼터 목록: 누르면 그리로 간다 (쉼터는 가서 앉는다)
+    // 장소 시트의 작은 지도 + 산책길 쉼터 목록: 누르면 그리로 간다 (쉼터는 가서 앉는다). 지도로 순간이동할 때만 디졸브 (ui/mapDissolve.js)
     this.miniMap = createMiniMap($('#minimap'), {
       zones: Object.values(ZONES),
       geo: { streamZ, pathX, L },
+      fresh: !this.store.state.settings.mapUsed,
       onPick: (m) => {
         closeAll();
-        if (m.kind === 'zone') this.travelTo(m.id);
-        else this._goRest(m.id);
+        if (!this.store.state.settings.mapUsed) this.store.setSetting('mapUsed', true);
+        dissolveMove(this.world, () => (m.kind === 'zone' ? this.travelTo(m.id) : this._goRest(m.id)), () => this.player.root.position);
       }
     });
     $('#rest-list').innerHTML = this.miniMap.markers
@@ -2767,6 +2776,8 @@ class MetaTempleApp {
    * 화면 배율 자동 조절 (계속): 실제 프레임 간격 평균(구간 시간 ÷ 프레임 수 — 끊김이 묻히지 않게)이 ADAPT.slow 를 넘는 곳에서는 배율을 0.25 씩 내리고,
    * 넉넉한 곳에서 ADAPT.okFor 동안 ADAPT.ok 안이면 처음 배율까지 0.25 씩 되올린다. 바꾼 뒤 3초는 쉰다 (후처리 버퍼를 다시 잡으니).
    * 올린 지 10초 안에 다시 내려야 하면 1분은 올리지 않는다 — 오르내림이 되풀이되지 않게.
+   * 화질 단계도 여기서 함께 (core/qualityTier.js): 배율을 다 올렸는데도 넉넉하면 high 로 — 상한이 1.75 로 오르고 배율은 위 규칙대로 0.25 씩 따라 오른다.
+   * high 에서 느리면 배율을 low 상한(1.25)까지 내린 뒤 그래도 느리면 low 로.
    */
   _adaptQuality() {
     const ADAPT = { slow: 22, ok: 17.5, slowFor: 2000, okFor: 6000, rest: 3000, step: 0.25, min: 1 };
@@ -2789,9 +2800,20 @@ class MetaTempleApp {
       console.info(`[quality] frame ${this.frameMs?.toFixed(1)}ms → pixelRatio ${W.pixelRatio}`);
     };
     const slow = span(ADAPT.slowFor), ok = span(ADAPT.okFor);
-    if (slow && avg(slow) > ADAPT.slow && W.pixelRatio > ADAPT.min) {
+    const floor = this.tier.tier === 'high' ? tierCap('low') : ADAPT.min;
+    const ready = W.precinctReady?.done !== false && W.outdoorReady?.done !== false && netReady(navigator.connection);
+    if (ready && !this.tier.warmed && this.tier.tier === 'low' && !this.tier.forced) (this.tier.warmed = true), warmRenderTier(W); // 실사 잎 재질이 막 바뀐 때 그림자 셰이더도 지어 둔다 — 올리는 순간 멈칫하지 않게
+    const to = decideTier(this.tier, { now, okAvg: ok && avg(ok), slowAvg: slow && avg(slow), atCap: W.pixelRatio >= A.start, atFloor: W.pixelRatio <= floor, ready });
+    if (to) {
+      applyRenderTier(W, to);
+      A.start = tierCap(to);
+      A.changedAt = now;
+      A.ts.length = 0;
+      return console.info(`[quality] frame ${this.frameMs?.toFixed(1)}ms → tier ${to} (pixelRatio ${W.pixelRatio}, cap ${A.start})`);
+    }
+    if (slow && avg(slow) > ADAPT.slow && W.pixelRatio > floor) {
       if (now - A.raisedAt < 10000) A.noRaiseUntil = now + 60000;
-      set(Math.max(ADAPT.min, W.pixelRatio - ADAPT.step));
+      set(Math.max(floor, W.pixelRatio - ADAPT.step));
     } else if (ok && avg(ok) < ADAPT.ok && W.pixelRatio < A.start && now > A.noRaiseUntil) {
       A.raisedAt = now;
       set(Math.min(A.start, W.pixelRatio + ADAPT.step));
@@ -2817,7 +2839,7 @@ class MetaTempleApp {
     const fps = (this._perfN * 1000) / (now - this._perfAt);
     this._perfAt = now;
     this._perfN = 0;
-    this._perfEl.textContent = `${fps.toFixed(0)} fps · ${this.frameMs?.toFixed(1) ?? '-'} ms\npr ${this.world.pixelRatio} (${this.quality})\n${calls} calls · ${Math.round(tris / 1000)}k tri`;
+    this._perfEl.textContent = `${fps.toFixed(0)} fps · ${this.frameMs?.toFixed(1) ?? '-'} ms\npr ${this.world.pixelRatio} (${this.quality}${this.tier.tier !== this.quality ? ` → ${this.tier.tier}` : ''})\n${calls} calls · ${Math.round(tris / 1000)}k tri`;
   }
 }
 
