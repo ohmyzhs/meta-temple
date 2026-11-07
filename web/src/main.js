@@ -33,6 +33,7 @@ import { DOCK_RITUALS } from './data/templeData.js';
 import { icon, ZONE_ICONS } from './ui/icons.js';
 import { toggleSheet, openSheet, closeTop, closeAll } from './ui/sheets.js';
 import { installBackGuard } from './ui/backGuard.js';
+import { createFastWalk } from './ui/fastWalk.js';
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
@@ -405,8 +406,8 @@ class MetaTempleApp {
     this._applyItems();
     setTimeout(() => {
       this.toast(matchMedia('(pointer: coarse)').matches
-        ? '산문에 들어섰습니다 · 조이스틱이나 바닥을 눌러 걸어 보세요'
-        : '산문에 들어섰습니다 · WASD 또는 바닥을 눌러 걸어 보세요');
+        ? '산문에 들어섰습니다 · 조이스틱이나 바닥을 눌러 걸어 보세요 · 옆 단추로 빠르게'
+        : '산문에 들어섰습니다 · WASD 또는 바닥을 눌러 걸어 보세요 · Shift 를 누르면 빠르게');
       if (isNewDay && streak > 1) setTimeout(() => this.toast(`🍃 ${streak}일째 이어진 발걸음입니다`), 2600);
       if (this.store.renamedFrom) {
         // 법명이 10자로 줄어든 뒤 처음 들어온 옛 방문자 (state.js shortenName)
@@ -2450,6 +2451,7 @@ class MetaTempleApp {
     this._joyHeld = () => jdown && jdown.far != null && (performance.now() - jdown.far) / 1000 >= AUTO_HOLD;
     joy.addEventListener('pointerup', jend);
     joy.addEventListener('pointercancel', jend);
+    this.fastWalk = createFastWalk(joy); // 빠르게 걷기 단추 (데스크톱은 Shift — _frame)
     $('#reply-btn')?.addEventListener('click', () => {
       this.sound.init();
       this._replyBow();
@@ -2697,7 +2699,8 @@ class MetaTempleApp {
     const wz = -ix * Math.sin(yaw) + iz * Math.cos(yaw);
     if ((ix || iz) && this.modals.isOpen && ['practice_108', 'mala'].includes(this.modals.current)) this.modals.close();
     const night = this.world.env.night;
-    this.avatars.update(dt, t, { x: wx, z: wz, face }, night); // 뛰지 않는다 (Shift 달리기 없앰 — WALK_SPEED 1.3m/s)
+    const fast = !!(this.keys.ShiftLeft || this.keys.ShiftRight || this.fastWalk?.on); // 빠르게 걷기 (FAST_SPEED — 걷기의 2.5배)
+    this.avatars.update(dt, t, { x: wx, z: wz, face, fast }, night);
     this.temple.cairns.update(dt, pl.root.position.x, pl.root.position.z);
     this._strollTick(dt);
     if (fp) cam.yaw = pl.root.rotation.y - Math.PI + this._fp.off;

@@ -4,6 +4,7 @@
 //     실제 움직인 거리로 걷기 빠르기를 맞추며, 모르는 상태 이름은 서 있는 동작으로 — 예외 없이.
 // (b) 1인칭: 내 몸은 내 화면에서만 숨고(root.visible=false), 눈 위치는 머리 뼈를 따라간다 (절하면 내려감).
 // (c) monk.glb 를 404 로 막으면 경고 한 줄만 남기고 절차식 몸으로 그대로 돈다. ?rig=0 도 같다.
+// (d) 자동 108배 (e) 빠르게 걷는 도반(3.75m/s)이 틱·지연 흔들림에도 고르게 보이고, 순간이동은 바로 옮긴다.
 async (page) => {
   const base = /^http:\/\/(localhost|127\.0\.0\.1)/.test(page.url()) ? new URL(page.url()).origin : 'http://localhost:8085';
   const lines = [];
@@ -110,6 +111,56 @@ async (page) => {
     const gaps = bows.slice(1).map((b, i) => (b - bows[i]).toFixed(1));
     const ok = bows.length >= 3 && gaps.slice(1).every((g) => Math.abs(g - 8) < 0.3) && gaps[0] >= 7.9 && !log.some((l) => l.startsWith('목탁')) && log.some((l) => l.startsWith('사락'));
     return `(d) 자동 108배 ${ok ? 'PASS' : 'FAIL'}: 절 ${bows.length}번 @${bows.join(', ')}s (간격 ${gaps.join(', ')}s) | 소리 ${log.join(' ')} | 단추 '${label.trim()}' → '${label2.trim()}'`;
+  }));
+  // (e) 빠르게 걷는 도반 (3.75m/s): 보내는 쪽은 0.2초 넘을 때마다(60fps 라 실제 0.217초), 서버 틱은 0.2초, 받는 지연 0~0.08초 흔들림 —
+  //     받은 길을 고르게 따라가 빠르기가 출렁이지 않고(변동계수 < 0.2), 프레임마다 튀지 않으며, 빠르게 걷기 클립으로 보인다.
+  //     또 한 번에 20m 를 옮기면(순간이동) 걸어가지 않고 그 자리에 바로 놓인다.
+  lines.push(await page.evaluate(async () => {
+    const t = window.temple, A = t.avatars;
+    const { FAST_SPEED } = await import('/src/core/avatarMotion.js');
+    const cam = A.camera;
+    A.camera = null;
+    let clock = 200, seed = 11;
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    const FR = 1 / 60, x0 = -2, z = 34, y = A.player.root.position.y;
+    const peer = (x) => [{ id: 'run1', dharmaName: '빠른 도반', avatarStyle: 'monk', x, y, z, ry: Math.PI / 2, actionState: 'idle', actionSeq: 0 }];
+    A.syncRemotePeers(peer(x0));
+    t._frame(FR, (clock += FR));
+    const av = A.remote.get('run1').av;
+    // 미리 짜 둔 도착 시각표
+    const sends = [];
+    let last = -1;
+    for (let s = 0; s < 4; s += FR) if (s - last >= 0.2) sends.push([s, x0 + FAST_SPEED * s]), (last = s);
+    const arrivals = [];
+    let si = 0, cur = null, fwd = null;
+    for (let s = 0.05; s < 4; s += 0.2) {
+      while (si < sends.length && sends[si][0] + 0.02 <= s) cur = sends[si++][1];
+      if (cur !== null && cur !== fwd) arrivals.push([s + 0.03 + rnd() * 0.08, (fwd = cur)]);
+    }
+    arrivals.sort((a, b) => a[0] - b[0]);
+    const sp = [], clips = new Set();
+    let ai = 0, prev = av.root.position.x, maxStep = 0;
+    for (let s = 0; s < 4.6; s += FR) {
+      while (ai < arrivals.length && arrivals[ai][0] <= s) A.syncRemotePeers(peer(arrivals[ai++][1]));
+      t._frame(FR, (clock += FR));
+      const x = av.root.position.x;
+      if (s > 1 && s < 3.8) {
+        sp.push((x - prev) / FR);
+        clips.add(av.rig?.name);
+        maxStep = Math.max(maxStep, Math.abs(x - prev));
+      }
+      prev = x;
+    }
+    const m = sp.reduce((a, b) => a + b, 0) / sp.length, sd = Math.sqrt(sp.reduce((a, b) => a + (b - m) ** 2, 0) / sp.length);
+    const end = av.root.position.x, want = arrivals.at(-1)[1];
+    // 순간이동
+    A.syncRemotePeers(peer(want + 20));
+    t._frame(FR, (clock += FR));
+    const jumped = Math.abs(av.root.position.x - (want + 20)) < 0.01;
+    A.syncRemotePeers([]);
+    A.camera = cam;
+    const ok = sd / m < 0.2 && Math.abs(m - FAST_SPEED) < 0.35 && maxStep < FAST_SPEED * FR * 2.2 && [...clips].every((c) => c === 'walk_fast') && Math.abs(end - want) < 0.05 && jumped;
+    return `(e) 빠르게 걷는 도반 ${ok ? 'PASS' : 'FAIL'}: 보인 빠르기 평균 ${m.toFixed(2)}m/s · 표준편차 ${sd.toFixed(2)} (변동 ${((100 * sd) / m).toFixed(0)}%) · 범위 ${Math.min(...sp).toFixed(2)}~${Math.max(...sp).toFixed(2)} · 한 프레임 최대 ${(maxStep * 100).toFixed(1)}cm · 클립 ${[...clips].join(',')} · 멈춘 자리 오차 ${Math.abs(end - want).toFixed(3)}m · 20m 순간이동 바로 ${jumped}`;
   }));
   // (c) GLB 를 못 받을 때
   const warns = [];

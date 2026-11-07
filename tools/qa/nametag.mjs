@@ -77,6 +77,48 @@ const check = (name, ok, extra = '') => {
     return (L1 + 0.05) / (L2 + 0.05);
   }));
   check(`이름표 글자 대비 ${worst.toFixed(1)}:1 (흰 배경 위, ≥ 4.5)`, worst >= 4.5);
+  // 머리 바로 위: 카메라를 숙이고 당겨도 이름표 아래 끝과 머리(삿갓) 화면 위 끝 사이가 0~14px — 머리는 실제 스킨 정점으로 잰다
+  const gaps = await page.evaluate(async () => {
+    const THREE = await import('three');
+    const t = window.temple, W = t.world, A = t.avatars, P = t.player.root.position;
+    t._loop = () => {};
+    let clock = 500;
+    const step = (n) => { for (let i = 0; i < n; i++) t._frame(1 / 30, (clock += 1 / 30)); };
+    A.syncRemotePeers([{ id: 'qa1', dharmaName: '혜원', avatarStyle: 'ink_wanderer', x: P.x + 1.2, y: P.y, z: P.z + 0.3, ry: 0, actionState: 'idle' },
+      { id: 'qa2', dharmaName: '등불', avatarStyle: 'lantern_spirit', x: P.x - 1.2, y: P.y, z: P.z + 0.3, ry: 0, actionState: 'idle' }]);
+    const peer = A.remote.get('qa1').av, spirit = A.remote.get('qa2').av;
+    const v = new THREE.Vector3(), tmp = new THREE.Vector3();
+    const topY = (av, names) => {
+      let top = 1e9;
+      av.rig.model.traverse((o) => {
+        if (!o.isSkinnedMesh || !names.includes(o.name) || !o.visible) return;
+        const pos = o.geometry.attributes.position;
+        for (let i = 0; i < pos.count; i += 2) {
+          o.getVertexPosition(i, tmp);
+          o.localToWorld(tmp);
+          if (tmp.y - av.root.position.y < 0.75) continue;
+          v.copy(tmp).project(W.camera);
+          top = Math.min(top, (-v.y * 0.5 + 0.5) * innerHeight);
+        }
+      });
+      return top;
+    };
+    const rows = [];
+    for (const [pitch, dist] of [[-0.1, 2.2], [0.5, 2.2], [1.2, 2.2], [0.2, 6], [0.9, 6], [0.3, 12], [1.2, 12]]) {
+      W.setShot?.(null);
+      W.cam.mode = 'third';
+      W.snapCameraTo(t.world.cam.yaw, pitch, dist);
+      step(40);
+      for (const [who, av, names] of [['나', t.player, ['monk_body']], ['삿갓 도반', peer, ['wanderer_body', 'wanderer_hat']], ['등불 정령', spirit, ['spirit_body']]]) {
+        if (!av.rig || !av.label.visible) continue;
+        const r = av.labelEl.getBoundingClientRect();
+        rows.push({ who, pitch, dist, gap: +(topY(av, names) - r.bottom).toFixed(1) });
+      }
+    }
+    return rows;
+  });
+  const bad = gaps.filter((g) => !(g.gap >= -1 && g.gap <= 14));
+  check(`이름표가 머리(삿갓) 바로 위 — ${gaps.length}가지 각도·거리 틈 ${Math.min(...gaps.map((g) => g.gap))}~${Math.max(...gaps.map((g) => g.gap))}px`, gaps.length >= 15 && !bad.length, JSON.stringify(bad.length ? bad : gaps.map((g) => `${g.who}@${g.pitch}/${g.dist}:${g.gap}`)));
   if (process.argv[2]) {
     await page.evaluate(() => { const W = window.temple.world; W.timeMode = 'fixed'; W.hour = W.hourTarget = 13; W.setWeather?.('clear'); W.applyEnv?.(true); });
     await page.waitForTimeout(1200);

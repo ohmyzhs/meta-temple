@@ -72,14 +72,48 @@ async (page) => {
   lines.push(await scene('idle', () => { const t = window.temple; t.avatars.teleport(0, 30, Math.PI); t.player.setState('idle'); }, 60, 6, FRONT34));
   // 서기 (경내: 차수)
   lines.push(await scene('idle_chasu', () => { const t = window.temple; t.avatars.teleport(5, 3, Math.PI); t.player.setState('idle'); for (let i = 0; i < 20; i++) t._frame(1 / 30, (window.__qa.clock += 1 / 30)); }, 30, 6, FRONT34));
-  // 걷기 (숲길, 게임 속도 2.4m/s 와 참배객 속도 1.1m/s)
-  // 숲길 걷기 — 게임 그대로 (바닥을 누르거나 WASD, 모든 곳 1.1m/s)
+  // 숲길 걷기 — 게임 그대로 (바닥을 누르거나 WASD, 모든 곳 1.5m/s)
   lines.push(await scene('walk', () => { const t = window.temple; t.avatars.teleport(0, 33, Math.PI); t.avatars.moveTo(0.3, 20); }, 40, 2, SIDE));
-  // 차수 걷기 — 마당, 게임 그대로 1.1m/s
-  lines.push(await scene('walk_chasu', () => { const t = window.temple; t.avatars.teleport(6, 4, Math.PI); t.avatars.moveTo(6, -8); }, 40, 2, SIDE));
+  // 경내(마당) 걷기 — 2026-11-07: 차수 없이 팔을 흔든다
+  lines.push(await scene('walk_court', () => { const t = window.temple; t.avatars.teleport(3, 3, Math.PI); t.avatars.moveTo(3, -10); }, 40, 2, [-2.4, 0.9, 0.4, 0.55]));
+  // 빠르게 걷기 — Shift (가벼운 뜀, 3.75m/s)
+  lines.push(await scene('walk_fast', () => { const t = window.temple; t.avatars.teleport(0, 33, Math.PI); t.world.cam.yaw = 0; t.keys.ShiftLeft = true; t.keys.KeyW = true; for (let i = 0; i < 20; i++) t._frame(1 / 30, (window.__qa.clock += 1 / 30)); }, 24, 1, SIDE));
+  await page.evaluate(() => { const t = window.temple; t.keys.ShiftLeft = t.keys.KeyW = false; for (let i = 0; i < 30; i++) t._frame(1 / 30, (window.__qa.clock += 1 / 30)); });
+  // 발 미끄러짐 실측: 디딤 구간(클립 메타 beta) 동안 디딤발(발목 뼈)이 월드에서 움직인 빠르기 — 몸은 게임 빠르기로 실제로 간다
+  lines.push(await page.evaluate(async () => {
+    const t = window.temple, A = t.avatars, THREE = await import('three');
+    const out = [];
+    for (const [label, setup, stop] of [
+      ['걷기 1.5m/s', () => { A.teleport(0, 33, Math.PI); A.moveTo(0.3, 18); }, () => (A.moveTarget = null)],
+      ['빠르게 3.75m/s', () => { A.teleport(0, 33, Math.PI); t.world.cam.yaw = 0; t.keys.ShiftLeft = t.keys.KeyW = true; }, () => (t.keys.ShiftLeft = t.keys.KeyW = false)]
+    ]) {
+      setup();
+      for (let i = 0; i < 45; i++) t._frame(1 / 60, (window.__qa.clock += 1 / 60));
+      const r = t.player.rig, clip = r.name, meta = r.lib.meta.clips[clip];
+      const prev = { L: null, R: null }, v = [];
+      let speed = 0;
+      for (let i = 0; i < 90; i++) {
+        t._frame(1 / 60, (window.__qa.clock += 1 / 60));
+        speed += t.player.speed / 90;
+        const ph = r.current.time / r.current.getClip().duration;
+        for (const [s, off] of [['L', 0], ['R', 0.5]]) {
+          const b = r.bones[`foot${s}`] || r.bones[`foot.${s}`]; // three 는 뼈 이름의 점을 뺀다 (footL)
+          const p = b.getWorldPosition(new THREE.Vector3());
+          const q = (ph - off + 1) % 1;
+          if (prev[s] && q > 0.1 * meta.beta && q < 0.9 * meta.beta) v.push(Math.hypot(p.x - prev[s].x, p.z - prev[s].z) * 60);
+          prev[s] = p;
+        }
+      }
+      stop();
+      for (let i = 0; i < 40; i++) t._frame(1 / 60, (window.__qa.clock += 1 / 60));
+      v.sort((a, b) => a - b);
+      out.push(`${label}: ${clip} 실제 ${speed.toFixed(2)}m/s · 디딤발 미끄러짐 중앙 ${v[v.length >> 1].toFixed(3)} · 최대 ${v.at(-1).toFixed(3)}m/s (${v.length}프레임)`);
+    }
+    return '  발 미끄러짐 — ' + out.join(' | ');
+  }));
   lines.push(await page.evaluate(() => {
     const r = window.temple.player.rig, a = r?.current;
-    return a ? `  차수 걷기: ${r.name} 빠르기 ${window.temple.player.speed.toFixed(2)}m/s, 클립 배속 ${a.getEffectiveTimeScale().toFixed(2)} → 초당 ${((2 * a.getEffectiveTimeScale()) / a.getClip().duration).toFixed(1)}걸음` : '';
+    return a ? `  지금: ${r.name} 빠르기 ${window.temple.player.speed.toFixed(2)}m/s, 클립 배속 ${a.getEffectiveTimeScale().toFixed(2)}` : '';
   }));
   // 합장 반배
   lines.push(await scene('bow_half', () => { const t = window.temple; t.avatars.teleport(5, 3, Math.PI); t.gesture('bow_half'); }, 78, 3, SIDE));

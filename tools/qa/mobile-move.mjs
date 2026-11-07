@@ -1,8 +1,9 @@
 // 모바일 이동·합장 답례 검사 (390×844 터치 화면에서 실제 rAF 루프로).
 //   Playwright MCP: browser_run_code_unsafe { filename: '<repo>/tools/qa/mobile-move.mjs' } — 터치 화면(hasTouch)이어야 조이스틱이 보인다.
-// (1) 조이스틱 크기·자리 (2) 앞으로 끝까지 0.6초 버티면 자동 걷기 → 손을 떼도 1.3m/s, 좌우로 밀면 방향, 톡 누르면 멈춤
+// (1) 조이스틱 크기·자리 (2) 앞으로 끝까지 0.6초 버티면 자동 걷기 → 손을 떼도 1.5m/s, 좌우로 밀면 방향, 톡 누르면 멈춤
 // (3) 바닥을 0.3초 눌러 버티면 손가락 밑으로 걷고, 끌면 따라가고, 떼면 선다 (4) 도반이 먼저 합장하면 그쪽으로 돌아 반배,
-// 앉아 있으면 답례 단추. 결과 PNG: OUT/mobile-*.png
+// 앉아 있으면 답례 단추 (5) 조이스틱 옆 '빠르게' 단추: 켜면 3.75m/s 가벼운 뜀, 끄면 1.5m/s — 단추를 눌러도 조이스틱은 움직이지 않는다.
+// 결과 PNG: OUT/mobile-*.png
 async (page) => {
   const OUT = globalThis.AVATAR_QA_OUT || '/tmp/mobile-move';
   (await import('fs')).mkdirSync(OUT, { recursive: true });
@@ -52,7 +53,8 @@ async (page) => {
   await page.waitForTimeout(600);
   const s2 = await st();
   lines.push(`    톡 누르면: 자동 걷기 ${s2.auto} · 빠르기 ${s2.speed.toFixed(2)}m/s`);
-  const ok2 = held.auto && walked > 2.0 && Math.abs(a1.speed - 1.3) < 0.1 && s1.yaw < a1.yaw - 0.3 && !s2.auto && s2.speed < 0.3;
+  const { WALK_SPEED, FAST_SPEED } = await page.evaluate(async () => { const m = await import('/src/core/avatarMotion.js'); return { WALK_SPEED: m.WALK_SPEED, FAST_SPEED: m.FAST_SPEED }; });
+  const ok2 = held.auto && walked > 2.0 && Math.abs(a1.speed - WALK_SPEED) < 0.1 && s1.yaw < a1.yaw - 0.3 && !s2.auto && s2.speed < 0.3;
   lines.push(`    ${ok2 ? 'PASS' : 'FAIL'}`);
   // (3) 눌렀다 끌어 걷기
   await page.evaluate(() => { const t = window.temple; t.avatars.teleport(5, 3, Math.PI); t.world.cam.yaw = 0; t.world.cam.pitch = 0.5; });
@@ -105,6 +107,29 @@ async (page) => {
   const ok4 = r4.seq === 'bow_half' && r4.err < 0.25 && r5.shown && r6.hidden && r6.bowed && r6.sitting;
   lines.push(`(4) ${ok4 ? 'PASS' : 'FAIL'} 서 있을 때: ${r4.seq} · 도반 쪽과 ${r4.err.toFixed(2)}rad · '${r4.toast}'`);
   lines.push(`    앉아 있을 때: 단추 ${r5.shown} '${r5.text}' ${bb ? Math.round(bb.width) + '×' + Math.round(bb.height) + 'px' : ''} → 누르면 숨김 ${r6.hidden}, 답례 보냄 ${r6.bowed}, 앉은 채 ${r6.sitting}`);
+  // (5) 빠르게 단추
+  await page.evaluate(() => { const t = window.temple; t.player.sitting && t.avatars.standUp(); t.avatars.teleport(0, 30, Math.PI); t.world.cam.yaw = 0; });
+  await page.waitForTimeout(1500);
+  const fb = await page.locator('#fast-btn').boundingBox();
+  await page.locator('#fast-btn').tap();
+  await page.waitForTimeout(200);
+  const f0 = await page.evaluate(() => ({ on: window.temple.fastWalk.on, joy: { ...window.temple.joy }, pressed: document.querySelector('#fast-btn').getAttribute('aria-pressed') }));
+  const jb2 = await page.locator('#joystick').boundingBox();
+  const fx = jb2.x + jb2.width / 2, fy = jb2.y + jb2.height / 2;
+  await page.mouse.move(fx, fy);
+  await page.mouse.down();
+  for (let i = 1; i <= 4; i++) await page.mouse.move(fx, fy - (jb2.width / 2) * 0.7 * (i / 4)); // 70% — 자동 걷기(80%) 아래
+  await page.waitForTimeout(1200);
+  const f1 = await st();
+  await page.screenshot({ path: `${OUT}/mobile-fast.png` });
+  await page.locator('#fast-btn').tap({ force: true }).catch(() => {});
+  await page.waitForTimeout(800);
+  const f2 = await st();
+  await page.mouse.up();
+  await page.waitForTimeout(600);
+  const ok5 = !!fb && f0.on && f0.pressed === 'true' && Math.hypot(f0.joy.x, f0.joy.z) === 0 && Math.abs(f1.speed - FAST_SPEED) < 0.15 && f1.clip === 'walk_fast' && Math.abs(f2.speed - WALK_SPEED) < 0.1 && f2.clip === 'walk' && !f1.auto;
+  lines.push(`(5) ${ok5 ? 'PASS' : 'FAIL'} 빠르게 단추 ${fb ? Math.round(fb.width) + '×' + Math.round(fb.height) + 'px @ (' + Math.round(fb.x) + ', ' + Math.round(fb.y) + ')' : '없음'} → 켜짐 ${f0.on} (조이스틱 그대로 ${Math.hypot(f0.joy.x, f0.joy.z) === 0})`);
+  lines.push(`    켜고 밀면 ${f1.speed.toFixed(2)}m/s ${f1.clip} · 끄면 ${f2.speed.toFixed(2)}m/s ${f2.clip} (자동 걷기 ${f1.auto})`);
   // 가로 화면
   await page.setViewportSize({ width: 844, height: 390 });
   await page.waitForTimeout(800);
