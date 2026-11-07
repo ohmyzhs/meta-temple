@@ -452,6 +452,7 @@ export class ModalManager {
     box.classList.remove('is-nudge');
     void box.offsetWidth;
     box.classList.add('is-nudge');
+    box.addEventListener('animationend', () => box.classList.remove('is-nudge'), { once: true });
     field.focus();
   }
 

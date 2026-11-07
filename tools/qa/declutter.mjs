@@ -73,6 +73,16 @@ const SHOTS = {
     await wait(500);
     await shot('stone-new');
     await checkIcons(page, 'stone-new');
+    // 빈 칸으로 얹기: 문장 대신 칸이 흔들리고 금테 → 흔들림이 끝나면 금테도 사라진다
+    const gold = () => page.evaluate(() => document.querySelector('#stone-wish').closest('.m-field').classList.contains('is-nudge')); // 포커스 금테와 구별
+    await page.click('[data-act="add"]');
+    await wait(120);
+    await shot('stone-empty');
+    const on = await gold();
+    await wait(600);
+    const off = !(await gold());
+    if (!on || !off) bad++;
+    console.log(`  ${on && off ? 'PASS' : 'FAIL'} 빈 칸 흔들림 금테 ${on ? '켜짐' : '안 켜짐'} → ${off ? '꺼짐' : '남음'}`);
     await page.fill('#stone-wish', '천천히, 그러나 멈추지 않기');
     await page.click('[data-act="add"]');
     await wait(900);
