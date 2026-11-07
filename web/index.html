@@ -12,6 +12,7 @@
   <meta name="description" content="링크 하나로 들어서는 웹 3D 산사. 말없이 함께 머물며 절·연등·사경·차담으로 마음을 비우는 디지털 안식처." />
   <meta property="og:title" content="소리사원 — 입체 ASMR 산사" />
   <meta property="og:description" content="설치도 가입도 없이, 산사의 바람과 풍경 소리 속에 잠시 머물다 가세요." />
+  <script>window.addEventListener('beforeinstallprompt', (event) => { event.preventDefault(); window.templeInstallPrompt = event; });</script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Nanum+Brush+Script&family=Noto+Sans+KR:wght@400;500;700&family=Noto+Serif+KR:wght@400;600;900&display=swap" rel="stylesheet" />
@@ -189,8 +190,14 @@
             <button class="ctl cc-tile" type="button" id="help-btn" data-icon="help"><span class="lbl">도움말</span></button>
             <button class="ctl cc-tile" type="button" id="credits-btn" data-icon="credits"><span class="lbl">출처</span></button>
           </div>
+          <button class="ctl cc-tile shortcut-add" type="button" id="shortcut-add" data-icon="more"><span class="lbl">홈 화면에 추가</span></button>
         </div>
       </div>
+    </section>
+
+    <section class="sheet hidden" id="shortcut-sheet" data-parent="menu-sheet" aria-label="홈 화면에 추가">
+      <header class="sheet-head"><button class="ctl" type="button" data-sheet-back data-icon="back" aria-label="뒤로"></button><h2>홈 화면에 추가</h2><button class="ctl" type="button" data-sheet-close data-icon="close" aria-label="닫기"></button></header>
+      <p class="pop-note" id="shortcut-help"></p>
     </section>
 
     <section class="sheet hidden" id="place-sheet" aria-label="장소 옮기기">
@@ -233,7 +240,14 @@
     </section>
   </div>
 
+  <nav id="quick-tools" class="quick-tools hidden" aria-label="빠른 도구">
+    <button class="ctl quick-tool" type="button" id="quick-fullscreen" aria-label="전체화면 보기" title="전체화면 보기"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <button class="ctl quick-tool" type="button" id="quick-sound" aria-label="소리 끄기" title="소리 끄기" aria-pressed="true"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 9h3l4-3v12l-4-3H4zM15 9a4 4 0 0 1 0 6M18 6a8 8 0 0 1 0 12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path class="quick-sound-off" d="M4 20 20 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+    <button class="ctl quick-tool" type="button" id="quick-capture" aria-label="화면 사진 저장" title="화면 사진 저장"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 8h3l1.5-2h7L17 8h3v11H4z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="12" cy="13.5" r="3" stroke="currentColor" stroke-width="1.6"/></svg></button>
+  </nav>
+
   <div id="toast-stack" class="toast-stack" aria-live="polite"></div>
+  <div id="bell-toast-stack" class="toast-stack bell-toast-stack" aria-live="polite"></div>
 
   <!-- 듣기 모드 (예불 듣기·자연의 소리 듣기가 같은 재생기를 쓴다): 화면 전환 가림막 + 제목 + 재생기 (main.js listen) -->
   <div id="listen-veil" aria-hidden="true"></div>

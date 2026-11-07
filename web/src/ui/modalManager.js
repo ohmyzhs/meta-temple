@@ -1820,7 +1820,7 @@ export class ModalManager {
           </button>
         </li>`).join('')}
       </ul>
-      <p class="m-hint">고르면 화면이 바뀌어 좌복에 홀로 앉아 처음부터 끝까지 듣습니다. Esc 나 「일어나기」로 돌아옵니다.</p>
+      <p class="m-hint">좌복에 앉아 예불을 듣습니다. ${mq('(pointer: coarse)') ? '「일어나기」' : 'Esc 또는 「일어나기」'}로 돌아옵니다.</p>
       <p class="m-hint"><button type="button" class="m-link" data-nature>자연의 소리 듣기 →</button></p>`);
     this._on(root, 'click', (e) => {
       if (e.target.closest('[data-nature]')) return this.open('nature');
@@ -1889,7 +1889,7 @@ export class ModalManager {
           </button>
         </li>`).join('')}
       </ul>
-      <p class="m-hint">고르면 그 자리에 앉아 듣습니다. 타이머가 다 되면 소리가 천천히 잦아들며 멈춥니다. Esc 나 「일어나기」로 돌아옵니다.</p>
+      <p class="m-hint">그 자리에 앉아 듣습니다. 타이머가 끝나면 소리가 잦아듭니다. ${mq('(pointer: coarse)') ? '「일어나기」' : 'Esc 또는 「일어나기」'}로 돌아옵니다.</p>
       </div>
       <div data-pane="asmr"${tab === 'asmr' ? '' : ' hidden'}>${asmr}
       </div>
@@ -2317,6 +2317,7 @@ export class ModalManager {
 
   /* ═════════ 10. 산사 안내 ═════════ */
   _help() {
+    const touch = mq('(pointer: coarse)');
     const keys = [
       ['1', '합장 반배'],
       ['2', '큰절'],
@@ -2338,17 +2339,16 @@ export class ModalManager {
       <section class="help-sec">
         <h3 class="m-sub">걷고 둘러보기</h3>
         <ul class="help-list">
-          <li><span class="help-keys"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> · <kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd></span>걷기</li>
+          ${touch ? '<li><span class="help-keys">조이스틱</span>왼쪽 아래 조이스틱으로 걷기</li>' : '<li><span class="help-keys"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> · <kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd></span>걷기</li>'}
           <li><span class="help-keys">땅 누르기</span>그 자리까지 천천히 걸어갑니다</li>
-          <li><span class="help-keys">좌복 누르기</span>고른 좌복에 가서 그냥 앉습니다 · 108배·염주는 서 있는 그 자리에서</li>
+          <li><span class="help-keys">좌복 누르기</span>고른 좌복에 앉습니다 · 대웅전에서 108배를 시작하면 빈 좌복으로 갑니다</li>
           <li><span class="help-keys">끌기</span>고개를 돌려 둘러보기</li>
-          <li><span class="help-keys">휠 · 두 손가락</span>가까이, 멀리</li>
-          <li><span class="help-keys">휴대폰</span>왼쪽 아래 조이스틱으로 걷기</li>
+          <li><span class="help-keys">${touch ? '두 손가락' : '휠 · 두 손가락'}</span>가까이, 멀리</li>
         </ul>
       </section>
       <section class="help-sec">
         <h3 class="m-sub">말없는 몸짓</h3>
-        <ul class="help-keygrid">${keys.map(([k, v]) => `<li><kbd>${k}</kbd><span>${v}</span></li>`).join('')}</ul>
+        ${touch ? '<p class="help-p">화면 아래의 몸짓 단추를 눌러 합장하거나 수행할 수 있습니다.</p>' : `<ul class="help-keygrid">${keys.map(([k, v]) => `<li><kbd>${k}</kbd><span>${v}</span></li>`).join('')}</ul>`}
       </section>
       <section class="help-sec">
         <h3 class="m-sub">네 구역</h3>

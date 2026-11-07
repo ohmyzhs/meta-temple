@@ -65,6 +65,7 @@ export class LiveLink {
         this.count = Math.max(0, (m.count || 1) - 1);
         this.hooks.onPeers?.(m.peers.map(peer), this.count);
       } else if (m.t === 'bow') this.hooks.onBow?.({ id: `p${m.sid}`, name: m.name });
+      else if (m.t === 'bell') this.hooks.onBell?.({ id: `p${m.sid}`, name: m.name });
     };
     ws.onclose = () => {
       const was = this.connected;
@@ -116,6 +117,10 @@ export class LiveLink {
 
   bow() {
     this._send({ t: 'bow' });
+  }
+
+  bell() {
+    this._send({ t: 'bell' });
   }
 }
 

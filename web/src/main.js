@@ -5,6 +5,7 @@
 import * as THREE from 'three';
 import { ZONES, RITUALS, generateDharmaName } from './data/templeData.js';
 import { TempleStore, kstHour, uuid } from './core/state.js';
+import { readLastPosition, writeLastPosition } from './core/lastPosition.js';
 import { TempleSoundEngine } from './audio/soundEngine.js';
 import { TempleScene } from './world/templeScene.js';
 import { AvatarManager } from './world/avatarManager.js';
@@ -30,7 +31,7 @@ import { bindNameForm } from './ui/nameField.js';
 import { veil } from './ui/veil.js';
 import { DOCK_RITUALS } from './data/templeData.js';
 import { icon, ZONE_ICONS } from './ui/icons.js';
-import { toggleSheet, closeTop, closeAll } from './ui/sheets.js';
+import { toggleSheet, openSheet, closeTop, closeAll } from './ui/sheets.js';
 import { installBackGuard } from './ui/backGuard.js';
 
 const $ = (s) => document.querySelector(s);
@@ -88,6 +89,8 @@ class MetaTempleApp {
     this.clock = new THREE.Clock();
     this.introBackground = createIntroBackground();
     this._initIntro();
+    addEventListener('pagehide', () => this._rememberPosition());
+    document.addEventListener('visibilitychange', () => { if (document.hidden) this._rememberPosition(); });
     this._bootPromise = this._boot().then(() => true, (error) => {
       console.error(error);
       $('#intro-loading').classList.remove('done');
@@ -276,8 +279,22 @@ class MetaTempleApp {
   _rebuildPlayer() {
     const p = this.store.profile;
     const items = Object.fromEntries(['wooden_mala', 'jade_mala', 'hand_lantern'].map((k) => [k, this.store.has(k)]));
-    this.player = this.avatars.initPlayer(p.avatarStyle, p.dharmaName, items, L.spawn, Math.PI);
+    const last = !this.avatars.player && readLastPosition();
+    const safe = last && isWalkable(last.x, last.z) ? resolveCollisions(last.x, last.z) : null;
+    const pos = safe && isWalkable(safe.x, safe.z) ? safe : L.spawn;
+    this.player = this.avatars.initPlayer(p.avatarStyle, p.dharmaName, items, pos, safe && pos === safe ? last.heading : Math.PI);
     this.player.restState = null;
+  }
+
+  _rememberPosition() {
+    if (!this.entered || !this.player) return;
+    const p = this.player.root.position;
+    const spot = isWalkable(p.x, p.z) ? p : this.player.returnPos;
+    if (spot && isWalkable(spot.x, spot.z)) {
+      const pos = { x: +spot.x.toFixed(2), z: +spot.z.toFixed(2), heading: +this.player.heading.toFixed(2) };
+      const key = JSON.stringify(pos);
+      if (key !== this._savedPositionKey && writeLastPosition(pos)) this._savedPositionKey = key;
+    }
   }
 
   async _requestEntry() {
@@ -320,6 +337,7 @@ class MetaTempleApp {
     if (this.sound.isEnabled) this.sound.toggleAudio();
     this.introBackground.resumeSound();
     $('#hud').classList.add('hidden');
+    $('#quick-tools').classList.add('hidden');
     const button = $('#intro-enter');
     button.classList.remove('is-entering');
     button.removeAttribute('aria-busy');
@@ -360,6 +378,7 @@ class MetaTempleApp {
     if (this.entered) return;
     this.entered = true;
     $('#hud').classList.remove('hidden');
+    $('#quick-tools').classList.remove('hidden');
     this._startLoop();
     this.zone = null;
     this.enteredAt = performance.now();
@@ -385,7 +404,9 @@ class MetaTempleApp {
     const { streak, isNewDay } = this.store.checkIn();
     this._applyItems();
     setTimeout(() => {
-      this.toast('산문에 들어섰습니다. 천천히 걸어 보세요 · WASD 또는 바닥을 눌러 이동');
+      this.toast(matchMedia('(pointer: coarse)').matches
+        ? '산문에 들어섰습니다 · 조이스틱이나 바닥을 눌러 걸어 보세요'
+        : '산문에 들어섰습니다 · WASD 또는 바닥을 눌러 걸어 보세요');
       if (isNewDay && streak > 1) setTimeout(() => this.toast(`🍃 ${streak}일째 이어진 발걸음입니다`), 2600);
       if (this.store.renamedFrom) {
         // 법명이 10자로 줄어든 뒤 처음 들어온 옛 방문자 (state.js shortenName)
@@ -402,7 +423,13 @@ class MetaTempleApp {
         this.avatars.updateRemotePeers(peers, ids);
         this.avatars.setNpcBudget(Math.max(4, 11 - count));
       },
-      onBow: (from) => this._onPeerBow(from)
+      onBow: (from) => this._onPeerBow(from),
+      onBell: ({ name }) => {
+        if (!this.entered) return;
+        this.sound.playBell(1);
+        this.world.ripples.spawn(new THREE.Vector3(L.bell.x, L.courtyard.y, L.bell.z), { color: '#e8c070', maxR: 22, life: 4.5 });
+        this.toast(`🔔 ${name} 도반이 범종을 울렸습니다`, 'bell-toast-stack');
+      }
     });
     this.live.start(this.store.profile.dharmaName, this.store.profile.avatarStyle);
   }
@@ -414,8 +441,9 @@ class MetaTempleApp {
     setTimeout(() => this.toast('다시 산문에 들어섰습니다'), 900);
   }
 
-  /** 뒤로가기로 산문을 나섬: 입장 전 첫 화면으로 돌아가고, 몸은 일주문 앞에 다시 선다 */
+  /** 뒤로가기로 산문을 나섬: 입장 전 첫 화면으로 돌아가며 마지막 자리를 기억한다 */
   _toIntro() {
+    this._rememberPosition();
     this.entered = false;
     this._entryTransition = false;
     this._stopLoop();
@@ -427,12 +455,14 @@ class MetaTempleApp {
     $('#intro-enter-label').textContent = '산문에 들어서기';
     closeAll();
     document.querySelectorAll('.toast').forEach((t) => t.remove());
-    this.avatars.teleport(L.spawn.x, L.spawn.z, Math.PI);
+    const last = readLastPosition();
+    if (last && isWalkable(last.x, last.z)) this.avatars.teleport(last.x, last.z, last.heading);
     Object.assign(this.world.cam, { yaw: 0, pitch: 0.22, targetDist: 9, dist: 9 });
     this._soundBeforeIntro = this.sound.isEnabled;
     if (this._soundBeforeIntro) this.sound.toggleAudio(); // 첫 화면은 입장 전처럼 조용히
     this._syncSoundButton();
     $('#hud').classList.add('hidden');
+    $('#quick-tools').classList.add('hidden');
     const intro = $('#intro');
     intro.classList.remove('hidden');
     void intro.offsetWidth; // display:none 에서 막 돌아왔으니 한 번 그린 뒤 페이드인
@@ -737,9 +767,19 @@ class MetaTempleApp {
       case 'mala':
         return this._practiceHere('mala');
       case 'practice_108': {
-        // 좌복을 고른 경우에만 그 자리로 가서 앉은 뒤, 아니면 지금 선(앉은) 자리에서 그대로
         const mode = payload?.mode || 'prostrate';
         if (payload?.cushion != null) return this._sitCushion(payload.cushion, () => this._practiceHere(mode));
+        // 대웅전에서는 먼저 빈 좌복에 자리 잡고 불단 정면을 바라본다.
+        if (mode !== 'mala' && zoneAt(this.player.root.position.x, this.player.root.position.z) === 'DAEUNGJEON') {
+          const pl = this.player;
+          if (pl.sitting && pl.seat?.kind === 'cushion') {
+            pl.heading = pl.seat.ry;
+            pl.root.rotation.y = pl.heading;
+            return this._practiceHere(mode);
+          }
+          const c = this.avatars.freeCushionNear(pl.root.position.x, pl.root.position.z);
+          return c ? this._sitCushion(c.index, () => this._practiceHere(mode)) : this.toast('빈 좌복이 없습니다');
+        }
         return this._practiceHere(mode);
       }
       case 'sutra_copy':
@@ -1042,6 +1082,8 @@ class MetaTempleApp {
   _listenOutdoor(ls) {
     const cam = this.world.cam, pl = this.player, s = ls.rest;
     this.avatars.solo = true;
+    // 선 자리에서 듣는 경우도 실제 앉은 상태여야 일어날 때 자세가 정리된다.
+    if (!pl.sitting) this.avatars.triggerAction('meditate');
     pl.restState = 'meditate';
     pl.setState('meditate');
     document.body.classList.add('listening');
@@ -1324,6 +1366,7 @@ class MetaTempleApp {
     const pos = new THREE.Vector3(L.bell.x, L.courtyard.y, L.bell.z);
     this.temple.strikeBell(() => {
       this.sound.playBell(1);
+      this.live?.bell();
       this.world.ripples.spawn(pos, { color: '#e8c070', maxR: 22, life: 4.5 });
       this.world.ripples.spawn(pos, { color: '#e8c070', maxR: 14, life: 3.5, delay: 0.5 });
     });
@@ -1359,7 +1402,7 @@ class MetaTempleApp {
       this.avatars.sitAt(seat, 'sit');
       this.player.restState = 'sit';
       if (then) then();
-      else this.toast('🪷 좌복에 앉았습니다 · 2 큰절 · 움직이면 일어납니다');
+      else this.toast('🪷 좌복에 앉았습니다 · 움직이면 일어납니다');
     };
     if (zoneAt(p.x, p.z) !== 'DAEUNGJEON') return this._teleport(c.x, c.z + 0.8, Math.PI, () => setTimeout(go, 200));
     this.avatars.moveTo(c.x, c.z + 0.75, go);
@@ -1831,6 +1874,16 @@ class MetaTempleApp {
       case 'bow_half': {
         if (this._bowFrom && performance.now() - this._bowFrom.at < 6000 && !this.player.busy) return this._replyBow(); // 인사해 온 도반께 답례
         this._hideReply();
+        // 합장 인사가 닿는 기존 10m 안에서 실제 도반 중 가장 가까운 이를 바라본다.
+        let nearest = null, distance = 10;
+        for (const peer of this.avatars.remote.values()) {
+          const q = peer.av.root.position, d = Math.hypot(q.x - p.x, q.z - p.z);
+          if (d < distance) { distance = d; nearest = q; }
+        }
+        if (nearest && !this.player.sitting) {
+          this.player.heading = Math.atan2(nearest.x - p.x, nearest.z - p.z);
+          this.player.root.rotation.y = this.player.heading;
+        }
         const d = this.avatars.triggerAction('bow_half');
         if (d) {
           this.live?.bow();
@@ -1882,8 +1935,8 @@ class MetaTempleApp {
   }
 
   /* ───────── HUD ───────── */
-  toast(msg) {
-    const stack = $('#toast-stack');
+  toast(msg, stackId = 'toast-stack') {
+    const stack = document.getElementById(stackId);
     const el = document.createElement('div');
     el.className = 'toast';
     el.textContent = msg;
@@ -1950,6 +2003,40 @@ class MetaTempleApp {
     $('#bg-audio-btn').classList.toggle('active', bg);
     $('#bg-audio-btn').setAttribute('aria-pressed', String(bg));
     $('#sound-tool').classList.toggle('muted', !on);
+    const quick = $('#quick-sound');
+    quick.setAttribute('aria-pressed', String(on));
+    quick.setAttribute('aria-label', on ? '소리 끄기' : '소리 켜기');
+    quick.title = on ? '소리 끄기' : '소리 켜기';
+  }
+
+  _setCameraMode(mode) {
+    const cam = this.world.cam;
+    const next = mode || (cam.mode === 'third' ? 'first' : 'third');
+    if (next === cam.mode) return;
+    this.world.toggleCameraMode(next);
+    if (next === 'first') {
+      cam.yaw = wrapAngle(this.player.heading - Math.PI);
+      cam.pitch = 0; // 몸의 정면과 같은 눈높이
+      cam.turn = 0;
+      this._fp = { off: 0 };
+    }
+    this._syncChips();
+  }
+
+  _zoomCamera(delta) {
+    if (!delta || !this.entered) return;
+    if (this._listening) { this.world.zoom(delta); return; }
+    const cam = this.world.cam;
+    if (cam.mode === 'first') {
+      if (delta > 0) {
+        cam.dist = cam.targetDist = 2.2; // 1인칭에서 나올 때 가까운 3인칭부터 연속적으로 멀어진다.
+        this._setCameraMode('third');
+        this.world.zoom(delta);
+      }
+    } else if (delta < 0 && cam.targetDist * (1 + delta) <= 2.2) {
+      cam.targetDist = 2.2; // 기존 3인칭 확대 한계에서 1인칭으로 이어진다.
+      this._setCameraMode('first');
+    } else this.world.zoom(delta);
   }
 
   /**
@@ -2112,8 +2199,7 @@ class MetaTempleApp {
     );
     $$('[data-camera]').forEach((b) =>
       b.addEventListener('click', () => {
-        this.world.toggleCameraMode(b.dataset.camera);
-        this._syncChips();
+        this._setCameraMode(b.dataset.camera);
       })
     );
     $('#bg-audio-btn').addEventListener('click', () => {
@@ -2133,6 +2219,33 @@ class MetaTempleApp {
       this._soundStarted = true;
       this._syncSoundButton();
     });
+    $('#quick-sound').addEventListener('click', () => $('#audio-toggle-btn').click());
+    $('#quick-fullscreen').addEventListener('click', async () => {
+      try {
+        if (document.fullscreenElement) await document.exitFullscreen();
+        else if (document.fullscreenEnabled && document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen();
+        else this.toast('이 브라우저에서는 전체화면 보기를 지원하지 않습니다.', 'bell-toast-stack');
+      } catch { this.toast('전체화면을 열 수 없습니다.', 'bell-toast-stack'); }
+    });
+    document.addEventListener('fullscreenchange', () => {
+      const button = $('#quick-fullscreen');
+      button.setAttribute('aria-label', document.fullscreenElement ? '전체화면 나가기' : '전체화면 보기');
+      button.title = button.getAttribute('aria-label');
+    });
+    $('#quick-capture').addEventListener('click', () => { this._captureRequested = true; });
+    $('#shortcut-add').addEventListener('click', async () => {
+      const prompt = window.templeInstallPrompt;
+      if (prompt) {
+        window.templeInstallPrompt = null;
+        try { await prompt.prompt(); } catch { this.toast('홈 화면 추가를 열 수 없습니다.'); }
+        return;
+      }
+      const ios = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+      $('#shortcut-help').textContent = ios
+        ? 'Safari의 공유 버튼을 누르고 「홈 화면에 추가」를 선택해 주세요.'
+        : '브라우저 메뉴에서 「홈 화면에 추가」 또는 「앱 설치」를 선택해 주세요.';
+      openSheet('shortcut-sheet');
+    });
     ['nature', 'temple', 'sfx'].forEach((ch) => $(`#vol-${ch}`).addEventListener('input', (e) => this._setVolume(ch, Number(e.target.value))));
     [['#record-btn', 'profile'], ['#help-btn', 'help'], ['#credits-btn', 'credits']].forEach(([sel, view]) =>
       $(sel).addEventListener('click', () => {
@@ -2145,6 +2258,28 @@ class MetaTempleApp {
       const open = $('#hud-plaque').classList.toggle('collapsed') === false;
       $('#plaque-toggle').setAttribute('aria-expanded', String(open));
     });
+
+    // 메뉴와 상태판은 해당 영역을 마지막으로 조작한 뒤 30초 동안 열어 둔다.
+    const plaque = $('#hud-plaque');
+    const menuSheets = [$('#menu-sheet'), ...$$('.sheet[data-parent="menu-sheet"]')];
+    let panelTimer;
+    const armPanelTimer = () => {
+      clearTimeout(panelTimer);
+      const menuOpen = menuSheets.some((s) => !s.classList.contains('hidden'));
+      if (!menuOpen && plaque.classList.contains('collapsed')) return;
+      panelTimer = setTimeout(() => {
+        if (menuSheets.some((s) => !s.classList.contains('hidden'))) closeAll();
+        plaque.classList.add('collapsed');
+        $('#plaque-toggle').setAttribute('aria-expanded', 'false');
+      }, 30000);
+    };
+    const panels = new MutationObserver(armPanelTimer);
+    [plaque, ...menuSheets].forEach((el) => panels.observe(el, { attributes: true, attributeFilter: ['class'] }));
+    for (const event of ['pointerdown', 'pointermove', 'keydown', 'wheel', 'input', 'scroll']) {
+      document.addEventListener(event, (e) => {
+        if (e.target.closest?.('#hud-plaque, #menu-sheet, .sheet[data-parent="menu-sheet"]')) armPanelTimer();
+      }, { capture: true, passive: true });
+    }
 
     $$('[data-goto-zone]').forEach((b) =>
       b.addEventListener('click', () => this.travelTo(b.dataset.gotoZone))
@@ -2174,8 +2309,7 @@ class MetaTempleApp {
         this.gesture(['bow_half', 'prostrate', 'rest', 'incense', 'circumambulate', 'tea'][Number(k) - 1]);
       }
       if (e.code === 'KeyV') {
-        this.world.toggleCameraMode();
-        this._syncChips();
+        this._setCameraMode();
       }
       if (e.code === 'KeyE' && this.nearby) this._activateNearby();
       if (e.code === 'KeyR' && this.nearby?.alt) this.activate(this.nearby.alt.id);
@@ -2188,6 +2322,7 @@ class MetaTempleApp {
     const pointers = new Map();
     let down = null, pinch = 0;
     el.addEventListener('pointerdown', (e) => {
+      this._lookDragging = true;
       el.setPointerCapture(e.pointerId);
       pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (pointers.size === 1) {
@@ -2228,7 +2363,7 @@ class MetaTempleApp {
       if (pointers.size === 2) {
         const [a, b] = [...pointers.values()];
         const d = Math.hypot(a.x - b.x, a.y - b.y);
-        if (pinch) this.world.zoom((pinch - d) * 0.006);
+        if (pinch) this._zoomCamera((pinch - d) * 0.006);
         pinch = d;
         return;
       }
@@ -2242,6 +2377,7 @@ class MetaTempleApp {
     });
     const up = (e) => {
       pointers.delete(e.pointerId);
+      this._lookDragging = pointers.size > 0;
       if (pointers.size < 2) pinch = 0;
       clearTimeout(this._holdTimer);
       if (this._holdWalk) {
@@ -2255,13 +2391,14 @@ class MetaTempleApp {
     el.addEventListener('pointerup', up);
     el.addEventListener('pointercancel', (e) => {
       pointers.delete(e.pointerId);
+      this._lookDragging = pointers.size > 0;
       clearTimeout(this._holdTimer);
       this._endHoldWalk();
       down = null;
     });
     el.addEventListener('wheel', (e) => {
       e.preventDefault();
-      this.world.zoom(e.deltaY * 0.0012);
+      this._zoomCamera(e.deltaY * 0.0012);
     }, { passive: false });
 
     // 가상 조이스틱
@@ -2447,6 +2584,22 @@ class MetaTempleApp {
     return best;
   }
 
+  _markCairn(n, t) {
+    const at = n?.id === 'stone_pagoda' ? this.temple.cairnPos
+      : n?.id?.startsWith('cairn:') && n.id !== 'cairn:new' ? n.at : null;
+    if (!at) { if (this._cairnMarker) this._cairnMarker.visible = false; return; }
+    if (!this._cairnMarker) {
+      const geometry = new THREE.RingGeometry(0.85, 1.05, 48);
+      geometry.rotateX(-Math.PI / 2);
+      const material = new THREE.MeshBasicMaterial({ color: '#f7d689', transparent: true, opacity: 0.7, depthWrite: false, side: THREE.DoubleSide });
+      this._cairnMarker = new THREE.Mesh(geometry, material);
+      this.world.scene.add(this._cairnMarker);
+    }
+    this._cairnMarker.visible = true;
+    this._cairnMarker.position.set(at.x, walkHeight(at.x, at.z) + 0.06, at.z);
+    this._cairnMarker.material.opacity = matchMedia('(prefers-reduced-motion: reduce)').matches ? 0.7 : 0.55 + 0.2 * Math.sin(t * 3);
+  }
+
   _activateNearby() {
     const n = this.nearby;
     if (!n) return;
@@ -2515,18 +2668,20 @@ class MetaTempleApp {
     let face;
     if (fp) {
       this._fp ||= { off: wrapAngle(cam.yaw - (pl.heading - Math.PI)) };
-      const turn = (cam.turn || 0) - ix * FP_TURN * dt;
+      const lookTurn = cam.turn || 0;
+      const bodyTurn = -ix * FP_TURN * dt;
       cam.turn = 0;
       ix = 0; // 돌아보기는 수행 창을 닫거나 자리에서 일으키지 않는다
       if (!pl.sitting && !pl.busy && !A.moveTarget && !A.circling) {
-        pl.heading = wrapAngle(pl.heading + this._fp.off + turn);
+        pl.heading = wrapAngle(pl.heading + bodyTurn);
         pl.root.rotation.y = pl.heading;
-        this._fp.off = 0;
+        this._fp.off = wrapAngle(this._fp.off + lookTurn);
+        if (!this._lookDragging && !lookTurn && !this._listening) this._fp.off *= Math.exp(-dt * 0.7);
       } else {
-        this._fp.off = wrapAngle(this._fp.off + turn);
+        this._fp.off = wrapAngle(this._fp.off + lookTurn + bodyTurn);
         // 탑돌이는 탑 쪽(오른쪽)으로 비스듬히, 걸어가는 중이면 둘러본 시선이 천천히 길 쪽으로 돌아온다
         if (A.circling) this._fp.off += (FP_CIRCLE_LOOK - this._fp.off) * (1 - Math.exp(-dt * 0.8));
-        else if (A.moveTarget) this._fp.off *= Math.exp(-dt * 0.7);
+        else if (A.moveTarget || (!this._lookDragging && !lookTurn && !this._listening)) this._fp.off *= Math.exp(-dt * 0.7);
       }
       face = pl.heading;
     } else {
@@ -2550,12 +2705,15 @@ class MetaTempleApp {
 
     if (this._listening) this._listenTick(dt);
     if (this.entered) {
+      this._positionSaveElapsed = (this._positionSaveElapsed || 0) + dt;
+      if (this._positionSaveElapsed >= 2) { this._positionSaveElapsed = 0; this._rememberPosition(); }
       this._onZoneChange();
       this._promptTimer = (this._promptTimer || 0) + dt;
       if (this._promptTimer > 0.2) {
         this._promptTimer = 0;
         this._syncMiniMap();
         const n = this.modals.isOpen ? null : this._findNearby();
+        this._markCairn(n, t);
         if (n?.id !== this.nearby?.id || n?.cushionIndex !== this.nearby?.cushionIndex) {
           this.nearby = n;
           $('#prompt').classList.toggle('hidden', !n);
@@ -2588,6 +2746,21 @@ class MetaTempleApp {
       }
     }
     this.world.render();
+    if (this._captureRequested) {
+      this._captureRequested = false;
+      try {
+        this.world.renderer.domElement.toBlob((blob) => {
+          if (!blob) return this.toast('화면 사진을 저장하지 못했습니다.', 'bell-toast-stack');
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = `소리사원-${new Date().toISOString().slice(0, 10)}.png`;
+          link.click();
+          setTimeout(() => URL.revokeObjectURL(url), 60000);
+          this.toast('산사의 풍경을 사진으로 저장했습니다.', 'bell-toast-stack');
+        }, 'image/png');
+      } catch { this.toast('화면 사진을 저장하지 못했습니다.', 'bell-toast-stack'); }
+    }
   }
 
   /**

@@ -92,6 +92,38 @@ test('ws_v2_gets_pv_with_roster_v1_gets_peers', async () => {
   [v1, v2, mover].forEach((w) => w.close());
 });
 
+test('bell_reaches_other_rooms_once_without_echo', { timeout: 10000 }, async () => {
+  const open = () => new Promise((resolve, reject) => {
+    const ws = new WebSocket(`ws://127.0.0.1:${PORT}/ws`);
+    ws.once('error', reject);
+    ws.once('message', (data) => resolve({ ws, room: JSON.parse(data).room, bells: [] }));
+  });
+  const peers = await Promise.all(Array.from({ length: 62 }, open));
+  try {
+    const sender = peers[0];
+    const far = peers.find((p) => p !== sender && p.room === sender.room);
+    const otherRoom = peers.find((p) => p.room !== sender.room);
+    assert.ok(far && otherRoom, 'test has listeners in both rooms');
+    const ready = (p) => new Promise((resolve) => p.ws.on('message', (data) => {
+      const m = JSON.parse(data);
+      if (m.t === 'bell') p.bells.push(m);
+      if (m.t === 'pv') resolve();
+    }));
+    const waiting = [sender, far, otherRoom].map(ready);
+    for (const p of peers) p.ws.send(JSON.stringify({ t: 'hello', v: 2, name: '청풍', style: 'monk' }));
+    await Promise.all(waiting);
+    sender.ws.send(JSON.stringify({ t: 'bell', name: '위조된 이름' }));
+    sender.ws.send(JSON.stringify({ t: 'bell' })); // 연타는 서버가 거른다
+    for (let i = 0; i < 30 && (!far.bells.length || !otherRoom.bells.length); i++) await new Promise((r) => setTimeout(r, 20));
+    await new Promise((r) => setTimeout(r, 100));
+    assert.deepEqual(far.bells.map((b) => b.name), ['청풍']);
+    assert.deepEqual(otherRoom.bells.map((b) => b.name), ['청풍']);
+    assert.equal(sender.bells.length, 0);
+  } finally {
+    peers.forEach((p) => p.ws.close());
+  }
+});
+
 test('old_client_compat', async () => {
   const w = await new Promise((res) => { const s = new WebSocket(`ws://127.0.0.1:${PORT}/ws`); s.on('open', () => res(s)); });
   w.send(JSON.stringify({ t: 'hello', style: 'monk' })); // 이름 없는 옛 형식
