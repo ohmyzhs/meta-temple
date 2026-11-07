@@ -5,7 +5,7 @@
  * 실사 GLB 로 바꿀 때는 그 빌더만 갈아 끼우면 된다. 재질은 mats() 공용이라 batchStatic 이 기존 묶음에 합친다.
  */
 import * as THREE from 'three';
-import { terrainHeight, walkHeight, addCircleCollider, addBoxCollider, noise2, isWalkable, resolveCollisions } from './layout.js';
+import { terrainHeight, walkHeight, addCircleCollider, addBoxCollider, noise2, isWalkable, resolveCollisions, bridgeLanes, BRIDGE_WING, streamZ } from './layout.js';
 import { trail, REST_SPOTS, CROSSINGS, crossingY, DECK, deckRise, fenceRuns, LANTERNS, PATH_LAMPS, SIGNS, TRAIL_HALF, STAIR_MIN, PAVILION } from './trail.js';
 import { buildStoneLantern, buildHanok } from './architecture.js';
 import { mats } from './materials.js';
@@ -68,6 +68,25 @@ function pavilionFloor(s) {
     for (let lz = 0.2; lz >= -2 * h; lz -= h / 2) top = Math.max(top, terrainHeight(s.x + Math.cos(s.ry) * lx + Math.sin(s.ry) * lz, s.z - Math.sin(s.ry) * lx + Math.cos(s.ry) * lz));
   }
   return top + s.seatH;
+}
+
+/**
+ * 건너는 곳 날개 난간 (원점 = 다리 중심선 x): 다리 끝 ends[].z 에서 바깥으로 BRIDGE_WING 만큼 벌어지며 땅을 따라 내려선다 — layout bridgeLane 과 같은 모양.
+ * from: [{z, y}] 난간이 시작하는 점들(물가 쪽부터), r: 난간 굵기
+ */
+function wingRails(g, m, b, ends, r, postW) {
+  const lane = bridgeLanes().find((l) => l.id === b.id);
+  for (const sx of [-1, 1]) {
+    for (const { pts, dir } of ends) {
+      const z = pts[pts.length - 1].z, ez = z + dir * BRIDGE_WING, ex = sx * (lane.rail + lane.outer - lane.inner);
+      const line = [...pts.map((q) => new THREE.Vector3(sx * lane.rail, q.y, q.z)), new THREE.Vector3(ex, terrainHeight(b.x + ex, ez) + 0.5, ez)];
+      for (let i = 1; i < line.length; i++) g.add(mesh(new THREE.TubeGeometry(new THREE.LineCurve3(line[i - 1], line[i]), 3, r, 5), m.woodDark));
+      for (const p of line) {
+        const gy = terrainHeight(b.x + p.x, p.z), top = p.y + 0.06, h = top - (gy - 0.25);
+        g.add(mesh(new THREE.BoxGeometry(postW, h, postW), m.woodDark, p.x, gy - 0.25 + h / 2, p.z));
+      }
+    }
+  }
 }
 
 const BUILDERS = {
@@ -218,6 +237,8 @@ const BUILDERS = {
       // 물속 기둥 (가운데 둘)
       for (const z of [b.z0 + len * 0.36, b.z0 + len * 0.64]) g.add(mesh(new THREE.CylinderGeometry(0.08, 0.1, 1.4, 6), m.woodDark, sx * (b.halfW - 0.1), smallBridgeY(z) - 0.82, z));
     }
+    // 날개 난간: 다리 끝 난간에서 이어 바깥으로
+    wingRails(g, m, b, [{ pts: [{ z: b.z0, y: smallBridgeY(b.z0) + 0.5 }], dir: -1 }, { pts: [{ z: b.z1, y: smallBridgeY(b.z1) + 0.5 }], dir: 1 }], 0.04, 0.11);
     for (const z of [b.z0 - 0.15, b.z1 + 0.15]) {
       const st = mesh(rockGeo(z, 0.3), m.granite, 0, b.deckY - 0.35, z);
       st.scale.set(1.2, 0.45, 0.5);
@@ -236,6 +257,9 @@ const BUILDERS = {
       st.rotation.y = i * 0.7;
       g.add(st);
     }
+    // 밧줄 난간: 물가(계곡 중심에서 2.6m)부터 돌 끝을 지나 날개 끝까지, 양쪽 기슭에 (물 위에는 세우지 않는다)
+    const sz = streamZ(b.x), at = (z) => ({ z, y: terrainHeight(b.x, z) + 0.45 });
+    wingRails(g, m, b, [{ pts: [at(sz - 2.6), at(b.z0)], dir: -1 }, { pts: [at(sz + 2.6), at(b.z1)], dir: 1 }], 0.025, 0.08);
     return g;
   }
 };

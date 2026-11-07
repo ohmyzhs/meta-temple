@@ -4,7 +4,7 @@
  * 단위 m, +Y 위, -Z 북쪽(산 쪽). 스폰은 (0, 0, 34) 일주문 남쪽.
  */
 import { ImprovedNoise } from 'three/addons/math/ImprovedNoise.js';
-import { forestPathX, nearestTrail, setTrailProfile, setFenceGaps, PATHS, crossingAt, crossingY, deckRise, deckRiseAt, DECK, trail, TRAIL_HALF, REST_SPOTS, inLookoutView, trailDistFar, fenceBarrier, FLOOR_REACH, loop } from './trail.js';
+import { forestPathX, nearestTrail, setTrailProfile, setFenceGaps, PATHS, crossingAt, crossingY, deckRise, deckRiseAt, DECK, trail, TRAIL_HALF, REST_SPOTS, inLookoutView, trailDistFar, fenceBarrier, FLOOR_REACH, loop, CROSSINGS } from './trail.js';
 
 const perlin = new ImprovedNoise();
 export const noise2 = (x, z) => perlin.noise(x, 0.37, z);
@@ -305,8 +305,39 @@ function inRect(x, z, x0, x1, z0, z1) {
   return x >= x0 && x <= x1 && z >= z0 && z <= z1;
 }
 
-/** 걸을 수 있는 땅: 길(엄격) + 산책로 둘레 숲 바닥 */
+/**
+ * 다리 길목: 석교·작은 나무다리·징검다리는 다리 판(돌) 끝에서 BRIDGE_WING 더 나가는 날개 난간까지 다리 폭 안만 걷는다.
+ * 예전에는 물 위(계곡 중심에서 2.3~2.6m)만 다리 폭으로 막아, 다리 끝 1~1.5m 는 옆으로 걸어 나가 0.4~1.2m 낮은 물가 비탈로 떨어졌다
+ * (사용자 2026-11-08 「다리 난간 옆으로 빠져 물가로 내려간다 — 난간을 다리보다 길게, 다리 전체에」, tools/qa/bridges.mjs).
+ * inner: 다리 위 걷는 반폭, outer: 날개 끝 걷는 반폭(깔때기), side: 이만큼 옆까지는 이 규칙이 정한다 (그 밖은 보통 땅 규칙).
+ * 난간 그림은 temple.js(석교)·trailProps.js(나무다리·징검다리)가 같은 BRIDGE_WING 으로 세운다.
+ */
+export const BRIDGE_WING = 1.6;
+let LANES = null;
+export function bridgeLanes() {
+  if (LANES) return LANES;
+  const b = L.bridge, sz = streamZ(b.x);
+  LANES = [{ id: 'stone', x: b.x, z0: sz - b.halfLen, z1: sz + b.halfLen, inner: b.halfWidth - 0.35, outer: b.halfWidth + 0.75, rail: b.halfWidth - 0.1, side: 6.5 }];
+  for (const c of CROSSINGS) {
+    const rail = c.kind === 'bridge' ? c.halfW + 0.02 : c.halfW + 0.2;
+    LANES.push({ id: c.id, x: c.x, z0: c.z0, z1: c.z1, inner: c.kind === 'bridge' ? c.halfW - 0.2 : c.halfW, outer: rail + 0.35, rail, side: 3 });
+  }
+  return LANES;
+}
+/** 다리 길목 안이면 걸을 수 있는지(true/false), 길목 밖이면 null */
+function bridgeLane(x, z) {
+  for (const l of bridgeLanes()) {
+    if (z < l.z0 - BRIDGE_WING || z > l.z1 + BRIDGE_WING || Math.abs(x - l.x) > l.side) continue;
+    const t = z < l.z0 ? (l.z0 - z) / BRIDGE_WING : z > l.z1 ? (z - l.z1) / BRIDGE_WING : 0;
+    return Math.abs(x - l.x) <= l.inner + (l.outer - l.inner) * t;
+  }
+  return null;
+}
+
+/** 걸을 수 있는 땅: 다리 길목(먼저) · 길(엄격) · 산책로 둘레 숲 바닥 */
 export function isWalkable(x, z) {
+  const lane = bridgeLane(x, z);
+  if (lane !== null) return lane;
   return isOnPath(x, z) || onForestFloor(x, z);
 }
 

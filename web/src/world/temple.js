@@ -13,7 +13,9 @@ import {
   streamZ,
   STREAM_WATER_Y,
   addCircleCollider,
-  addBoxCollider
+  addBoxCollider,
+  bridgeLanes,
+  BRIDGE_WING
 } from './layout.js';
 import { mats, envUniforms, nightGlow, weatherable } from './materials.js';
 import {
@@ -149,6 +151,22 @@ export class Temple {
         pts.push(new THREE.Vector3(b.x + sx * (b.halfWidth - 0.1), deckY + b.rise * Math.cos((u * Math.PI) / 2) + 0.5, sz + u * b.halfLen));
       }
       posts.push(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 16, 0.06, 6, false));
+    }
+    // 날개 난간: 다리 끝에서 BRIDGE_WING 만큼 밖으로 벌어지며 땅으로 내려선다 — 걷는 길목(layout bridgeLane)과 같은 모양이라 다리 옆 물가로 빠지지 않는다
+    const lane = bridgeLanes()[0];
+    for (const sx of [-1, 1]) {
+      for (const dz of [-1, 1]) {
+        const a = new THREE.Vector3(b.x + sx * lane.rail, deckY + 0.5, sz + dz * b.halfLen);
+        const ex = b.x + sx * (lane.rail + lane.outer - lane.inner), ez = sz + dz * (b.halfLen + BRIDGE_WING);
+        const e = new THREE.Vector3(ex, terrainHeight(ex, ez) + 0.55, ez);
+        posts.push(new THREE.TubeGeometry(new THREE.LineCurve3(a, e), 4, 0.06, 6, false));
+        const mx = (a.x + e.x) / 2, mz = (a.z + e.z) / 2, mg = terrainHeight(mx, mz), my = (a.y + e.y) / 2;
+        const mid = new THREE.BoxGeometry(0.18, my + 0.1 - (mg - 0.2), 0.18);
+        mid.translate(mx, (my + 0.1 + mg - 0.2) / 2, mz);
+        const eg = terrainHeight(ex, ez), end = new THREE.BoxGeometry(0.3, e.y + 0.25 - (eg - 0.2), 0.3); // 엄지기둥
+        end.translate(ex, (e.y + 0.25 + eg - 0.2) / 2, ez);
+        posts.push(mid, end);
+      }
     }
     const rail = new THREE.Mesh(mergeGeometries(posts.map((p) => p.toNonIndexed())), m.granite);
     rail.castShadow = true;
