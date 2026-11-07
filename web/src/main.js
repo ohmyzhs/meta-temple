@@ -735,14 +735,14 @@ class MetaTempleApp {
       w.setWeather(track.weather);
       this.sound.setSceneTimer(SCENE_MINUTES * 60); // 장면 한 편 — 한 곡·연속·반복이 이것으로 (data/natureSounds.js)
       this._listenLabel(track.title, track.note);
-      this.sound.setNowPlaying(track.title, '사운드템플 · 자연의 소리');
+      this.sound.setNowPlaying(track.title, '소리사원 · 자연의 소리');
       this.sound.setTrackActions(() => this._listenStep(-1), () => this._listenStep(1));
       return this._listenSync();
     }
     ls.ready = !!this.sound.playTrack('./assets/audio/' + track.file);
     this._listenLabel(track.title, track.place);
     // 잠금화면·알림: 제목과 이전·다음 단추
-    this.sound.setNowPlaying(track.title, `사운드템플 예불 · ${track.place}`, 'yebul');
+    this.sound.setNowPlaying(track.title, `소리사원 예불 · ${track.place}`);
     this.sound.setTrackActions(() => this._listenStep(-1), () => this._listenStep(1));
     this._listenSync();
   }
@@ -998,8 +998,7 @@ class MetaTempleApp {
   /** 잠금화면·알림의 제목: 지금 있는 곳의 소리 */
   _nowPlayingZone() {
     const z = ZONES[this.zone];
-    const art = { FOREST: 'forest', COURTYARD: 'courtyard', DAEUNGJEON: 'hall', TEAHOUSE: 'teahouse' }[this.zone] || 'forest';
-    if (z) this.sound.setNowPlaying(`${z.short}의 소리`, '사운드템플 · 자연의 소리', art);
+    if (z) this.sound.setNowPlaying(`${z.short}의 소리`, '소리사원 · 자연의 소리');
   }
 
   _listenSeek(by) {
