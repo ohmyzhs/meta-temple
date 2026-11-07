@@ -84,8 +84,8 @@ const PERF_SPOTS = {
   deck: { s: 45 },
   westForest: { s: 125 },
   lookout: { pos: [8.5, -63.4], ry: 0, yaw: Math.PI }, // 뒷산 중턱 전망 바위 앞 (2026-11-07)
-  bambooEast: { s: 272 },
-  stones: { s: 330 }
+  bambooEast: { at: [48.5, -26.6] }, // 좌표로 (2026-11-07 뒷산 길을 옮겨 s 가 밀렸다 — 바뀌기 전 트리와 같은 자리를 잰다)
+  stones: { at: [24.6, 9.1] }
 };
 
 async function perf(browser) {
@@ -107,9 +107,10 @@ async function perf(browser) {
     for (const [name, v] of Object.entries(PERF_SPOTS)) {
       out[key].spots[name] = await page.evaluate(async (v) => {
         const t = window.temple, W = t.world, R = W.renderer;
-        if (v.s != null) {
+        if (v.s != null || v.at) {
           const { trail } = await import('./src/world/trail.js');
-          const p = trail.at(v.s), q2 = trail.at(v.s + 1), hd = Math.atan2(q2.x - p.x, q2.z - p.z);
+          const s = v.at ? trail.nearest(v.at[0], v.at[1]).s : v.s;
+          const p = trail.at(s), q2 = trail.at(s + 1), hd = Math.atan2(q2.x - p.x, q2.z - p.z);
           v = { pos: [p.x, p.z], ry: hd, yaw: hd - Math.PI };
         }
         window.__view({ time: 'day', ...v, pitch: 0.25, dist: 7.5, frames: 30 });

@@ -83,7 +83,8 @@ try {
       return y;
     };
     const targets = [];
-    for (const r of [...COURTS, L.teahouseTerrace]) {
+    // 다실 마당은 바뀌기 전 사각형으로 고정한다 (2026-11-07 연못 정원을 들이며 넓어져 칸 수가 달라지지 않게 — 전후를 같은 칸으로 잰다)
+    for (const r of [...COURTS, { x0: 17.6, x1: 33, z0: -19, z1: -1 }]) {
       for (let x = r.x0 + 1; x < r.x1; x += 2) for (let z = r.z0 + 1; z < r.z1; z += 2) targets.push({ x, z, y: terrainHeight(x, z) + 1.0 });
     }
     const seen = (e, q) => {
