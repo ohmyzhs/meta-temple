@@ -2249,10 +2249,8 @@ class MetaTempleApp {
     this.miniMap = createMiniMap($('#minimap'), {
       zones: Object.values(ZONES),
       geo: { streamZ, pathX, L },
-      fresh: !this.store.state.settings.mapUsed,
       onPick: (m) => {
         closeAll();
-        if (!this.store.state.settings.mapUsed) this.store.setSetting('mapUsed', true);
         if (m.kind === 'zone') this.travelTo(m.id);
         else this._goRest(m.id);
       }
@@ -2733,7 +2731,7 @@ class MetaTempleApp {
     // 쉼터에 앉아 있으면 그 자리에서 듣기 — 예불(E)과 자연의 소리(R) 알약 둘, 어느 쪽이든 한 번에
     if (!best && this.player.seat?.kind === 'rest') best = { id: 'yebul', label: '예불 듣기', alt: { id: 'nature', label: '자연의 소리 듣기' } };
     // 순환 산책로·서쪽 마당: 쉼터(1.4m 안), 숲길이면 없을 때 멈춰 선 자리의 돌탑
-    if (!best && (zone === 'FOREST' || zone === 'COURTYARD') && !this.player.sitting) {
+    if (!best && (zone === 'FOREST' || zone === 'COURTYARD' || zone === 'TEAHOUSE') && !this.player.sitting) { // 다실 마당: 연못 정자
       for (const s of this.temple.trail.spots) {
         const d = Math.min(Math.hypot(p.x - s.stand.x, p.z - s.stand.z), Math.hypot(p.x - s.x, p.z - s.z));
         if (d < 1.4 && (!best || d < bd)) {

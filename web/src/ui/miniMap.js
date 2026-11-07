@@ -1,7 +1,8 @@
 /**
  * 장소 시트의 작은 지도 — 위에서 본 산사(북쪽 위)에 지금 내 자리, 함께 있는 도반, 가람 네 곳, 산책길 쉼터를 찍고 누르면 그리로 간다.
  * 단추가 아닌 그림이라 손가락이 닿은 자리에서 가장 가까운 점(지도 위 8m 안)을 고른다 — 이름 있는 단추 목록은 지도 아래에 따로.
- * 누를 수 있다는 것: 지도 위 안내 한 줄은 늘, 한 번도 안 눌러 본 사람(fresh)에게는 점마다 물결이 번진다. 누르면 그 점에서 물결이 한 번 퍼진 뒤 간다.
+ * 누를 수 있다는 것: 가람·쉼터마다 지도 핀이 그 자리 위에서 천천히 오르내리고 발밑에 물결이 번진다 (사용자 2026-11-08 「안내 문구는 지도만 가린다 — 포인터처럼 모션으로」).
+ * 누르면 그 핀 발밑에서 물결이 한 번 퍼진 뒤 간다. 핀 머리를 눌러도 그 핀이 골라진다.
  * three 없이 돈다 (geo 로 지형 함수를 받는다).
  */
 import { PATHS, trail, DECK, CROSSINGS, REST_SPOTS } from '../world/trail.js';
@@ -11,21 +12,24 @@ const PICK_R = 8; // m
 const TAP_MS = 180; // 누른 점에서 물결이 퍼지는 것을 보고 나서 시트가 닫힌다
 const PEER_R = 0.95, PEER_Q = 0.5, PEER_MAX = 240; // 도반 점: 반지름(m), 이 간격(m)으로 모아 겹친 점은 하나로, 가장 많이 그리는 수
 
-/** 지도에 찍을 점: 가람 네 곳 + 쉼터(6m 안 쉼터는 하나로 — 그루터기 둘) */
+/** 핀 모양: 끝(0,0)이 그 자리, 머리는 head 만큼 위(북쪽, −z) 반지름 r */
+export const PIN = { zone: { r: 2.5, head: 5 }, rest: { r: 2, head: 4 } };
+
+/** 지도에 찍을 점: 가람 네 곳 + 쉼터(6m 안 쉼터는 하나로 — 그루터기 둘). head: 핀 머리까지 (누르기 판정) */
 export function mapMarkers(zones) {
-  const out = zones.map((z) => ({ kind: 'zone', id: z.id, name: z.short, x: z.mapAt?.x ?? z.spawn.x, z: z.mapAt?.z ?? z.spawn.z }));
+  const out = zones.map((z) => ({ kind: 'zone', id: z.id, name: z.short, x: z.mapAt?.x ?? z.spawn.x, z: z.mapAt?.z ?? z.spawn.z, head: PIN.zone.head }));
   for (const s of REST_SPOTS) {
     if (out.some((m) => m.kind === 'rest' && Math.hypot(m.x - s.x, m.z - s.z) < 6)) continue;
-    out.push({ kind: 'rest', id: s.id, name: s.name, x: s.x, z: s.z, spot: s.kind });
+    out.push({ kind: 'rest', id: s.id, name: s.name, x: s.x, z: s.z, spot: s.kind, head: PIN.rest.head });
   }
   return out;
 }
 
-/** 지도 좌표(x,z)에서 PICK_R 안의 가장 가까운 점 */
+/** 지도 좌표(x,z)에서 PICK_R 안의 가장 가까운 점 (핀 끝과 핀 머리 가운데 가까운 쪽으로 잰다) */
 export function pickMarker(markers, x, z, r = PICK_R) {
   let best = null, bd = r;
   for (const m of markers) {
-    const d = Math.hypot(m.x - x, m.z - z);
+    const d = Math.min(Math.hypot(m.x - x, m.z - z), Math.hypot(m.x - x, m.z - (m.head || 0) - z));
     if (d < bd) {
       bd = d;
       best = m;
@@ -55,6 +59,14 @@ export function peerPath(points, { r = PEER_R, q = PEER_Q, max = PEER_MAX } = {}
 
 const line = (pts) => pts.map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(1)} ${p.z.toFixed(1)}`).join('');
 
+/** 끝이 (0,0), 머리 가운데가 (0,−head) 인 물방울 핀 */
+function pinPath({ r, head }) {
+  const a = Math.asin(r / head), tx = (r * Math.cos(a)).toFixed(2), ty = (-head + r * Math.sin(a)).toFixed(2);
+  return `M0 0L${tx} ${ty}A${r} ${r} 0 1 0 -${tx} ${ty}Z`;
+}
+
+const PIN_D = { zone: pinPath(PIN.zone), rest: pinPath(PIN.rest) };
+
 /** 산책길 쉼터 표시 (작은 그림) */
 const GLYPH = {
   bench: 'M-1.4 0.2h2.8M-1 0.2v1M1 0.2v1',
@@ -66,10 +78,10 @@ const GLYPH = {
 };
 
 /**
- * root 안에 지도를 그린다. onPick(marker) — 점을 누르면. fresh — 아직 한 번도 안 눌러 봤으면 점마다 물결.
+ * root 안에 지도를 그린다. onPick(marker) — 점을 누르면.
  * 돌려주는 것: { markers, setPlayer(x, z, heading), setHere(zoneId), setPeers(positions) }
  */
-export function createMiniMap(root, { zones, geo, onPick, fresh = false }) {
+export function createMiniMap(root, { zones, geo, onPick }) {
   const { streamZ, pathX, L } = geo;
   const markers = mapMarkers(zones);
   const V = VIEW;
@@ -81,7 +93,7 @@ export function createMiniMap(root, { zones, geo, onPick, fresh = false }) {
   for (let s = DECK.s0; s <= DECK.s1; s += 2) deck.push(trail.at(s));
   const rect = (r, cls) => `<rect class="${cls}" x="${r.x0}" y="${r.z0}" width="${r.x1 - r.x0}" height="${r.z1 - r.z0}" rx="0.8"/>`;
   const c = L.courtyard, h = L.hall, t = L.teahouse, tt = L.teahouseTerrace, p = L.pond, wc = L.westCourt, hy = L.hallYard;
-  root.innerHTML = `<svg class="minimap-svg${fresh ? ' fresh' : ''}" viewBox="${V.x0} ${V.z0} ${V.w} ${V.h}" aria-hidden="true" focusable="false">
+  root.innerHTML = `<svg class="minimap-svg" viewBox="${V.x0} ${V.z0} ${V.w} ${V.h}" aria-hidden="true" focusable="false">
     <rect class="mm-ground" x="${V.x0}" y="${V.z0}" width="${V.w}" height="${V.h}" rx="5"/>
     ${[L.bamboo, L.bambooEast].map((b) => rect(b, 'mm-bamboo')).join('')}
     <path class="mm-stream" d="${line(stream)}"/>
@@ -98,15 +110,16 @@ export function createMiniMap(root, { zones, geo, onPick, fresh = false }) {
     <g class="mm-peers"><path class="mm-peers-rim" d=""/><path d=""/></g>
     ${markers
       .map((m, i) =>
-        m.kind === 'zone'
-          ? `<g class="mm-zone" data-id="${m.id}" transform="translate(${m.x.toFixed(1)} ${m.z.toFixed(1)})"><circle class="mm-wave" r="3.1" style="--i:${i}"/><circle r="3.1"/><text y="7.6">${m.name}</text></g>`
-          : `<g class="mm-rest" data-id="${m.id}" transform="translate(${m.x.toFixed(1)} ${m.z.toFixed(1)})"><circle class="mm-wave" r="2.3" style="--i:${i}"/><circle r="2.3"/><path d="${GLYPH[m.spot] || ''}"/></g>`
+        `<g class="mm-${m.kind}" data-id="${m.id}" transform="translate(${m.x.toFixed(1)} ${m.z.toFixed(1)})" style="--i:${i}">` +
+        `<ellipse class="mm-ping" rx="2.2" ry="1.3"/><ellipse class="mm-shadow" rx="1.2" ry="0.55"/>` +
+        `<g class="mm-pin"><path class="mm-pin-body" d="${PIN_D[m.kind]}"/>` +
+        (m.kind === 'zone' ? `<circle class="mm-pin-dot" cy="${-PIN.zone.head}" r="1"/></g><text y="3.6">${m.name}</text>` : `<path class="mm-glyph" transform="translate(0 ${-PIN.rest.head}) scale(0.9)" d="${GLYPH[m.spot] || ''}"/></g>`) +
+        `</g>`
       )
       .join('')}
     <g class="mm-me" transform="translate(0 0)"><circle class="mm-me-halo" r="3.6"/><path d="M0 -2.6L1.8 1.8L0 0.9L-1.8 1.8Z"/></g>
     <g class="mm-tap-at"><circle class="mm-tap" r="3"/></g>
-  </svg>
-  <p class="mm-hint"><i aria-hidden="true"></i>점을 누르면 그곳으로 바로 갑니다</p>`;
+  </svg>`;
   const svg = root.querySelector('svg');
   const me = svg.querySelector('.mm-me');
   const peers = svg.querySelectorAll('.mm-peers path');
@@ -119,7 +132,6 @@ export function createMiniMap(root, { zones, geo, onPick, fresh = false }) {
     const w = pt.matrixTransform(svg.getScreenCTM().inverse());
     const m = pickMarker(markers, w.x, w.y);
     if (!m || picking) return;
-    svg.classList.remove('fresh');
     tapAt.setAttribute('transform', `translate(${m.x.toFixed(1)} ${m.z.toFixed(1)})`);
     tap.animate?.([{ transform: 'scale(0.8)', opacity: 0.95 }, { transform: 'scale(3)', opacity: 0 }], { duration: TAP_MS + 120, easing: 'ease-out' });
     picking = setTimeout(() => {

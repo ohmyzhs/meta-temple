@@ -40,3 +40,10 @@ test('peer_dots_merge_close_people_and_cap', () => {
   const crowd = Array.from({ length: 600 }, (_, i) => ({ x: (i % 30) * 2 - 30, z: Math.floor(i / 30) * 2 - 20 }));
   assert.equal(dots(peerPath(crowd)), 240);
 });
+
+test('pin_head_picks_its_marker', () => {
+  const m = mapMarkers(ZONES);
+  const c = m.find((k) => k.id === 'COURTYARD');
+  assert.equal(pickMarker(m, c.x + 0.3, c.z - c.head).id, 'COURTYARD'); // 핀 머리(북쪽 위)를 눌러도
+  assert.ok(m.every((k) => k.head > 0));
+});

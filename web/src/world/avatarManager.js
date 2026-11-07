@@ -9,12 +9,23 @@
 import * as THREE from 'three';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { L, walkHeight, stepMove, zoneAt, pathX, clamp } from './layout.js';
+import { L, walkHeight, stepMove, zoneAt, pathX, clamp, isWalkable, resolveCollisions } from './layout.js';
 import { crossingAt, nearestTrail, deckRiseAt } from './trail.js';
 import { faceTexture, softDotTexture } from './textures.js';
 import { generateDharmaName } from '../data/templeData.js';
 import { RigBody, rigLib, RIG_STYLES } from './avatarRig.js';
 import { pickMotion, MOVING, SEATED, PROSTRATE, WALK_SPEED, FAST_SPEED } from '../core/avatarMotion.js';
+
+/** (x,z) 에서 q 까지 0.25m 마다 걸을 수 있고 부딪히지 않는가 (경유점 넘어가기 판단) */
+function clearLine(x, z, q) {
+  const n = Math.ceil(Math.hypot(q.x - x, q.z - z) / 0.25);
+  for (let i = 1; i <= n; i++) {
+    const px = x + ((q.x - x) * i) / n, pz = z + ((q.z - z) * i) / n, c = resolveCollisions(px, pz, 0.32);
+    if (!isWalkable(px, pz) || Math.hypot(c.x - px, c.z - pz) > 1e-3) return false;
+  }
+  return true;
+}
+
 
 const TAU = Math.PI * 2;
 /**
@@ -1156,7 +1167,9 @@ export class AvatarManager {
       pl.heading = input.face ?? Math.atan2(input.x, input.z); // 1인칭은 뒤로 걸어도 몸을 돌리지 않는다
     } else if (this.moveTarget && !pl.busy) {
       const mt = this.moveTarget;
-      if (mt.via && Math.hypot(mt.x - p.x, mt.z - p.z) < 0.8) {
+      // 경유점 0.8m 앞에서 다음으로 넘어가되, 지금 자리에서 다음 점까지 곧게 갈 수 있을 때만 (울타리 끝·담 모서리를 깎아 질러가다 걸리지 않게)
+      const dv = Math.hypot(mt.x - p.x, mt.z - p.z);
+      if (mt.via && dv < 0.8 && (dv < 0.15 || clearLine(p.x, p.z, mt.via.length ? mt.via[0] : mt.final))) {
         const next = mt.via.length ? mt.via.shift() : mt.final;
         mt.x = next.x;
         mt.z = next.z;
