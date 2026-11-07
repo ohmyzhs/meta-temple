@@ -79,7 +79,7 @@ function limiter(windowMs, max) {
 }
 const backupSave = limiter(10 * 60000, 12);
 const backupSaveDay = limiter(86400000, 40);
-const backupRestore = limiter(10 * 60000, 10); // 키는 140비트라 맞히기는 불가능하지만, 마구 묻는 것 자체를 막는다
+const backupRestore = limiter(10 * 60000, 10); // 키가 6자(56^6)라 마구 맞혀 보기를 막는다 — 화면 쪽 PBKDF2 와 함께
 
 function send(res, code, body) {
   res.writeHead(code, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'access-control-allow-origin': '*' });
@@ -194,7 +194,8 @@ async function api(req, res) {
 
 /**
  * 기록 지키기. 화면이 보내는 id 는 복구키에서 유도한 값(키 자체가 아님) — 그것도 소금 해시해서 행 이름으로 쓴다.
- *  POST /api/backup         { id, data } → { updatedAt }   (같은 키로 다시 맡기면 덮어쓴다)
+ *  POST /api/backup         { id, data, create? } → { updatedAt }   (같은 키로 다시 맡기면 덮어쓴다.
+ *                           create: 화면이 새로 만든 키 — 6자라 드물게 겹칠 수 있으니 이미 있으면 409, 화면은 새 키로 다시)
  *  POST /api/backup/restore { id }       → { data, updatedAt } | 404   (id 를 주소에 남기지 않으려고 POST)
  */
 async function backup(path, body, ip, res) {
@@ -210,7 +211,8 @@ async function backup(path, body, ip, res) {
   if (data.length > BACKUP_MAX) return send(res, 413, { error: '기록이 너무 커서 맡길 수 없습니다' });
   if (data.length < 40 || !B64_RE.test(data)) return send(res, 400, { error: 'bad data' });
   if (!backupSave(ip) || !backupSaveDay(ip)) return send(res, 429, { error: '잠시 뒤에 다시 맡겨 주세요' });
-  return send(res, 200, await store.putBackup(row, data));
+  const r = await store.putBackup(row, data, { create: body.create === true });
+  return r ? send(res, 200, r) : send(res, 409, { error: 'taken' });
 }
 
 const server = http.createServer((req, res) => {

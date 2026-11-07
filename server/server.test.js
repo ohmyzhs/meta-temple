@@ -226,6 +226,16 @@ test('backup_save_restore_overwrite', async () => {
   assert.equal(await openBackup(got2.data, key), json2);
 });
 
+test('backup_new_key_never_overwrites', async () => {
+  const key = newKey();
+  const a = await sealBackup('{"who":"first"}', key);
+  assert.equal((await post('/api/backup', { ...a, create: true }, '10.2.3.1')).status, 200);
+  // 다른 사람이 우연히 같은 키를 새로 만들었다 → 409, 처음 사람 기록은 그대로
+  assert.equal((await post('/api/backup', { ...(await sealBackup('{"who":"second"}', key)), create: true }, '10.2.3.2')).status, 409);
+  const got = await (await post('/api/backup/restore', { id: a.id }, '10.2.3.3')).json();
+  assert.equal(await openBackup(got.data, key), '{"who":"first"}');
+});
+
 test('backup_bad_requests', async () => {
   const { id, data } = await sealBackup('{}', newKey());
   assert.equal((await post('/api/backup/restore', { id: await backupId(newKey()) }, '10.2.1.1')).status, 404);

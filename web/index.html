@@ -19,6 +19,7 @@
   <link rel="stylesheet" href="./src/styles.css" />
   <link rel="stylesheet" href="./src/entrance.css" />
   <link rel="stylesheet" href="./src/ui/modals.css" />
+  <link rel="stylesheet" href="./src/ui/me.css" />
   <script type="importmap">
     {
       "imports": {
@@ -103,7 +104,7 @@
   <!-- 누르는 것은 모두 <button class="ctl"> — 그림 아이콘(data-icon, main.js 가 채움) + 짧은 글자, 48px 이상 -->
   <div id="hud" class="hud hidden">
     <header class="hud-plaque collapsed" id="hud-plaque">
-      <!-- 상태판: 낙관 + 법명 + 함께 있는 사람. 펼치면 법명(붓글씨) · 절·염주·연등 · 동석. 지금 장소는 오른쪽 위 장소 단추에만 -->
+      <!-- 상태판: 낙관 + 법명 + 함께 있는 사람. 펼치면 법명(붓글씨, 옆에 바꾸기·나 아이콘 — ui/meHub.js) · 절·염주·연등·돌탑·탑돌이·범종 · 동석. 지금 장소는 오른쪽 위 장소 단추에만 -->
       <button class="ctl plaque-head" id="plaque-toggle" type="button" aria-expanded="false" aria-controls="plaque-body" aria-label="내 법명과 수행, 함께 있는 도반">
         <span class="pq-seal" aria-hidden="true"><img src="./assets/brand/temple-emblem-v2.svg" alt="" width="470" height="540" /></span>
         <span class="pq-id"><b id="hud-dharma-name"></b><small><span class="dot"></span><span id="hud-presence-count"></span></small></span>
@@ -114,6 +115,9 @@
           <li><span data-icon="prostrate"></span><b id="hud-bows">0</b><small>절</small></li>
           <li><span data-icon="practice_108"></span><b id="hud-mala">0</b><small>염주</small></li>
           <li><span data-icon="wish_lantern"></span><b id="hud-lanterns">0</b><small>연등</small></li>
+          <li><span data-icon="stone_pagoda"></span><b id="hud-stones">0</b><small>돌탑</small></li>
+          <li><span data-icon="circumambulate"></span><b id="hud-loops">0</b><small>탑돌이</small></li>
+          <li><span data-icon="bell_strike"></span><b id="hud-bells">0</b><small>범종</small></li>
         </ul>
         <p class="pq-presence"><span class="dot"></span><span><span id="hud-presence"></span><small id="hud-presence-sub"></small></span></p>
       </div>
@@ -142,7 +146,7 @@
     <div id="joystick" class="joystick" aria-hidden="true"><div class="joy-knob"></div></div>
 
     <!-- 시트: 한 번에 하나만 보인다 (ui/sheets.js). 하위 시트(data-parent)는 위에 쌓여 뒤로가기로 하나씩 닫힌다 -->
-    <!-- 메뉴: 오른쪽 제어판 한 장 — 기호+짧은 글자 타일을 묶음째 바로 누른다 (소리 크기만 한 단계 안) -->
+    <!-- 메뉴: 오른쪽 제어판 한 장 — 맨 위 「나」(ui/meHub.js 가 넣는다) + 기호+짧은 글자 타일을 묶음째 바로 누른다 (소리 크기만 한 단계 안) -->
     <section class="sheet hidden" id="menu-sheet" aria-label="메뉴">
       <header class="sheet-head"><h2>메뉴</h2><button class="ctl" type="button" data-sheet-close data-icon="close" aria-label="닫기"></button></header>
       <div class="cc">
@@ -184,9 +188,9 @@
           </div>
         </div>
         <div class="cc-card cc-d">
-          <h3 class="cc-h">산사</h3>
+          <h3 class="cc-h">안내</h3>
           <div class="cc-row cc-3">
-            <button class="ctl cc-tile" type="button" id="record-btn" data-icon="record"><span class="lbl">기록</span></button>
+            <button class="ctl cc-tile" type="button" id="tour-btn" data-icon="circumambulate"><span class="lbl">둘러보기</span></button>
             <button class="ctl cc-tile" type="button" id="help-btn" data-icon="help"><span class="lbl">도움말</span></button>
             <button class="ctl cc-tile" type="button" id="credits-btn" data-icon="credits"><span class="lbl">출처</span></button>
           </div>

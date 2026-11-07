@@ -2,14 +2,18 @@
  * 기록 지키기 — 복구키로 서버에 맡기고 되찾는다 (server.js /api/backup 짝).
  *
  * 복구키는 비밀번호와 같다. 화면에서 무작위로 만들고, 서버에는 키도 기록 원문도 보내지 않는다:
- *  · 조회값(id) = HKDF(키, 'id')  — 서버는 이것을 다시 소금 해시해 행을 찾는다
- *  · 암호 키   = HKDF(키, 'enc') — 기록을 gzip 으로 줄인 뒤 AES-GCM 으로 잠근다
- * 그래서 DB 가 새어도, 서버 운영자도 기록을 읽을 수 없다. 키를 잃으면 아무도 되찾을 수 없다.
+ *  · PBKDF2(키, 60만 번) → 앞 절반 = 조회값(id, 서버는 이것을 다시 소금 해시해 행을 찾는다), 뒤 절반 = AES-GCM 암호 키
+ *  · 기록은 gzip 으로 줄인 뒤 그 키로 잠근다 → DB 가 새어도, 서버 운영자도 읽을 수 없다. 키를 잃으면 아무도 되찾을 수 없다.
+ * 키는 6자 (사용자 결정 2026-11-08: 「이렇게까지 길 이유가 없다」). 56^6 ≈ 300억 가지로 짧은 만큼
+ *  · 일부러 느린 PBKDF2 로 하나씩 맞혀 보기를 늦추고, 서버는 IP 마다 되찾기 횟수를 막는다
+ *  · 새 키로 처음 맡길 때 같은 키가 이미 있으면 서버가 거절하고 화면은 새 키로 다시 (남의 기록을 덮지 않게)
  * DOM 을 쓰지 않는다 (Node 22 에서 그대로 시험 — recovery.test.js).
  */
-const ALPHA = '0123456789ABCDEFGHJKMNPQRSTVWXYZ'; // Crockford base32 — 헷갈리는 I·L·O·U 없음
-export const KEY_LEN = 28; // 28자 × 5비트 = 140비트 (128비트 이상), 4자씩 7묶음
-const SALT = 'sound-temple/backup/v1';
+// 영문 대·소문자 + 숫자에서 헷갈리는 0 O o 1 l I 를 뺀 56자 — 옮겨 적을 때 틀리지 않게
+const ALPHA = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+export const KEY_LEN = 6;
+const SALT = 'sound-temple/backup/v2';
+const ITER = 600000; // PBKDF2-SHA256 (OWASP 권장값). 512비트 뽑기 — 맥 node 실측 약 0.2초, 폰은 그 몇 배
 const VERSION = 1;
 const enc = new TextEncoder();
 
@@ -19,22 +23,19 @@ const subtle = () => {
   return s;
 };
 
-/** 새 복구키 (붙여 쓴 28자). 한 바이트의 아래 5비트 = 32가지가 고르게 나온다 (256 ÷ 32) */
+/** 새 복구키 6자. 224(= 56×4) 이상인 바이트는 버려 56자가 고르게 나오게 */
 export function newKey() {
-  const b = globalThis.crypto.getRandomValues(new Uint8Array(KEY_LEN));
-  return [...b].map((x) => ALPHA[x & 31]).join('');
+  let k = '';
+  while (k.length < KEY_LEN) for (const b of globalThis.crypto.getRandomValues(new Uint8Array(16))) if (b < 224 && k.length < KEY_LEN) k += ALPHA[b % 56];
+  return k;
 }
 
-/** 보여 줄 꼴: XXXX-XXXX-… */
-export const formatKey = (key) => key.match(/.{1,4}/g).join('-');
+/** 보여 줄 꼴: 세 자씩 띄워서 (aB3 kPz) */
+export const formatKey = (key) => `${key.slice(0, 3)} ${key.slice(3)}`;
 
-/** 사람이 친 키 → 붙여 쓴 28자, 틀리면 null. 소문자·띄어쓰기·줄표는 괜찮고 O→0, I·L→1 로 읽는다 */
+/** 사람이 친 키 → 6자, 틀리면 null. 대·소문자는 그대로 구별하고 띄어쓰기·줄표만 무시한다 */
 export function parseKey(input) {
-  const k = String(input ?? '')
-    .toUpperCase()
-    .replace(/[\s\-_.·]/g, '')
-    .replace(/O/g, '0')
-    .replace(/[IL]/g, '1');
+  const k = String(input ?? '').replace(/[\s\-_.·]/g, '');
   return k.length === KEY_LEN && [...k].every((c) => ALPHA.includes(c)) ? k : null;
 }
 
@@ -42,13 +43,10 @@ const hex = (buf) => [...new Uint8Array(buf)].map((x) => x.toString(16).padStart
 
 async function material(key) {
   const s = subtle();
-  const base = await s.importKey('raw', enc.encode(key), 'HKDF', false, ['deriveBits', 'deriveKey']);
-  const p = (info) => ({ name: 'HKDF', hash: 'SHA-256', salt: enc.encode(SALT), info: enc.encode(info) });
-  const [id, aes] = await Promise.all([
-    s.deriveBits(p('id'), base, 256),
-    s.deriveKey(p('enc'), base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt'])
-  ]);
-  return { id: hex(id), aes };
+  const base = await s.importKey('raw', enc.encode(key), 'PBKDF2', false, ['deriveBits']);
+  const bits = new Uint8Array(await s.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: enc.encode(SALT), iterations: ITER }, base, 512));
+  const aes = await s.importKey('raw', bits.slice(32), 'AES-GCM', false, ['encrypt', 'decrypt']);
+  return { id: hex(bits.slice(0, 32)), aes };
 }
 
 /** 서버에서 행을 찾는 값 (64자 16진수) */

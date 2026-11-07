@@ -5,15 +5,17 @@ import { newKey, formatKey, parseKey, backupId, sealBackup, openBackup, KEY_LEN 
 test('key_format_and_parse', () => {
   const k = newKey();
   assert.equal(k.length, KEY_LEN);
-  assert.match(formatKey(k), /^([0-9A-HJKMNP-TV-Z]{4}-){6}[0-9A-HJKMNP-TV-Z]{4}$/);
+  assert.match(k, /^[A-HJ-NP-Za-km-z2-9]{6}$/); // 0 O o 1 l I 없음
   assert.equal(parseKey(formatKey(k)), k);
-  assert.equal(parseKey(` ${formatKey(k).toLowerCase()} `), k); // 소문자·앞뒤 공백
-  assert.equal(parseKey(k.slice(0, 4) + ' ' + k.slice(4)), k);
-  assert.equal(parseKey('O' + k.slice(1)), parseKey('0' + k.slice(1))); // O 는 0
-  assert.equal(parseKey('l' + k.slice(1)), parseKey('1' + k.slice(1))); // l 은 1
-  assert.equal(parseKey(k.slice(1)), null); // 짧음
-  assert.equal(parseKey('U' + k.slice(1)), null); // 없는 글자
-  assert.notEqual(newKey(), newKey());
+  assert.equal(parseKey(` ${k.slice(0, 2)}-${k.slice(2)} `), k); // 띄어쓰기·줄표 무시
+  assert.equal(parseKey('aB3kPz'), 'aB3kPz');
+  assert.notEqual(parseKey('aB3kPz'), parseKey('AB3KPZ')); // 대·소문자 구별
+  assert.equal(parseKey('aB3kP'), null); // 짧음
+  assert.equal(parseKey('aB3kP0'), null); // 헷갈리는 글자는 키에 없다
+  const seen = new Set(Array.from({ length: 2000 }, newKey));
+  assert.ok(seen.size > 1990, '거의 겹치지 않는다');
+  const chars = new Set([...seen].join(''));
+  assert.equal(chars.size, 56, '56자가 모두 나온다');
 });
 
 test('seal_open_roundtrip_and_privacy', async () => {
@@ -32,9 +34,9 @@ test('seal_open_roundtrip_and_privacy', async () => {
 test('wrong_key_or_tampered_fails', async () => {
   const k = newKey();
   const { data } = await sealBackup('{"a":1}', k);
-  await assert.rejects(openBackup(data, newKey()));
+  await assert.rejects(openBackup(data, k === 'aB3kPz' ? 'aB3kPx' : 'aB3kPz'));
   const b = Uint8Array.from(atob(data), (c) => c.charCodeAt(0));
   b[b.length - 1] ^= 1;
   await assert.rejects(openBackup(btoa(String.fromCharCode(...b)), k));
-  assert.notEqual(await backupId(k), await backupId(newKey()));
+  assert.notEqual(await backupId('aB3kPz'), await backupId('AB3kPz'));
 });

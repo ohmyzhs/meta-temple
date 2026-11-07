@@ -177,13 +177,13 @@ export async function createStore(url) {
       }
       return { hidden, reports: n };
     },
-    /** 맡긴 기록 넣기/덮어쓰기 → { updatedAt } */
-    async putBackup(id, data) {
+    /** 맡긴 기록 넣기/덮어쓰기 → { updatedAt }. create: 새 키 — 이미 있으면 덮지 않고 null */
+    async putBackup(id, data, { create = false } = {}) {
       const r = await pool.query(
-        'INSERT INTO backups (id, data) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = now() RETURNING updated_at',
+        `INSERT INTO backups (id, data) VALUES ($1, $2) ON CONFLICT (id) ${create ? 'DO NOTHING' : 'DO UPDATE SET data = EXCLUDED.data, updated_at = now()'} RETURNING updated_at`,
         [id, data]
       );
-      return { updatedAt: new Date(r.rows[0].updated_at).toISOString() };
+      return r.rows[0] ? { updatedAt: new Date(r.rows[0].updated_at).toISOString() } : null;
     },
     /** 맡긴 기록 → { data, updatedAt } | null */
     async getBackup(id) {
@@ -268,7 +268,8 @@ function memoryStore() {
       if (!item.hidden && who.size >= hideAt) item.hidden = true;
       return { hidden: item.hidden, reports: who.size };
     },
-    async putBackup(id, data) {
+    async putBackup(id, data, { create = false } = {}) {
+      if (create && db.backups.has(id)) return null;
       const updatedAt = new Date().toISOString();
       db.backups.set(id, { data, updatedAt });
       return { updatedAt };

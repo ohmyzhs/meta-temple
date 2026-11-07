@@ -281,7 +281,7 @@ for (const [w, h] of SIZES) {
   await page.evaluate(() => window.temple.modals.close());
   // 보관함: 간직한 죽비 「듣기」 — 차담 목소리를 꺼 두어도 직접 누르면 들린다
   await page.evaluate(() => window.temple.store.setSetting('teaVoice', false));
-  await page.evaluate(() => window.temple.modals.open('profile'));
+  await page.evaluate(() => window.temple.me.open('me-cards')); // 나 › 간직한 죽비 (하위 시트)
   await page.waitForSelector('.pf-listen', { timeout: 3000 });
   const n0 = (await voices()).length;
   await page.click('.pf-listen');

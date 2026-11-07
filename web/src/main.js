@@ -33,6 +33,8 @@ import { DOCK_RITUALS } from './data/templeData.js';
 import { icon, ZONE_ICONS } from './ui/icons.js';
 import { toggleSheet, openSheet, closeTop, closeAll } from './ui/sheets.js';
 import { installBackGuard } from './ui/backGuard.js';
+import { mountMeHub } from './ui/meHub.js';
+import { createTour } from './ui/tour.js';
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
@@ -225,6 +227,20 @@ class MetaTempleApp {
     this.world.applyEnv(true);
 
     this.modals = new ModalManager(this.store, this._withMotions(this._modalCallbacks()), this.sound);
+    // 나 (법명·기록·복구키): 시트 마크업을 넣은 뒤 _bindHUD 가 아이콘·여닫기를 함께 묶는다
+    this.me = mountMeHub({
+      store: this.store,
+      modals: this.modals,
+      rename: () => this._setName(generateDharmaName(this.store.profile.dharmaName), false),
+      setName: (text) => this._setName(text, true),
+      importState: (json) => this.store.importState(json),
+      openMixes: () => {
+        closeAll();
+        this.store.setSetting('natureTab', 'mine');
+        this.activate('nature');
+      }
+    });
+    this.tour = createTour(); // 둘러보기 안내 — 메뉴 › 안내에서만 연다
     this._bindHUD();
     this._bindInput();
     this._bindListen();
@@ -602,8 +618,6 @@ class MetaTempleApp {
         this.store.keepDharmaCard(card);
         this.sound.playChukbi();
       },
-      onRename: () => this._setName(generateDharmaName(this.store.profile.dharmaName), false).text,
-      onSetName: (text) => this._setName(text, true),
       onReport: (kind, id) => {
         this.store.hideReported(id);
         this.temple.lanterns.sync(this.store.state.lanterns);
@@ -614,8 +628,6 @@ class MetaTempleApp {
           this.toast(r.error ? '신고를 보내지 못했습니다 · 내 화면에서는 가렸습니다' : '신고했습니다 · 이 글은 이제 내 화면에 보이지 않습니다')
         );
       },
-      onExport: () => this.store.exportState(),
-      onImport: (json) => this.store.importState(json),
       onYebul: (track) => (this._listening?.track === track ? this.modals.close() : this.listen(track)), // 듣는 중 다시 연 목록에서 지금 것을 누르면 닫기만
       onHereMix: () => this.listen(this._hereTrack()), // 자연의 소리 창 「내 소리」의 「이 자리 소리」
       onPracticeEnd: () => {
@@ -1955,6 +1967,9 @@ class MetaTempleApp {
     $('#hud-bows').textContent = n(s.bowCount);
     $('#hud-mala').textContent = n(s.malaCount);
     $('#hud-lanterns').textContent = n(s.lanternCount);
+    $('#hud-stones').textContent = n(s.stoneCount);
+    $('#hud-loops').textContent = n(s.circumambulationLoops);
+    $('#hud-bells').textContent = n(s.bellStrikes);
     if (this.avatars) {
       const real = this.live?.count || 0;
       $('#hud-presence-count').textContent = real > 0 ? `도반 ${real}명과 함께` : '홀로 머무는 중';
@@ -2091,8 +2106,12 @@ class MetaTempleApp {
     $('#place-name').textContent = ZONES[z].short;
   }
 
-  /** 뒤로가기가 닫는 순서: 열린 창(차담·듣는 중 다시 연 목록 포함) → 듣기 → 시트 → 펼친 현판. 닫은 것이 있으면 true */
+  /** 뒤로가기가 닫는 순서: 둘러보기 안내 → 열린 창(차담·듣는 중 다시 연 목록 포함) → 듣기 → 시트 → 펼친 현판. 닫은 것이 있으면 true */
   _closeTop() {
+    if (this.tour?.active) {
+      this.tour.close();
+      return true;
+    }
     if (this.modals.isOpen) {
       this.modals.back(); // 창 안에 겹친 것(차담의 죽비 층)부터
       return true;
@@ -2247,12 +2266,17 @@ class MetaTempleApp {
       openSheet('shortcut-sheet');
     });
     ['nature', 'temple', 'sfx'].forEach((ch) => $(`#vol-${ch}`).addEventListener('input', (e) => this._setVolume(ch, Number(e.target.value))));
-    [['#record-btn', 'profile'], ['#help-btn', 'help'], ['#credits-btn', 'credits']].forEach(([sel, view]) =>
+    [['#help-btn', 'help'], ['#credits-btn', 'credits']].forEach(([sel, view]) =>
       $(sel).addEventListener('click', () => {
         closeAll();
         this.modals.open(view);
       })
     );
+    $('#tour-btn').addEventListener('click', () => {
+      closeAll();
+      this.modals.close();
+      this.tour.open();
+    });
     // 현판은 접어 둔다 (펼치면 이곳 안내·내 법명·수행·동석)
     $('#plaque-toggle').addEventListener('click', () => {
       const open = $('#hud-plaque').classList.toggle('collapsed') === false;
