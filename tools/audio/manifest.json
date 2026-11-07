@@ -1,5 +1,5 @@
 {
- "_": "자연의 소리 원본(sources)과 자를 구간(pieces). python3 tools/audio/build.py build — 원본은 tools/audio/raw/ (git 밖, 받는 곳은 url). 구간은 build.py scan(단기 음량이 고른 곳)과 스펙트로그램으로 골랐다. 2026-11-06: 경주남산(15076196)은 명상 내레이션 영상이라 뺐다 — 받아쓰기(tools/audio/voice_check.py)로 확인. 2026-11-06: 돌풍(gust-pine)은 800Hz 위를 걷는다(lp) — 솔바람의 쉬익 띠가 물소리로 들려 산꼭대기에서도 물소리가 났다. 검사: tools/audio/water_check.py 2026-11-07: 돌풍은 봉우리 앞 7초·뒤 5초(12초)로 길게 — 엔진이 부드럽게 커졌다 잦아들게 페이드. 백령도 청개구리는 조각 둘(12~64·74~124초).",
+ "_": "자연의 소리 원본(sources)과 자를 구간(pieces). python3 tools/audio/build.py build — 원본은 tools/audio/raw/ (git 밖, 받는 곳은 url). 구간은 build.py scan(단기 음량이 고른 곳)과 스펙트로그램으로 골랐다. 2026-11-06: 경주남산(15076196)은 명상 내레이션 영상이라 뺐다 — 받아쓰기(tools/audio/voice_check.py)로 확인. 2026-11-06: 돌풍(gust-pine)은 800Hz 위를 걷는다(lp) — 솔바람의 쉬익 띠가 물소리로 들려 산꼭대기에서도 물소리가 났다. 검사: tools/audio/water_check.py 2026-11-07: 돌풍은 봉우리 앞 7초·뒤 5초(12초)로 길게 — 엔진이 부드럽게 커졌다 잦아들게 페이드. 백령도 청개구리는 조각 둘(12~64·74~124초). 2026-11-07: 국립공원공단 영상은 모두 맨 앞 6초(범종 5초)가 같은 테마송(로고) — 테마 ASMR 은 7초(범종 6초)부터, 되풀이 영상은 테마송 뒤 한 주기. 백련사는 100~116초가 다른 장면이라 116초부터.",
  "sources": {
   "knps-stream": {
    "file": "knps-15076211.m4a",
@@ -1060,7 +1060,8 @@
    "title": "지리산 산골짜기 물소리",
    "place": "지리산",
    "note": "바위 사이로 흐르는 골짜기 물",
-   "group": "물"
+   "group": "물",
+   "from": 7
   },
   {
    "id": "dobong-summer",
@@ -1068,7 +1069,8 @@
    "title": "원도봉계곡의 여름",
    "place": "북한산 원도봉계곡",
    "note": "여름 계곡 물소리",
-   "group": "물"
+   "group": "물",
+   "from": 7
   },
   {
    "id": "hwagae-dawn",
@@ -1092,7 +1094,8 @@
    "title": "도갑사 미륵전 샘터",
    "place": "월출산 도갑사",
    "note": "샘터로 떨어지는 물",
-   "group": "물"
+   "group": "물",
+   "from": 7
   },
   {
    "id": "baekryeon-rain",
@@ -1101,7 +1104,7 @@
    "place": "덕유산 구천동 백련사",
    "note": "절 마당에 내리는 비",
    "group": "비",
-   "from": 100
+   "from": 116
   },
   {
    "id": "guryong-rain",
@@ -1109,7 +1112,8 @@
    "title": "구룡사 비 오는 날",
    "place": "치악산 구룡사",
    "note": "빗속에 우는 풍경",
-   "group": "비"
+   "group": "비",
+   "from": 7
   },
   {
    "id": "garisan-rain",
@@ -1142,8 +1146,8 @@
    "place": "속리산",
    "note": "텃새 곤줄박이의 낮 노래",
    "group": "새",
-   "from": 0,
-   "to": 156
+   "from": 7,
+   "to": 162
   },
   {
    "id": "songni-thrush",
@@ -1151,7 +1155,8 @@
    "title": "흰배지빠귀",
    "place": "속리산 화양동",
    "note": "새벽 숲의 지빠귀",
-   "group": "새"
+   "group": "새",
+   "from": 7
   },
   {
    "id": "songni-cuckoo",
@@ -1160,8 +1165,8 @@
    "place": "속리산",
    "note": "초여름 낮의 뻐꾸기",
    "group": "새",
-   "from": 0,
-   "to": 191
+   "from": 7,
+   "to": 197
   },
   {
    "id": "sancheong-scops",
@@ -1201,7 +1206,8 @@
    "title": "연화봉 가을 풀벌레",
    "place": "소백산 연화봉",
    "note": "바람 부는 가을 풀벌레",
-   "group": "숲"
+   "group": "숲",
+   "from": 7
   },
   {
    "id": "jiri-cicadas",
@@ -1218,8 +1224,8 @@
    "place": "지리산 화엄사",
    "note": "처마 끝 풍탁",
    "group": "절",
-   "from": 0,
-   "to": 178
+   "from": 7,
+   "to": 184
   },
   {
    "id": "hwaeom-bell",
@@ -1228,8 +1234,8 @@
    "place": "지리산 화엄사",
    "note": "범종 타종",
    "group": "절",
-   "from": 0,
-   "to": 223
+   "from": 6,
+   "to": 229
   },
   {
    "id": "mirae-tea",
@@ -1237,7 +1243,8 @@
    "title": "미래사 차의 시간",
    "place": "한려해상 미래사",
    "note": "찻물 끓이고 따르는 소리",
-   "group": "절"
+   "group": "절",
+   "from": 7
   }
  ]
 }
