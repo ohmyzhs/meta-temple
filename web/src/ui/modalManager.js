@@ -1950,9 +1950,13 @@ export class ModalManager {
         <label class="slider"><span>자연 환경음</span><input type="range" data-vol="nature" min="0" max="1" step="0.05" /></label>
         <label class="slider"><span>사찰 공간음</span><input type="range" data-vol="temple" min="0" max="1" step="0.05" /></label>
       </div>
-      <div class="mx-foot" data-foot></div>
-      <p class="mx-msg" data-msg aria-live="polite"></p>`);
-    const $r = (sel) => root.querySelector(sel);
+      `);
+    // 담기 줄은 스크롤하는 몸 밖, 창 맨 아래에 붙는다 (창이 닫히면 destroy 에서 거둔다)
+    const foot = document.createElement('div');
+    foot.className = 'mx-foot';
+    foot.innerHTML = '<p class="mx-msg" data-msg aria-live="polite"></p><div class="mx-acts" data-foot></div>';
+    this.win.appendChild(foot);
+    const $r = (sel) => root.querySelector(sel) || foot.querySelector(sel);
     let naming = null; // 이름을 받는 중이면 { asNew }
     const draw = () => {
       const st = mix.state();
@@ -1986,7 +1990,8 @@ export class ModalManager {
       }
     };
     const say = (t) => ($r('[data-msg]').textContent = t);
-    this._on(root, 'input', (e) => {
+    const on = (type, fn) => [root, foot].forEach((el) => this._on(el, type, fn));
+    on('input', (e) => {
       const k = e.target.dataset.k;
       if (k) {
         const x = Number(e.target.value);
@@ -1998,7 +2003,7 @@ export class ModalManager {
       }
       if (e.target.dataset.vol) mix.volume(e.target.dataset.vol, Number(e.target.value));
     });
-    this._on(root, 'click', (e) => {
+    on('click', (e) => {
       const t = e.target.closest('button');
       if (!t) return;
       if (t.dataset.del) {
@@ -2020,7 +2025,7 @@ export class ModalManager {
         draw();
       }
     });
-    this._on(root, 'submit', (e) => {
+    on('submit', (e) => {
       e.preventDefault();
       const title = $r('[data-form] input').value.trim().slice(0, 16);
       if (!title) return say('이름을 적어 주세요');
@@ -2030,8 +2035,21 @@ export class ModalManager {
       else say(`「${r.title}」을(를) 내 소리에 담았습니다 · 자연의 소리 창 「내 소리」에서 다시 들을 수 있습니다`);
       draw();
     });
+    // 아래로 더 있으면 담기 줄 바로 위를 반투명하게 흐린다 (스크롤이 있다는 표시, 끝까지 내리면 걷힌다)
+    const body = this.body;
+    const fade = () => body.classList.toggle('fade-bottom', body.scrollHeight - body.clientHeight - body.scrollTop > 2);
+    this._on(body, 'scroll', fade, { passive: true });
+    const ro = new ResizeObserver(fade);
+    ro.observe(body);
+    ro.observe(root);
     draw();
-    return {};
+    return {
+      destroy: () => {
+        ro.disconnect();
+        body.classList.remove('fade-bottom');
+        foot.remove();
+      }
+    };
   }
 
   _card() {

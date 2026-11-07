@@ -1441,10 +1441,18 @@ body.listening .m-yebul .m-hint, body.listening .m-nature .m-hint, body.listenin
 .mx-addbtn .i { width: 24px; height: 24px; color: #6b4e28; }
 .mx-addbtn:hover, .mx-addbtn:focus-visible { border-style: solid; border-color: var(--gold); background: rgba(255, 252, 244, 0.95); outline: none; }
 .mx-vols .slider { color: var(--muk); }
-.mx-foot {
-  position: sticky; bottom: 0; z-index: 1; display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; padding: 10px 0 2px;
-  background: linear-gradient(rgba(248, 243, 231, 0), rgba(248, 243, 231, 0.97) 10px);
+.mx-vols .slider input { accent-color: var(--m-gold-ink); }
+/* 「담기」 줄: 창 맨 아래 칸 (스크롤 밖) — 위쪽은 머리글과 같은 가는 선 하나 */
+.modal-window.m-mixer .modal-body { padding-bottom: 12px; }
+.mx-foot { flex: none; position: relative; padding: 10px 26px calc(14px + var(--safe-b)); }
+.mx-foot::before { content: ''; position: absolute; left: 26px; right: 26px; top: 0; height: 1px; background: linear-gradient(90deg, var(--m-line), rgba(120, 95, 60, 0.04)); }
+/* 아래로 더 있을 때: 담기 줄 바로 위 44px 를 창 빛깔로 서서히 흐린다 (투명에서 시작해 테두리가 보이지 않는다) */
+.mx-foot::after {
+  content: ''; position: absolute; left: 0; right: 0; bottom: 100%; height: 44px; pointer-events: none;
+  background: linear-gradient(rgba(248, 243, 231, 0), rgba(248, 243, 231, 0.94)); opacity: 0; transition: opacity 0.25s var(--ease);
 }
+.modal-body.fade-bottom + .mx-foot::after { opacity: 1; }
+.mx-acts { display: flex; flex-wrap: wrap; gap: 8px; }
 .mx-foot .m-btn { flex: 1 1 140px; min-height: 48px; }
 .mx-name-form { display: flex; flex-wrap: wrap; gap: 8px; width: 100%; }
 .mx-name-form input {
@@ -1452,7 +1460,8 @@ body.listening .m-yebul .m-hint, body.listening .m-nature .m-hint, body.listenin
   background: #fffdf7; font: inherit; font-size: 16px; color: var(--muk); -webkit-user-select: text; user-select: text;
 }
 .mx-name-form input:focus { outline: 2px solid var(--gold); outline-offset: 1px; }
-.mx-msg { margin: 6px 0 0; min-height: 1.2em; font-size: 12.5px; color: var(--m-gold-ink); }
+.mx-msg { margin: 0 0 8px; font-size: 12.5px; line-height: 1.5; color: var(--m-gold-ink); }
+.mx-msg:empty { display: none; }
 .mx-hint { margin: 8px 0 0; font-size: 12.5px; line-height: 1.6; color: var(--muk-soft); }
 /* 자연의 소리 창 「내 소리」: 담은 소리 + 지우기(두 번) */
 .mx-saved { display: flex; align-items: center; gap: 4px; }
@@ -1460,6 +1469,8 @@ body.listening .m-yebul .m-hint, body.listening .m-nature .m-hint, body.listenin
 .yebul-play .i { width: 22px; height: 22px; }
 @media (max-width: 640px) {
   .modal-window.side.m-mixer { max-height: 84vh; max-height: 84dvh; }
+  .mx-foot { padding: 10px 18px calc(12px + var(--safe-b)); }
+  .mx-foot::before { left: 18px; right: 18px; }
 }
 @media (max-height: 519px) {
   .modal-window.side.m-mixer { max-height: calc(100vh - 16px); max-height: calc(100dvh - 16px); }

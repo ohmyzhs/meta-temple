@@ -25,18 +25,23 @@ const wake = async (p, vp) => {
 const targets = (p) => p.evaluate(() => { const e = window.temple.sound, o = {}; for (const [k, l] of Object.entries(e.L)) if (l.level) o[k] = l.level.gain._target ?? l.level.gain.value; return o; });
 const sizes = (p) => p.evaluate(() => {
   const vis = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden'; };
-  const els = [...document.querySelectorAll('#modal-body button, #modal-body input, #modal-close-btn')].filter(vis);
-  const list = els.map((el) => { const r = el.getBoundingClientRect(); return { n: el.dataset.k || el.dataset.addk || el.dataset.del || el.dataset.vol || el.textContent.trim().slice(0, 8) || el.id || el.type, x: r.x, y: r.y, w: r.width, h: r.height }; });
+  const els = [...document.querySelectorAll('#modal-body button, #modal-body input, #modal-close-btn, .mx-foot button, .mx-foot input')].filter(vis);
+  // 스크롤 영역 밖으로 밀려 잘린 것은 보이는 만큼만 (겹침은 보이는 부분끼리, 크기는 원래 크기로)
+  const B = document.querySelector('#modal-body').getBoundingClientRect();
+  const list = els.map((el) => {
+    const r = el.getBoundingClientRect();
+    const inBody = !!el.closest('#modal-body');
+    const y0 = inBody ? Math.max(r.top, B.top) : r.top, y1 = inBody ? Math.min(r.bottom, B.bottom) : r.bottom;
+    return { n: el.dataset.k || el.dataset.addk || el.dataset.del || el.dataset.vol || el.textContent.trim().slice(0, 8) || el.id || el.type, x: r.x, y: y0, w: r.width, h: y1 - y0, fw: r.width, fh: r.height };
+  }).filter((b) => b.h > 0);
   const foot = document.querySelector('[data-foot] button')?.getBoundingClientRect();
-  list.forEach((b, i) => (b.foot = !!els[i].closest('[data-foot]'))); // 「담기」 줄은 아래에 붙어 있어 스크롤한 줄 위에 겹친다 (일부러)
   return { list, foot: foot && { top: foot.top, bottom: foot.bottom }, vh: innerHeight };
 });
 const judge = (list) => {
-  const small = list.filter((b) => b.w < 47.5 || b.h < 47.5).map((b) => `${b.n} ${Math.round(b.w)}×${Math.round(b.h)}`);
+  const small = list.filter((b) => b.fw < 47.5 || b.fh < 47.5).map((b) => `${b.n} ${Math.round(b.fw)}×${Math.round(b.fh)}`);
   const ov = [];
   for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length; j++) {
     const a = list[i], c = list[j];
-    if (a.foot !== c.foot) continue;
     if (Math.min(a.x + a.w, c.x + c.w) - Math.max(a.x, c.x) > 0.5 && Math.min(a.y + a.h, c.y + c.h) - Math.max(a.y, c.y) > 0.5) ov.push(`${a.n}∩${c.n}`);
   }
   return { small, ov };

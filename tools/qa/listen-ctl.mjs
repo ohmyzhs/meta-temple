@@ -66,11 +66,17 @@ for (const vp of VIEWPORTS) {
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/${kind}-${vp.join('x')}.png` });
     await page.click('#listen [data-l="vol"]');
     await page.waitForTimeout(250);
-    l = await layout(page);
-    j = judge(l, ...vp);
-    check(`${vp.join('x')} ${kind}: 소리 판 열림 — 슬라이더 둘·48 이상·겹침 없음·화면 안`, l.filter((b) => b.n.startsWith('vol-')).length === 2 && !j.small.length && !j.ov.length && !j.out.length, [...j.small, ...j.ov, ...j.out].join(', '));
-    if (SHOTS && kind === 'yebul') await page.screenshot({ path: `${SHOTS}/vol-${vp.join('x')}.png` });
-    await page.click('#listen [data-l="vol"]');
+    if (kind === 'nature') {
+      // 자연의 소리는 소리 단추가 「조절」 — 나만의 소리 창 (tools/qa/mixer.mjs 가 자세히 본다)
+      check(`${vp.join('x')} nature: 「조절」 → 나만의 소리 창`, await page.evaluate(() => window.temple.modals.current === 'mixer'));
+      await page.evaluate(() => window.temple.modals.close());
+    } else {
+      l = await layout(page);
+      j = judge(l, ...vp);
+      check(`${vp.join('x')} ${kind}: 소리 판 열림 — 슬라이더 둘·48 이상·겹침 없음·화면 안`, l.filter((b) => b.n.startsWith('vol-')).length === 2 && !j.small.length && !j.ov.length && !j.out.length, [...j.small, ...j.ov, ...j.out].join(', '));
+      if (SHOTS) await page.screenshot({ path: `${SHOTS}/vol-${vp.join('x')}.png` });
+      await page.click('#listen [data-l="vol"]');
+    }
     await page.evaluate(() => window.temple.exitListening());
     await waitListening(page, false);
     await page.waitForTimeout(500);
