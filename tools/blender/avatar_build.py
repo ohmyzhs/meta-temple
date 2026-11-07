@@ -1404,7 +1404,8 @@ if __name__ == '__main__':  # avatar_spirit.py 가 도구 함수만 가져다 �
         TIMES = {'prostrate': [round(x * 0.2, 1) for x in range(39)], 'bow_half': [0.5, 1.2, 1.5, 2.0],
                  'stand_up': [0, 0.3, 0.45, 0.65, 0.85, 1.0, 1.2, 1.5], 'sit_down': [0, 0.3, 0.5, 0.65, 0.85, 1.05, 1.3, 1.5],
                  'walk': [0, 0.13, 0.27, 0.4], 'walk_chasu': [0, 0.17, 0.33, 0.5], 'walk_fast': [0, 0.067, 0.133, 0.2, 0.267, 0.333], 'walk_gassho': [0.1, 0.4], 'sit': [0, 2.5],
-                 'idle': [0], 'idle_chasu': [0]}
+                 'idle': [0], 'idle_chasu': [0], 'gassho': [0], 'incense': [0.6, 1.4, 2.0], 'offer_stone': [0.8, 1.4], 'write_tile': [0.6, 1.6, 2.4],
+                 'hang_lantern': [0.6, 1.2, 1.8], 'tea': [1.5, 3.0, 4.5], 'look_up': [0, 2.0], 'serve_tea': [0.8, 1.6], 'meditate': [0, 2.5], 'sutra': [0, 2.0]}
         for c in ([] if ONLY_MODEL else AC.CLIPS):
             for i, tt in enumerate(TIMES.get(c['name'], [0])):
                 if c['name'] == 'prostrate':  # 다리 꼬임 검사: 옆·뒤·앞비스듬히

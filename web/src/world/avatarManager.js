@@ -615,6 +615,17 @@ export class Avatar {
   }
 }
 
+/**
+ * 한 프레임 이동을 0.15m 씩 나눠 막힘을 본다 — 빠르게 걷기(3.75m/s)에 프레임이 떨어지면(dt 0.1) 한 번에 0.375m 라
+ * 얇은 담·난간(충돌 반지름 0.32m)을 건너뛸 수 있다. 걷기 30fps 이상이면 한 번에 끝난다.
+ */
+function stepMoveFine(x, z, nx, nz) {
+  const n = Math.ceil(Math.hypot(nx - x, nz - z) / 0.15);
+  let m = { x, z };
+  for (let i = 1; i <= n; i++) m = stepMove(m.x, m.z, x + ((nx - x) * i) / n, z + ((nz - z) * i) / n);
+  return m;
+}
+
 /** 이름표 아래 끝과 머리 사이 틈 — 이름표 높이의 비율 (14px 글자 상자 약 22px → 약 3px) */
 const LABEL_LIFT = 1.12;
 const _labelAt = new THREE.Vector3();
@@ -1138,7 +1149,7 @@ export class AvatarManager {
       if (pl.busy) pl.seq = null;
       const sp = (input.fast ? FAST_SPEED : WALK_SPEED) * Math.min(len / FULL_TILT, 1);
       const nx = p.x + (input.x / len) * sp * dt, nz = p.z + (input.z / len) * sp * dt;
-      const m = stepMove(p.x, p.z, nx, nz);
+      const m = stepMoveFine(p.x, p.z, nx, nz);
       speed = Math.hypot(m.x - p.x, m.z - p.z) / dt;
       p.x = m.x;
       p.z = m.z;
@@ -1160,7 +1171,7 @@ export class AvatarManager {
       } else {
         const sp = Math.min(input.fast ? FAST_SPEED : WALK_SPEED, d * 3 + 0.4);
         const nx = p.x + (dx / d) * sp * dt, nz = p.z + (dz / d) * sp * dt;
-        const m = stepMove(p.x, p.z, nx, nz);
+        const m = stepMoveFine(p.x, p.z, nx, nz);
         const moved = Math.hypot(m.x - p.x, m.z - p.z);
         speed = moved / dt;
         p.x = m.x;
@@ -1191,7 +1202,7 @@ export class AvatarManager {
       speed = WALK_SPEED;
       pl.state = 'circumambulate';
     }
-    if (!pl.sitting) p.y = damp(p.y, walkHeight(p.x, p.z), 14, dt);
+    if (!pl.sitting) p.y = damp(p.y, walkHeight(p.x, p.z), 14 * Math.max(1, pl.speed / WALK_SPEED), dt); // 빠르게 걸어도 계단에서 발이 덜 묻게 (같은 거리만큼 따라간다)
     pl.speed = damp(pl.speed, speed, 10, dt);
     if (pl.speed > 0.2 && pl.state === 'idle') pl.state = 'idle';
     pl.root.rotation.y = angleDamp(pl.root.rotation.y, pl.heading, 10, dt);

@@ -102,9 +102,12 @@ async (page) => {
   });
   await page.screenshot({ path: `${OUT}/mobile-reply-button.png` });
   const bb = await page.locator('#reply-btn').boundingBox();
+  const fb4 = await page.locator('#fast-btn').boundingBox();
+  const hit = (a, b) => a && b && a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+  lines.push(`    빠르게 단추와 답례 단추 겹침 ${!!hit(fb4, bb)}`);
   await page.locator('#reply-btn').click();
   const r6 = await page.evaluate(() => ({ hidden: document.querySelector('#reply-btn').classList.contains('hidden'), bowed: performance.now() - (window.temple._lastBowAt || 0) < 2000, sitting: window.temple.player.sitting }));
-  const ok4 = r4.seq === 'bow_half' && r4.err < 0.25 && r5.shown && r6.hidden && r6.bowed && r6.sitting;
+  const ok4 = r4.seq === 'bow_half' && r4.err < 0.25 && r5.shown && r6.hidden && r6.bowed && r6.sitting && !hit(fb4, bb);
   lines.push(`(4) ${ok4 ? 'PASS' : 'FAIL'} 서 있을 때: ${r4.seq} · 도반 쪽과 ${r4.err.toFixed(2)}rad · '${r4.toast}'`);
   lines.push(`    앉아 있을 때: 단추 ${r5.shown} '${r5.text}' ${bb ? Math.round(bb.width) + '×' + Math.round(bb.height) + 'px' : ''} → 누르면 숨김 ${r6.hidden}, 답례 보냄 ${r6.bowed}, 앉은 채 ${r6.sitting}`);
   // (5) 빠르게 단추
