@@ -718,34 +718,31 @@ body.listening.l-idle, body.listening.l-idle canvas { cursor: none; }
 .mm-trail { fill: none; stroke: #c6ab7a; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .mm-deck { fill: none; stroke: #a37b4d; stroke-width: 2.4; stroke-linecap: round; stroke-dasharray: 1.2 0.7; }
 .mm-cross { stroke: #8f6c45; stroke-width: 2.2; stroke-linecap: round; }
-.mm-zone circle { fill: var(--gold); stroke: #1a1611; stroke-width: 0.7; }
-.mm-zone.here circle { stroke: #fff6df; stroke-width: 1.1; }
 .mm-zone text {
   font-family: var(--font-sans); font-size: 4.2px; font-weight: 600; fill: #f3ecdc; text-anchor: middle;
   paint-order: stroke; stroke: rgba(10, 8, 6, 0.75); stroke-width: 1.1px;
 }
-.mm-rest circle { fill: #f3ecdc; stroke: var(--gold); stroke-width: 0.7; }
-.mm-rest path { fill: none; stroke: #3a2e21; stroke-width: 0.5; stroke-linecap: round; stroke-linejoin: round; }
 .mm-me path { fill: #ff8b3d; stroke: #fff6df; stroke-width: 0.5; }
 .mm-me-halo { fill: rgba(255, 139, 61, 0.22); animation: mm-pulse 1.8s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
 @keyframes mm-pulse { 0%, 100% { transform: scale(0.85); opacity: 0.9; } 50% { transform: scale(1.25); opacity: 0.4; } }
-/* 누를 수 있다는 표시: 지도 위 안내 한 줄(늘), 아직 안 눌러 본 사람에게는 점마다 차례로 번지는 물결, 누른 점에서 한 번 퍼지는 물결 */
-.minimap { position: relative; }
-.mm-hint {
-  position: absolute; left: 8px; top: 8px; margin: 0; display: flex; align-items: center; gap: 6px; pointer-events: none;
-  padding: 4px 10px 4px 7px; border-radius: 999px; background: rgba(14, 12, 9, 0.72); box-shadow: inset 0 0 0 1px rgba(232, 196, 120, 0.35);
-  font-family: var(--font-sans); font-size: 12px; line-height: 1.3; color: #f3ecdc;
-}
-.mm-hint i { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 0 2px rgba(20, 16, 11, 0.9), 0 0 0 3.5px rgba(232, 196, 120, 0.7); }
-.mm-wave { fill: none; stroke: #f6dd9e; stroke-width: 0.8; opacity: 0; pointer-events: none; transform-box: fill-box; transform-origin: center; }
-.minimap-svg.fresh .mm-wave { animation: mm-wave 2.6s ease-out infinite; animation-delay: calc(var(--i) * 0.22s); }
-@keyframes mm-wave { 0% { transform: scale(1); opacity: 0.85; } 55%, 100% { transform: scale(2.3); opacity: 0; } }
+/* 누를 수 있다는 표시: 가람·쉼터마다 지도 핀이 그 자리 위에서 오르내리고(--i 로 엇갈려) 발밑에 물결이 번진다. 누른 핀 발밑에서 물결이 한 번 크게 */
+.mm-pin { animation: mm-bob 1.9s ease-in-out infinite; animation-delay: calc(var(--i) * -0.27s); }
+@keyframes mm-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-1.4px); } }
+.mm-pin-body { stroke-width: 0.6; stroke-linejoin: round; }
+.mm-zone .mm-pin-body { fill: var(--gold); stroke: #1a1611; }
+.mm-zone .mm-pin-dot { fill: #2a2016; }
+.mm-zone.here .mm-pin-body { stroke: #fff6df; stroke-width: 1; }
+.mm-rest .mm-pin-body { fill: #f3ecdc; stroke: var(--gold); }
+.mm-glyph { fill: none; stroke: #3a2e21; stroke-width: 0.55; stroke-linecap: round; stroke-linejoin: round; }
+.mm-shadow { fill: rgba(0, 0, 0, 0.45); }
+.mm-ping { fill: none; stroke: #f6dd9e; stroke-width: 0.55; transform-box: fill-box; transform-origin: center; animation: mm-ping 2.4s ease-out infinite; animation-delay: calc(var(--i) * -0.37s); }
+@keyframes mm-ping { 0% { transform: scale(0.45); opacity: 0.95; } 70%, 100% { transform: scale(1.9); opacity: 0; } }
 .mm-tap { fill: rgba(255, 238, 196, 0.35); stroke: #fff3d6; stroke-width: 0.7; opacity: 0; pointer-events: none; transform-box: fill-box; transform-origin: center; }
 /* 함께 있는 도반: 작고 옅은 점 (이름표 .peer 빛깔). 무리째 한 번에 비치게(opacity 는 g 에) — 겹쳐도 진해지지 않고 바깥 테두리만 */
 .mm-peers { opacity: 0.8; pointer-events: none; }
 .mm-peers path { fill: #dff0e2; }
 .mm-peers .mm-peers-rim { fill: none; stroke: rgba(16, 26, 18, 0.85); stroke-width: 0.8; }
-@media (prefers-reduced-motion: reduce) { .mm-me-halo { animation: none; } .minimap-svg.fresh .mm-wave { animation: none; opacity: 0.6; transform: scale(1.5); } }
+@media (prefers-reduced-motion: reduce) { .mm-me-halo, .mm-pin { animation: none; } .mm-ping { animation: none; opacity: 0.7; transform: scale(1.3); } }
 .sheet-sub small { margin-left: 6px; font-family: var(--font-sans); font-weight: 400; font-size: 11px; color: var(--text-dim); }
 .rest-chips { grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); }
 

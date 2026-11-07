@@ -12,6 +12,7 @@ import { L, terrainHeight, addBoxCollider, addCircleCollider } from './layout.js
 import { buildHanok, buildStoneLantern } from './architecture.js';
 import { waterMaterial } from './terrain.js';
 import { rockGeo, mesh } from './trailProps.js';
+import { REST_LABEL } from './trail.js';
 
 const KOI_COLORS = ['#e8742a', '#f2ede4', '#e09a2c', '#c8371f', '#f4f0e8', '#d9561f', '#2e2b28', '#efb43c', '#e66a24', '#f5f1ea', '#cf4a20', '#e2a33a', '#e8742a', '#f2ede4'];
 
@@ -76,6 +77,12 @@ export function buildPondGarden(scene, m, glowDecals) {
   g.add(step);
   scene.add(g);
   addBoxCollider(pv.x - e - 0.05, pv.z - e - 0.05, pv.x + e + 0.05, pv.z + e + 0.05);
+  // 오를 수 있는 자리: 북쪽 디딤돌로 올라 마루에 가부좌 (사용자 2026-11-08 「정자에 유저도 올라가 앉게」).
+  // 산책로 쉼터와 같은 꼴(spot)로 temple.trail.spots 에 더해 앉기·일어서기·예불 듣기를 그대로 쓴다. 한가운데는 정자 명상 NPC 자리라 비운다
+  const look = { x: p.x, z: p.z }, ry = Math.atan2(look.x - (pv.x - 1), look.z - pv.z);
+  const stand = { x: pv.x, z: pv.z - e - 0.9 }; // 디딤돌 앞 (일어서면 여기)
+  const seats = [[-1.0, -0.75], [-1.0, 0.75], [-1.0, 0], [0.85, -0.85], [0.85, 0.85]].map(([dx, dz], index) => ({ index, x: pv.x + dx, y: floorTop, z: pv.z + dz, ry, state: 'meditate', stand, occupant: null }));
+  const spot = { id: 'pond_pavilion', name: '연못 정자', kind: 'pondpav', x: seats[0].x, z: seats[0].z, y: floorTop, ry, seatH: 0.35, stand, look: [look.x, look.z], vista: [look.x, look.z], listenPitch: 0.06, label: REST_LABEL.pondpav, occupant: null, _slots: seats };
 
   /* ── 옹달샘: 이끼 낀 돌 둘레 + 맑은 물 + 표주박, 실개울이 연못 남서 가로 흘러든다 ── */
   const sy = terrainHeight(sp.x, sp.z);
@@ -158,5 +165,5 @@ export function buildPondGarden(scene, m, glowDecals) {
   };
   update(0, 0);
   scene.add(koi);
-  return { koi, update };
+  return { koi, update, spots: [spot] };
 }

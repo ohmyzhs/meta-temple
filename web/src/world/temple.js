@@ -79,6 +79,7 @@ export class Temple {
     // 서쪽 마당(예비 마당): 담·석등·쉼터. 쉼터는 산책로 쉼터 목록에 더해 같은 방식으로 앉는다
     const west = buildWestCourt(scene, this.m);
     this.trail.spots.push(...west.spots);
+    this.trail.spots.push(...this.pondGarden.spots); // 연못 정자 마루 (다실 마당)
     west.glow.forEach((d) => this.glowDecals.push(d));
     this.cairns = new CairnField(scene, quality);
     this._glowDecalsMesh();
@@ -887,7 +888,8 @@ export class Temple {
       approach: { x: vx0 - 0.55, z: t.z, ry: Math.PI / 2 }
     });
 
-    // 죽비 걸이
+    // 죽비 걸이: 다실 스님이 바라보는 쪽(서쪽) 앞마당 동쪽 돌담 앞, 스님과 같은 줄(z) — 차담 자리 뒤로 걸어서 바로 닿는다.
+    // 예전 자리(툇마루 북서 모퉁이 너머)는 다실 마당 걷는 땅 밖이라 순간이동으로만 닿고 뽑고 나면 갇혔다 (사용자 2026-11-08). 1.6배 키움
     const stand = new THREE.Group();
     const post = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.2, 0.08), m.woodDark);
     post.position.y = 0.6;
@@ -898,16 +900,20 @@ export class Temple {
     const jukbi = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.55, 0.02), new THREE.MeshStandardMaterial({ color: 0xb59a5a, roughness: 0.6 }));
     jukbi.position.set(0.36, 0.84, 0);
     stand.add(jukbi);
-    const jx = vx0 - 0.4, jz = t.z - t.halfD - 1.0;
+    const jx = L.courtyard.x1 + 0.5 + 1.2, jz = this.monkSeat.z; // 돌담(x 19.1, 두께 0.8) 동쪽 1.2m
+    stand.scale.setScalar(1.6);
+    stand.rotation.y = Math.PI / 2; // 팔이 북쪽으로: 차담 자리·스님 쪽(동쪽)에서 죽비가 기둥 옆에 걸려 보인다
     stand.position.set(jx, ty, jz);
+    stand.traverse((o) => o.isMesh && (o.castShadow = true));
     this.scene.add(stand);
+    addCircleCollider(jx, jz, 0.25, 1.9);
     this.addInteractable({
       id: 'dharma_card',
       label: '오늘의 죽비 뽑기',
       zone: 'TEAHOUSE',
       pos: new THREE.Vector3(jx, ty, jz),
       radius: 2.0,
-      approach: { x: jx - 0.9, z: jz, ry: Math.PI / 2 }
+      approach: { x: jx + 1.15, z: jz, ry: -Math.PI / 2 }
     });
 
     // 연못 정원: 정자·잉어·옹달샘·연못가 석등 (pondGarden.js)
