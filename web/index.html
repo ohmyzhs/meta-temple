@@ -4,10 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#14110e" />
-  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32.png?v=2" />
-  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png?v=2" />
-  <link rel="apple-touch-icon" href="./assets/icons/apple-touch-icon.png?v=2" />
-  <link rel="manifest" href="./assets/manifest.webmanifest?v=2" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32-v4.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192-v4.png" />
+  <link rel="apple-touch-icon" href="./assets/icons/apple-touch-icon-v4.png" />
+  <link rel="manifest" href="./assets/manifest.webmanifest?v=4" />
   <title>사운드템플 · 입체 ASMR 산사</title>
   <meta name="description" content="링크 하나로 들어서는 웹 3D 산사. 말없이 함께 머물며 절·연등·사경·차담으로 마음을 비우는 디지털 안식처." />
   <meta property="og:title" content="사운드템플 — 입체 ASMR 산사" />
@@ -16,6 +16,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Nanum+Brush+Script&family=Noto+Sans+KR:wght@400;500;700&family=Noto+Serif+KR:wght@400;600;900&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./src/styles.css" />
+  <link rel="stylesheet" href="./src/entrance.css" />
   <link rel="stylesheet" href="./src/ui/modals.css" />
   <script type="importmap">
     {
@@ -32,15 +33,30 @@
 
   <!-- 입장 화면 -->
   <section id="intro" class="intro">
+    <div class="intro-background" aria-hidden="true">
+      <picture class="intro-poster">
+        <source media="(max-width: 600px), (orientation: portrait)" srcset="./assets/entrance/mobile-poster-v1.webp" />
+        <img src="./assets/entrance/desktop-poster-v1.webp" alt="" fetchpriority="high" />
+      </picture>
+      <div class="intro-motion" id="intro-motion">
+        <video id="intro-video" muted playsinline loop preload="auto" aria-hidden="true"></video>
+        <img id="intro-edge" class="intro-patch" alt="" hidden />
+        <img id="intro-sign" class="intro-patch" alt="" hidden />
+      </div>
+      <div class="intro-shade"></div>
+    </div>
+    <button id="intro-sound" class="intro-sound" type="button" aria-pressed="false" aria-label="대문 배경 소리 켜기">
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 9h3l4-3v12l-4-3H4zM15 9a4.2 4.2 0 0 1 0 6M18 6a8.3 8.3 0 0 1 0 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path class="sound-slash" d="M4 20 20 4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+      <span>소리 켜기</span>
+    </button>
+    <audio id="intro-audio" src="./assets/entrance/forest-frogs-v1.mp3" loop preload="none"></audio>
     <div class="intro-inner">
       <div class="intro-loading" id="intro-loading">
         <div class="intro-loading-bar"><span id="intro-progress"></span></div>
         <p id="intro-loading-text">산문을 여는 중…</p>
       </div>
-      <!-- 대문: 사운드템플 로고(처마 풍경 엠블럼 + 갈필 붓글씨, 생성형 — docs/art/prompts/logo-sound-v1.txt) · 이어폰 한 줄 · 법명 칩(누르면 법명·모습 고르기) · 들어서기 -->
-      <h1 class="intro-title">
-        <span class="intro-logo"><img src="./assets/brand/logo-sound-v1.webp" width="720" height="967" alt="사운드 템플" fetchpriority="high" /></span>
-      </h1>
+      <!-- 영상 안의 현판이 대문 이름을 표시한다. 별도 제목은 화면 낭독기에 제공한다. -->
+      <h1 class="intro-title">사운드템플</h1>
       <p class="intro-ear"><svg class="i" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><g fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3.5" y="14" width="4" height="6.5" rx="1.6"/><rect x="16.5" y="14" width="4" height="6.5" rx="1.6"/></g></svg>이어폰을 끼고 들어오세요</p>
       <div class="intro-actions">
         <button id="intro-who" class="intro-who" type="button" aria-expanded="false" aria-controls="intro-who-panel" aria-label="법명과 모습 바꾸기">
@@ -49,10 +65,21 @@
         </button>
         <div class="intro-who-panel" id="intro-who-panel" hidden>
           <div class="intro-name">
-            <span class="intro-label">오늘의 법명</span>
-            <strong id="intro-dharma-name">—</strong>
-            <button id="intro-rename" class="link-btn" type="button">다시 받기</button>
-            <button id="intro-custom" class="link-btn" type="button" aria-expanded="false" aria-controls="intro-name-form">직접 짓기</button>
+            <div class="intro-name-current">
+              <span class="intro-label">오늘의 법명</span>
+              <strong id="intro-dharma-name">—</strong>
+            </div>
+            <div class="intro-name-actions" aria-label="법명 바꾸기">
+              <button id="intro-rename" class="intro-name-action" type="button">
+                <span class="intro-action-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M19 10a7 7 0 1 0 .1 3.4M19 5v5h-5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+                <span>다시 받기</span>
+              </button>
+              <button id="intro-custom" class="intro-name-action" type="button" aria-expanded="false" aria-controls="intro-name-form">
+                <span class="intro-action-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="m5 16 10.5-10.5a2.1 2.1 0 0 1 3 3L8 19H5v-3ZM13.8 7.2l3 3M5 19h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+                <span>직접 짓기</span>
+                <svg class="intro-action-chevron" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m4 6 4 4 4-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+            </div>
           </div>
           <form id="intro-name-form" class="name-form hidden" autocomplete="off">
             <input id="intro-name-input" type="text" aria-label="법명 직접 짓기" enterkeyhint="done" />
@@ -77,7 +104,7 @@
     <header class="hud-plaque collapsed" id="hud-plaque">
       <!-- 상태판: 낙관 + 법명 + 함께 있는 사람. 펼치면 법명(붓글씨) · 절·염주·연등 · 동석. 지금 장소는 오른쪽 위 장소 단추에만 -->
       <button class="ctl plaque-head" id="plaque-toggle" type="button" aria-expanded="false" aria-controls="plaque-body" aria-label="내 법명과 수행, 함께 있는 도반">
-        <span class="pq-seal" aria-hidden="true"><img src="./assets/brand/emblem-v1.webp" alt="" width="246" height="256" /></span>
+        <span class="pq-seal" aria-hidden="true"><img src="./assets/brand/temple-emblem-v2.svg" alt="" width="470" height="540" /></span>
         <span class="pq-id"><b id="hud-dharma-name"></b><small><span class="dot"></span><span id="hud-presence-count"></span></small></span>
       </button>
       <div class="plaque-body" id="plaque-body">

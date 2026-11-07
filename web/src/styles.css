@@ -257,12 +257,12 @@ body:has(#intro:not(.leaving):not(.hidden)) .name-label { visibility: hidden; }
 }
 .plaque-head { width: 100%; height: 48px; justify-content: flex-start; gap: 10px; padding: 0 16px 0 5px; border-radius: 24px; }
 .plaque-head[aria-expanded='true'] { box-shadow: inset 0 0 0 1px rgba(201, 163, 90, 0.7), 0 8px 22px rgba(0, 0, 0, 0.4); }
-/* 사운드템플 처마 풍경 엠블럼 (web/assets/brand/emblem-v1.webp) */
+/* 처마 풍경 엠블럼 (web/assets/brand/temple-emblem-v2.svg) */
 .pq-seal {
   flex: none; display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%; background: #14110e;
   box-shadow: inset 0 0 0 1px rgba(201, 163, 90, 0.55);
 }
-.pq-seal img { width: 26px; height: auto; display: block; }
+.pq-seal img { width: 30px; height: auto; display: block; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .9)); }
 .pq-id { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; min-width: 0; text-align: left; }
 .pq-id b { max-width: 100%; font-family: var(--font-serif); font-weight: 600; font-size: 15px; letter-spacing: 0.01em; color: #f6e3b4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pq-id small { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: rgba(243, 236, 220, 0.7); white-space: nowrap; }
