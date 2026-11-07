@@ -90,7 +90,7 @@ try {
     const t = window.temple;
     const { YEBUL_TRACKS } = await import('/src/data/credits.js');
     t.store.setSetting('listenLoop', true);
-    t.travelTo('DAEUNGJEON');
+    await t.travelTo('DAEUNGJEON'); // 순간이동 페이드(약 2초)가 끝난 뒤에 듣기
     t.listen(YEBUL_TRACKS[0]);
     return YEBUL_TRACKS.map((x) => x.file);
   });

@@ -34,7 +34,7 @@ try {
         await new Promise((r) => setTimeout(r, 1500));
       }
       if (at === 'foley') {
-        t._teleport(-10.5, -6, 0);
+        t._place(-10.5, -6, 0);
         const e = t.sound;
         let i = 0;
         clearInterval(window._qaFoley);
@@ -51,7 +51,7 @@ try {
       } else if (typeof at === 'string') {
         const { NATURE_PRESETS } = await import('./src/data/natureSounds.js');
         t.listen(NATURE_PRESETS.find((p) => p.id === at));
-      } else t._teleport(at.x, at.z, 0);
+      } else t._place(at.x, at.z, 0);
     }, at);
     await page.waitForTimeout(6000); // 조각을 받고 크기가 자리 잡게
     const r = await page.evaluate(async (sec) => {

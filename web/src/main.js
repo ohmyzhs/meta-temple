@@ -29,6 +29,9 @@ import { ASMR_TRACKS } from './data/asmr.js';
 const ASMR_QUIET = { id: 'asmr', time: 'day', weather: 'clear', mix: {} };
 import { bindNameForm } from './ui/nameField.js';
 import { veil } from './ui/veil.js';
+import { travelFade } from './ui/travelFade.js';
+import { createTier, decideTier, netReady } from './core/qualityTier.js';
+import { applyRenderTier, tierCap, warmRenderTier } from './world/renderTier.js';
 import { DOCK_RITUALS } from './data/templeData.js';
 import { icon, ZONE_ICONS } from './ui/icons.js';
 import { toggleSheet, openSheet, closeTop, closeAll } from './ui/sheets.js';
@@ -49,7 +52,8 @@ function detectQuality() {
   return (coarse && small) || weak ? 'low' : 'high';
 }
 
-// 장소 이동: 가림막(디졸브) 없이 바로 옮긴다 — 맵이 한 공간이라 디졸브는 어색하기만 했다 (사용자 2026-11-06 「제거해라」)
+// 순간이동(미니맵·장소 시트·범종·기와불사·쉼터…)은 어두워졌다 밝아지는 약 2초 페이드 뒤로 (ui/travelFade.js, 사용자 2026-11-08 「너무 빠르다」).
+// 걸어서 구역을 넘을 때는 페이드 없이 그대로 (사용자 2026-11-06 「제거해라」)
 const ARRIVAL = { pitch: 0.22, dist: 9 }; // 도착 구도: 입장 때와 같은 높이·거리, 방위는 도착해서 바라보는 쪽의 뒤 (법당 안은 실내 규칙이 줄인다)
 const MALA_MIN_MS = 3000; // 염주 한 알 사이 최소 간격 3초 — 광클릭으로 세지 않게 (사용자 결정 2026-11-06, 한 알에 한 숨)
 const FP_TURN = 2.0; // 1인칭 A/D·조이스틱 좌우로 도는 빠르기(rad/s)
@@ -80,6 +84,8 @@ class MetaTempleApp {
     const v = this.store.state.settings.volumes;
     Object.entries(v).forEach(([ch, val]) => this.sound.setChannelVolume(ch, val));
     this.quality = detectQuality();
+    // 화질 단계: 장면은 this.quality 로 짓고, 들어온 뒤 프레임이 넉넉하면 그림자·배율 몫만 high 로 (core/qualityTier.js). ?q= 로 연 화면은 고정
+    this.tier = createTier(this.quality, { forced: ['low', 'high'].includes(new URLSearchParams(location.search).get('q')) });
     this.keys = {};
     this.joy = { x: 0, z: 0 };
     this.zone = null;
@@ -731,9 +737,17 @@ class MetaTempleApp {
       fn();
     };
     if (near) return run();
-    // 다른 구역이거나 멀면(숲길은 산책로까지 450m) 가람 이동처럼 바로 옮긴다 — 곧장 걷다 막혀 엉뚱한 데서 열리지 않게
-    if (!sameZone || Math.hypot(p.x - a.x, p.z - a.z) > 15) return this._teleport(a.x, a.z, a.ry, () => setTimeout(run, 250));
-    this.avatars.moveTo(a.x, a.z, run);
+    // 다른 구역이면 순간이동(페이드). 같은 구역 안(마당·법당·다실)은 거리와 상관없이 길을 찾아 걸어간다 (사용자 2026-11-08 「마당 안은 걷기」).
+    // 숲길만은 15m 넘으면 순간이동 — 산책로까지 450m 라서. 길이 없거나 걷다 막혀 그 자리에 못 닿았으면 엉뚱한 데서 열지 않고 옮겨 간다.
+    const jump = () => this._teleport(a.x, a.z, a.ry, () => setTimeout(run, 250));
+    if (!sameZone || (def.zone === 'FOREST' && Math.hypot(p.x - a.x, p.z - a.z) > 15)) return jump();
+    const path = this._pf().find(p.x, p.z, a.x, a.z);
+    if (!path) return jump();
+    this.avatars.moveTo(a.x, a.z, () => {
+      const q = this.player.root.position;
+      if (Math.hypot(q.x - a.x, q.z - a.z) > 1) return jump();
+      run();
+    }, path.slice(1, -1));
   }
 
   activate(id, payload) {
@@ -976,13 +990,21 @@ class MetaTempleApp {
     return this._teleport(z.spawn.x, z.spawn.z, z.spawn.ry, () => this.toast(`📍 ${z.name}(으)로 발걸음을 옮겼습니다`));
   }
 
-  /** 다른 구역으로 순간 이동: 바로 옮기고 그 자리에서 바라보는 쪽 뒤에 카메라를 놓는다 */
+  /**
+   * 순간 이동: 화면이 어두워지면 옮기고 그 자리에서 바라보는 쪽 뒤에 카메라를 놓은 뒤 밝아진다 (ui/travelFade.js, 약 2초).
+   * then(앉기·범종 치기·알림…)은 다 밝아진 뒤에. 페이드 중에 또 부르면 무시한다 — 연달아 눌러도 한 번만 옮긴다.
+   */
   _teleport(x, z, ry, then) {
+    if (this._fading) return this._fading;
+    const go = travelFade(() => this._place(x, z, ry));
+    return (this._fading = go.finally(() => (this._fading = null)).then(() => then?.()));
+  }
+
+  /** 페이드 없이 바로 옮기고 도착 구도로 (_teleport 의 가운데 · QA 가 자리를 잡을 때) */
+  _place(x, z, ry) {
     this.avatars.teleport(x, z, ry);
     this.world.snapCameraTo(ry - Math.PI, ARRIVAL.pitch, ARRIVAL.dist);
     this._onZoneChange(true);
-    then?.();
-    return Promise.resolve();
   }
 
   /** 장면들: 좌복(c) 기준. 세로 화면은 삼존불이 다 들어오지 않으니 더 가깝고 높게 잡는다 */
@@ -1430,6 +1452,9 @@ class MetaTempleApp {
     if (!this.miniMap || $('#place-sheet').classList.contains('hidden')) return;
     const p = this.player.root.position;
     this.miniMap.setPlayer(p.x, p.z, this.player.heading);
+    const peers = [];
+    for (const r of this.avatars.remote.values()) peers.push(r.av.root.position); // 실제 접속한 도반만 (NPC 참배객은 빼고)
+    this.miniMap.setPeers(peers);
   }
 
   /** 쉼터의 빈 칸: 다른 도반이 앉은 칸은 비켜 가까운 칸, 다 찼으면 곁의 땅 (그마저 없으면 null) */
@@ -2130,8 +2155,10 @@ class MetaTempleApp {
     this.miniMap = createMiniMap($('#minimap'), {
       zones: Object.values(ZONES),
       geo: { streamZ, pathX, L },
+      fresh: !this.store.state.settings.mapUsed,
       onPick: (m) => {
         closeAll();
+        if (!this.store.state.settings.mapUsed) this.store.setSetting('mapUsed', true);
         if (m.kind === 'zone') this.travelTo(m.id);
         else this._goRest(m.id);
       }
@@ -2299,7 +2326,7 @@ class MetaTempleApp {
         if (!e.target.closest?.('#listen') || e.code === 'Escape') this._listenKey(e); // 재생기 단추·막대는 제 키를 쓴다
         return;
       }
-      if (typing() || !this.entered) return;
+      if (typing() || !this.entered || this._fading) return; // 순간이동 페이드 중에는 키를 받지 않는다
       if (this.modals.isOpen && !this.modals.current?.match(/practice_108|mala|tea_chat/)) return;
       this.keys[e.code] = true;
       if (this._teaScene) return; // 차담 장면: 1·2·3 은 예상 응답을 고른다. 걷는 키만 남긴다 (걸으면 일어난다)
@@ -2654,7 +2681,7 @@ class MetaTempleApp {
 
     // 이동 입력 (카메라 기준)
     let ix = 0, iz = 0;
-    if (this.entered && !this._listening && !(this.modals.isOpen && !['practice_108', 'mala', 'tea_chat'].includes(this.modals.current))) {
+    if (this.entered && !this._listening && !this._fading && !(this.modals.isOpen && !['practice_108', 'mala', 'tea_chat'].includes(this.modals.current))) {
       const k = this.keys;
       if (k.KeyW || k.ArrowUp) iz -= 1;
       if (k.KeyS || k.ArrowDown) iz += 1;
@@ -2780,6 +2807,8 @@ class MetaTempleApp {
    * 화면 배율 자동 조절 (계속): 실제 프레임 간격 평균(구간 시간 ÷ 프레임 수 — 끊김이 묻히지 않게)이 ADAPT.slow 를 넘는 곳에서는 배율을 0.25 씩 내리고,
    * 넉넉한 곳에서 ADAPT.okFor 동안 ADAPT.ok 안이면 처음 배율까지 0.25 씩 되올린다. 바꾼 뒤 3초는 쉰다 (후처리 버퍼를 다시 잡으니).
    * 올린 지 10초 안에 다시 내려야 하면 1분은 올리지 않는다 — 오르내림이 되풀이되지 않게.
+   * 화질 단계도 여기서 함께 (core/qualityTier.js): 배율을 다 올렸는데도 넉넉하면 high 로 — 상한이 1.75 로 오르고 배율은 위 규칙대로 0.25 씩 따라 오른다.
+   * high 에서 느리면 배율을 low 상한(1.25)까지 내린 뒤 그래도 느리면 low 로.
    */
   _adaptQuality() {
     const ADAPT = { slow: 22, ok: 17.5, slowFor: 2000, okFor: 6000, rest: 3000, step: 0.25, min: 1 };
@@ -2802,9 +2831,20 @@ class MetaTempleApp {
       console.info(`[quality] frame ${this.frameMs?.toFixed(1)}ms → pixelRatio ${W.pixelRatio}`);
     };
     const slow = span(ADAPT.slowFor), ok = span(ADAPT.okFor);
-    if (slow && avg(slow) > ADAPT.slow && W.pixelRatio > ADAPT.min) {
+    const floor = this.tier.tier === 'high' ? tierCap('low') : ADAPT.min;
+    const ready = W.precinctReady?.done !== false && W.outdoorReady?.done !== false && netReady(navigator.connection);
+    if (ready && !this.tier.warmed && this.tier.tier === 'low' && !this.tier.forced) (this.tier.warmed = true), warmRenderTier(W); // 실사 잎 재질이 막 바뀐 때 그림자 셰이더도 지어 둔다 — 올리는 순간 멈칫하지 않게
+    const to = decideTier(this.tier, { now, okAvg: ok && avg(ok), slowAvg: slow && avg(slow), atCap: W.pixelRatio >= A.start, atFloor: W.pixelRatio <= floor, ready });
+    if (to) {
+      applyRenderTier(W, to);
+      A.start = tierCap(to);
+      A.changedAt = now;
+      A.ts.length = 0;
+      return console.info(`[quality] frame ${this.frameMs?.toFixed(1)}ms → tier ${to} (pixelRatio ${W.pixelRatio}, cap ${A.start})`);
+    }
+    if (slow && avg(slow) > ADAPT.slow && W.pixelRatio > floor) {
       if (now - A.raisedAt < 10000) A.noRaiseUntil = now + 60000;
-      set(Math.max(ADAPT.min, W.pixelRatio - ADAPT.step));
+      set(Math.max(floor, W.pixelRatio - ADAPT.step));
     } else if (ok && avg(ok) < ADAPT.ok && W.pixelRatio < A.start && now > A.noRaiseUntil) {
       A.raisedAt = now;
       set(Math.min(A.start, W.pixelRatio + ADAPT.step));
@@ -2830,7 +2870,7 @@ class MetaTempleApp {
     const fps = (this._perfN * 1000) / (now - this._perfAt);
     this._perfAt = now;
     this._perfN = 0;
-    this._perfEl.textContent = `${fps.toFixed(0)} fps · ${this.frameMs?.toFixed(1) ?? '-'} ms\npr ${this.world.pixelRatio} (${this.quality})\n${calls} calls · ${Math.round(tris / 1000)}k tri`;
+    this._perfEl.textContent = `${fps.toFixed(0)} fps · ${this.frameMs?.toFixed(1) ?? '-'} ms\npr ${this.world.pixelRatio} (${this.quality}${this.tier.tier !== this.quality ? ` → ${this.tier.tier}` : ''})\n${calls} calls · ${Math.round(tris / 1000)}k tri`;
   }
 }
 

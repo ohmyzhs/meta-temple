@@ -24,7 +24,7 @@ try {
   for (const dx of [2, 4, 6, 10, 15, 20]) {
     const r = await page.evaluate(async (dx) => {
       const t = window.temple, e = t.sound;
-      t._teleport(-12 + dx, -7, -Math.PI / 2);
+      t._place(-12 + dx, -7, -Math.PI / 2);
       await new Promise((ok) => setTimeout(ok, 4000)); // 자리 잡고 녹음이 붙게
       const bb = new Float32Array(4096), mb = new Float32Array(4096);
       let sb = 0, sm = 0, n = 0;
@@ -58,7 +58,7 @@ try {
   // 번뇌 소각: flareBrazier(3) — 타닥 레이어 목표 크기가 곧바로 커졌다가 3초 뒤 처음으로
   const fl = await page.evaluate(async () => {
     const t = window.temple, e = t.sound;
-    t._teleport(-8, -7, -Math.PI / 2);
+    t._place(-8, -7, -Math.PI / 2);
     await new Promise((ok) => setTimeout(ok, 2500));
     const g = () => e.L.brazier.level.gain._target;
     const before = g();

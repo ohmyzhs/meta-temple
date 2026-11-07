@@ -1,12 +1,15 @@
 /**
- * 장소 시트의 작은 지도 — 위에서 본 산사(북쪽 위)에 지금 내 자리, 가람 네 곳, 산책길 쉼터를 찍고 누르면 그리로 간다.
+ * 장소 시트의 작은 지도 — 위에서 본 산사(북쪽 위)에 지금 내 자리, 함께 있는 도반, 가람 네 곳, 산책길 쉼터를 찍고 누르면 그리로 간다.
  * 단추가 아닌 그림이라 손가락이 닿은 자리에서 가장 가까운 점(지도 위 8m 안)을 고른다 — 이름 있는 단추 목록은 지도 아래에 따로.
+ * 누를 수 있다는 것: 지도 위 안내 한 줄은 늘, 한 번도 안 눌러 본 사람(fresh)에게는 점마다 물결이 번진다. 누르면 그 점에서 물결이 한 번 퍼진 뒤 간다.
  * three 없이 돈다 (geo 로 지형 함수를 받는다).
  */
 import { PATHS, trail, DECK, CROSSINGS, REST_SPOTS } from '../world/trail.js';
 
 export const VIEW = { x0: -66, z0: -73, w: 132, h: 132 }; // 뒷산 중턱 길(z -68.5)까지
 const PICK_R = 8; // m
+const TAP_MS = 180; // 누른 점에서 물결이 퍼지는 것을 보고 나서 시트가 닫힌다
+const PEER_R = 0.95, PEER_Q = 0.5, PEER_MAX = 240; // 도반 점: 반지름(m), 이 간격(m)으로 모아 겹친 점은 하나로, 가장 많이 그리는 수
 
 /** 지도에 찍을 점: 가람 네 곳 + 쉼터(6m 안 쉼터는 하나로 — 그루터기 둘) */
 export function mapMarkers(zones) {
@@ -31,6 +34,25 @@ export function pickMarker(markers, x, z, r = PICK_R) {
   return best;
 }
 
+/**
+ * 도반 점들을 path 하나로 (원 하나 = 호 두 개). PEER_Q 격자로 모아 같은 칸은 한 번만, 최대 PEER_MAX 개.
+ * 겹친 점은 한 path 의 합집합이라 진해지지 않는다 — 사람이 몰린 곳은 점이 이어져 조금 넓어질 뿐.
+ * 테두리는 같은 path 를 밑에 한 번 더 그려(굵은 선) 위 채움이 안쪽 선을 덮는다 → 뭉친 곳도 바깥 테두리만 남는다.
+ */
+export function peerPath(points, { r = PEER_R, q = PEER_Q, max = PEER_MAX } = {}) {
+  const seen = new Set();
+  let d = '';
+  for (const p of points) {
+    if (seen.size >= max) break;
+    const x = Math.round(p.x / q) * q, z = Math.round(p.z / q) * q;
+    const k = `${x},${z}`;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    d += `M${(x - r).toFixed(1)} ${z.toFixed(1)}a${r} ${r} 0 1 0 ${2 * r} 0a${r} ${r} 0 1 0 ${-2 * r} 0`;
+  }
+  return d;
+}
+
 const line = (pts) => pts.map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(1)} ${p.z.toFixed(1)}`).join('');
 
 /** 산책길 쉼터 표시 (작은 그림) */
@@ -44,10 +66,10 @@ const GLYPH = {
 };
 
 /**
- * root 안에 지도를 그린다. onPick(marker) — 점을 누르면.
- * 돌려주는 것: { markers, setPlayer(x, z, heading), setHere(zoneId) }
+ * root 안에 지도를 그린다. onPick(marker) — 점을 누르면. fresh — 아직 한 번도 안 눌러 봤으면 점마다 물결.
+ * 돌려주는 것: { markers, setPlayer(x, z, heading), setHere(zoneId), setPeers(positions) }
  */
-export function createMiniMap(root, { zones, geo, onPick }) {
+export function createMiniMap(root, { zones, geo, onPick, fresh = false }) {
   const { streamZ, pathX, L } = geo;
   const markers = mapMarkers(zones);
   const V = VIEW;
@@ -59,7 +81,7 @@ export function createMiniMap(root, { zones, geo, onPick }) {
   for (let s = DECK.s0; s <= DECK.s1; s += 2) deck.push(trail.at(s));
   const rect = (r, cls) => `<rect class="${cls}" x="${r.x0}" y="${r.z0}" width="${r.x1 - r.x0}" height="${r.z1 - r.z0}" rx="0.8"/>`;
   const c = L.courtyard, h = L.hall, t = L.teahouse, tt = L.teahouseTerrace, p = L.pond, wc = L.westCourt, hy = L.hallYard;
-  root.innerHTML = `<svg class="minimap-svg" viewBox="${V.x0} ${V.z0} ${V.w} ${V.h}" aria-hidden="true" focusable="false">
+  root.innerHTML = `<svg class="minimap-svg${fresh ? ' fresh' : ''}" viewBox="${V.x0} ${V.z0} ${V.w} ${V.h}" aria-hidden="true" focusable="false">
     <rect class="mm-ground" x="${V.x0}" y="${V.z0}" width="${V.w}" height="${V.h}" rx="5"/>
     ${[L.bamboo, L.bambooEast].map((b) => rect(b, 'mm-bamboo')).join('')}
     <path class="mm-stream" d="${line(stream)}"/>
@@ -73,24 +95,37 @@ export function createMiniMap(root, { zones, geo, onPick }) {
     ${PATHS.map((P) => `<path class="mm-trail" d="${line(P.pts.filter((_, i) => i % 3 === 0 || i === P.pts.length - 1))}"/>`).join('')}
     <path class="mm-deck" d="${line(deck)}"/>
     ${CROSSINGS.map((k) => `<path class="mm-cross" d="M${k.x} ${k.z0}V${k.z1}"/>`).join('')}
+    <g class="mm-peers"><path class="mm-peers-rim" d=""/><path d=""/></g>
     ${markers
-      .map((m) =>
+      .map((m, i) =>
         m.kind === 'zone'
-          ? `<g class="mm-zone" data-id="${m.id}" transform="translate(${m.x.toFixed(1)} ${m.z.toFixed(1)})"><circle r="3.1"/><text y="7.6">${m.name}</text></g>`
-          : `<g class="mm-rest" data-id="${m.id}" transform="translate(${m.x.toFixed(1)} ${m.z.toFixed(1)})"><circle r="2.3"/><path d="${GLYPH[m.spot] || ''}"/></g>`
+          ? `<g class="mm-zone" data-id="${m.id}" transform="translate(${m.x.toFixed(1)} ${m.z.toFixed(1)})"><circle class="mm-wave" r="3.1" style="--i:${i}"/><circle r="3.1"/><text y="7.6">${m.name}</text></g>`
+          : `<g class="mm-rest" data-id="${m.id}" transform="translate(${m.x.toFixed(1)} ${m.z.toFixed(1)})"><circle class="mm-wave" r="2.3" style="--i:${i}"/><circle r="2.3"/><path d="${GLYPH[m.spot] || ''}"/></g>`
       )
       .join('')}
     <g class="mm-me" transform="translate(0 0)"><circle class="mm-me-halo" r="3.6"/><path d="M0 -2.6L1.8 1.8L0 0.9L-1.8 1.8Z"/></g>
-  </svg>`;
+    <g class="mm-tap-at"><circle class="mm-tap" r="3"/></g>
+  </svg>
+  <p class="mm-hint"><i aria-hidden="true"></i>점을 누르면 그곳으로 바로 갑니다</p>`;
   const svg = root.querySelector('svg');
   const me = svg.querySelector('.mm-me');
+  const peers = svg.querySelectorAll('.mm-peers path');
+  const tapAt = svg.querySelector('.mm-tap-at'), tap = tapAt.firstElementChild;
+  let picking = 0;
   svg.addEventListener('click', (e) => {
     const pt = svg.createSVGPoint();
     pt.x = e.clientX;
     pt.y = e.clientY;
     const w = pt.matrixTransform(svg.getScreenCTM().inverse());
     const m = pickMarker(markers, w.x, w.y);
-    if (m) onPick(m);
+    if (!m || picking) return;
+    svg.classList.remove('fresh');
+    tapAt.setAttribute('transform', `translate(${m.x.toFixed(1)} ${m.z.toFixed(1)})`);
+    tap.animate?.([{ transform: 'scale(0.8)', opacity: 0.95 }, { transform: 'scale(3)', opacity: 0 }], { duration: TAP_MS + 120, easing: 'ease-out' });
+    picking = setTimeout(() => {
+      picking = 0;
+      onPick(m);
+    }, TAP_MS);
   });
   return {
     markers,
@@ -101,6 +136,11 @@ export function createMiniMap(root, { zones, geo, onPick }) {
     },
     setHere(zoneId) {
       svg.querySelectorAll('.mm-zone').forEach((g) => g.classList.toggle('here', g.dataset.id === zoneId));
+    },
+    /** 함께 있는 도반 자리 ({x, z} 목록) — 장소 시트가 열려 있는 동안만 부른다 */
+    setPeers(points) {
+      const d = peerPath(points);
+      if (peers[1].getAttribute('d') !== d) peers.forEach((p) => p.setAttribute('d', d));
     }
   };
 }

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mapMarkers, pickMarker, VIEW } from './miniMap.js';
+import { mapMarkers, pickMarker, peerPath, VIEW } from './miniMap.js';
 import { REST_SPOTS, PATHS } from '../world/trail.js';
 
 const ZONES = [
@@ -31,4 +31,12 @@ test('pick_nearest_within_8m', () => {
   const lookout = REST_SPOTS.find((s) => s.id === 'lookout');
   assert.equal(pickMarker(m, lookout.x + 2, lookout.z - 1).id, 'lookout');
   assert.equal(pickMarker(m, -57, 58), null); // 빈 곳
+});
+
+test('peer_dots_merge_close_people_and_cap', () => {
+  const dots = (d) => (d.match(/M/g) || []).length;
+  assert.equal(peerPath([]), '');
+  assert.equal(dots(peerPath([{ x: 1, z: 1 }, { x: 1.2, z: 0.9 }, { x: 6, z: 1 }])), 2); // 0.5m 안은 하나로
+  const crowd = Array.from({ length: 600 }, (_, i) => ({ x: (i % 30) * 2 - 30, z: Math.floor(i / 30) * 2 - 20 }));
+  assert.equal(dots(peerPath(crowd)), 240);
 });
