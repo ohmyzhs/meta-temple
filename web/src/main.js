@@ -88,7 +88,12 @@ class MetaTempleApp {
     this.clock = new THREE.Clock();
     this.introBackground = createIntroBackground();
     this._initIntro();
-    this._boot();
+    this._bootPromise = this._boot().then(() => true, (error) => {
+      console.error(error);
+      $('#intro-loading').classList.remove('done');
+      $('#intro-loading-text').textContent = '산사를 준비하지 못했습니다. 새로고침해 주세요.';
+      return false;
+    });
   }
 
   /* ───────── 입장 ───────── */
@@ -124,7 +129,8 @@ class MetaTempleApp {
       $('#intro-custom').setAttribute('aria-expanded', String(open));
       if (open) field.input.focus();
     });
-    $('#intro-enter').addEventListener('click', () => this._enter());
+    $('#intro-enter').addEventListener('click', () => this._requestEntry());
+    $('#intro-enter').disabled = false;
     // 대문은 글을 덜어 낸다: 법명·모습은 칩 하나로 접어 두고, 누르면 고르는 칸이 열린다
     const panel = $('#intro-who-panel');
     const syncWho = () => {
@@ -159,6 +165,7 @@ class MetaTempleApp {
         onProgress: (p, label) => {
           $('#intro-progress').style.width = `${Math.round(p * 100)}%`;
           $('#intro-loading-text').textContent = label;
+          if (this._entryTransition) $('#intro-enter-label').textContent = label;
         }
       });
       // 현판·기와 글씨는 캔버스에 한 번 그려 캐시하므로, 서체(한자 부분 집합 포함)를 먼저 받아 둔다
@@ -172,9 +179,7 @@ class MetaTempleApp {
       ]).catch(() => {});
       await this.world.build();
     } catch (e) {
-      console.error(e);
-      $('#intro-loading-text').textContent = '이 브라우저에서는 3D 산사를 열 수 없습니다 (WebGL 필요).';
-      return;
+      throw e;
     }
     const temple = this.world.temple;
     this.temple = temple;
@@ -223,7 +228,6 @@ class MetaTempleApp {
     this._syncChips();
     this._updateHUD();
     $('#intro-loading').classList.add('done');
-    $('#intro-enter').disabled = false;
     // 장면과 리소스는 준비하지만, 입장하기 전까지는 그리지 않는다.
     this.world.cam.yaw = 0;
     this.world.cam.pitch = 0.22;
@@ -276,17 +280,91 @@ class MetaTempleApp {
     this.player.restState = null;
   }
 
+  async _requestEntry() {
+    if (this.entered || this._entryTransition) return;
+    this._entryTransition = true;
+    const request = this._entryRequest = (this._entryRequest || 0) + 1;
+    const button = $('#intro-enter');
+    button.disabled = true;
+    button.classList.add('is-entering');
+    button.setAttribute('aria-busy', 'true');
+    $('#intro-enter-label').textContent = '산문을 열고 있습니다…';
+    this.introBackground.pauseSound();
+    // history 항목은 실제 사용자 누름 안에서 쌓아야 모바일 뒤로가기가 건너뛰지 않는다.
+    if (this.backGuard) this.backGuard.enter();
+    else this.backGuard = installBackGuard({
+      closeTop: () => this.entered && this._closeTop(),
+      toast: (m) => this.toast(m),
+      onExit: () => this.entered ? this._toIntro() : this._cancelEntry()
+    });
+    try {
+      if (!this._hasEntered) this.sound.setBackground(this.store.state.settings.bgAudio !== false);
+      this.sound.prepareForEntry(); // 입장 준비가 길어져도 최초 누름의 오디오 권한을 보존한다.
+    } catch (error) { console.warn('[soundEngine] 오디오 준비 실패', error); }
+    // 입장 초기화와 첫 렌더가 메인 스레드를 점유하기 전에 버튼 상태를 먼저 그린다.
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const ready = await this._bootPromise;
+    if (request !== this._entryRequest) return;
+    if (!ready) return this._entryFailed();
+    $('#intro-enter-label').textContent = '산문으로 들어가는 중…';
+    try { this._enter(); } catch (error) { this._entryFailed(error); }
+  }
+
+  _entryFailed(error) {
+    if (error) console.error(error);
+    this._stopLoop();
+    this.entered = false;
+    this._entryTransition = false;
+    this.backGuard?.cancel();
+    this.sound.cancelPreparedEntry();
+    if (this.sound.isEnabled) this.sound.toggleAudio();
+    this.introBackground.resumeSound();
+    $('#hud').classList.add('hidden');
+    const button = $('#intro-enter');
+    button.classList.remove('is-entering');
+    button.removeAttribute('aria-busy');
+    button.disabled = true;
+    $('#intro-enter-label').textContent = '입장할 수 없습니다';
+    $('#intro-loading').classList.remove('done');
+    $('#intro-loading-text').textContent = '산사를 열지 못했습니다. 새로고침해 주세요.';
+  }
+
+  _cancelEntry() {
+    this._entryRequest++;
+    this._entryTransition = false;
+    this.sound.cancelPreparedEntry();
+    this.introBackground.resumeSound();
+    const button = $('#intro-enter');
+    button.disabled = false;
+    button.classList.remove('is-entering');
+    button.removeAttribute('aria-busy');
+    $('#intro-enter-label').textContent = '산문에 들어서기';
+  }
+
+  _finishEntry() {
+    if (!this._entryTransition || !this.entered) return;
+    this._entryTransition = false;
+    this.introBackground.leave();
+    $('#intro').classList.add('leaving');
+    this._introTimer = setTimeout(() => {
+      $('#intro').classList.add('hidden');
+      const button = $('#intro-enter');
+      button.disabled = false;
+      button.classList.remove('is-entering');
+      button.removeAttribute('aria-busy');
+      $('#intro-enter-label').textContent = '산문에 들어서기';
+    }, 1500);
+  }
+
   _enter() {
     if (this.entered) return;
     this.entered = true;
-    this.introBackground.leave();
-    $('#intro').classList.add('leaving');
-    this._introTimer = setTimeout(() => $('#intro').classList.add('hidden'), 1500);
     $('#hud').classList.remove('hidden');
     this._startLoop();
     this.zone = null;
     this.enteredAt = performance.now();
-    if (this.backGuard) return this._reenter();
+    if (this._hasEntered) return this._reenter();
+    this._hasEntered = true;
     this.sound.setBackground(this.store.state.settings.bgAudio !== false); // 「화면 꺼져도 계속 듣기」 (기본 켬)
     // 화면이 꺼져 그리기가 멈춰도 연속·반복 듣기는 다음(같은) 예불로 (켜져 있으면 _listenTick 이 잠깐 머문 뒤 넘긴다)
     this.sound.onTrackEnd = () => {
@@ -303,8 +381,6 @@ class MetaTempleApp {
     this.sound.loadRecordings('./assets/audio/'); // 실제 녹음 — 받는 동안은 합성음
     this.sound.setWeather(this.world.weatherName);
     this.sound.setTimeOfDay(this.world.phase);
-    // 입장 클릭 안에서 (사용자 동작)
-    this.backGuard = installBackGuard({ closeTop: () => this._closeTop(), toast: (m) => this.toast(m), onExit: () => this._toIntro() });
     this._syncSoundButton();
     const { streak, isNewDay } = this.store.checkIn();
     this._applyItems();
@@ -333,7 +409,6 @@ class MetaTempleApp {
 
   /** 산문을 나섰다가 다시 들어설 때 — 방어와 소리만 되살린다 (실시간 연결·녹음·출석은 첫 입장 그대로) */
   _reenter() {
-    this.backGuard.enter();
     if (this._soundBeforeIntro && !this.sound.isEnabled) this.sound.toggleAudio();
     this._syncSoundButton();
     setTimeout(() => this.toast('다시 산문에 들어섰습니다'), 900);
@@ -342,8 +417,14 @@ class MetaTempleApp {
   /** 뒤로가기로 산문을 나섬: 입장 전 첫 화면으로 돌아가고, 몸은 일주문 앞에 다시 선다 */
   _toIntro() {
     this.entered = false;
+    this._entryTransition = false;
     this._stopLoop();
     clearTimeout(this._introTimer);
+    const button = $('#intro-enter');
+    button.disabled = false;
+    button.classList.remove('is-entering');
+    button.removeAttribute('aria-busy');
+    $('#intro-enter-label').textContent = '산문에 들어서기';
     closeAll();
     document.querySelectorAll('.toast').forEach((t) => t.remove());
     this.avatars.teleport(L.spawn.x, L.spawn.z, Math.PI);
@@ -2393,7 +2474,13 @@ class MetaTempleApp {
     if (!this._loopRunning) return;
     this._loopRequest = requestAnimationFrame(() => this._loop());
     const dt = Math.min(this.clock.getDelta(), 0.1);
-    this._frame(dt, this.clock.elapsedTime);
+    try {
+      this._frame(dt, this.clock.elapsedTime);
+    } catch (error) {
+      if (this._entryTransition) return this._entryFailed(error);
+      throw error;
+    }
+    this._finishEntry(); // 실제 첫 렌더가 끝난 뒤에만 대문을 전환한다.
     if (PERF) this._perfHud();
   }
 
