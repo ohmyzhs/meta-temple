@@ -69,6 +69,14 @@ ALTER TABLE stones ADD COLUMN IF NOT EXISTS cairn_id text;
 ALTER TABLE stones ADD COLUMN IF NOT EXISTS x double precision;
 ALTER TABLE stones ADD COLUMN IF NOT EXISTS z double precision;
 CREATE INDEX IF NOT EXISTS stones_cairn ON stones (cairn_id) WHERE cairn_id IS NOT NULL;
+-- 기록 지키기 (복구키, web/src/core/recovery.js): 키는 화면에만 있다. 서버에는 키에서 유도한 조회값을 소금 해시한 id 와
+-- 화면이 gzip·AES-GCM 으로 잠근 덩어리(base64)만 — DB 가 새어도 읽을 수 없다
+CREATE TABLE IF NOT EXISTS backups (
+  id text PRIMARY KEY,
+  data text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
 `;
 
 // 한 번에 돌려주는 양 — "일부만" 보이게 (최근 것 위주). cairns 는 최근에 돌이 얹힌 길가 돌탑
@@ -169,6 +177,19 @@ export async function createStore(url) {
       }
       return { hidden, reports: n };
     },
+    /** 맡긴 기록 넣기/덮어쓰기 → { updatedAt } */
+    async putBackup(id, data) {
+      const r = await pool.query(
+        'INSERT INTO backups (id, data) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = now() RETURNING updated_at',
+        [id, data]
+      );
+      return { updatedAt: new Date(r.rows[0].updated_at).toISOString() };
+    },
+    /** 맡긴 기록 → { data, updatedAt } | null */
+    async getBackup(id) {
+      const r = await pool.query('SELECT data, updated_at FROM backups WHERE id = $1', [id]);
+      return r.rows[0] ? { data: r.rows[0].data, updatedAt: new Date(r.rows[0].updated_at).toISOString() } : null;
+    },
     async empathize(id, clientHash) {
       const c = await pool.connect();
       try {
@@ -190,7 +211,7 @@ export async function createStore(url) {
 }
 
 function memoryStore() {
-  const db = { lanterns: [], tiles: [], stones: [], emp: new Set(), reports: new Map() };
+  const db = { lanterns: [], tiles: [], stones: [], emp: new Set(), reports: new Map(), backups: new Map() };
   const newest = (a, n) => [...a].filter((x) => !x.hidden).sort((x, y) => y.created_at - x.created_at).slice(0, n).map(row);
   return {
     kind: 'memory',
@@ -246,6 +267,14 @@ function memoryStore() {
       who.add(clientHash);
       if (!item.hidden && who.size >= hideAt) item.hidden = true;
       return { hidden: item.hidden, reports: who.size };
+    },
+    async putBackup(id, data) {
+      const updatedAt = new Date().toISOString();
+      db.backups.set(id, { data, updatedAt });
+      return { updatedAt };
+    },
+    async getBackup(id) {
+      return db.backups.get(id) || null;
     },
     async empathize(id, clientHash) {
       const l = db.lanterns.find((x) => x.id === id);
